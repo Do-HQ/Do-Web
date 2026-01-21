@@ -1,0 +1,281 @@
+[00:00:00.552] Server  LOG     ✓ Ready in 420ms
+[00:00:00.881] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:00:01.002] Browser ERROR   In HTML, %s cannot be a child of <%s>.%s
+This will cause a hydration error.%s <section> html  
+
+  ...
+    <ScrollAndFocusHandler segmentPath={[...]}>
+      <InnerScrollAndFocusHandler segmentPath={[...]} focusAndScrollRef={{apply:false, ...}}>
+        <ErrorBoundary errorComponent={undefined} errorStyles={undefined} errorScripts={undefined}>
+          <LoadingBoundary name="/" loading={null}>
+            <HTTPAccessFallbackBoundary notFound={<SegmentViewNode>} forbidden={undefined} unauthorized={undefined}>
+              <HTTPAccessFallbackErrorBoundary pathname="/test" notFound={<SegmentViewNode>} forbidden={undefined} ...>
+                <RedirectBoundary>
+                  <RedirectErrorBoundary router={{...}}>
+                    <InnerLayoutRouter url="/test" tree={[...]} params={{}} cacheNode={{...}} segmentPath={[...]} ...>
+                      <SegmentViewNode type="layout" pagePath="(auth)/lay...">
+                        <SegmentTrieNode>
+                        <script>
+                        <script>
+                        <ClientSegmentRoot Component={function RootLayout} slots={{...}} ...>
+                          <RootLayout params={Promise}>
+>                           <html lang="en">
+                              <body>
+                              <Toaster>
+                                <Toaster theme="system" className="toaster group" icons={{...}} style={{...}}>
+>                                 <section
+>                                   ref={null}
+>                                   aria-label="Notifications alt+T"
+>                                   tabIndex={-1}
+>                                   aria-live="polite"
+>                                   aria-relevant="additions text"
+>                                   aria-atomic="false"
+>                                   suppressHydrationWarning={true}
+>                                 >
+                    ...
+        ...
+
+[00:00:01.002] Browser ERROR   <%s> cannot contain a nested %s.
+See this log for the ancestor stack trace. html <section>
+[00:00:01.002] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <InnerScrollAndFocusHandler segmentPath={[...]} focusAndScrollRef={{apply:false, ...}}>
+      <ErrorBoundary errorComponent={undefined} errorStyles={undefined} errorScripts={undefined}>
+        <LoadingBoundary name="/" loading={null}>
+          <HTTPAccessFallbackBoundary notFound={<SegmentViewNode>} forbidden={undefined} unauthorized={undefined}>
+            <HTTPAccessFallbackErrorBoundary pathname="/test" notFound={<SegmentViewNode>} forbidden={undefined} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <InnerLayoutRouter url="/test" tree={[...]} params={{}} cacheNode={{...}} segmentPath={[...]} ...>
+                    <SegmentViewNode type="layout" pagePath="(auth)/lay...">
+                      <SegmentTrieNode>
+                      <script>
+                      <script>
+                      <ClientSegmentRoot Component={function RootLayout} slots={{...}} ...>
+                        <RootLayout params={Promise}>
+                          <html lang="en">
+                            <body
+-                             className="geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__v..."
+                            >
+                            ...
+                  ...
+      ...
+
+[00:00:02.100] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:00:02.218] Browser ERROR   In HTML, %s cannot be a child of <%s>.%s
+This will cause a hydration error.%s <section> html  
+
+  ...
+    <ScrollAndFocusHandler segmentPath={[...]}>
+      <InnerScrollAndFocusHandler segmentPath={[...]} focusAndScrollRef={{apply:false, ...}}>
+        <ErrorBoundary errorComponent={undefined} errorStyles={undefined} errorScripts={undefined}>
+          <LoadingBoundary name="/" loading={null}>
+            <HTTPAccessFallbackBoundary notFound={<SegmentViewNode>} forbidden={undefined} unauthorized={undefined}>
+              <HTTPAccessFallbackErrorBoundary pathname="/test" notFound={<SegmentViewNode>} forbidden={undefined} ...>
+                <RedirectBoundary>
+                  <RedirectErrorBoundary router={{...}}>
+                    <InnerLayoutRouter url="/test" tree={[...]} params={{}} cacheNode={{...}} segmentPath={[...]} ...>
+                      <SegmentViewNode type="layout" pagePath="(auth)/lay...">
+                        <SegmentTrieNode>
+                        <script>
+                        <script>
+                        <ClientSegmentRoot Component={function RootLayout} slots={{...}} ...>
+                          <RootLayout params={Promise}>
+>                           <html lang="en">
+                              <body>
+                              <Toaster>
+                                <Toaster theme="system" className="toaster group" icons={{...}} style={{...}}>
+>                                 <section
+>                                   ref={null}
+>                                   aria-label="Notifications alt+T"
+>                                   tabIndex={-1}
+>                                   aria-live="polite"
+>                                   aria-relevant="additions text"
+>                                   aria-atomic="false"
+>                                   suppressHydrationWarning={true}
+>                                 >
+                    ...
+        ...
+
+[00:00:02.218] Browser ERROR   <%s> cannot contain a nested %s.
+See this log for the ancestor stack trace. html <section>
+[00:00:02.218] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <InnerScrollAndFocusHandler segmentPath={[...]} focusAndScrollRef={{apply:false, ...}}>
+      <ErrorBoundary errorComponent={undefined} errorStyles={undefined} errorScripts={undefined}>
+        <LoadingBoundary name="/" loading={null}>
+          <HTTPAccessFallbackBoundary notFound={<SegmentViewNode>} forbidden={undefined} unauthorized={undefined}>
+            <HTTPAccessFallbackErrorBoundary pathname="/test" notFound={<SegmentViewNode>} forbidden={undefined} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <InnerLayoutRouter url="/test" tree={[...]} params={{}} cacheNode={{...}} segmentPath={[...]} ...>
+                    <SegmentViewNode type="layout" pagePath="(auth)/lay...">
+                      <SegmentTrieNode>
+                      <script>
+                      <script>
+                      <ClientSegmentRoot Component={function RootLayout} slots={{...}} ...>
+                        <RootLayout params={Promise}>
+                          <html lang="en">
+                            <body
+-                             className="geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__v..."
+                            >
+                            ...
+                  ...
+      ...
+
+[00:00:05.201] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:00:05.318] Browser ERROR   In HTML, %s cannot be a child of <%s>.%s
+This will cause a hydration error.%s <section> html  
+
+  ...
+    <ScrollAndFocusHandler segmentPath={[...]}>
+      <InnerScrollAndFocusHandler segmentPath={[...]} focusAndScrollRef={{apply:false, ...}}>
+        <ErrorBoundary errorComponent={undefined} errorStyles={undefined} errorScripts={undefined}>
+          <LoadingBoundary name="/" loading={null}>
+            <HTTPAccessFallbackBoundary notFound={<SegmentViewNode>} forbidden={undefined} unauthorized={undefined}>
+              <HTTPAccessFallbackErrorBoundary pathname="/test" notFound={<SegmentViewNode>} forbidden={undefined} ...>
+                <RedirectBoundary>
+                  <RedirectErrorBoundary router={{...}}>
+                    <InnerLayoutRouter url="/test" tree={[...]} params={{}} cacheNode={{...}} segmentPath={[...]} ...>
+                      <SegmentViewNode type="layout" pagePath="(auth)/lay...">
+                        <SegmentTrieNode>
+                        <script>
+                        <script>
+                        <ClientSegmentRoot Component={function RootLayout} slots={{...}} ...>
+                          <RootLayout params={Promise}>
+>                           <html lang="en">
+                              <body>
+                              <Toaster>
+                                <Toaster theme="system" className="toaster group" icons={{...}} style={{...}}>
+>                                 <section
+>                                   ref={null}
+>                                   aria-label="Notifications alt+T"
+>                                   tabIndex={-1}
+>                                   aria-live="polite"
+>                                   aria-relevant="additions text"
+>                                   aria-atomic="false"
+>                                   suppressHydrationWarning={true}
+>                                 >
+                    ...
+        ...
+
+[00:00:05.318] Browser ERROR   <%s> cannot contain a nested %s.
+See this log for the ancestor stack trace. html <section>
+[00:00:05.318] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <InnerScrollAndFocusHandler segmentPath={[...]} focusAndScrollRef={{apply:false, ...}}>
+      <ErrorBoundary errorComponent={undefined} errorStyles={undefined} errorScripts={undefined}>
+        <LoadingBoundary name="/" loading={null}>
+          <HTTPAccessFallbackBoundary notFound={<SegmentViewNode>} forbidden={undefined} unauthorized={undefined}>
+            <HTTPAccessFallbackErrorBoundary pathname="/test" notFound={<SegmentViewNode>} forbidden={undefined} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <InnerLayoutRouter url="/test" tree={[...]} params={{}} cacheNode={{...}} segmentPath={[...]} ...>
+                    <SegmentViewNode type="layout" pagePath="(auth)/lay...">
+                      <SegmentTrieNode>
+                      <script>
+                      <script>
+                      <ClientSegmentRoot Component={function RootLayout} slots={{...}} ...>
+                        <RootLayout params={Promise}>
+                          <html lang="en">
+                            <body
+-                             className="geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__v..."
+                            >
+                            ...
+                  ...
+      ...
+
+[00:00:37.543] Server  LOG     ✓ Compiled in 201ms
+[00:02:09.008] Server  WARN    ⚠ Fast Refresh had to perform a full reload when ./app/(auth)/test/page.tsx changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+[00:02:09.054] Server  LOG     ✓ Compiled in 52ms
+[00:02:09.201] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:02:09.340] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <InnerScrollAndFocusHandler segmentPath={[...]} focusAndScrollRef={{apply:false, ...}}>
+      <ErrorBoundary errorComponent={undefined} errorStyles={undefined} errorScripts={undefined}>
+        <LoadingBoundary name="/" loading={null}>
+          <HTTPAccessFallbackBoundary notFound={<SegmentViewNode>} forbidden={undefined} unauthorized={undefined}>
+            <HTTPAccessFallbackErrorBoundary pathname="/test" notFound={<SegmentViewNode>} forbidden={undefined} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <InnerLayoutRouter url="/test" tree={[...]} params={{}} cacheNode={{...}} segmentPath={[...]} ...>
+                    <SegmentViewNode type="layout" pagePath="(auth)/lay...">
+                      <SegmentTrieNode>
+                      <script>
+                      <script>
+                      <ClientSegmentRoot Component={function RootLayout} slots={{...}} ...>
+                        <RootLayout params={Promise}>
+                          <html lang="en">
+                            <body
+-                             className="geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__v..."
+                            >
+                  ...
+      ...
+
+[00:03:43.318] Server  LOG     ✓ Compiled in 34ms
+[00:03:45.560] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:03:47.420] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:07:57.879] Server  LOG     ✓ Compiled in 59ms
+[00:07:58.145] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:08:27.444] Server  LOG     ✓ Compiled in 45ms
+[00:09:23.816] Server  LOG     ✓ Compiled in 20ms
+[00:11:01.741] Server  LOG     ✓ Compiled in 26ms
+[00:12:25.535] Server  WARN    ⚠ Fast Refresh had to perform a full reload when ./app/(auth)/test/page.tsx changed. Read more: https://nextjs.org/docs/messages/fast-refresh-reload
+[00:12:25.596] Server  LOG     ✓ Compiled in 33ms
+[00:12:25.748] Browser INFO    %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[00:15:51.050] Server  LOG     ✓ Compiled in 40ms
+[00:17:21.541] Server  LOG     ✓ Compiled in 28ms
+[00:17:31.982] Server  LOG     ✓ Compiled in 20ms
+[00:17:54.018] Server  LOG     ✓ Compiled in 21ms
+[00:20:02.095] Server  LOG     ✓ Compiled in 25ms
+[00:20:43.282] Server  LOG     ✓ Compiled in 28ms
+[00:21:36.957] Server  LOG     ✓ Compiled in 42ms
+[00:43:40.893] Server  LOG     ✓ Compiled in 57ms
+[01:29:45.686] Browser LOG     Nightly: Overwrites EVM default provider
+[01:30:47.692] Browser LOG     Nightly: Overwrites EVM default provider
+[01:30:55.245] Browser LOG     Nightly: Overwrites EVM default provider
+[01:30:57.678] Browser LOG     Nightly: Overwrites EVM default provider
