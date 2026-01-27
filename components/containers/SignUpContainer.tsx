@@ -13,28 +13,29 @@ const SignUpContainer = () => {
         </div>
 
         <div className="text-center space-y-1">
-          <h1 className="text-lg lg:text-xl font-medium text-foreground">
+          <h1 className="text-base lg:text-lg font-semibold text-foreground">
             Your Agentic workspace.
           </h1>
-          <p className="text-base lg:text-lg text-muted-foreground opacity-90">
+          <h2 className="text-base lg:text-lg font-semibold text-muted-foreground opacity-70">
             Create your Squircle account
-          </p>
+          </h2>
         </div>
 
-        <div className="space-y-6 my-6 lg:my-8">
-          <form className="space-y-3">
+        <form className="space-y-6 my-6 lg:my-8">
+          <div className="space-y-2.5">
             <Label htmlFor="email" className="text-xs">
               Work email
             </Label>
             <Input
               id="email"
               type="email"
+              autoComplete="email"
               placeholder="Enter your email address..."
             />
-            <p className="text-xs text-muted-foreground lg:mt-1">
-              Use your organization email to collaborate easily with teammates
+            <p className="text-xs text-muted-foreground">
+              Use an organization email to easily collaborate with teammates
             </p>
-          </form>
+          </div>
 
           <div>
             <Button className="w-full">
@@ -52,7 +53,7 @@ const SignUpContainer = () => {
             </div>
           </div>
 
-        </div>
+        </form>
       </div>
 
       <p className="text-xs text-muted-foreground text-center mb-6">
