@@ -1,10 +1,9 @@
-import React from "react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Label } from "@/components/ui/label"
-import Link from "next/link"
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import Link from "next/link";
 
-const SignUpContainer = () => {
+const LogInContainer = () => {
   return (
     <section className="min-h-screen flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm flex flex-col flex-1 justify-center space-y-6">
@@ -14,10 +13,10 @@ const SignUpContainer = () => {
 
         <div className="text-center space-y-1">
           <h1 className="text-lg lg:text-xl font-medium text-foreground">
-            Your Agentic workspace.
+            Welcome back!
           </h1>
           <p className="text-base lg:text-lg text-muted-foreground opacity-90">
-            Create your Squircle account
+            Log in to your Squircle account
           </p>
         </div>
 
@@ -37,21 +36,22 @@ const SignUpContainer = () => {
           </form>
 
           <div>
-            <Button className="w-full">
+            <Button className="w-full mt-2">
               Continue with email
             </Button>
 
             <div className="text-center mt-2">
-              <p className="text-xs text-muted-foreground">Already have an account? {" "}
+              <p className="text-xs text-muted-foreground">
+                Don&apos;t have an account? {" "}
                 <Link
-                  href="/login"
-                  className=" underline hover:text-foreground"
+                  href="/signup"
+                  className="underline hover:text-foreground"
                 >
-                  Log in
-                </Link></p>
+                  Sign up
+                </Link>
+              </p>
             </div>
           </div>
-
         </div>
       </div>
 
@@ -62,7 +62,7 @@ const SignUpContainer = () => {
         <Link href={"#"} className="underline cursor-pointer hover:text-foreground">Privacy Policy</Link>.
       </p>
     </section>
-  )
-}
+  );
+};
 
-export default SignUpContainer
+export default LogInContainer;
