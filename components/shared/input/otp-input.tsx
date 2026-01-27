@@ -9,19 +9,19 @@ import {
 
 interface Props {
   count: number;
+  value: string;
+  onChange: (value: string) => void;
 }
 
-export function OTPInput({ count }: Props) {
+export function OTPInput({ count, value, onChange }: Props) {
   const half = Math.floor(count / 2);
-  const placeholder_numbers = [...Array(count)]?.map((_, i) => String(i + 1));
 
   return (
     <InputOTP
-      id="disabled"
       maxLength={count}
-      //   disabled
-      //   value={placeholder_numbers}
-      //   onChange={}
+      value={value}
+      onChange={onChange}
+      inputMode="numeric"
     >
       <InputOTPGroup>
         {Array.from({ length: half }).map((_, index) => (
