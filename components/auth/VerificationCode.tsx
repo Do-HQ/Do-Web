@@ -3,45 +3,67 @@
 import React, { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { OTPInput } from "@/components/shared/input/otp-input";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import useAuthStore from "@/stores/auth";
+import { H1, P } from "../ui/typography";
+import useAuth from "@/hooks/useAuth";
 
 const VerificationCode = () => {
   // States
   const [code, setCode] = React.useState("");
-  const [seconds, setSeconds] = React.useState(5);
-  const [loading, setLoading] = React.useState(false);
+  const [seconds, setSeconds] = React.useState(60);
 
   // Router
   const router = useRouter();
+  const params = useSearchParams();
+  const intent = params.get("intent");
 
   // Store
   const { user } = useAuthStore();
 
+  // Hooks
+  const { useOtp, useValidateOtp } = useAuth();
+
+  const { isPending: isPendingGetOTP, mutate: getOTP } = useOtp({
+    onSuccess(data, variables) {
+      console.log(data, "Check data");
+      toast.success(
+        `A new OTP has been sent to ${variables?.email || "your email addresss"} `,
+        {
+          description: "Please check your inbox or spam for our email",
+        },
+      );
+    },
+  });
+
+  const { isPending: isPendingVerifyOtp, mutate: verifyOtp } = useValidateOtp({
+    onSuccess(data) {
+      console.log(data, "Check verify");
+      toast.success(data?.data?.message, {
+        description: data?.data?.description,
+      });
+    },
+  });
+
   // Handlers
+  const handleResend = async () => {
+    getOTP({
+      email: user?.email as string,
+      intent: intent!,
+    });
+  };
+
   const handleVerify = async () => {
-    setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
-    setLoading(false);
+    verifyOtp({
+      email: user?.email as string,
+      code,
+      intent: intent!,
+    });
   };
 
   const handleReturn = () => {
     router.back();
-  };
-
-  const handleResend = async () => {
-    setLoading(true);
-    await new Promise((r) => setTimeout(r, 1200));
-
-    // * If Sign up, ee can use the confetti (triggerConfetti())
-    toast.success(
-      `A new OTP has been sent to ${user?.email || "your email addresss"} `,
-      {
-        description: "Please check your inbox or spam for our email",
-      },
-    );
-    setLoading(false);
   };
 
   // Effects
@@ -53,11 +75,12 @@ const VerificationCode = () => {
 
   return (
     <>
-      <div className="text-center space-y-1">
-        <h1 className="text-lg font-semibold text-foreground mb-4">
+      <div className="text-center space-y-4">
+        <H1 className="font-semibold md:text-2xl text-foreground">
           Check your email
-        </h1>
-        <p className="text-sm text-muted-foreground">
+        </H1>
+
+        <P className="text-muted-foreground font-medium">
           We sent a verification code. Please check your inbox at{" "}
           <strong className="text-primary/90">{user?.email}</strong>
           <Button
@@ -67,19 +90,19 @@ const VerificationCode = () => {
           >
             Change email
           </Button>
-        </p>
+        </P>
       </div>
 
-      <div className="space-y-6 w-full">
+      <div className="space-y-8 w-full mt-4">
         <OTPInput count={6} value={code} onChange={setCode} />
         <div className="space-y-3">
           <Button
             className="w-full"
-            disabled={loading || code.length < 6}
+            disabled={isPendingVerifyOtp || code.length < 6}
             onClick={handleVerify}
-            loading={loading}
+            loading={isPendingVerifyOtp}
           >
-            {loading ? "Verifying..." : "Verify code"}
+            Verify code
           </Button>
 
           {seconds > 0 ? (
@@ -87,7 +110,12 @@ const VerificationCode = () => {
               Resend code in {seconds}s
             </p>
           ) : (
-            <Button className="w-full" variant={"ghost"} onClick={handleResend}>
+            <Button
+              className="w-full"
+              variant={"ghost"}
+              onClick={handleResend}
+              loading={isPendingGetOTP}
+            >
               Resend code
             </Button>
           )}

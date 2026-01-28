@@ -40,7 +40,7 @@ const Auth = ({ mode }: Props) => {
       toast.success(`An OTP has been sent to ${variables?.email}`, {
         description: "Please check your inbox or spam for our email",
       });
-      router.push(ROUTES.VERIFY_OTP);
+      router.push(`${ROUTES.VERIFY_OTP}?intent=${mode}`);
     },
   });
 

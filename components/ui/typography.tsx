@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { ReactNode } from "react";
 
 export function H1({
   children,
@@ -52,7 +53,7 @@ export function P({
   children,
   className,
   ...props
-}: React.HTMLAttributes<HTMLParagraphElement> & { children: string }) {
+}: React.HTMLAttributes<HTMLParagraphElement> & { children: ReactNode }) {
   return (
     <p className={cn(className, "leading-7 text-sm")} {...props}>
       {children}
