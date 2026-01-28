@@ -36,11 +36,11 @@ const VerificationCode = ({
         <p className="text-xs text-muted-foreground">
           We sent a verification code <br />
           Please check your inbox at{" "}
-          <strong className="text-foreground">{email}</strong>
+          <strong className="text-primary/90">{email}</strong>
           <Button
             variant={"link"}
             onClick={onBack}
-            className="block w-full underline hover:text-foreground"
+            className="block w-full underline"
           >
             Change email
           </Button>
