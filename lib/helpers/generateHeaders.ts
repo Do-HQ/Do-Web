@@ -18,9 +18,10 @@ export function generateHeaders({
   agentId,
 }: GenerateHeadersParams) {
   const timestamp = Date.now().toString();
-  const requestId = crypto.randomUUID();
+  const requestId = globalThis.crypto.randomUUID();
 
   const signaturePayload = `${clientId}.${workspaceId}.${timestamp}`;
+
   const signature = crypto
     .createHmac("sha256", process.env.NEXT_PUBLIC_API_SECRET!)
     .update(signaturePayload)

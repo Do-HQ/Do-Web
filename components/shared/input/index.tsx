@@ -5,9 +5,10 @@ import { ComponentProps } from "react";
 interface Props extends ComponentProps<"input"> {
   label: string;
   tip?: string;
+  error?: string;
 }
 
-export function Input({ label, tip, ...props }: Props) {
+export function Input({ label, tip, error, ...props }: Props) {
   return (
     <Field>
       <FieldLabel htmlFor={`input-field-${label}`}>
@@ -19,6 +20,11 @@ export function Input({ label, tip, ...props }: Props) {
         placeholder={props?.placeholder}
         {...props}
       />
+      {error && (
+        <FieldDescription className="text-destructive">
+          {error}
+        </FieldDescription>
+      )}
       {tip && <FieldDescription>{tip}</FieldDescription>}
     </Field>
   );

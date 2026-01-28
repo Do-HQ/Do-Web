@@ -25,7 +25,7 @@ export function OTPInput({ count, value, onChange }: Props) {
     >
       <InputOTPGroup>
         {Array.from({ length: half }).map((_, index) => (
-          <InputOTPSlot key={index} index={index} />
+          <InputOTPSlot key={index} index={index} autoFocus={index === 0} />
         ))}
       </InputOTPGroup>
 
