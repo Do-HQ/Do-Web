@@ -25,7 +25,7 @@ export function H2({
 }: React.HTMLAttributes<HTMLHeadingElement> & { children: string }) {
   return (
     <h2
-      className="scroll-m-20 border-b pb-2 text-lg font-semibold tracking-tight first:mt-0"
+      className="scroll-m-20 text-lg font-semibold tracking-tight first:mt-0"
       {...props}
     >
       {children}
