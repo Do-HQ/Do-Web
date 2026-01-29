@@ -1,5 +1,5 @@
 import axios, { AxiosHeaders } from "axios";
-import config from "../config";
+import config from "@/config";
 import { generateHeaders } from "../helpers/generateHeaders";
 
 const axiosInstance = axios.create({
@@ -17,12 +17,9 @@ axiosInstance.interceptors.request.use(
     }
 
     const token = config.BASE_API_URL;
-    if (!token) {
-      throw new Error("Authentication token missing");
-    }
 
     const headers = generateHeaders({
-      token,
+      token: token!,
       clientId: config.CLIENT_ID!,
       workspaceId: "1",
       profileToken: "1",

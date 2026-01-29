@@ -1,15 +1,34 @@
-export function H1() {
+import { cn } from "@/lib/utils";
+import { ReactNode } from "react";
+
+export function H1({
+  children,
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLHeadingElement> & { children: string }) {
   return (
-    <h1 className="scroll-m-20 text-center text-4xl font-extrabold tracking-tight text-balance">
-      Taxing Laughter: The Joke Tax Chronicles
+    <h1
+      className={cn(
+        "scroll-m-20 text-center md:text-2xl text-xl font-extrabold tracking-tight text-balance",
+        className,
+      )}
+      {...props}
+    >
+      {children}
     </h1>
   );
 }
 
-export function H2() {
+export function H2({
+  children,
+  ...props
+}: React.HTMLAttributes<HTMLHeadingElement> & { children: string }) {
   return (
-    <h2 className="scroll-m-20 border-b pb-2 text-3xl font-semibold tracking-tight first:mt-0">
-      The People of the Kingdom
+    <h2
+      className="scroll-m-20 text-lg font-semibold tracking-tight first:mt-0"
+      {...props}
+    >
+      {children}
     </h2>
   );
 }
@@ -30,11 +49,14 @@ export function H4() {
   );
 }
 
-export function P() {
+export function P({
+  children,
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLParagraphElement> & { children: ReactNode }) {
   return (
-    <p className="leading-7 [&:not(:first-child)]:mt-6">
-      The king, seeing how much happier his subjects were, realized the error of
-      his ways and repealed the joke tax.
+    <p className={cn(className, "leading-7 text-sm")} {...props}>
+      {children}
     </p>
   );
 }

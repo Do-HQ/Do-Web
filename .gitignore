@@ -1,3 +1,8 @@
 node_modules/
 package-lock.json
-env.development
+.env.development
+/.next/
+.DS_Store
+.vscode/
+.idea/
+/user-research/
