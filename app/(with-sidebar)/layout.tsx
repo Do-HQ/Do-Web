@@ -2,6 +2,7 @@
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import Header from "./_components/header";
+import CommandSearch from "@/components/global/command-search";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -10,6 +11,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <SidebarInset>
         <Header />
         <div className="flex flex-1 flex-col gap-4 px-4 py-10">{children}</div>
+        <CommandSearch />
       </SidebarInset>
     </SidebarProvider>
   );
