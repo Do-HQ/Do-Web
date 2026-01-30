@@ -1,5 +1,12 @@
 import * as React from "react";
-import { Star, UserCircle, CreditCard, LogOut, BellIcon } from "lucide-react";
+import {
+  Star,
+  UserCircle,
+  CreditCard,
+  LogOut,
+  BellIcon,
+  SearchIcon,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +24,9 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "./ui/input-group";
+import { Kbd } from "./ui/kbd";
+import { useAppStore } from "@/stores";
 
 const data = [
   [
@@ -44,11 +54,24 @@ const data = [
 export function NavActions() {
   const [isOpen, setIsOpen] = React.useState(false);
 
+  // Store
+  const { setShowSpotlightSearch } = useAppStore();
   return (
-    <div className="flex items-center gap-2 text-sm">
-      <Button variant="ghost" size="icon" className="h-7 w-7">
-        <Star />
-      </Button>
+    <div className="flex items-center gap-4 text-sm">
+      <div className="flex w-full max-w-xs flex-col gap-6">
+        <Button
+          className="w-70 justify-between"
+          size="sm"
+          variant="outline"
+          onClick={() => setShowSpotlightSearch(true)}
+        >
+          <span>Search for anything...</span>
+          <InputGroupAddon align="inline-end">
+            <Kbd>⌘</Kbd>
+            <Kbd>K</Kbd>
+          </InputGroupAddon>
+        </Button>
+      </div>
       <Popover open={isOpen} onOpenChange={setIsOpen}>
         <PopoverTrigger asChild>
           <Button
@@ -56,7 +79,7 @@ export function NavActions() {
             size="icon"
             className="data-[state=open]:bg-accent h-7 w-7"
           >
-            <Avatar>
+            <Avatar size="sm">
               <AvatarImage
                 src="https://res.cloudinary.com/dgiropjpp/image/upload/v1769577491/Logo_maker_project-2_jz4e09.png"
                 alt="@shadcn"
