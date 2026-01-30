@@ -1,12 +1,5 @@
 import * as React from "react";
-import {
-  Star,
-  UserCircle,
-  CreditCard,
-  LogOut,
-  BellIcon,
-  SearchIcon,
-} from "lucide-react";
+import { UserCircle, CreditCard, LogOut, BellIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -24,14 +17,14 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { InputGroup, InputGroupAddon, InputGroupInput } from "./ui/input-group";
+import { InputGroupAddon } from "./ui/input-group";
 import { Kbd } from "./ui/kbd";
 import { useAppStore } from "@/stores";
 
 const data = [
   [
     {
-      label: "Account",
+      label: "Profile",
       icon: UserCircle,
     },
     {

@@ -55,7 +55,7 @@ export function P({
   ...props
 }: React.HTMLAttributes<HTMLParagraphElement> & { children: ReactNode }) {
   return (
-    <p className={cn(className, "leading-7 text-sm")} {...props}>
+    <p className={cn("leading-7 text-sm", className)} {...props}>
       {children}
     </p>
   );
