@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Input } from "@/components/shared/input"
 import VerificationCode from "./VerificationCode"
+import Image from "next/image"
 
 type AuthMode = "signup" | "login"
 
@@ -24,7 +25,14 @@ const AuthFlow = ({ mode }: { mode: AuthMode }) => {
     <section className="min-h-screen flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm flex flex-col flex-1 justify-center space-y-6">
         <div className="flex justify-center">
-          <div className="text-2xl">🧡</div>
+          <div className="">
+            <Image
+              src="/images/logo.svg"
+              alt="Squircle Logo"
+              width={40}
+              height={40}
+            />
+          </div>
         </div>
 
         {step === "email" && (
