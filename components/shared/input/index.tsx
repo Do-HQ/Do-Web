@@ -11,11 +11,9 @@ interface Props extends ComponentProps<"input"> {
 export function Input({ label, tip, error, ...props }: Props) {
   return (
     <Field>
-      {label && (
-        <FieldLabel htmlFor={`input-field-${label}`}>
-          {props?.id ?? label}
-        </FieldLabel>
-      )}
+      <FieldLabel htmlFor={`input-field-${props.id}`}>
+        {label ?? props?.id}
+      </FieldLabel>
       <I
         id={`input-field-${props.id ?? label}`}
         type="text"
