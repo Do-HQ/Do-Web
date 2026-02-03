@@ -10,8 +10,8 @@ interface Props extends ComponentProps<"input"> {
 export function Input({ label, tip, ...props }: Props) {
   return (
     <Field>
-      <FieldLabel htmlFor={`input-field-${label}`}>
-        {props?.id ?? label}
+      <FieldLabel htmlFor={`input-field-${props.id}`}>
+        {label ?? props?.id}
       </FieldLabel>
       <I
         id={`input-field-${props.id ?? label}`}

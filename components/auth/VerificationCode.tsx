@@ -3,6 +3,7 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
 import { OTPInput } from "@/components/shared/input/otp-input";
+import { useRouter } from "next/navigation";
 
 const VerificationCode = ({
   email,
@@ -15,6 +16,8 @@ const VerificationCode = ({
   const [seconds, setSeconds] = React.useState(60);
   const [loading, setLoading] = React.useState(false);
 
+  const router = useRouter();
+
   React.useEffect(() => {
     if (seconds === 0) return;
     const timer = setTimeout(() => setSeconds((s) => s - 1), 1000);
@@ -24,6 +27,7 @@ const VerificationCode = ({
   const handleVerify = async () => {
     setLoading(true);
     await new Promise((r) => setTimeout(r, 1200));
+    router.push("/onboarding");
     setLoading(false);
   };
 
