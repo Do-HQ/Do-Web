@@ -7,8 +7,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import useAuthStore from "@/stores/auth";
 import { H1, P } from "../ui/typography";
+<<<<<<< HEAD
 import useAuth from "@/hooks/use-auth";
 import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
+=======
+import useAuth from "@/hooks/useAuth";
+>>>>>>> 0909d2b0a1a1d5ecf04bc32de6ee02c073814917
 
 const VerificationCode = () => {
   // States
