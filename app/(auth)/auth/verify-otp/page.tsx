@@ -1,5 +1,7 @@
 import AuthFlow from "@/components/auth/AuthFlow";
+import LoaderComponent from "@/components/shared/loader";
 import { Metadata } from "next";
+import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "Verify your Squircle OTP",
@@ -7,7 +9,11 @@ export const metadata: Metadata = {
 };
 
 const page = () => {
-  return <AuthFlow step="verify" />;
+  return (
+    <Suspense fallback={<LoaderComponent />}>
+      <AuthFlow step="verify" />
+    </Suspense>
+  );
 };
 
 export default page;

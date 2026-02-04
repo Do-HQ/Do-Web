@@ -1,5 +1,7 @@
+import LoaderComponent from "@/components/shared/loader";
 import JoinWorkspace from "@/components/workspace";
 import { Metadata } from "next";
+import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "Join a Workspace",
@@ -8,7 +10,11 @@ export const metadata: Metadata = {
 };
 
 const JoinWorkspacePage = () => {
-  return <JoinWorkspace />;
+  return (
+    <Suspense fallback={<LoaderComponent />}>
+      <JoinWorkspace />
+    </Suspense>
+  );
 };
 
 export default JoinWorkspacePage;

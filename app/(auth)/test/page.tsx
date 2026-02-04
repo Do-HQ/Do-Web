@@ -3,7 +3,6 @@
 import { Dropdown } from "@/components/shared/drop-down";
 import { Input } from "@/components/shared/input";
 import { DateTimeInput } from "@/components/shared/input/date-time";
-import { OTPInput } from "@/components/shared/input/otp-input";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -32,7 +31,6 @@ const page = () => {
     <div className="flex  p-8 flex-col gap-2 min-h-screen  justify-center bg-zinc-50 font-sans dark:bg-black">
       <Input label="Test inputttt" />
       <Button className="block max-w-100">Check buttonnnn</Button>
-      <OTPInput count={10} />
       <Dropdown
         label="Select a fruit"
         options={[
