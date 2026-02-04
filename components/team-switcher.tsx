@@ -39,8 +39,6 @@ export function TeamSwitcher({ teams }: { teams: UserWorkspace[] }) {
   // Router
   const router = useRouter();
 
-  console.log(workspaceId, "Check");
-
   // Hooks
   const { useSwitchWorkspace } = useWorkspace();
   const { isPending: isSwitchingWorkspace, mutate: switchWorkspace } =

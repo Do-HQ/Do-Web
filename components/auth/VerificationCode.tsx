@@ -53,6 +53,10 @@ const VerificationCode = () => {
         router.push(ROUTES.ONBOARDING);
         return;
       }
+      if (!user?.currentWorkspaceId) {
+        router.push(ROUTES.SWITCH_WORKSPACE);
+        return;
+      }
 
       router.replace(ROUTES.DASHBOARD);
     },

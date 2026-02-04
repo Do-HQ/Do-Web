@@ -11,6 +11,7 @@ const WORKSPACE_ENDPOINTS = {
   GET_PUBLIC_WORKSPACE: "/workspace",
   JOIN_WORKSPACE: "/workspace/requests/join",
   CREATE_WORKSPACE: "/workspace",
+  GET_USER_WORKSPACES: "/workspace/user",
 };
 
 export interface PaginationBody {
@@ -55,4 +56,14 @@ export const createWorkspace = async (data: CreateWorkspaceRequestBody) => {
     WORKSPACE_ENDPOINTS.CREATE_WORKSPACE,
     data,
   );
+};
+
+export const getUserWorkspaces = async (params: PaginationBody) => {
+  const { page = 1, limit = 10, search = "" } = params || {};
+  return await axiosInstance.get<{
+    workspaces: WorkspaceType[];
+    pagination: Pagination;
+  }>(WORKSPACE_ENDPOINTS.GET_USER_WORKSPACES, {
+    params: { page, limit, search },
+  });
 };

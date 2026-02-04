@@ -16,9 +16,18 @@ interface Props extends React.HtmlHTMLAttributes<HTMLDivElement> {
   className?: string;
   onRequestJoin?: (id?: string) => void;
   data: WorkspaceType;
+  loading?: boolean;
+  buttonCta?: string;
+  icon?: React.ReactNode;
 }
 
-const WorkspaceCard = ({ onRequestJoin, data }: Props) => {
+const WorkspaceCard = ({
+  onRequestJoin,
+  data,
+  loading,
+  buttonCta,
+  icon,
+}: Props) => {
   return (
     <Item variant="outline">
       <ItemMedia>
@@ -45,9 +54,10 @@ const WorkspaceCard = ({ onRequestJoin, data }: Props) => {
           size="sm"
           variant="outline"
           onClick={() => onRequestJoin?.(data?._id)}
+          loading={loading}
         >
-          <LockOpen />
-          Request to join
+          {icon ? icon : <LockOpen />}
+          {buttonCta ? buttonCta : "Request to join"}
         </Button>
       </ItemActions>
     </Item>

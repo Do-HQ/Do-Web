@@ -5,6 +5,7 @@ export const ROUTES = {
   VERIFY_OTP: "/auth/verify-otp",
   DASHBOARD: "/dashboard",
   WORKSPACE: "/workspace",
+  SWITCH_WORKSPACE: "/workspace/switch",
   CREATE_WORKSPACE: "/workspace/create",
   ONBOARDING: "/onboarding",
 };

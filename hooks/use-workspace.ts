@@ -2,6 +2,7 @@ import useError from "./use-error";
 import {
   createWorkspace,
   getPublicWorkspaces,
+  getUserWorkspaces,
   getWorkspaceById,
   PaginationBody,
   requestToJoinWorkspace,
@@ -93,12 +94,28 @@ const useWorkspace = () => {
     });
   };
 
+  const useUsersWorkSpace = (params: PaginationBody) => {
+    const { page, search, limit } = params;
+    return useQuery({
+      queryKey: ["get-user-workspaces", search, page, limit],
+      queryFn: async () => {
+        try {
+          return await getUserWorkspaces({ page, search, limit });
+        } catch (error: unknown) {
+          handleError(error as AxiosError);
+          throw error;
+        }
+      },
+    });
+  };
+
   return {
     usePublicWorkspace,
     useWorkspaceById,
     useRequestToJoinWorkspace,
     useCreateWorkspace,
     useSwitchWorkspace,
+    useUsersWorkSpace,
   };
 };
 
