@@ -52,39 +52,39 @@ import { DropdownMenuSeparator } from "@radix-ui/react-dropdown-menu";
 const data: Payment[] = [
   {
     id: "m5gr84i9",
-    owners: "Ezimorah Tobenna",
+    lead: "Ezimorah Tobenna",
     status: "success",
     team: "Frontend Devs",
   },
   {
     id: "3u1reuv4",
-    owners: "Ohani Kizito",
+    lead: "Ohani Kizito",
     status: "success",
     team: "Product Owners",
   },
   {
     id: "derv1ws0",
-    owners: "Test user 1",
+    lead: "Test user 1",
     status: "processing",
     team: "Designers",
   },
   {
     id: "5kma53ae",
-    owners: "Jeff Bezos",
+    lead: "Jeff Bezos",
     status: "success",
     team: "Testers",
   },
   {
     id: "bhqecj4p",
-    owners: "Ohani Kizito",
-    status: "failed",
+    lead: "Nwabufo Chinenye",
+    status: "success",
     team: "Solution Architects",
   },
 ];
 
 export type Payment = {
   id: string;
-  owners: string;
+  lead: string;
   status: "pending" | "processing" | "success" | "failed";
   team: string;
 };
@@ -118,14 +118,14 @@ export const columns: ColumnDef<Payment>[] = [
     cell: ({ row }) => <div className="capitalize">{row.getValue("team")}</div>,
   },
   {
-    accessorKey: "owners",
+    accessorKey: "lead",
     header: ({ column }) => {
       return (
         <Button
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
         >
-          Owners
+          Lead
           <ArrowUpDown />
         </Button>
       );
@@ -139,7 +139,7 @@ export const columns: ColumnDef<Payment>[] = [
           />
           <AvatarFallback>CN</AvatarFallback>
         </Avatar>
-        {row.getValue("owners")}
+        {row.getValue("lead")}
       </div>
     ),
   },
@@ -204,14 +204,14 @@ export const columns: ColumnDef<Payment>[] = [
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <Settings2 />
-                Team Settings
+                Manage team
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem variant="destructive">
                 <Trash2 />
-                Delete {row?.getValue("team")}
+                Dissolve {row?.getValue("team")}
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>
@@ -254,9 +254,9 @@ export function WorkspaceTeamsTable() {
       <div className="flex items-center gap-4 py-4">
         <Input
           placeholder="Filter by team name..."
-          value={(table.getColumn("email")?.getFilterValue() as string) ?? ""}
+          value={(table.getColumn("team")?.getFilterValue() as string) ?? ""}
           onChange={(event) =>
-            table.getColumn("email")?.setFilterValue(event.target.value)
+            table.getColumn("team")?.setFilterValue(event.target.value)
           }
           className="max-w-sm"
         />

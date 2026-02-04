@@ -1,6 +1,11 @@
 import axios, { AxiosHeaders } from "axios";
 import config from "@/config";
 import { generateHeaders } from "../helpers/generateHeaders";
+import { LOCAL_KEYS } from "@/utils/constants";
+
+const getToken = () => {
+  return localStorage.getItem(LOCAL_KEYS.TOKEN);
+};
 
 const axiosInstance = axios.create({
   baseURL: config.BASE_API_URL,
@@ -16,10 +21,12 @@ axiosInstance.interceptors.request.use(
       throw new Error("Please check your internet connection");
     }
 
-    const token = config.BASE_API_URL;
+    if (axiosConfig.data instanceof FormData) {
+      delete axiosConfig.headers?.["Content-Type"];
+    }
 
     const headers = generateHeaders({
-      token: token!,
+      token: getToken()!,
       clientId: config.CLIENT_ID!,
       workspaceId: "1",
       profileToken: "1",

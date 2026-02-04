@@ -28,6 +28,7 @@ import {
   ToyBrick,
   User2Icon,
 } from "lucide-react";
+import SettingsProfileReferences from "../settings/settings-profile-preferences";
 
 const workspace = {
   nav: [
@@ -60,6 +61,8 @@ const SettingsModal = () => {
       return <SettingsWorkspaceOverview />;
     } else if (id === "teams") {
       return <SettingsWorkspaceTeams />;
+    } else if (id === "preferences") {
+      return <SettingsProfileReferences />;
     } else {
       return null;
     }
@@ -77,7 +80,7 @@ const SettingsModal = () => {
           <main className="flex h-205 flex-1 flex-col">
             <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
               <div className="flex items-center gap-2 px-8">
-                <H2 className="font-semibold">Workspace Overview</H2>
+                <H2 className="font-semibold capitalize">{activeSetting}</H2>
               </div>
             </header>
             <ScrollArea className="overflow-auto">

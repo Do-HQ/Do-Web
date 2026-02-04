@@ -2,7 +2,7 @@ import { getOtp, validateOtp } from "@/lib/services/authService";
 import { GetOtpBody, ValidateOtpBpdy } from "@/types/auth";
 import { useMutation, UseMutationOptions } from "@tanstack/react-query";
 import { AxiosResponse, AxiosError } from "axios";
-import useError from "./useError";
+import useError from "./use-error";
 
 type UseOptions<T> = UseMutationOptions<AxiosResponse, unknown, T, unknown>;
 

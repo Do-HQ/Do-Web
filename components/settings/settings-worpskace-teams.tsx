@@ -27,11 +27,10 @@ const SettingsWorkspaceTeams = () => {
           <Field orientation="horizontal">
             <FieldContent>
               <FieldLabel htmlFor="switch-focus-mode">
-                Share across devices
+                Restrict teams creation
               </FieldLabel>
               <FieldDescription>
-                Focus is shared across devices, and turns off when you leave the
-                app.
+                Only workspace owners can create teams
               </FieldDescription>
             </FieldContent>
             <Switch id="switch-focus-mode" />

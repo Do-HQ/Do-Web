@@ -13,7 +13,7 @@ export function Input({ label, tip, error, ...props }: Props) {
     <Field>
       {label && (
         <FieldLabel htmlFor={`input-field-${label}`}>
-          {props?.id ?? label}
+          {label ?? props?.id}
         </FieldLabel>
       )}
       <I

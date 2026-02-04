@@ -10,7 +10,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AuthData } from "@/types/auth";
 import { authSchema } from "@/lib/schemas/auth";
 import { H1, P } from "../ui/typography";
-import useAuth from "@/hooks/useAuth";
+import useAuth from "@/hooks/use-auth";
 import { ArrowRight } from "lucide-react";
 
 interface Props {

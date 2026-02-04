@@ -12,11 +12,19 @@ interface Props {
   label: string;
   optionKey?: string;
   options: { value: string; title: string }[];
+  value?: string;
+  setValue?: (theme: string) => void;
 }
 
-export function Dropdown({ label, options, optionKey }: Props) {
+export function Dropdown({
+  label,
+  options,
+  optionKey,
+  value,
+  setValue,
+}: Props) {
   return (
-    <Select>
+    <Select value={value} onValueChange={setValue}>
       <SelectTrigger className="w-full max-w-48">
         <SelectValue placeholder={label} />
       </SelectTrigger>

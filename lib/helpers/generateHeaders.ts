@@ -37,6 +37,5 @@ export function generateHeaders({
     "X-Request-Id": requestId,
     "X-Timestamp": timestamp,
     "X-Signature": signature,
-    "Content-Type": "application/json",
   };
 }

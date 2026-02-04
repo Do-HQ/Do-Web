@@ -7,7 +7,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import useAuthStore from "@/stores/auth";
 import { H1, P } from "../ui/typography";
-import useAuth from "@/hooks/useAuth";
+import useAuth from "@/hooks/use-auth";
+import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
 
 const VerificationCode = () => {
   // States
@@ -20,7 +21,7 @@ const VerificationCode = () => {
   const intent = params.get("intent");
 
   // Store
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
 
   // Hooks
   const { useOtp, useValidateOtp } = useAuth();
@@ -34,6 +35,10 @@ const VerificationCode = () => {
           description: "Please check your inbox or spam for our email",
         },
       );
+      setCode("");
+    },
+    onError() {
+      setCode("");
     },
   });
 
@@ -43,6 +48,13 @@ const VerificationCode = () => {
       toast.success(data?.data?.message, {
         description: data?.data?.description,
       });
+      localStorage.setItem(LOCAL_KEYS.TOKEN, data?.data?.token);
+      localStorage.setItem(LOCAL_KEYS.REFRESH_TOKEN, data?.data?.refreshToken);
+      setUser(data?.data?.user);
+      router.push(ROUTES.DASHBOARD);
+    },
+    onError() {
+      setCode("");
     },
   });
 

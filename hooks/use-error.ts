@@ -1,10 +1,6 @@
 import { AxiosError } from "axios";
 import { toast } from "sonner";
-
-interface ErrorObject {
-  message: string;
-  description: string;
-}
+import { ResponseObject } from "@/types/file";
 
 const useError = () => {
   // Utils
@@ -13,10 +9,9 @@ const useError = () => {
     }
 
     const error =
-      (err?.response?.data as ErrorObject)?.message ||
+      (err?.response?.data as ResponseObject)?.message ||
       "An error occured, please try again in few minutes";
-
-    const description = (err?.response?.data as ErrorObject)?.description;
+    const description = (err?.response?.data as ResponseObject)?.description;
 
     if (type === "warning") {
       toast.warning(String(error), { description: description! });

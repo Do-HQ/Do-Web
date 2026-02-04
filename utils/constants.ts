@@ -7,3 +7,9 @@ export const ROUTES = {
   WORKSPACE: "/workspace",
   CREATE_WORKSPACE: "/workspace/create",
 };
+
+export const LOCAL_KEYS = {
+  TOKEN: "squircle-user-token",
+  REFRESH_TOKEN: "squircle-refresh-token",
+  REDIRECT: "squircle-redirect-path",
+};
