@@ -34,7 +34,7 @@ const Auth = ({ mode }: Props) => {
   // Hooks
   const { useOtp } = useAuth();
   const { isPending, mutate } = useOtp({
-    onSuccess(data, variables) {
+    onSuccess(_, variables) {
       setUser({ email: variables?.email });
       toast.success(`An OTP has been sent to ${variables?.email}`, {
         description: "Please check your inbox or spam for our email",

@@ -21,6 +21,7 @@ import { createWorkspaceSchema } from "@/lib/schemas/workspace";
 import { CreateWorkspaceRequestBody } from "@/types/workspace";
 import { ROUTES } from "@/utils/constants";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 
@@ -38,11 +39,17 @@ const CreateWorkspace = () => {
   // Router
   const router = useRouter();
 
+  // Query
+  const queryClient = useQueryClient();
+
   // Hooks
   const { useCreateWorkspace } = useWorkspace();
   const { isPending: isCreatingWorkspace, mutate: createWorkspace } =
     useCreateWorkspace({
       onSuccess() {
+        queryClient.invalidateQueries({
+          queryKey: ["user"],
+        });
         triggerConfetti();
         router.replace(ROUTES.DASHBOARD);
       },

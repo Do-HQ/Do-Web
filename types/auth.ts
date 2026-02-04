@@ -23,8 +23,19 @@ export interface ValidateOtpBpdy {
 
 export type WorkspaceRole = "owner" | "admin" | "member";
 
+export interface WorkspaceType {
+  _id: string;
+  name: string;
+  type: string;
+  ownerId: string;
+  members: [string];
+  slug: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface UserWorkspace {
-  workspaceId: string;
+  workspaceId: WorkspaceType;
   role: WorkspaceRole;
   _id: string;
 }
@@ -40,6 +51,7 @@ export interface AuthUser {
   updatedAt: string;
   __v: number;
   profilePhoto: CustomFile;
+  currentWorkspaceId: WorkspaceType;
 }
 
 export interface AuthResponse {

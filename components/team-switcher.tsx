@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Loader, Plus } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -20,49 +20,66 @@ import {
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/utils/constants";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { UserWorkspace } from "@/types/auth";
+import useAuth from "@/hooks/use-auth";
+import useAuthStore from "@/stores/auth";
+import { getUserAbbreviation } from "@/lib/helpers/return-full-name";
+import { cn } from "@/lib/utils";
+import useWorkspaceStore from "@/stores/workspace";
+import useWorkspace from "@/hooks/use-workspace";
+import { useQueryClient } from "@tanstack/react-query";
 
-export function TeamSwitcher({
-  teams,
-}: {
-  teams: {
-    name: string;
-    logo: string;
-    plan: string;
-  }[];
-}) {
-  const [activeTeam, setActiveTeam] = React.useState(teams[0]);
+export function TeamSwitcher({ teams }: { teams: UserWorkspace[] }) {
+  const queryClient = useQueryClient();
+
+  // Store
+  const { user } = useAuthStore();
+  const { workspaceId, setWorkspaceId } = useWorkspaceStore();
 
   // Router
   const router = useRouter();
+
+  console.log(workspaceId, "Check");
+
+  // Hooks
+  const { useSwitchWorkspace } = useWorkspace();
+  const { isPending: isSwitchingWorkspace, mutate: switchWorkspace } =
+    useSwitchWorkspace({
+      onSuccess(data) {
+        setWorkspaceId(data?.data?.workspace?._id);
+        queryClient.invalidateQueries({
+          queryKey: ["user"],
+        });
+      },
+    });
 
   // Handlers
   const handleCreateWorkspace = () => {
     router.push(ROUTES.CREATE_WORKSPACE);
   };
 
-  if (!activeTeam) {
-    return null;
-  }
+  const handleSwitchWorkspace = (workspaceId: string) => {
+    switchWorkspace({ workspaceId });
+  };
 
   return (
     <SidebarMenu>
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuButton className="w-fit px-1.5">
-              <Avatar size="sm" className="rounded-sm">
-                <AvatarImage
-                  src="https://res.cloudinary.com/dgiropjpp/image/upload/v1769577491/Logo_maker_project-2_jz4e09.png"
-                  alt="@shadcn"
-                />
-                <AvatarFallback>CN</AvatarFallback>
+            <SidebarMenuButton className="w-full px-1.5">
+              <Avatar size="sm" className="rounded-full">
+                <AvatarImage src={user?.profilePhoto?.url} alt="@shadcn" />
+                <AvatarFallback>{getUserAbbreviation(user!)}</AvatarFallback>
               </Avatar>
-              <span className="truncate font-medium">{activeTeam.name}</span>
+              <span className="truncate font-medium">
+                {user?.currentWorkspaceId?.name}
+              </span>
               <ChevronDown className="opacity-50" />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            className="w-64 rounded-lg"
+            className="w-64 max-h-100 rounded-lg"
             align="start"
             side="bottom"
             sideOffset={4}
@@ -70,21 +87,32 @@ export function TeamSwitcher({
             <DropdownMenuLabel className="text-muted-foreground text-xs">
               Workspaces
             </DropdownMenuLabel>
-            {teams.map((team, index) => (
+            {teams?.map((team, index) => (
               <DropdownMenuItem
-                key={team.name}
-                onClick={() => setActiveTeam(team)}
-                className="gap-2 p-1.5 text-xs font-medium "
+                key={team?.workspaceId?._id}
+                onClick={() => handleSwitchWorkspace(team?.workspaceId?._id)}
+                className={cn(
+                  "gap-2 p-1.5 text-xs font-medium",
+                  workspaceId === team?.workspaceId?._id &&
+                    "bg-accent text-accent-foreground",
+                )}
               >
                 <Avatar size="sm" className="rounded-sm">
                   <AvatarImage
                     src="https://res.cloudinary.com/dgiropjpp/image/upload/v1769577491/Logo_maker_project-2_jz4e09.png"
                     alt="@shadcn"
                   />
-                  <AvatarFallback>CN</AvatarFallback>
+                  <AvatarFallback>SQ</AvatarFallback>
                 </Avatar>
-                {team.name}
-                <DropdownMenuShortcut>⌘{index + 1}</DropdownMenuShortcut>
+                {team?.workspaceId?.name}
+                <DropdownMenuShortcut>
+                  {isSwitchingWorkspace &&
+                  workspaceId === team?.workspaceId?._id ? (
+                    <Loader className="animate-spin" size={16} />
+                  ) : (
+                    <>⌘{index + 1}</>
+                  )}
+                </DropdownMenuShortcut>
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />

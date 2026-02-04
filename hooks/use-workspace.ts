@@ -5,6 +5,7 @@ import {
   getWorkspaceById,
   PaginationBody,
   requestToJoinWorkspace,
+  switchWorkspace,
 } from "@/lib/services/workspace-service";
 import {
   CreateWorkspaceRequestBody,
@@ -79,11 +80,25 @@ const useWorkspace = () => {
     });
   };
 
+  const useSwitchWorkspace = (
+    options?: UseOptions<JoinWorkspaceRequestBody>,
+  ) => {
+    return useMutation({
+      mutationFn: switchWorkspace,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
   return {
     usePublicWorkspace,
     useWorkspaceById,
     useRequestToJoinWorkspace,
     useCreateWorkspace,
+    useSwitchWorkspace,
   };
 };
 

@@ -44,6 +44,12 @@ export const requestToJoinWorkspace = async (
   );
 };
 
+export const switchWorkspace = async (data: JoinWorkspaceRequestBody) => {
+  return await axiosInstance.patch<ResponseObject>(
+    `/workspace/${data?.workspaceId}/switch`,
+  );
+};
+
 export const createWorkspace = async (data: CreateWorkspaceRequestBody) => {
   return await axiosInstance.post<ResponseObject>(
     WORKSPACE_ENDPOINTS.CREATE_WORKSPACE,

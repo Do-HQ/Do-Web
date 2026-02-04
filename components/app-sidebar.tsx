@@ -25,10 +25,13 @@ import {
 } from "@/components/ui/sidebar";
 import { useAppStore } from "@/stores";
 import SettingsModal from "./modals/settings-modal";
+import useAuthStore from "@/stores/auth";
+import { UserWorkspace } from "@/types/auth";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // Stores
   const { setShowSettings } = useAppStore();
+  const { user } = useAuthStore();
 
   const data = {
     teams: [
@@ -237,7 +240,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar className="border-r-0" {...props}>
       <SidebarHeader>
-        <TeamSwitcher teams={data.teams} />
+        <TeamSwitcher teams={user?.workspaces as UserWorkspace[]} />
         <NavMain items={data.navMain} />
       </SidebarHeader>
       <SidebarContent>
