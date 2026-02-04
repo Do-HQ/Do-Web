@@ -1,11 +1,12 @@
 "use client";
 
+import LogoutModal from "@/components/modals/logout";
 import { Button } from "@/components/ui/button";
 import { Toaster } from "@/components/ui/sonner";
 import { P } from "@/components/ui/typography";
 import RequireAuth from "@/middleware";
 import useAuthStore from "@/stores/auth";
-import React from "react";
+import React, { useState } from "react";
 
 const OnboardingLayout = ({
   children,
@@ -14,6 +15,9 @@ const OnboardingLayout = ({
 }>) => {
   // Store
   const { user } = useAuthStore();
+
+  // States
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   return (
     <RequireAuth>
@@ -28,9 +32,13 @@ const OnboardingLayout = ({
           {children}
         </section>
         <div className="flex items-center justify-end">
-          <Button variant="ghost">Logout</Button>
+          <Button variant="ghost" onClick={() => setShowLogoutModal(true)}>
+            Logout
+          </Button>
         </div>
       </main>
+
+      <LogoutModal onOpenChange={setShowLogoutModal} open={showLogoutModal} />
       <Toaster position="top-right" />
     </RequireAuth>
   );

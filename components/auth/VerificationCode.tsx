@@ -7,12 +7,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 import useAuthStore from "@/stores/auth";
 import { H1, P } from "../ui/typography";
-<<<<<<< HEAD
 import useAuth from "@/hooks/use-auth";
 import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
-=======
-import useAuth from "@/hooks/useAuth";
->>>>>>> 0909d2b0a1a1d5ecf04bc32de6ee02c073814917
 
 const VerificationCode = () => {
   // States
@@ -31,8 +27,7 @@ const VerificationCode = () => {
   const { useOtp, useValidateOtp } = useAuth();
 
   const { isPending: isPendingGetOTP, mutate: getOTP } = useOtp({
-    onSuccess(data, variables) {
-      console.log(data, "Check data");
+    onSuccess(_, variables) {
       toast.success(
         `A new OTP has been sent to ${variables?.email || "your email addresss"} `,
         {
@@ -48,14 +43,18 @@ const VerificationCode = () => {
 
   const { isPending: isPendingVerifyOtp, mutate: verifyOtp } = useValidateOtp({
     onSuccess(data) {
-      console.log(data, "Check verify");
       toast.success(data?.data?.message, {
         description: data?.data?.description,
       });
       localStorage.setItem(LOCAL_KEYS.TOKEN, data?.data?.token);
       localStorage.setItem(LOCAL_KEYS.REFRESH_TOKEN, data?.data?.refreshToken);
       setUser(data?.data?.user);
-      router.push(ROUTES.DASHBOARD);
+      if (!data?.data?.user?.firstName) {
+        router.push(ROUTES.ONBOARDING);
+        return;
+      }
+
+      router.replace(ROUTES.DASHBOARD);
     },
     onError() {
       setCode("");

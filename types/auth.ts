@@ -54,3 +54,7 @@ export interface UpdateUserBody {
   lastName: string;
   profilePhoto: string;
 }
+
+export interface LogoutRequestBody {
+  refreshToken: string;
+}

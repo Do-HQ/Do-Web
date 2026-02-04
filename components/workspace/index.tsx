@@ -10,18 +10,50 @@ import {
 } from "@/components/ui/input-group";
 import { H2, P } from "@/components/ui/typography";
 import WorkspaceCard from "@/components/workspace/workspace-card";
+import useWorkspace from "@/hooks/use-workspace";
 import { ROUTES } from "@/utils/constants";
 import { Plus, Search } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import LoaderComponent from "../shared/loader";
+import { useDebounce } from "@/hooks/use-debounce";
+import EmptyComp from "../shared/empty";
+import { WorkspaceType } from "@/types/workspace";
 
 const JoinWorkspace = () => {
   // States
   const [page, setPage] = useState(1);
   const [showJoinModal, setShowJoinModal] = useState(false);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(
+    null,
+  );
 
   // Router
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const search = searchParams.get("search");
+
+  // Utils
+  const debouncedSearch = useDebounce(search, 1000);
+
+  // Hooks
+  const { usePublicWorkspace } = useWorkspace();
+  const { isPending, data } = usePublicWorkspace({
+    search: debouncedSearch!,
+    page,
+    limit: 5,
+  });
+
+  // Handlers
+  const handleSearchChange = (value: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("search", value);
+    router.push(`?${params.toString()}`);
+  };
+
+  // Utils
+  const workspaces = data?.data?.workspaces;
+  const pagination = data?.data?.pagination;
 
   // Handlers
   const handleCreateWorkspace = () => {
@@ -45,32 +77,63 @@ const JoinWorkspace = () => {
       </div>
 
       <InputGroup className="">
-        <InputGroupInput placeholder="Search..." />
+        <InputGroupInput
+          placeholder="Search..."
+          value={search!}
+          onChange={(e) => handleSearchChange(e?.target?.value)}
+        />
         <InputGroupAddon>
           <Search />
         </InputGroupAddon>
-        <InputGroupAddon align="inline-end">12 results</InputGroupAddon>
+        <InputGroupAddon align="inline-end">
+          {workspaces?.length} results
+        </InputGroupAddon>
       </InputGroup>
 
       <div className="w-full">
-        <div
-          className="
-flex flex-col gap-2
-      "
-        >
-          {[...Array(5)].map((_, i) => (
-            <WorkspaceCard
-              key={i}
-              onRequestJoin={() => setShowJoinModal(true)}
+        <div className="flex flex-col gap-2">
+          {isPending ? (
+            <LoaderComponent />
+          ) : (workspaces as WorkspaceType[])?.length < 1 ? (
+            <EmptyComp
+              header="Your workspace journey starts here"
+              description="No workspaces found. Create or join a workspace to start managing your projects and collaborating with your team."
+              button={{
+                cta: "Create a workspace",
+                action: () => {
+                  router.push(ROUTES.CREATE_WORKSPACE);
+                },
+              }}
+              image="https://res.cloudinary.com/dgiropjpp/image/upload/v1770206460/Adventure_and_Exploration___adventure_exploration_discovery_obstacles_challenge_2x_vsdue8.png"
             />
-          ))}
+          ) : (
+            workspaces?.map((workspace, i) => (
+              <WorkspaceCard
+                key={i}
+                onRequestJoin={(id) => {
+                  setShowJoinModal(true);
+                  setSelectedWorkspaceId(id!);
+                }}
+                data={workspace}
+              />
+            ))
+          )}
         </div>
       </div>
 
-      <PaginationComp currentPage={page} pages={10} onPageChange={setPage} />
+      {(workspaces as WorkspaceType[])?.length > 0 && (
+        <PaginationComp
+          currentPage={page}
+          pages={pagination?.totalPages ?? 1}
+          onPageChange={setPage}
+          hasNextPage={!!pagination?.hasNextPage}
+          hasPrevPage={!!pagination?.hasPrevPage}
+        />
+      )}
       <JoinWorkspaceModal
         open={showJoinModal}
         onOpenChange={(open) => setShowJoinModal(open)}
+        selectedWorkspaceId={selectedWorkspaceId}
       />
     </section>
   );

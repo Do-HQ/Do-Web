@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Pagination,
   PaginationContent,
@@ -12,6 +14,8 @@ interface Props {
   pages: number;
   currentPage: number;
   onPageChange?: (page: number) => void;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
 }
 
 const getVisiblePages = (total: number, current: number, delta = 1) => {
@@ -28,8 +32,19 @@ const getVisiblePages = (total: number, current: number, delta = 1) => {
   return range;
 };
 
-const PaginationComp = ({ pages, currentPage, onPageChange }: Props) => {
+const PaginationComp = ({
+  pages,
+  currentPage,
+  onPageChange,
+  hasNextPage,
+  hasPrevPage,
+}: Props) => {
   const visiblePages = getVisiblePages(pages, currentPage);
+
+  const handleClick = (page: number, e: React.MouseEvent) => {
+    e.preventDefault();
+    onPageChange?.(page);
+  };
 
   return (
     <Pagination>
@@ -37,14 +52,15 @@ const PaginationComp = ({ pages, currentPage, onPageChange }: Props) => {
         <PaginationItem>
           <PaginationPrevious
             href="#"
-            onClick={() => currentPage > 1 && onPageChange?.(currentPage - 1)}
+            onClick={(e) => hasPrevPage && handleClick(currentPage - 1, e)}
+            isActive={hasPrevPage}
           />
         </PaginationItem>
 
         {visiblePages[0] > 1 && (
           <>
             <PaginationItem>
-              <PaginationLink href="#" onClick={() => onPageChange?.(1)}>
+              <PaginationLink href="#" onClick={(e) => handleClick(1, e)}>
                 1
               </PaginationLink>
             </PaginationItem>
@@ -55,20 +71,19 @@ const PaginationComp = ({ pages, currentPage, onPageChange }: Props) => {
         {visiblePages.map((page) => (
           <PaginationItem key={page}>
             <PaginationLink
-              href="#"
               isActive={currentPage === page}
-              onClick={() => onPageChange?.(page)}
+              onClick={(e) => handleClick(page, e)}
             >
               {page}
             </PaginationLink>
           </PaginationItem>
         ))}
 
-        {visiblePages.at(-1)! < pages && (
+        {visiblePages[visiblePages.length - 1] < pages && (
           <>
             <PaginationEllipsis />
             <PaginationItem>
-              <PaginationLink href="#" onClick={() => onPageChange?.(pages)}>
+              <PaginationLink onClick={(e) => handleClick(pages, e)}>
                 {pages}
               </PaginationLink>
             </PaginationItem>
@@ -78,9 +93,8 @@ const PaginationComp = ({ pages, currentPage, onPageChange }: Props) => {
         <PaginationItem>
           <PaginationNext
             href="#"
-            onClick={() =>
-              currentPage < pages && onPageChange?.(currentPage + 1)
-            }
+            onClick={(e) => hasNextPage && handleClick(currentPage + 1, e)}
+            isActive={hasNextPage}
           />
         </PaginationItem>
       </PaginationContent>

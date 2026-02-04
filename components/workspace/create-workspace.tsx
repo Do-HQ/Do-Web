@@ -15,9 +15,13 @@ import {
 } from "@/components/ui/field";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { H2, P } from "@/components/ui/typography";
+import useWorkspace from "@/hooks/use-workspace";
+import { triggerConfetti } from "@/lib/helpers/triggerConfetti";
 import { createWorkspaceSchema } from "@/lib/schemas/workspace";
-import { createWorkspaceFormValues } from "@/types/workspace";
+import { CreateWorkspaceRequestBody } from "@/types/workspace";
+import { ROUTES } from "@/utils/constants";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 
 const CreateWorkspace = () => {
@@ -26,13 +30,26 @@ const CreateWorkspace = () => {
     handleSubmit,
     formState: { errors, isValid },
     control,
-  } = useForm<createWorkspaceFormValues>({
+  } = useForm<CreateWorkspaceRequestBody>({
     resolver: zodResolver(createWorkspaceSchema),
     mode: "onChange",
   });
 
-  const onSubmit = (data: createWorkspaceFormValues) => {
-    console.log(data);
+  // Router
+  const router = useRouter();
+
+  // Hooks
+  const { useCreateWorkspace } = useWorkspace();
+  const { isPending: isCreatingWorkspace, mutate: createWorkspace } =
+    useCreateWorkspace({
+      onSuccess() {
+        triggerConfetti();
+        router.replace(ROUTES.DASHBOARD);
+      },
+    });
+
+  const onSubmit = (data: CreateWorkspaceRequestBody) => {
+    createWorkspace(data);
   };
 
   return (
@@ -59,7 +76,7 @@ const CreateWorkspace = () => {
 
           <FieldGroup className="w-full">
             <Controller
-              name="visibility"
+              name="type"
               control={control}
               render={({ field, fieldState }) => (
                 <FieldSet {...field}>
@@ -110,7 +127,9 @@ const CreateWorkspace = () => {
             />
           </FieldGroup>
 
-          <Button disabled={!isValid}>Create workspace</Button>
+          <Button disabled={!isValid} loading={isCreatingWorkspace}>
+            Create workspace
+          </Button>
         </Field>
       </form>
     </section>

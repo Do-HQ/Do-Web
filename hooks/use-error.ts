@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import { ResponseObject } from "@/types/file";
 
 const useError = () => {
-  // Utils
   const handleError = (err: AxiosError, type?: "error" | "warning") => {
     if (err?.status === 401) {
     }

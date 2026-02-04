@@ -8,46 +8,44 @@ import {
   ItemMedia,
   ItemTitle,
 } from "@/components/ui/item";
+import { returnFullName } from "@/lib/helpers/return-full-name";
+import { WorkspaceType } from "@/types/workspace";
 import { LockOpen } from "lucide-react";
 
 interface Props extends React.HtmlHTMLAttributes<HTMLDivElement> {
   className?: string;
-  onRequestJoin?: () => void;
+  onRequestJoin?: (id?: string) => void;
+  data: WorkspaceType;
 }
 
-const WorkspaceCard = ({ onRequestJoin }: Props) => {
+const WorkspaceCard = ({ onRequestJoin, data }: Props) => {
   return (
     <Item variant="outline">
       <ItemMedia>
         <div className="*:data-[slot=avatar]:ring-background flex -space-x-2 *:data-[slot=avatar]:ring-2 ">
-          <Avatar className="hidden sm:flex">
-            <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
-            <AvatarFallback>CN</AvatarFallback>
-          </Avatar>
-          <Avatar className="hidden sm:flex">
-            <AvatarImage
-              src="https://github.com/maxleiter.png"
-              alt="@maxleiter"
-            />
-            <AvatarFallback>LR</AvatarFallback>
-          </Avatar>
-          <Avatar>
-            <AvatarImage
-              src="https://github.com/evilrabbit.png"
-              alt="@evilrabbit"
-            />
-            <AvatarFallback>ER</AvatarFallback>
-          </Avatar>
+          {data?.members?.map((d) => {
+            return (
+              <Avatar className="hidden sm:flex" key={d?._id}>
+                <AvatarImage src={d?.profilePhoto?.url} alt="@shadcn" />
+                <AvatarFallback>
+                  {d?.firstName?.[0]}
+                  {d?.lastName?.[0]}{" "}
+                </AvatarFallback>
+              </Avatar>
+            );
+          })}
         </div>
       </ItemMedia>
       <ItemContent>
-        <ItemTitle>No Team Members</ItemTitle>
-        <ItemDescription>
-          Invite your team to collaborate on this project.
-        </ItemDescription>
+        <ItemTitle>{data?.name}</ItemTitle>
+        <ItemDescription>By {returnFullName(data?.ownerId)}</ItemDescription>
       </ItemContent>
       <ItemActions>
-        <Button size="sm" variant="outline" onClick={onRequestJoin}>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => onRequestJoin?.(data?._id)}
+        >
           <LockOpen />
           Request to join
         </Button>

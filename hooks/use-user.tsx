@@ -1,8 +1,9 @@
 import { useMutation, UseMutationOptions } from "@tanstack/react-query";
 import { AxiosError, AxiosResponse } from "axios";
 import useError from "./use-error";
-import { updateUser } from "@/lib/services/user-service";
-import { AuthUser, UpdateUserBody } from "@/types/auth";
+import { logoutUser, updateUser } from "@/lib/services/user-service";
+import { AuthUser, LogoutRequestBody, UpdateUserBody } from "@/types/auth";
+import { ResponseObject } from "@/types/file";
 
 type UseOptions<T, R = unknown> = UseMutationOptions<
   AxiosResponse<R>,
@@ -28,7 +29,20 @@ const useUser = () => {
     });
   };
 
-  return { useUpdateUser };
+  const useLogout = (
+    options?: UseOptions<LogoutRequestBody, ResponseObject>,
+  ) => {
+    return useMutation({
+      mutationFn: logoutUser,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
+  return { useUpdateUser, useLogout };
 };
 
 export default useUser;

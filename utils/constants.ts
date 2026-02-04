@@ -6,6 +6,7 @@ export const ROUTES = {
   DASHBOARD: "/dashboard",
   WORKSPACE: "/workspace",
   CREATE_WORKSPACE: "/workspace/create",
+  ONBOARDING: "/onboarding",
 };
 
 export const LOCAL_KEYS = {

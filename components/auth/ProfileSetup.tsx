@@ -30,7 +30,7 @@ const ProfileSetup = () => {
       if (data?.data?.user?.workspaces?.length === 0) {
         router.push(ROUTES.WORKSPACE);
       } else {
-        router.push(ROUTES.DASHBOARD);
+        router.replace(ROUTES.DASHBOARD);
       }
     },
   });
