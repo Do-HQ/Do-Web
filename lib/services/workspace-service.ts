@@ -1,6 +1,7 @@
 import {
   CreateWorkspaceRequestBody,
   JoinWorkspaceRequestBody,
+  WorkspaceSettingsForm,
   WorkspaceType,
 } from "@/types/workspace";
 import axiosInstance from ".";
@@ -34,6 +35,16 @@ export const getWorkspaceById = async (wokspaceId: string) => {
   return await axiosInstance.get<{
     workspace: WorkspaceType;
   }>(`${WORKSPACE_ENDPOINTS.GET_PUBLIC_WORKSPACE}/${wokspaceId}`);
+};
+
+export const updateWorkspace = async (data: {
+  workspaceId: string;
+  data: WorkspaceSettingsForm;
+}) => {
+  return await axiosInstance.patch<ResponseObject>(
+    `${WORKSPACE_ENDPOINTS.GET_PUBLIC_WORKSPACE}/${data?.workspaceId}`,
+    data.data,
+  );
 };
 
 export const requestToJoinWorkspace = async (

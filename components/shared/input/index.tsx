@@ -1,11 +1,12 @@
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input as I } from "@/components/ui/input";
 import { ComponentProps } from "react";
+import { FieldError } from "react-hook-form";
 
 interface Props extends ComponentProps<"input"> {
   label?: string;
   tip?: string;
-  error?: string;
+  error?: string | FieldError;
 }
 
 export function Input({ label, tip, error, ...props }: Props) {

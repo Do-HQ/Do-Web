@@ -3,13 +3,12 @@
 import React, { useEffect } from "react";
 import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
 import useError from "@/hooks/use-error";
-import { AxiosError } from "axios";
 import { getUser } from "@/lib/services/user-service";
 import LoaderComponent from "@/components/shared/loader";
 import useAuthStore from "@/stores/auth";
 import useWorkspaceStore from "@/stores/workspace";
+import { useQuery } from "@tanstack/react-query";
 
 type RequireAuthProps = {
   children: React.ReactNode;
@@ -52,15 +51,11 @@ const RequireAuth = ({ children }: RequireAuthProps) => {
     enabled: !!accessToken,
   });
 
-  console.log(accessToken, "Tokennn");
-
   useEffect(() => {
     if (!accessToken) {
       router.replace(ROUTES.SIGN_IN);
     }
   }, [accessToken]);
-
-  console.log(user, "Checl");
 
   useEffect(() => {
     if (!accessToken && !user && !isPending) {

@@ -9,7 +9,7 @@ import {
   FieldSet,
 } from "../ui/field";
 import { Switch } from "../ui/switch";
-import { WorkspaceTeamsTable } from "./settings-worpspace-teams.table";
+import { WorkspaceTeamsTable } from "./settings-worpspace-teams-table";
 
 const SettingsWorkspaceTeams = () => {
   return (

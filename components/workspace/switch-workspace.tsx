@@ -1,6 +1,5 @@
 "use client";
 
-import JoinWorkspaceModal from "@/components/modals/join-workspace";
 import PaginationComp from "@/components/shared/pagination";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,10 +8,9 @@ import {
   InputGroupInput,
 } from "@/components/ui/input-group";
 import { H2, P } from "@/components/ui/typography";
-import WorkspaceCard from "@/components/workspace/workspace-card";
 import useWorkspace from "@/hooks/use-workspace";
 import { ROUTES } from "@/utils/constants";
-import { ArrowRightLeft, Plus, Search, Telescope } from "lucide-react";
+import { Search, Telescope } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import LoaderComponent from "@/components/shared/loader";
@@ -21,15 +19,16 @@ import EmptyComp from "@/components/shared/empty";
 import { WorkspaceType } from "@/types/workspace";
 import useWorkspaceStore from "@/stores/workspace";
 import { useQueryClient } from "@tanstack/react-query";
+import WorkspaceSwitchCard from "./workspace-switch-card";
+import useAuthStore from "@/stores/auth";
 
 const SwitchWorkspace = () => {
   // States
   const [page, setPage] = useState(1);
 
-  const queryClient = useQueryClient();
-
   //   Store
   const { setWorkspaceId } = useWorkspaceStore();
+  const { user } = useAuthStore();
 
   // Router
   const router = useRouter();
@@ -37,7 +36,10 @@ const SwitchWorkspace = () => {
   const search = searchParams.get("search");
 
   // Utils
-  const debouncedSearch = useDebounce(search, 1000);
+  const debouncedSearch = useDebounce(search, 500);
+
+  // Query
+  const queryClient = useQueryClient();
 
   // Hooks
   const { useUsersWorkSpace, useSwitchWorkspace } = useWorkspace();
@@ -81,7 +83,7 @@ const SwitchWorkspace = () => {
   };
 
   return (
-    <section className="max-w-200 mx-auto flex flex-col gap-6">
+    <section className="max-w-150 mx-auto flex flex-col gap-6">
       <div className="flex items-center gap-10">
         <div className="w-full">
           <H2>Switch Workspaces</H2>
@@ -125,24 +127,29 @@ const SwitchWorkspace = () => {
                   router.push(ROUTES.CREATE_WORKSPACE);
                 },
               }}
-              image="https://res.cloudinary.com/dgiropjpp/image/upload/v1770206460/Adventure_and_Exploration___adventure_exploration_discovery_obstacles_challenge_2x_vsdue8.png"
+              image="https://res.cloudinary.com/dgiropjpp/image/upload/v1770288832/Real_Estate_and_Architecture___home_house_shelter_security_comfort_safety_2x_wniwm8.png"
             />
           ) : (
-            workspaces?.map((workspace, i) => (
-              <WorkspaceCard
-                key={i}
-                onRequestJoin={(id) => {
-                  handleSwitchWorkspace(id!);
-                }}
-                data={workspace}
-                loading={
-                  variables?.workspaceId === workspace?._id &&
-                  isSwitchingWorkspace
-                }
-                buttonCta="Switch"
-                icon={<ArrowRightLeft />}
-              />
-            ))
+            workspaces?.map((workspace, i) => {
+              const userWorkspaces = user?.workspaces?.map(
+                (d) => d?.workspaceId?._id,
+              );
+              const disabled = user?.currentWorkspaceId?._id === workspace?._id;
+              return (
+                <WorkspaceSwitchCard
+                  key={i}
+                  onRequestJoin={(id) => {
+                    handleSwitchWorkspace(id!);
+                  }}
+                  data={workspace}
+                  loading={
+                    variables?.workspaceId === workspace?._id &&
+                    isSwitchingWorkspace
+                  }
+                  disabled={disabled}
+                />
+              );
+            })
           )}
         </div>
       </div>

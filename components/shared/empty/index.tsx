@@ -26,7 +26,7 @@ const EmptyComp = ({ image, header, description, button }: Props) => {
     <Empty>
       <EmptyHeader>
         <EmptyMedia variant="default" className="w-55 h-50 ">
-          <Image src={image} alt={header} width={220} height={200} />
+          <Image src={image} alt={header} width={150} height={150} />
         </EmptyMedia>
         <EmptyTitle>{header}</EmptyTitle>
         <EmptyDescription>{description}</EmptyDescription>

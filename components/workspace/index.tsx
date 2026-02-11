@@ -19,6 +19,7 @@ import LoaderComponent from "../shared/loader";
 import { useDebounce } from "@/hooks/use-debounce";
 import EmptyComp from "../shared/empty";
 import { WorkspaceType } from "@/types/workspace";
+import useAuthStore from "@/stores/auth";
 
 const JoinWorkspace = () => {
   // States
@@ -28,13 +29,16 @@ const JoinWorkspace = () => {
     null,
   );
 
+  // Store
+  const { user } = useAuthStore();
+
   // Router
   const router = useRouter();
   const searchParams = useSearchParams();
   const search = searchParams.get("search");
 
   // Utils
-  const debouncedSearch = useDebounce(search, 1000);
+  const debouncedSearch = useDebounce(search, 500);
 
   // Hooks
   const { usePublicWorkspace } = useWorkspace();
@@ -104,19 +108,27 @@ const JoinWorkspace = () => {
                   router.push(ROUTES.CREATE_WORKSPACE);
                 },
               }}
-              image="https://res.cloudinary.com/dgiropjpp/image/upload/v1770206460/Adventure_and_Exploration___adventure_exploration_discovery_obstacles_challenge_2x_vsdue8.png"
+              image="https://res.cloudinary.com/dgiropjpp/image/upload/v1770288832/Real_Estate_and_Architecture___home_house_shelter_security_comfort_safety_2x_wniwm8.png"
             />
           ) : (
-            workspaces?.map((workspace, i) => (
-              <WorkspaceCard
-                key={i}
-                onRequestJoin={(id) => {
-                  setShowJoinModal(true);
-                  setSelectedWorkspaceId(id!);
-                }}
-                data={workspace}
-              />
-            ))
+            workspaces?.map((workspace, i) => {
+              const userWorkspaces = user?.workspaces?.map(
+                (d) => d?.workspaceId?._id,
+              );
+              const disabled = userWorkspaces?.includes(workspace?._id);
+
+              return (
+                <WorkspaceCard
+                  key={i}
+                  onRequestJoin={(id) => {
+                    setShowJoinModal(true);
+                    setSelectedWorkspaceId(id!);
+                  }}
+                  data={workspace}
+                  disabled={disabled}
+                />
+              );
+            })
           )}
         </div>
       </div>

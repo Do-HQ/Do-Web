@@ -7,10 +7,12 @@ import {
   PaginationBody,
   requestToJoinWorkspace,
   switchWorkspace,
+  updateWorkspace,
 } from "@/lib/services/workspace-service";
 import {
   CreateWorkspaceRequestBody,
   JoinWorkspaceRequestBody,
+  WorkspaceSettingsForm,
 } from "@/types/workspace";
 import {
   useMutation,
@@ -109,6 +111,22 @@ const useWorkspace = () => {
     });
   };
 
+  const useUpdateWorkspace = (
+    options?: UseOptions<{
+      workspaceId: string;
+      data: WorkspaceSettingsForm;
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: updateWorkspace,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
   return {
     usePublicWorkspace,
     useWorkspaceById,
@@ -116,6 +134,7 @@ const useWorkspace = () => {
     useCreateWorkspace,
     useSwitchWorkspace,
     useUsersWorkSpace,
+    useUpdateWorkspace,
   };
 };
 

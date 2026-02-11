@@ -9,7 +9,7 @@ import {
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { useAppStore } from "@/stores";
 import SettingsSideBar from "../settings/side-bar";
-import { H1, H2 } from "../ui/typography";
+import { H2 } from "../ui/typography";
 import SettingsWorkspaceOverview from "../settings/settings-workspace-overview";
 import { ScrollArea } from "../ui/scroll-area";
 import SettingsWorkspaceTeams from "../settings/settings-worpskace-teams";
@@ -21,22 +21,27 @@ import {
   CircleSmall,
   Cog,
   FolderInput,
-  LucideIcon,
+  Library,
   MessageCircle,
   Shield,
   SunMoon,
   ToyBrick,
   User2Icon,
+  UserCog,
+  Workflow,
 } from "lucide-react";
 import SettingsProfileReferences from "../settings/settings-profile-preferences";
+import SettingsWorkspacePeople from "../settings/settings-worpspace-people";
 
 const workspace = {
   nav: [
     { name: "Overview", icon: CircleSmall },
+    { name: "People", icon: UserCog },
     { name: "Teams", icon: Baby },
+    { name: "Automation ⭐️", icon: Workflow },
     { name: "Security", icon: Shield },
     { name: "Appearance", icon: SunMoon },
-    { name: "Pages", icon: MessageCircle },
+    { name: "Knowledge Base", icon: Library },
     { name: "Integrations", icon: ToyBrick },
     { name: "Import", icon: FolderInput },
   ],
@@ -63,6 +68,8 @@ const SettingsModal = () => {
       return <SettingsWorkspaceTeams />;
     } else if (id === "preferences") {
       return <SettingsProfileReferences />;
+    } else if (id === "people") {
+      return <SettingsWorkspacePeople />;
     } else {
       return null;
     }

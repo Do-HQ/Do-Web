@@ -1,3 +1,4 @@
+import React from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,24 +11,20 @@ import {
 } from "@/components/ui/item";
 import { returnFullName } from "@/lib/helpers/return-full-name";
 import { WorkspaceType } from "@/types/workspace";
-import { LockOpen } from "lucide-react";
+import { ArrowRightLeft } from "lucide-react";
 
 interface Props extends React.HtmlHTMLAttributes<HTMLDivElement> {
   className?: string;
   onRequestJoin?: (id?: string) => void;
   data: WorkspaceType;
   loading?: boolean;
-  buttonCta?: string;
-  icon?: React.ReactNode;
   disabled?: boolean;
 }
 
-const WorkspaceCard = ({
+const WorkspaceSwitchCard = ({
   onRequestJoin,
   data,
   loading,
-  buttonCta,
-  icon,
   disabled,
 }: Props) => {
   return (
@@ -59,12 +56,12 @@ const WorkspaceCard = ({
           loading={loading}
           disabled={disabled}
         >
-          {icon ? icon : <LockOpen />}
-          {buttonCta ? buttonCta : "Request to join"}
+          <ArrowRightLeft />
+          Switch
         </Button>
       </ItemActions>
     </Item>
   );
 };
 
-export default WorkspaceCard;
+export default WorkspaceSwitchCard;

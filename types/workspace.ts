@@ -1,19 +1,18 @@
-import { createWorkspaceSchema } from "@/lib/schemas/workspace";
+import { workspaceSettingsSchema } from "@/lib/schemas/workspace";
 import z from "zod";
 import { AuthUser } from "./auth";
-
-export type WorkspaceTypes = "public" | "private";
 
 export interface WorkspaceType {
   _id: string;
   name: string;
-  type: WorkspaceTypes;
+  type: string;
   ownerId: AuthUser;
   members: AuthUser[];
   slug: string;
   createdAt: string;
   updatedAt: string;
   __v: number;
+  allowedDomains?: string[];
 }
 
 export interface JoinWorkspaceRequestBody {
@@ -22,5 +21,7 @@ export interface JoinWorkspaceRequestBody {
 
 export interface CreateWorkspaceRequestBody {
   name: string;
-  type: WorkspaceTypes;
+  type: string;
 }
+
+export type WorkspaceSettingsForm = z.infer<typeof workspaceSettingsSchema>;

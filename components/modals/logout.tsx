@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
 import useAuthStore from "@/stores/auth";
 import { useRouter } from "next/navigation";
+import { LogOut } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -23,6 +24,17 @@ const LogoutModal = ({ open, onOpenChange }: Props) => {
   // Router
   const router = useRouter();
 
+  // Store
+  const { setUser } = useAuthStore();
+
+  // Handlers
+  const logout = () => {
+    localStorage.removeItem(LOCAL_KEYS.TOKEN);
+    localStorage.removeItem(LOCAL_KEYS.REFRESH_TOKEN);
+    setUser(null);
+    router.push(ROUTES.SIGN_IN);
+  };
+
   // Hooks
   const { useLogout } = useUser();
   const { isPending: isLoggingUserOut, mutate: logoutUser } = useLogout({
@@ -30,7 +42,8 @@ const LogoutModal = ({ open, onOpenChange }: Props) => {
       toast.success(data?.data?.message, {
         description: data?.data?.description,
       });
-      router.push(ROUTES.SIGN_IN);
+
+      logout();
     },
   });
 
@@ -65,6 +78,7 @@ const LogoutModal = ({ open, onOpenChange }: Props) => {
             onClick={handleLogout}
             disabled={!user}
           >
+            <LogOut />
             Logout
           </Button>
         </DialogFooter>

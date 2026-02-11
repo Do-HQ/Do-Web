@@ -63,6 +63,7 @@ const Button = ({
       className={cn(
         buttonVariants({ variant, size, className }),
         "flex items-center gap-1",
+        loading && "cursor-progress",
       )}
       disabled={loading || disabled}
       {...props}
