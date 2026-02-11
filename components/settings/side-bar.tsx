@@ -9,7 +9,9 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { useAppStore } from "@/stores";
-import { LucideIcon } from "lucide-react";
+import { LogOut, LucideIcon } from "lucide-react";
+import { useState } from "react";
+import LogoutModal from "../modals/logout";
 
 interface Props {
   workspace: { nav: { name: string; icon: LucideIcon }[] };
@@ -19,6 +21,9 @@ interface Props {
 const SettingsSideBar = ({ workspace, profile }: Props) => {
   // Store
   const { setActiveSetting, activeSetting } = useAppStore();
+
+  // States
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   return (
     <Sidebar collapsible="none" className="hidden md:flex">
@@ -74,7 +79,23 @@ const SettingsSideBar = ({ workspace, profile }: Props) => {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        <SidebarGroup>
+          <SidebarGroupLabel>Authentication</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton onClick={() => setShowLogoutModal(true)}>
+                  <LogOut />
+                  <span>Logout</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
+
+      <LogoutModal onOpenChange={setShowLogoutModal} open={showLogoutModal} />
     </Sidebar>
   );
 };

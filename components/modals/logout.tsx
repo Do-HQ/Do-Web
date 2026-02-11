@@ -58,7 +58,7 @@ const LogoutModal = ({ open, onOpenChange }: Props) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-130">
+      <DialogContent className="sm:max-w-100">
         <DialogHeader>
           <DialogTitle>Leaving Squircle?</DialogTitle>
           <DialogDescription>
@@ -78,7 +78,6 @@ const LogoutModal = ({ open, onOpenChange }: Props) => {
             onClick={handleLogout}
             disabled={!user}
           >
-            <LogOut />
             Logout
           </Button>
         </DialogFooter>
