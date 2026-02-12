@@ -10,7 +10,7 @@ import {
 import { H2, P } from "@/components/ui/typography";
 import useWorkspace from "@/hooks/use-workspace";
 import { ROUTES } from "@/utils/constants";
-import { Search, Telescope } from "lucide-react";
+import { ChevronLeft, Search, Telescope } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import LoaderComponent from "@/components/shared/loader";
@@ -85,6 +85,11 @@ const SwitchWorkspace = () => {
 
   return (
     <section className="max-w-150 mx-auto flex flex-col gap-6">
+      <div>
+        <Button onClick={handleExploreWorkspace}>
+          <ChevronLeft />
+        </Button>
+      </div>
       <div className="flex max-sm:flex-wrap items-center my-2 gap-6 lg:gap-10">
         <div className="w-full">
           <H2>Switch Workspaces</H2>
