@@ -21,7 +21,7 @@ const OnboardingLayout = ({
 
   return (
     <RequireAuth>
-      <main className="min-h-screen w-screen flex flex-col gap-4 p-8 relative">
+      <main className="min-h-screen w-screen flex flex-col gap-4 p-4 md:p-6 lg:p-8 relative">
         <header className="flex items-center justify-between sticky top-0 z-3">
           <div className="flex flex-col gap-1 ml-auto">
             <P className="text-muted-foreground">Logged in as:</P>

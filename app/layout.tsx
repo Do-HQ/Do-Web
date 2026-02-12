@@ -66,9 +66,9 @@ export const metadata: Metadata = {
     creator: "@squircle",
   },
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon-32x32.png",
-    apple: "/apple-touch-icon.png",
+    icon: "/images/favicon.ico",
+    shortcut: "/images/favicon-32x32.png",
+    apple: "/images/apple-touch-icon.png",
   },
 
   robots: {

@@ -21,6 +21,7 @@ import useWorkspaceStore from "@/stores/workspace";
 import { useQueryClient } from "@tanstack/react-query";
 import WorkspaceSwitchCard from "./workspace-switch-card";
 import useAuthStore from "@/stores/auth";
+import WorkspaceCardSkeleton from "./workspace-card-skeleton";
 
 const SwitchWorkspace = () => {
   // States
@@ -84,7 +85,7 @@ const SwitchWorkspace = () => {
 
   return (
     <section className="max-w-150 mx-auto flex flex-col gap-6">
-      <div className="flex items-center gap-10">
+      <div className="flex max-sm:flex-wrap items-center my-2 gap-6 lg:gap-10">
         <div className="w-full">
           <H2>Switch Workspaces</H2>
           <P className="text-muted-foreground">
@@ -116,7 +117,12 @@ const SwitchWorkspace = () => {
       <div className="w-full">
         <div className="flex flex-col gap-2">
           {isPending ? (
-            <LoaderComponent />
+            <>
+              {[...Array(2)].map((_, i) => (
+                <WorkspaceCardSkeleton key={i} />
+              ))}
+              <div className="mt-7 h-10" />
+            </>
           ) : (workspaces as WorkspaceType[])?.length < 1 ? (
             <EmptyComp
               header="Your workspace journey starts here"
