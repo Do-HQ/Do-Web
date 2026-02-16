@@ -22,6 +22,7 @@ import { CreateWorkspaceRequestBody } from "@/types/workspace";
 import { ROUTES } from "@/utils/constants";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
+import { ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
 
@@ -61,6 +62,11 @@ const CreateWorkspace = () => {
 
   return (
     <section className="max-w-300 mx-auto flex flex-col gap-6">
+      <div>
+        <Button onClick={() => router.back()}>
+          <ChevronLeft />
+        </Button>
+      </div>
       <div>
         <H2>Create your Workspace</H2>
         <P className="text-muted-foreground">

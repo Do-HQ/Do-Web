@@ -32,11 +32,11 @@ const WorkspaceCard = ({
 }: Props) => {
   return (
     <Item variant="outline">
-      <ItemMedia>
+      <ItemMedia className="hidden sm:flex">
         <div className="*:data-[slot=avatar]:ring-background flex -space-x-2 *:data-[slot=avatar]:ring-2 ">
           {data?.members?.map((d) => {
             return (
-              <Avatar className="hidden sm:flex" key={d?._id}>
+              <Avatar key={d?._id}>
                 <AvatarImage src={d?.profilePhoto?.url} alt="@shadcn" />
                 <AvatarFallback>
                   {d?.firstName?.[0]}

@@ -15,11 +15,11 @@ import { ROUTES } from "@/utils/constants";
 import { Plus, Search } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import LoaderComponent from "../shared/loader";
 import { useDebounce } from "@/hooks/use-debounce";
 import EmptyComp from "../shared/empty";
 import { WorkspaceType } from "@/types/workspace";
 import useAuthStore from "@/stores/auth";
+import WorkspaceCardSkeleton from "./workspace-card-skeleton";
 
 const JoinWorkspace = () => {
   // States
@@ -66,7 +66,7 @@ const JoinWorkspace = () => {
 
   return (
     <section className="max-w-200 mx-auto flex flex-col gap-6">
-      <div className="flex items-center gap-10">
+      <div className="flex max-sm:flex-wrap items-center my-2 gap-4 lg:gap-10">
         <div className="w-full">
           <H2>Join a Workspace</H2>
           <P className="text-muted-foreground">
@@ -97,7 +97,12 @@ const JoinWorkspace = () => {
       <div className="w-full">
         <div className="flex flex-col gap-2">
           {isPending ? (
-            <LoaderComponent />
+            <>
+              {[...Array(2)].map((_, i) => (
+                <WorkspaceCardSkeleton key={i} />
+              ))}
+              <div className="mt-7 h-10" />
+            </>
           ) : (workspaces as WorkspaceType[])?.length < 1 ? (
             <EmptyComp
               header="Your workspace journey starts here"
