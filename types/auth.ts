@@ -1,4 +1,5 @@
 import { CustomFile } from "./file";
+import { WorkspaceType } from "./workspace";
 
 export interface UserType {
   email: string;
@@ -22,17 +23,6 @@ export interface ValidateOtpBpdy {
 }
 
 export type WorkspaceRole = "owner" | "admin" | "member";
-
-export interface WorkspaceType {
-  _id: string;
-  name: string;
-  type: string;
-  ownerId: string;
-  members: [string];
-  slug: string;
-  createdAt: string;
-  updatedAt: string;
-}
 
 export interface UserWorkspace {
   workspaceId: WorkspaceType;

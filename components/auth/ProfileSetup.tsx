@@ -14,10 +14,12 @@ import UserImageUpload from "../shared/user-image-upload";
 import { CustomFile } from "@/types/file";
 import { useState } from "react";
 import useUser from "@/hooks/use-user";
+import useWorkspaceStore from "@/stores/workspace";
 
 const ProfileSetup = () => {
   // Store
   const { user, setUser } = useAuthStore();
+  const { workspaces } = useWorkspaceStore();
 
   // States
   const [image, setImage] = useState<CustomFile | null>(null);
@@ -27,7 +29,7 @@ const ProfileSetup = () => {
   const { mutate: updateUser, isPending: isUpdatingUser } = useUpdateUser({
     onSuccess(data) {
       setUser(data?.data?.user);
-      if (data?.data?.user?.workspaces?.length === 0) {
+      if (workspaces?.length === 0) {
         router.push(ROUTES.WORKSPACE);
       } else {
         router.replace(ROUTES.DASHBOARD);

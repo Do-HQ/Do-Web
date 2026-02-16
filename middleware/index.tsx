@@ -3,12 +3,12 @@
 import React, { useEffect } from "react";
 import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
 import { useRouter } from "next/navigation";
-import useError from "@/hooks/use-error";
 import { getUser } from "@/lib/services/user-service";
 import LoaderComponent from "@/components/shared/loader";
 import useAuthStore from "@/stores/auth";
 import useWorkspaceStore from "@/stores/workspace";
 import { useQuery } from "@tanstack/react-query";
+import { getUserWorkspaces } from "@/lib/services/workspace-service";
 
 type RequireAuthProps = {
   children: React.ReactNode;
@@ -20,10 +20,7 @@ const RequireAuth = ({ children }: RequireAuthProps) => {
 
   // Global
   const { user, setUser } = useAuthStore();
-  const { setWorkspaceId } = useWorkspaceStore();
-
-  // Custom Hooks
-  const { handleError } = useError();
+  const { setWorkspaceId, setWorkspaces } = useWorkspaceStore();
 
   // Local
   const accessToken =
@@ -41,8 +38,25 @@ const RequireAuth = ({ children }: RequireAuthProps) => {
 
         return res.data.user;
       } catch (err) {
-        localStorage.removeItem(LOCAL_KEYS.TOKEN);
-        router.replace(ROUTES.SIGN_IN);
+        // localStorage.removeItem(LOCAL_KEYS.TOKEN);
+        // router.replace(ROUTES.SIGN_IN);
+
+        throw err;
+      }
+    },
+    retry: false,
+    enabled: !!accessToken,
+  });
+
+  const { isPending: isGettingUsersWorkspaces } = useQuery({
+    queryKey: ["user-workspaces"],
+    queryFn: async () => {
+      try {
+        const res = await getUserWorkspaces({ page: 1, limit: 100 });
+        setWorkspaces(res?.data?.workspaces);
+      } catch (err) {
+        // localStorage.removeItem(LOCAL_KEYS.TOKEN);
+        // router.replace(ROUTES.SIGN_IN);
 
         throw err;
       }
@@ -65,7 +79,7 @@ const RequireAuth = ({ children }: RequireAuthProps) => {
     }
   }, [accessToken, user]);
 
-  if (isPending) {
+  if (isPending || isGettingUsersWorkspaces) {
     return <LoaderComponent />;
   }
 

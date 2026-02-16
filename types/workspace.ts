@@ -25,3 +25,24 @@ export interface CreateWorkspaceRequestBody {
 }
 
 export type WorkspaceSettingsForm = z.infer<typeof workspaceSettingsSchema>;
+
+export interface WorkspaceInviteRequestBody {
+  email: string;
+  roles: string[];
+}
+
+export interface WorkspaceRole {
+  _id: string;
+  name: string;
+}
+
+export interface WorkspacePerson {
+  _id: string;
+  workspaceId: string;
+  userId: AuthUser;
+  roles: WorkspaceRole[];
+  score: number;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}

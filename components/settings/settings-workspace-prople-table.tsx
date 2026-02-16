@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -40,71 +40,42 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import { Input } from "../shared/input";
+import useWorkspace from "@/hooks/use-workspace";
+import LoaderComponent from "../shared/loader";
+import { returnFullName } from "@/lib/helpers/return-full-name";
+import useWorkspaceStore from "@/stores/workspace";
+import { WorkspaceRole } from "@/types/workspace";
 
 interface User {
-  id: string;
-  user: string;
-  status: string;
+  name: string;
   team: string;
   role: string;
+  profileImage: string;
+  activeTasks: number;
+  score: number;
 }
-
-const data = [
-  {
-    id: "m5gr84i9",
-    user: "Ezimorah Tobenna",
-    status: "active",
-    team: "Frontend Devs",
-    role: "lead",
-  },
-  {
-    id: "3u1reuv4",
-    user: "Ohani Kizito",
-    status: "active",
-    team: "Product Owners",
-    role: "owner",
-  },
-  {
-    id: "derv1ws0",
-    user: "Test user 1",
-    status: "processing",
-    team: "Designers",
-    role: "admin",
-  },
-  {
-    id: "5kma53ae",
-    user: "Jeff Bezos",
-    status: "active",
-    team: "Testers",
-    role: "member",
-  },
-  {
-    id: "bhqecj4p",
-    user: "Nwabufo Chinenye",
-    status: "active",
-    team: "Solution Architects",
-    role: "member",
-  },
-];
 
 export const columns: ColumnDef<User>[] = [
   {
-    accessorKey: "user",
+    accessorKey: "name",
     header: "Person",
-    cell: ({ row }) => (
-      <div className="capitalize">
-        <div className="flex items-center gap-2">
-          <Avatar size="sm">
-            <AvatarImage
-              src="https://res.cloudinary.com/dgiropjpp/image/upload/v1769577491/Logo_maker_project-2_jz4e09.png"
-              alt="@shadcn"
-            />
-            <AvatarFallback>CN</AvatarFallback>
-          </Avatar>
-          {row.getValue("user")}
+    cell: ({ row }) => {
+      const user: User = row.original; // full row data
+
+      return (
+        <div className="capitalize">
+          <div className="flex items-center gap-2">
+            <Avatar size="sm">
+              <AvatarImage src={user.name} alt={user.name} />
+              <AvatarFallback>
+                {user.name?.slice(0, 2).toUpperCase()}
+              </AvatarFallback>
+            </Avatar>
+            {user.name!}
+          </div>
         </div>
-      </div>
-    ),
+      );
+    },
   },
   {
     accessorKey: "team",
@@ -127,27 +98,41 @@ export const columns: ColumnDef<User>[] = [
     accessorKey: "role",
     header: () => <div className="text-left">Role</div>,
     cell: ({ row }) => {
+      const roles: WorkspaceRole[] = row.getValue("role");
+
+      const roleData = roles.map((r) => {
+        return (
+          <Badge
+            className="capitalize text-center"
+            variant="secondary"
+            key={r?._id}
+          >
+            {r?.name}
+          </Badge>
+        );
+      });
+
+      return <div className="flex items-center gap-1">{roleData}</div>;
+    },
+  },
+  {
+    accessorKey: "activeTasks",
+    header: () => <div className="text-left">Active Tasks</div>,
+    cell: ({ row }) => {
       return (
-        <Badge className="capitalize text-center" variant="secondary">
-          {row.getValue("role")}
-        </Badge>
+        <div className="text-left font-medium">
+          {row.getValue("activeTasks")}
+        </div>
       );
     },
   },
   {
-    accessorKey: "tasks",
-    header: () => <div className="text-center">Active Tasks</div>,
-    cell: () => {
-      return <div className="text-center font-medium">10</div>;
-    },
-  },
-  {
-    accessorKey: "last_updated",
-    header: () => <div className="text-right">Score</div>,
-    cell: () => {
+    accessorKey: "score",
+    header: () => <div className="text-left">Score</div>,
+    cell: ({ row }) => {
       return (
-        <div className="text-right text-sm text-muted-foreground font-medium">
-          80%
+        <div className="text-left text-sm text-muted-foreground font-medium">
+          {row.getValue("score")}
         </div>
       );
     },
@@ -186,7 +171,7 @@ export const columns: ColumnDef<User>[] = [
             <DropdownMenuGroup>
               <DropdownMenuItem variant="destructive">
                 <Trash2 />
-                Disable {row?.getValue("user")}
+                Disable account
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>
@@ -205,9 +190,36 @@ const SettingsWorkspacePeopleTable = () => {
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
 
+  // States
+  const { workspaceId } = useWorkspaceStore();
+
+  // Queries
+  const { useWorkspacePeople } = useWorkspace();
+  const { isPending: isLoadingWorkspacePeole, data: woekspacePeopleData } =
+    useWorkspacePeople(workspaceId!);
+
+  // Memo
+  const workspacePeople = useMemo(() => {
+    if (!woekspacePeopleData) {
+      return [];
+    }
+    const wp = woekspacePeopleData?.data?.members?.map((d) => {
+      return {
+        name: returnFullName(d?.userId),
+        profileImage: d?.userId?.profilePhoto?.url,
+        team: "No team",
+        role: d?.roles,
+        activeTasks: 0,
+        score: d?.score,
+      };
+    });
+
+    return wp;
+  }, [woekspacePeopleData]);
+
   const table = useReactTable({
-    data,
-    columns,
+    data: workspacePeople!,
+    columns: columns,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
@@ -229,9 +241,9 @@ const SettingsWorkspacePeopleTable = () => {
       <div className="flex items-center gap-4 py-4">
         <Input
           placeholder="Search by user name ot team..."
-          value={(table.getColumn("team")?.getFilterValue() as string) ?? ""}
+          value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
           onChange={(event) =>
-            table.getColumn("team")?.setFilterValue(event.target.value)
+            table.getColumn("name")?.setFilterValue(event.target.value)
           }
           className="max-w-sm"
         />
@@ -241,7 +253,7 @@ const SettingsWorkspacePeopleTable = () => {
               <ArrowDown01 /> Filter by Team <ChevronDown />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="start">
             <DropdownMenuGroup>
               {table
                 .getAllColumns()
@@ -263,60 +275,60 @@ const SettingsWorkspacePeopleTable = () => {
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
-        <Button>
-          <UserPlus2 />
-          Add a new member
-        </Button>
       </div>
       <div className="overflow-hidden rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                    </TableHead>
-                  );
-                })}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows?.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
-                    </TableCell>
-                  ))}
+        {isLoadingWorkspacePeole ? (
+          <LoaderComponent />
+        ) : (
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    return (
+                      <TableHead key={header.id}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext(),
+                            )}
+                      </TableHead>
+                    );
+                  })}
                 </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  No results.
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              ))}
+            </TableHeader>
+            <TableBody>
+              {table.getRowModel().rows?.length ? (
+                table.getRowModel().rows.map((row) => (
+                  <TableRow
+                    key={row.id}
+                    data-state={row.getIsSelected() && "selected"}
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell key={cell.id}>
+                        {flexRender(
+                          cell.column.columnDef.cell,
+                          cell.getContext(),
+                        )}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={columns.length}
+                    className="h-24 text-center"
+                  >
+                    No results.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        )}
       </div>
       <div className="flex items-center justify-end space-x-2 py-4">
         <div className="space-x-2 flex items-center  gap-4">

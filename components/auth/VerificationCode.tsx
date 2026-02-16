@@ -46,13 +46,17 @@ const VerificationCode = () => {
       toast.success(data?.data?.message, {
         description: data?.data?.description,
       });
+
       localStorage.setItem(LOCAL_KEYS.TOKEN, data?.data?.token);
       localStorage.setItem(LOCAL_KEYS.REFRESH_TOKEN, data?.data?.refreshToken);
+
       setUser(data?.data?.user);
+
       if (!data?.data?.user?.firstName) {
         router.push(ROUTES.ONBOARDING);
         return;
       }
+
       if (!data?.data?.user?.currentWorkspaceId) {
         router.push(ROUTES.SWITCH_WORKSPACE);
         return;

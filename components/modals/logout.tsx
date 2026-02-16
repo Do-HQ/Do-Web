@@ -13,7 +13,6 @@ import { toast } from "sonner";
 import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
 import useAuthStore from "@/stores/auth";
 import { useRouter } from "next/navigation";
-import { LogOut } from "lucide-react";
 
 interface Props {
   open: boolean;
@@ -58,7 +57,7 @@ const LogoutModal = ({ open, onOpenChange }: Props) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-100">
+      <DialogContent className="sm:max-w-120 ">
         <DialogHeader>
           <DialogTitle>Leaving Squircle?</DialogTitle>
           <DialogDescription>

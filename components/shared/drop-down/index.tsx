@@ -25,7 +25,7 @@ export function Dropdown({
 }: Props) {
   return (
     <Select value={value} onValueChange={setValue}>
-      <SelectTrigger className="w-full max-w-48">
+      <SelectTrigger className="w-full">
         <SelectValue placeholder={label} />
       </SelectTrigger>
       <SelectContent>

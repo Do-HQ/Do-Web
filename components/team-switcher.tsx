@@ -1,8 +1,6 @@
 "use client";
 
-import * as React from "react";
 import { ChevronDown, Loader, Plus } from "lucide-react";
-
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,8 +18,6 @@ import {
 import { useRouter } from "next/navigation";
 import { ROUTES } from "@/utils/constants";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { UserWorkspace } from "@/types/auth";
-import useAuth from "@/hooks/use-auth";
 import useAuthStore from "@/stores/auth";
 import { getUserAbbreviation } from "@/lib/helpers/return-full-name";
 import { cn } from "@/lib/utils";
@@ -29,12 +25,12 @@ import useWorkspaceStore from "@/stores/workspace";
 import useWorkspace from "@/hooks/use-workspace";
 import { useQueryClient } from "@tanstack/react-query";
 
-export function TeamSwitcher({ teams }: { teams: UserWorkspace[] }) {
+export function TeamSwitcher() {
   const queryClient = useQueryClient();
 
   // Store
   const { user } = useAuthStore();
-  const { workspaceId, setWorkspaceId } = useWorkspaceStore();
+  const { workspaceId, setWorkspaceId, workspaces } = useWorkspaceStore();
 
   // Router
   const router = useRouter();
@@ -85,13 +81,13 @@ export function TeamSwitcher({ teams }: { teams: UserWorkspace[] }) {
             <DropdownMenuLabel className="text-muted-foreground text-xs">
               Workspaces
             </DropdownMenuLabel>
-            {teams?.map((team, index) => (
+            {workspaces?.map((team, index) => (
               <DropdownMenuItem
-                key={team?.workspaceId?._id}
-                onClick={() => handleSwitchWorkspace(team?.workspaceId?._id)}
+                key={team?._id}
+                onClick={() => handleSwitchWorkspace(team?._id)}
                 className={cn(
                   "gap-2 p-1.5 text-xs font-medium",
-                  workspaceId === team?.workspaceId?._id &&
+                  workspaceId === team?._id &&
                     "bg-accent text-accent-foreground",
                 )}
               >
@@ -102,10 +98,9 @@ export function TeamSwitcher({ teams }: { teams: UserWorkspace[] }) {
                   />
                   <AvatarFallback>SQ</AvatarFallback>
                 </Avatar>
-                {team?.workspaceId?.name}
+                {team?.name}
                 <DropdownMenuShortcut>
-                  {isSwitchingWorkspace &&
-                  workspaceId === team?.workspaceId?._id ? (
+                  {isSwitchingWorkspace && workspaceId === team?._id ? (
                     <Loader className="animate-spin" size={16} />
                   ) : (
                     <>⌘{index + 1}</>

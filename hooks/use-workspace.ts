@@ -1,9 +1,12 @@
+import useAuthStore from "@/stores/auth";
 import useError from "./use-error";
 import {
   createWorkspace,
   getPublicWorkspaces,
   getUserWorkspaces,
   getWorkspaceById,
+  getWorkspacePeople,
+  getWorkspaceRoles,
   PaginationBody,
   requestToJoinWorkspace,
   switchWorkspace,
@@ -20,12 +23,17 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 import { AxiosError, AxiosResponse } from "axios";
+import useWorkspaceStore from "@/stores/workspace";
 
 type UseOptions<T> = UseMutationOptions<AxiosResponse, unknown, T, unknown>;
 
 const useWorkspace = () => {
   // Hooks
   const { handleError } = useError();
+
+  // Stores
+  const { user } = useAuthStore();
+  const { workspaceId } = useWorkspaceStore();
 
   const usePublicWorkspace = (params: PaginationBody) => {
     const { page, search, limit } = params;
@@ -111,6 +119,13 @@ const useWorkspace = () => {
     });
   };
 
+  const useActiveWorkspace = () => {
+    const activeWorkspace = user?.workspaces?.find(
+      (w) => w?.workspaceId?._id === workspaceId,
+    );
+    return activeWorkspace;
+  };
+
   const useUpdateWorkspace = (
     options?: UseOptions<{
       workspaceId: string;
@@ -127,6 +142,50 @@ const useWorkspace = () => {
     });
   };
 
+  const useWorkspacePeople = (workspaceId: string) => {
+    return useQuery({
+      queryKey: ["get-workspaces-people", workspaceId],
+      enabled: !!workspaceId,
+      queryFn: async () => {
+        try {
+          return await getWorkspacePeople(workspaceId!);
+        } catch (error: unknown) {
+          handleError(error as AxiosError);
+          throw error;
+        }
+      },
+    });
+  };
+
+  const useWorkspaceInvites = (workspaceId: string) => {
+    return useQuery({
+      queryKey: ["get-workspaces-people", workspaceId],
+      enabled: !!workspaceId,
+      queryFn: async () => {
+        try {
+          return await getWorkspacePeople(workspaceId!);
+        } catch (error: unknown) {
+          handleError(error as AxiosError);
+          throw error;
+        }
+      },
+    });
+  };
+
+  const useWorkspaceRoles = (workspaceId: string) => {
+    return useQuery({
+      queryKey: ["get-workspace-roles", workspaceId],
+      queryFn: async () => {
+        try {
+          return await getWorkspaceRoles(workspaceId);
+        } catch (error) {
+          handleError(error as AxiosError);
+          throw error;
+        }
+      },
+    });
+  };
+
   return {
     usePublicWorkspace,
     useWorkspaceById,
@@ -135,6 +194,9 @@ const useWorkspace = () => {
     useSwitchWorkspace,
     useUsersWorkSpace,
     useUpdateWorkspace,
+    useActiveWorkspace,
+    useWorkspacePeople,
+    useWorkspaceRoles,
   };
 };
 

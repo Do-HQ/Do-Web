@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -47,6 +47,7 @@ import {
 } from "@tanstack/react-table";
 import { Input } from "../shared/input";
 import { cn } from "@/lib/utils";
+import SettingsWorkspacePeopleAddMembers from "./modals/settings-workspace-people-add-member";
 
 interface Invite {
   id: string;
@@ -189,6 +190,7 @@ const SettingsWorkspacePropleInvitesTable = () => {
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
 
   const table = useReactTable({
     data,
@@ -209,18 +211,23 @@ const SettingsWorkspacePropleInvitesTable = () => {
     },
   });
 
+  // Handlers
+  const handleOpenAddMemberModalAction = () => {
+    setShowAddMemberModal(true);
+  };
+
   return (
     <div className="w-full">
       <div className="flex items-center gap-4 py-4">
         <Input
           placeholder="Search by user email..."
-          value={(table.getColumn("team")?.getFilterValue() as string) ?? ""}
+          value={(table.getColumn("email")?.getFilterValue() as string) ?? ""}
           onChange={(event) =>
-            table.getColumn("team")?.setFilterValue(event.target.value)
+            table.getColumn("email")?.setFilterValue(event.target.value)
           }
           className="max-w-sm"
         />
-        <Button>
+        <Button onClick={handleOpenAddMemberModalAction}>
           <Send />
           Invite a new member
         </Button>
@@ -295,6 +302,11 @@ const SettingsWorkspacePropleInvitesTable = () => {
           </Button>
         </div>
       </div>
+
+      <SettingsWorkspacePeopleAddMembers
+        open={showAddMemberModal}
+        onOpenChange={setShowAddMemberModal}
+      />
     </div>
   );
 };

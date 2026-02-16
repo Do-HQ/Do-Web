@@ -30,3 +30,23 @@ export const workspaceSettingsSchema = z.object({
       "Enter valid comma-separated domains (e.g. example.com, foo.bar)",
     ),
 });
+
+export const createInviteMemberSchema = (allowedDomains: string[]) => {
+  return z.object({
+    email: z
+      .string()
+      .min(1, "Email is required")
+      .email("Please enter a valid email address")
+      .refine(
+        (email) => {
+          const domain = email.split("@")[1]?.toLowerCase();
+          return allowedDomains.includes(domain);
+        },
+        {
+          message: "Email domain is not allowed",
+        },
+      ),
+
+    roles: z.array(z.string()).min(1, "At least one role must be selected"),
+  });
+};

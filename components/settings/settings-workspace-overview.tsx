@@ -28,7 +28,6 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { workspaceSettingsSchema } from "@/lib/schemas/workspace";
 import { WorkspaceSettingsForm } from "@/types/workspace";
-import { useDebounce } from "@/hooks/use-debounce";
 import { useCopyToClipboard } from "@/hooks/use-copy";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -50,6 +49,9 @@ const SettingsWorkspaceOverview = () => {
       onSuccess(data) {
         queryClient.invalidateQueries({
           queryKey: ["get-workspace-detail"],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["user"],
         });
         toast.success(data?.data?.message, {
           description: data?.data?.description,
@@ -94,6 +96,7 @@ const SettingsWorkspaceOverview = () => {
   };
 
   const formValues = form.getValues();
+  const allowedDomainsValue = watch("allowedDomains");
 
   console.log(
     JSON.stringify(formValues?.allowedDomains) ===
@@ -245,8 +248,8 @@ const SettingsWorkspaceOverview = () => {
           <Button
             className="max-w-20"
             disabled={
-              formValues?.allowedDomains ===
-                workspace?.allowedDomains?.join(",") || !isValid
+              allowedDomainsValue === workspace?.allowedDomains?.join(",") ||
+              !isValid
             }
             size="sm"
             type="submit"
@@ -269,8 +272,15 @@ const SettingsWorkspaceOverview = () => {
               {workspace?._id}
             </P>
 
-            <Button size="sm" variant="ghost">
-              <Copy />
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={(e) => {
+                e.preventDefault();
+                copy(workspace?._id as string);
+              }}
+            >
+              {copied ? <Check className="text-green-500" /> : <Copy />}
             </Button>
           </FieldContent>
           <FieldSeparator />
@@ -282,7 +292,11 @@ const SettingsWorkspaceOverview = () => {
             This will permanently delete the workspace and all its data.
           </FieldDescription>
           <FieldContent className="flex flex-col gap-2 max-w-120 justify-start">
-            <Button variant="outline" className="w-50 text-destructive">
+            <Button
+              variant="outline"
+              className="w-50 text-destructive"
+              onClick={(e) => e.preventDefault()}
+            >
               <Trash2 />
               Delete Workspace
             </Button>
