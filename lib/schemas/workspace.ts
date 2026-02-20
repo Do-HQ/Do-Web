@@ -39,6 +39,10 @@ export const createInviteMemberSchema = (allowedDomains: string[]) => {
       .email("Please enter a valid email address")
       .refine(
         (email) => {
+          if (!allowedDomains || allowedDomains.length === 0) {
+            return true;
+          }
+
           const domain = email.split("@")[1]?.toLowerCase();
           return allowedDomains.includes(domain);
         },

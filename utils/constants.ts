@@ -15,3 +15,5 @@ export const LOCAL_KEYS = {
   REFRESH_TOKEN: "squircle-refresh-token",
   REDIRECT: "squircle-redirect-path",
 };
+
+export const PAGE_LIMIT = 10;

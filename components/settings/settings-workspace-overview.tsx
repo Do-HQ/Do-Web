@@ -44,6 +44,7 @@ const SettingsWorkspaceOverview = () => {
   const { isPending, data } = useWorkspaceById(workspaceId!);
   const { copy, copied } = useCopyToClipboard();
   const { useUpdateWorkspace } = useWorkspace();
+
   const { isPending: isUpdatingWorkspace, mutate: updateWorkspace } =
     useUpdateWorkspace({
       onSuccess(data) {

@@ -5,16 +5,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import React, { Dispatch, SetStateAction, useMemo } from "react";
-import {
-  Field,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-  FieldSet,
-} from "@/components/ui/field";
+import React, { Dispatch, SetStateAction, useEffect, useMemo } from "react";
+import { Field, FieldGroup, FieldSet } from "@/components/ui/field";
 import { Input } from "@/components/shared/input";
-import { Dropdown } from "@/components/shared/drop-down";
+import { MultiSelect } from "@/components/shared/drop-down";
 import { Button } from "@/components/ui/button";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -22,63 +16,91 @@ import { WorkspaceInviteRequestBody } from "@/types/workspace";
 import useWorkspaceStore from "@/stores/workspace";
 import { createInviteMemberSchema } from "@/lib/schemas/workspace";
 import useWorkspace from "@/hooks/use-workspace";
-import {
-  Combobox,
-  ComboboxChip,
-  ComboboxChips,
-  ComboboxChipsInput,
-  ComboboxContent,
-  ComboboxEmpty,
-  ComboboxItem,
-  ComboboxList,
-  ComboboxValue,
-  useComboboxAnchor,
-} from "@/components/ui/combobox";
+
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface Props {
   open: boolean;
   onOpenChange: Dispatch<SetStateAction<boolean>>;
 }
 
-const roles = ["Owner", "Admin", "Member", "Product Manager"];
-
 const SettingsWorkspacePeopleAddMembers = ({ open, onOpenChange }: Props) => {
   // Store
-  const { useActiveWorkspace, useWorkspaceRoles } = useWorkspace();
+  const { useActiveWorkspace, useWorkspaceRoles, useCreateWorkspaceInvite } =
+    useWorkspace();
   const { workspaceId } = useWorkspaceStore();
 
   const activeWorkspace = useActiveWorkspace();
-  const { isPending, data } = useWorkspaceRoles(workspaceId!);
+  const { isPending: isGettingWorkspaceRoles, data } = useWorkspaceRoles(
+    workspaceId!,
+  );
+
+  // Query
+  const queryClient = useQueryClient();
 
   //   Memo
   const roles = useMemo(() => {
-    return data?.data?.roles;
+    return data?.data?.roles || [];
   }, [data]);
 
-  //   Hooks
-  const anchor = useComboboxAnchor();
+  //   Utils
+  const defaultRole = roles.find((r) => r.name.toLowerCase() === "member");
 
   // Validation
   const {
     register,
     control,
     handleSubmit,
+    reset,
     formState: { errors, isValid },
   } = useForm<WorkspaceInviteRequestBody>({
     resolver: zodResolver(
       createInviteMemberSchema(
-        activeWorkspace?.workspaceId?.allowedDomains as string[],
+        (activeWorkspace?.workspaceId?.allowedDomains as string[]) || [],
       ),
     ),
-    defaultValues: {
-      roles: [roles?.[0]?.name],
-    },
     mode: "onChange",
   });
 
-  const onSubmit = (data: WorkspaceInviteRequestBody) => {
-    console.log(data);
+  const { isPending: isCreatingWorkspaceRole, mutate: createRole } =
+    useCreateWorkspaceInvite({
+      onSuccess(data) {
+        toast.success(data?.data?.message, {
+          description: data?.data?.description,
+        });
+        reset({
+          email: "",
+          roles: [defaultRole?._id],
+        });
+
+        queryClient.invalidateQueries({ queryKey: ["get-workspaces-invites"] });
+      },
+    });
+
+  const onSubmit = (formData: WorkspaceInviteRequestBody) => {
+    createRole({
+      workspaceId: workspaceId!,
+      data: [
+        {
+          email: formData?.email,
+          roleIds: formData?.roles,
+        },
+      ],
+    });
   };
+
+  //   Effects
+  useEffect(() => {
+    if (roles?.length) {
+      if (defaultRole) {
+        reset({
+          email: "",
+          roles: [defaultRole._id],
+        });
+      }
+    }
+  }, [roles, reset]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -115,56 +137,16 @@ const SettingsWorkspacePeopleAddMembers = ({ open, onOpenChange }: Props) => {
                 name="roles"
                 control={control}
                 render={({ field }) => (
-                  <Field>
-                    <FieldLabel>Role(s)</FieldLabel>
-                    <Combobox
-                      multiple
-                      autoHighlight
-                      items={roles?.map((r) => r?.name)}
-                      value={field.value}
-                      onValueChange={(newValue) => {
-                        field.onChange(newValue);
-                      }}
-                    >
-                      <ComboboxChips ref={anchor} className="w-full max-w-xs">
-                        <ComboboxValue>
-                          {(values: string[]) => (
-                            <>
-                              {values.map((value) => (
-                                <ComboboxChip
-                                  key={value}
-                                  className="capitalize"
-                                >
-                                  {value}
-                                </ComboboxChip>
-                              ))}
-                              <ComboboxChipsInput />
-                            </>
-                          )}
-                        </ComboboxValue>
-                      </ComboboxChips>
-                      <ComboboxContent anchor={anchor}>
-                        <ComboboxEmpty>No items found.</ComboboxEmpty>
-                        <ComboboxList>
-                          {(item: string) => (
-                            <ComboboxItem
-                              key={item}
-                              value={item}
-                              onPointerDown={(e) => e.stopPropagation()}
-                              className="capitalize"
-                            >
-                              {item}
-                            </ComboboxItem>
-                          )}
-                        </ComboboxList>
-                      </ComboboxContent>
-                    </Combobox>
-                    {errors?.roles?.message && (
-                      <FieldDescription className="text-red-500">
-                        {errors.roles.message}
-                      </FieldDescription>
-                    )}
-                  </Field>
+                  <MultiSelect
+                    options={roles.map((r) => ({
+                      label: r.name,
+                      value: r._id,
+                    }))}
+                    value={field.value || []}
+                    onChange={field.onChange}
+                    placeholder="Select roles"
+                    loading={isGettingWorkspaceRoles}
+                  />
                 )}
               />
             </FieldGroup>
@@ -172,7 +154,7 @@ const SettingsWorkspacePeopleAddMembers = ({ open, onOpenChange }: Props) => {
 
           <Button
             className="border max-w-30 mt-6"
-            // size="sm"
+            loading={isCreatingWorkspaceRole}
             disabled={!isValid}
           >
             Submit

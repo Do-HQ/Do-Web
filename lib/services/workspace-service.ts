@@ -1,6 +1,9 @@
 import {
+  CreateWorkspaceInviteRequestBody,
   CreateWorkspaceRequestBody,
   JoinWorkspaceRequestBody,
+  WorkspaceInvite,
+  WorkspaceJoinRequest,
   WorkspacePerson,
   WorkspaceRole,
   WorkspaceSettingsForm,
@@ -9,13 +12,13 @@ import {
 import axiosInstance from ".";
 import { Pagination } from "@/types";
 import { ResponseObject } from "@/types/file";
-import { AuthUser, UserType } from "@/types/auth";
 
 const WORKSPACE_ENDPOINTS = {
   GET_PUBLIC_WORKSPACE: "/workspace",
   JOIN_WORKSPACE: "/workspace/requests/join",
   CREATE_WORKSPACE: "/workspace",
   GET_USER_WORKSPACES: "/workspace/user",
+  WORKSPACE_INVITE: "/workspace/invites",
 };
 
 export interface PaginationBody {
@@ -73,7 +76,7 @@ export const createWorkspace = async (data: CreateWorkspaceRequestBody) => {
 };
 
 export const getUserWorkspaces = async (params: PaginationBody) => {
-  const { page = 1, limit = 100, search = "" } = params || {};
+  const { page, limit, search } = params;
   return await axiosInstance.get<{
     workspaces: WorkspaceType[];
     pagination: Pagination;
@@ -82,19 +85,28 @@ export const getUserWorkspaces = async (params: PaginationBody) => {
   });
 };
 
-export const getWorkspacePeople = async (workspaceId: string) => {
+export const getWorkspacePeople = async (
+  workspaceId: string,
+  params: PaginationBody,
+) => {
   return await axiosInstance.get<{
     workspaces: WorkspaceType[];
     members: WorkspacePerson[];
-  }>(`${WORKSPACE_ENDPOINTS.GET_PUBLIC_WORKSPACE}/${workspaceId}/members`);
+    pagination: Pagination;
+  }>(`${WORKSPACE_ENDPOINTS.GET_PUBLIC_WORKSPACE}/${workspaceId}/members`, {
+    params,
+  });
 };
 
-export const getWorkspaceInvites = async (params: PaginationBody) => {
-  const { page = 1, limit = 100, search = "" } = params || {};
+export const getWorkspaceInvites = async (
+  workspaceId: string,
+  params: PaginationBody,
+) => {
+  const { page = 1, limit = 10, search = "" } = params || {};
   return await axiosInstance.get<{
-    workspaces: WorkspaceType[];
+    invites: WorkspaceInvite[];
     pagination: Pagination;
-  }>(WORKSPACE_ENDPOINTS.GET_USER_WORKSPACES, {
+  }>(`${WORKSPACE_ENDPOINTS.GET_PUBLIC_WORKSPACE}/invites/${workspaceId}`, {
     params: { page, limit, search },
   });
 };
@@ -103,4 +115,27 @@ export const getWorkspaceRoles = async (workspaceId: string) => {
   return await axiosInstance.get<{
     roles: WorkspaceRole[];
   }>(`${WORKSPACE_ENDPOINTS.GET_PUBLIC_WORKSPACE}/${workspaceId}/roles`);
+};
+
+export const createWorkspaceInvite = async (data: {
+  workspaceId: string;
+  data: CreateWorkspaceInviteRequestBody[];
+}) => {
+  return await axiosInstance.post<ResponseObject>(
+    `${WORKSPACE_ENDPOINTS.WORKSPACE_INVITE}/${data?.workspaceId}`,
+    { invites: data?.data },
+  );
+};
+
+export const getWorkspaceJoinRequests = async (
+  workspaceId: string,
+  params: PaginationBody,
+) => {
+  const { page = 1, limit = 10, search = "" } = params || {};
+  return await axiosInstance.get<{
+    requests: WorkspaceJoinRequest[];
+    pagination: Pagination;
+  }>(`${WORKSPACE_ENDPOINTS.GET_PUBLIC_WORKSPACE}/requests/${workspaceId}`, {
+    params: { page, limit, search },
+  });
 };

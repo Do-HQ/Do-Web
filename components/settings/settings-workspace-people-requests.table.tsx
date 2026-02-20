@@ -1,7 +1,22 @@
 import React, { useMemo, useState } from "react";
-import { Badge } from "../ui/badge";
+import { Input } from "../shared/input";
+import useWorkspace from "@/hooks/use-workspace";
+import useWorkspaceStore from "@/stores/workspace";
+import { useDebounce } from "@/hooks/use-debounce";
+import { PAGE_LIMIT } from "@/utils/constants";
+import { WorkspaceJoinRequest } from "@/types/workspace";
 import { Button } from "../ui/button";
-import { ArrowUpDown, CircleOff, Ellipsis, MailPlus, Send } from "lucide-react";
+import {
+  ArrowUpDown,
+  Balloon,
+  CircleOff,
+  Construction,
+  Ellipsis,
+  MailPlus,
+} from "lucide-react";
+import dayjs from "dayjs";
+import { Badge } from "../ui/badge";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,14 +25,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import {
   flexRender,
   getCoreRowModel,
@@ -29,18 +36,23 @@ import {
   type SortingState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import { Input } from "../shared/input";
-import { cn } from "@/lib/utils";
-import SettingsWorkspacePeopleAddMembers from "./modals/settings-workspace-people-add-member";
-import useWorkspace from "@/hooks/use-workspace";
-import useWorkspaceStore from "@/stores/workspace";
-import { useDebounce } from "@/hooks/use-debounce";
-import { PAGE_LIMIT } from "@/utils/constants";
-import { WorkspaceInvite, WorkspaceRole } from "@/types/workspace";
-import dayJs from "@/lib/helpers/dayJs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import LoaderComponent from "../shared/loader";
 
-export const columns: ColumnDef<WorkspaceInvite>[] = [
+interface JoinRequest {
+  email: string;
+  createdAt: string;
+  status: string;
+}
+
+export const columns: ColumnDef<JoinRequest>[] = [
   {
     accessorKey: "email",
     header: "Email address",
@@ -50,56 +62,26 @@ export const columns: ColumnDef<WorkspaceInvite>[] = [
     accessorKey: "createdAt",
     header: ({ column }) => {
       return (
-        <div className="flex items-center justify-center">
-          <Button
-            className="h-auto w-auto"
-            variant="ghost"
-            onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
-            size="sm"
-          >
-            Date created
-            <ArrowUpDown />
-          </Button>
-        </div>
+        <div className="flex items-center justify-start">Date created</div>
       );
     },
     cell: ({ row }) => (
-      <div className="text-center">
-        {dayJs(row.getValue("createdAt")).format("Do MMMM, YYYY")}
+      <div className="text-left">
+        {dayjs(row.getValue("createdAt")).format("Do MMMM, YYYY")}
       </div>
     ),
   },
+
   {
-    accessorKey: "roleIds",
-    header: () => <div className="text-center">Role(s)</div>,
-    cell: ({ row }) => {
-      const roles: WorkspaceRole[] = row?.getValue("roleIds");
-      return (
-        <div className="flex items-center gap-1 justify-center">
-          {roles?.map((r) => {
-            return (
-              <div className="flex justify-center" key={r?._id}>
-                <Badge className="capitalize text-center" variant="secondary">
-                  {r?.name}
-                </Badge>
-              </div>
-            );
-          })}
-        </div>
-      );
-    },
-  },
-  {
-    accessorKey: "accepted",
+    accessorKey: "status",
     header: () => <div className="text-left">Status</div>,
     cell: ({ row }) => {
-      const text = row.getValue("accepted");
-      console.log(text, "Text");
+      const text = row.getValue("status");
       return (
         <Badge
           className={cn(
             "capitalize",
-            text
+            text !== "pending"
               ? "bg-green-700/30 text-green-400"
               : "bg-yellow-700/30 text-yellow-400",
           )}
@@ -112,7 +94,7 @@ export const columns: ColumnDef<WorkspaceInvite>[] = [
   {
     id: "actions",
     enableHiding: false,
-    cell: ({ row }) => {
+    cell: () => {
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -123,16 +105,16 @@ export const columns: ColumnDef<WorkspaceInvite>[] = [
           <DropdownMenuContent align="end">
             <DropdownMenuGroup>
               <DropdownMenuItem>
-                <MailPlus />
-                Resend Invite
+                <Balloon />
+                Accept Join Request
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
 
             <DropdownMenuGroup>
               <DropdownMenuItem variant="destructive">
-                <CircleOff />
-                Revoke invite
+                <Construction />
+                Decline Join Request
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </DropdownMenuContent>
@@ -142,7 +124,10 @@ export const columns: ColumnDef<WorkspaceInvite>[] = [
   },
 ];
 
-const SettingsWorkspacePropleInvitesTable = () => {
+const SettingsWorkspacePropleRequestsTable = () => {
+  // States
+  const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     [],
@@ -150,12 +135,62 @@ const SettingsWorkspacePropleInvitesTable = () => {
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
-  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
-  const [page, setPage] = useState(1);
-  const [search, setSearch] = useState("");
+
+  // Stores
+  const { workspaceId } = useWorkspaceStore();
 
   // Utils
   const debouncedSearch = useDebounce(search, 500);
+
+  // Memo
+  const queryParams = useMemo(
+    () => ({
+      page,
+      search: debouncedSearch ?? "",
+      limit: PAGE_LIMIT,
+    }),
+    [page, debouncedSearch],
+  );
+
+  // Hooks
+  const { useWorkspaceJoinRequests } = useWorkspace();
+  const {
+    data: workspaceJoinRequestsData,
+    isPending: isGettingWorkspaceJoinRequests,
+  } = useWorkspaceJoinRequests(workspaceId!, queryParams);
+
+  const workspaceJoinRequests: JoinRequest[] = useMemo(() => {
+    if (!workspaceJoinRequestsData) {
+      return [];
+    }
+    return workspaceJoinRequestsData?.data?.requests?.map((d) => {
+      return {
+        email: d?.userId?.email,
+        createdAt: d?.createdAt,
+        status: d?.status,
+      };
+    });
+  }, [workspaceJoinRequestsData]);
+
+  const table = useReactTable({
+    data: workspaceJoinRequests!,
+    columns: columns,
+    onSortingChange: setSorting,
+    manualPagination: true,
+    pageCount: workspaceJoinRequestsData?.data?.pagination?.totalPages ?? -1,
+    onColumnFiltersChange: setColumnFilters,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    onColumnVisibilityChange: setColumnVisibility,
+    onRowSelectionChange: setRowSelection,
+    state: {
+      sorting,
+      columnFilters,
+      columnVisibility,
+      rowSelection,
+    },
+  });
 
   // Helpers
   const handlPageUpdate = (
@@ -173,51 +208,6 @@ const SettingsWorkspacePropleInvitesTable = () => {
     }
   };
 
-  // Stores
-  const { workspaceId } = useWorkspaceStore();
-
-  // Memo
-  const queryParams = useMemo(
-    () => ({
-      page,
-      search: debouncedSearch ?? "",
-      limit: PAGE_LIMIT,
-    }),
-    [page, debouncedSearch],
-  );
-
-  // Hooks
-  const { useWorkspaceInvites } = useWorkspace();
-  const { data: workspaceInvitesData, isPending: isGettingWorkspaceInvites } =
-    useWorkspaceInvites(workspaceId!, queryParams);
-
-  const workspaceInvites = workspaceInvitesData?.data?.invites ?? [];
-
-  const table = useReactTable({
-    data: workspaceInvites!,
-    columns: columns,
-    onSortingChange: setSorting,
-    manualPagination: true,
-    pageCount: workspaceInvitesData?.data?.pagination?.totalPages ?? -1,
-    onColumnFiltersChange: setColumnFilters,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    onColumnVisibilityChange: setColumnVisibility,
-    onRowSelectionChange: setRowSelection,
-    state: {
-      sorting,
-      columnFilters,
-      columnVisibility,
-      rowSelection,
-    },
-  });
-
-  // Handlers
-  const handleOpenAddMemberModalAction = () => {
-    setShowAddMemberModal(true);
-  };
-
   return (
     <div className="w-full">
       <div className="flex items-center gap-4 py-4">
@@ -227,11 +217,8 @@ const SettingsWorkspacePropleInvitesTable = () => {
           onChange={(event) => setSearch(event.target.value)}
           className="max-w-sm"
         />
-        <Button onClick={handleOpenAddMemberModalAction}>
-          <Send />
-          Invite a new member
-        </Button>
       </div>
+
       <div className="overflow-hidden rounded-md border">
         <Table>
           <TableHeader>
@@ -281,13 +268,13 @@ const SettingsWorkspacePropleInvitesTable = () => {
             )}
           </TableBody>
         </Table>
-        {isGettingWorkspaceInvites && (
+        {isGettingWorkspaceJoinRequests && (
           <div className="flex items-center justify-center">
             <LoaderComponent />
           </div>
         )}
       </div>
-      {workspaceInvites?.length > PAGE_LIMIT && (
+      {workspaceJoinRequests?.length > PAGE_LIMIT && (
         <div className="flex items-center justify-end space-x-2 py-4">
           <div className="space-x-2 flex items-center  gap-4">
             <Button
@@ -295,12 +282,14 @@ const SettingsWorkspacePropleInvitesTable = () => {
               size="sm"
               onClick={() => {
                 handlPageUpdate(
-                  workspaceInvitesData?.data?.pagination
+                  workspaceJoinRequestsData?.data?.pagination
                     ?.hasPrevPage as boolean,
                   "decrease",
                 );
               }}
-              disabled={!workspaceInvitesData?.data?.pagination?.hasPrevPage}
+              disabled={
+                !workspaceJoinRequestsData?.data?.pagination?.hasPrevPage
+              }
             >
               Previous
             </Button>
@@ -309,25 +298,22 @@ const SettingsWorkspacePropleInvitesTable = () => {
               size="sm"
               onClick={() => {
                 handlPageUpdate(
-                  workspaceInvitesData?.data?.pagination
+                  workspaceJoinRequestsData?.data?.pagination
                     ?.hasNextPage as boolean,
                   "increase",
                 );
               }}
-              disabled={!workspaceInvitesData?.data?.pagination?.hasNextPage}
+              disabled={
+                !workspaceJoinRequestsData?.data?.pagination?.hasNextPage
+              }
             >
               Next
             </Button>
           </div>
         </div>
       )}
-
-      <SettingsWorkspacePeopleAddMembers
-        open={showAddMemberModal}
-        onOpenChange={setShowAddMemberModal}
-      />
     </div>
   );
 };
 
-export default SettingsWorkspacePropleInvitesTable;
+export default SettingsWorkspacePropleRequestsTable;

@@ -2,9 +2,12 @@ import useAuthStore from "@/stores/auth";
 import useError from "./use-error";
 import {
   createWorkspace,
+  createWorkspaceInvite,
   getPublicWorkspaces,
   getUserWorkspaces,
   getWorkspaceById,
+  getWorkspaceInvites,
+  getWorkspaceJoinRequests,
   getWorkspacePeople,
   getWorkspaceRoles,
   PaginationBody,
@@ -13,6 +16,7 @@ import {
   updateWorkspace,
 } from "@/lib/services/workspace-service";
 import {
+  CreateWorkspaceInviteRequestBody,
   CreateWorkspaceRequestBody,
   JoinWorkspaceRequestBody,
   WorkspaceSettingsForm,
@@ -107,10 +111,11 @@ const useWorkspace = () => {
   const useUsersWorkSpace = (params: PaginationBody) => {
     const { page, search, limit } = params;
     return useQuery({
-      queryKey: ["get-user-workspaces", search, page, limit],
+      queryKey: ["get-user-workspaces", params],
       queryFn: async () => {
         try {
-          return await getUserWorkspaces({ page, search, limit });
+          const data = await getUserWorkspaces({ page, search, limit });
+          return data;
         } catch (error: unknown) {
           handleError(error as AxiosError);
           throw error;
@@ -142,13 +147,13 @@ const useWorkspace = () => {
     });
   };
 
-  const useWorkspacePeople = (workspaceId: string) => {
+  const useWorkspacePeople = (workspaceId: string, params: PaginationBody) => {
     return useQuery({
-      queryKey: ["get-workspaces-people", workspaceId],
+      queryKey: ["get-workspaces-people", workspaceId, params],
       enabled: !!workspaceId,
       queryFn: async () => {
         try {
-          return await getWorkspacePeople(workspaceId!);
+          return await getWorkspacePeople(workspaceId!, params);
         } catch (error: unknown) {
           handleError(error as AxiosError);
           throw error;
@@ -157,13 +162,13 @@ const useWorkspace = () => {
     });
   };
 
-  const useWorkspaceInvites = (workspaceId: string) => {
+  const useWorkspaceInvites = (workspaceId: string, params: PaginationBody) => {
     return useQuery({
-      queryKey: ["get-workspaces-people", workspaceId],
+      queryKey: ["get-workspaces-invites", workspaceId, params],
       enabled: !!workspaceId,
       queryFn: async () => {
         try {
-          return await getWorkspacePeople(workspaceId!);
+          return await getWorkspaceInvites(workspaceId, params!);
         } catch (error: unknown) {
           handleError(error as AxiosError);
           throw error;
@@ -186,6 +191,40 @@ const useWorkspace = () => {
     });
   };
 
+  const useCreateWorkspaceInvite = (
+    options?: UseOptions<{
+      workspaceId: string;
+      data: CreateWorkspaceInviteRequestBody[];
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: createWorkspaceInvite,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
+  const useWorkspaceJoinRequests = (
+    workspaceId: string,
+    params: PaginationBody,
+  ) => {
+    return useQuery({
+      queryKey: ["get-workspaces-join-requests", workspaceId, params],
+      enabled: !!workspaceId,
+      queryFn: async () => {
+        try {
+          return await getWorkspaceJoinRequests(workspaceId, params!);
+        } catch (error: unknown) {
+          handleError(error as AxiosError);
+          throw error;
+        }
+      },
+    });
+  };
+
   return {
     usePublicWorkspace,
     useWorkspaceById,
@@ -197,6 +236,9 @@ const useWorkspace = () => {
     useActiveWorkspace,
     useWorkspacePeople,
     useWorkspaceRoles,
+    useWorkspaceInvites,
+    useCreateWorkspaceInvite,
+    useWorkspaceJoinRequests,
   };
 };
 

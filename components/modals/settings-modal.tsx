@@ -84,7 +84,7 @@ const SettingsModal = () => {
         </DialogDescription>
         <SidebarProvider className="items-start">
           <SettingsSideBar workspace={workspace} profile={profile} />
-          <main className="flex h-205 flex-1 flex-col">
+          <main className="flex h-205 flex-1 flex-col ">
             <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
               <div className="flex items-center gap-2 px-8">
                 <H2 className="font-semibold capitalize">{activeSetting}</H2>

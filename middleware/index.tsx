@@ -44,12 +44,13 @@ const RequireAuth = ({ children }: RequireAuthProps) => {
         throw err;
       }
     },
+    retryOnMount: false,
     retry: false,
     enabled: !!accessToken,
   });
 
   const { isPending: isGettingUsersWorkspaces } = useQuery({
-    queryKey: ["user-workspaces"],
+    queryKey: ["get-user-workspaces"],
     queryFn: async () => {
       try {
         const res = await getUserWorkspaces({ page: 1, limit: 100 });
@@ -61,6 +62,7 @@ const RequireAuth = ({ children }: RequireAuthProps) => {
         throw err;
       }
     },
+    retryOnMount: false,
     retry: false,
     enabled: !!accessToken,
   });

@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -45,11 +45,13 @@ import LoaderComponent from "../shared/loader";
 import { returnFullName } from "@/lib/helpers/return-full-name";
 import useWorkspaceStore from "@/stores/workspace";
 import { WorkspaceRole } from "@/types/workspace";
+import { useDebounce } from "@/hooks/use-debounce";
+import { PAGE_LIMIT } from "@/utils/constants";
 
 interface User {
   name: string;
   team: string;
-  role: string;
+  role: WorkspaceRole[];
   profileImage: string;
   activeTasks: number;
   score: number;
@@ -140,7 +142,7 @@ export const columns: ColumnDef<User>[] = [
   {
     id: "actions",
     enableHiding: false,
-    cell: ({ row }) => {
+    cell: () => {
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -189,23 +191,48 @@ const SettingsWorkspacePeopleTable = () => {
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
 
   // States
   const { workspaceId } = useWorkspaceStore();
 
+  // Utils
+  const debouncedSearch = useDebounce(search, 500);
+
+  // Helpers
+  const handlPageUpdate = (
+    isAllowed: boolean,
+    mode: "increase" | "decrease",
+  ) => {
+    if (!isAllowed) {
+      return;
+    }
+    if (mode === "decrease") {
+      setPage((prev) => prev - 1);
+    }
+    if (mode === "increase") {
+      setPage((prev) => prev + 1);
+    }
+  };
+
   // Queries
   const { useWorkspacePeople } = useWorkspace();
   const { isPending: isLoadingWorkspacePeole, data: woekspacePeopleData } =
-    useWorkspacePeople(workspaceId!);
+    useWorkspacePeople(workspaceId!, {
+      page,
+      search: debouncedSearch!,
+      limit: PAGE_LIMIT,
+    });
 
   // Memo
-  const workspacePeople = useMemo(() => {
+  const workspacePeople: User[] = useMemo(() => {
     if (!woekspacePeopleData) {
       return [];
     }
     const wp = woekspacePeopleData?.data?.members?.map((d) => {
       return {
-        name: returnFullName(d?.userId),
+        name: returnFullName(d?.userId) || "No name",
         profileImage: d?.userId?.profilePhoto?.url,
         team: "No team",
         role: d?.roles,
@@ -214,12 +241,12 @@ const SettingsWorkspacePeopleTable = () => {
       };
     });
 
-    return wp;
+    return wp ?? [];
   }, [woekspacePeopleData]);
 
   const table = useReactTable({
     data: workspacePeople!,
-    columns: columns,
+    columns: columns!,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
@@ -241,11 +268,10 @@ const SettingsWorkspacePeopleTable = () => {
       <div className="flex items-center gap-4 py-4">
         <Input
           placeholder="Search by user name ot team..."
-          value={(table.getColumn("name")?.getFilterValue() as string) ?? ""}
-          onChange={(event) =>
-            table.getColumn("name")?.setFilterValue(event.target.value)
-          }
+          value={search}
+          onChange={(event) => setSearch(event?.target?.value)}
           className="max-w-sm"
+          type="search"
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -300,8 +326,8 @@ const SettingsWorkspacePeopleTable = () => {
               ))}
             </TableHeader>
             <TableBody>
-              {table.getRowModel().rows?.length ? (
-                table.getRowModel().rows.map((row) => (
+              {table?.getRowModel()?.rows?.length ? (
+                table?.getRowModel()?.rows?.map((row) => (
                   <TableRow
                     key={row.id}
                     data-state={row.getIsSelected() && "selected"}
@@ -330,26 +356,38 @@ const SettingsWorkspacePeopleTable = () => {
           </Table>
         )}
       </div>
-      <div className="flex items-center justify-end space-x-2 py-4">
-        <div className="space-x-2 flex items-center  gap-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Next
-          </Button>
+      {workspacePeople?.length > PAGE_LIMIT && (
+        <div className="flex items-center justify-end space-x-2 py-4">
+          <div className="space-x-2 flex items-center  gap-4">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                handlPageUpdate(
+                  woekspacePeopleData?.data?.pagination?.hasPrevPage as boolean,
+                  "decrease",
+                );
+              }}
+              disabled={!woekspacePeopleData?.data?.pagination?.hasPrevPage}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                handlPageUpdate(
+                  woekspacePeopleData?.data?.pagination?.hasNextPage as boolean,
+                  "increase",
+                );
+              }}
+              disabled={!woekspacePeopleData?.data?.pagination?.hasNextPage}
+            >
+              Next
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

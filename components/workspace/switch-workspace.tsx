@@ -47,7 +47,7 @@ const SwitchWorkspace = () => {
   const { isPending, data } = useUsersWorkSpace({
     search: debouncedSearch!,
     page,
-    limit: 5,
+    limit: 10,
   });
   const {
     isPending: isSwitchingWorkspace,

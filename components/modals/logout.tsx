@@ -75,7 +75,7 @@ const LogoutModal = ({ open, onOpenChange }: Props) => {
             variant="destructive"
             loading={isLoggingUserOut}
             onClick={handleLogout}
-            disabled={!user}
+            // disabled={!user}
           >
             Logout
           </Button>
