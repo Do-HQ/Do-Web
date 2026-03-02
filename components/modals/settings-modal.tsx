@@ -22,7 +22,6 @@ import {
   Cog,
   FolderInput,
   Library,
-  MessageCircle,
   Shield,
   SunMoon,
   ToyBrick,
@@ -32,6 +31,13 @@ import {
 } from "lucide-react";
 import SettingsProfileReferences from "../settings/settings-profile-preferences";
 import SettingsWorkspacePeople from "../settings/settings-worpspace-people";
+import SettingsProfile from "../settings/settings-profile";
+import SettingsNotifications from "../settings/settings-notifications";
+import SettingsWorkspaces from "../settings/settings-workspaces";
+import SettingsWorkspaceAutomation from "../settings/settings-workspace-automation";
+import SettingsWorkspaceSecurity from "../settings/settings-workspace-security";
+import SettingsWorkspaceKnowledgeBase from "../settings/settings-workspace-knowledge-base";
+import SettingsWorkspaceImport from "../settings/settings-workspace-import";
 
 const workspace = {
   nav: [
@@ -40,9 +46,7 @@ const workspace = {
     { name: "Teams", icon: Baby },
     { name: "Automation ⭐️", icon: Workflow },
     { name: "Security", icon: Shield },
-    { name: "Appearance", icon: SunMoon },
     { name: "Knowledge Base", icon: Library },
-    { name: "Integrations", icon: ToyBrick },
     { name: "Import", icon: FolderInput },
   ],
 };
@@ -62,8 +66,22 @@ const SettingsModal = () => {
   const { showSettings, setShowSettings, activeSetting } = useAppStore();
 
   const renderComponent = (id: string) => {
-    if (id === "overview") {
+    if (id === "profile") {
+      return <SettingsProfile />;
+    } else if (id === "notifications") {
+      return <SettingsNotifications />;
+    } else if (id === "workspaces") {
+      return <SettingsWorkspaces />;
+    } else if (id === "overview") {
       return <SettingsWorkspaceOverview />;
+    } else if (id.startsWith("automation")) {
+      return <SettingsWorkspaceAutomation />;
+    } else if (id === "security") {
+      return <SettingsWorkspaceSecurity />;
+    } else if (id === "knowledge base") {
+      return <SettingsWorkspaceKnowledgeBase />;
+    } else if (id === "import") {
+      return <SettingsWorkspaceImport />;
     } else if (id === "teams") {
       return <SettingsWorkspaceTeams />;
     } else if (id === "preferences") {

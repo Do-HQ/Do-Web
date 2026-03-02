@@ -27,11 +27,14 @@ import { useAppStore } from "@/stores";
 import SettingsModal from "./modals/settings-modal";
 import useAuthStore from "@/stores/auth";
 import { UserWorkspace } from "@/types/auth";
+import { ROUTES } from "@/utils/constants";
+import { usePathname } from "next/navigation";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // Stores
   const { setShowSettings } = useAppStore();
   const { user } = useAuthStore();
+  const pathname = usePathname();
 
   const data = {
     teams: [
@@ -59,20 +62,22 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       },
       {
         title: "Ask Squircle",
-        url: "#",
+        url: ROUTES.ASK_SQUIRCLE,
         icon: Sparkles,
+        isActive: pathname === ROUTES.ASK_SQUIRCLE,
       },
       {
         title: "Home",
-        url: "#",
+        url: ROUTES.DASHBOARD,
         icon: Home,
-        isActive: true,
+        isActive: pathname === ROUTES.DASHBOARD,
       },
       {
         title: "Spaces",
-        url: "#",
+        url: ROUTES.SPACES,
         icon: Inbox,
         badge: "10",
+        isActive: pathname.startsWith(ROUTES.SPACES),
       },
     ],
     navSecondary: [

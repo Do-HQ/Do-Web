@@ -63,7 +63,7 @@ const CreateWorkspace = () => {
   return (
     <section className="max-w-300 mx-auto flex flex-col gap-6">
       <div>
-        <Button onClick={() => router.back()}>
+        <Button onClick={() => router.back()} variant="secondary">
           <ChevronLeft />
         </Button>
       </div>
