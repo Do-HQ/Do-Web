@@ -36,7 +36,7 @@ const DraftAttachmentRow = ({
                 className="bg-background/80 absolute top-1 right-1 rounded-full p-0.5 opacity-0 transition-opacity group-hover:opacity-100"
                 onClick={() => onRemoveAttachment(attachment.id, target)}
               >
-                <X className="size-3" />
+                <X className="size-3.5" />
               </button>
             </div>
           );
@@ -45,15 +45,15 @@ const DraftAttachmentRow = ({
         return (
           <div
             key={attachment.id}
-            className="bg-secondary text-secondary-foreground inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px]"
+            className="bg-secondary text-secondary-foreground inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px]"
           >
-            <FileText className="size-3" />
+            <FileText className="size-3.5" />
             <span>{attachment.name}</span>
             <button
               type="button"
               onClick={() => onRemoveAttachment(attachment.id, target)}
             >
-              <X className="size-3" />
+              <X className="size-3.5" />
             </button>
           </div>
         );

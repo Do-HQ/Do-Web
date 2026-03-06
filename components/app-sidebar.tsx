@@ -11,11 +11,15 @@ import {
   Settings2,
   Sparkles,
 } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
 
+import { CreateProjectSheet } from "@/components/projects/create-project-sheet";
+import { ProjectMark } from "@/components/projects/project-mark";
+import useWorkspaceProject from "@/hooks/use-workspace-project";
 import { NavFavorites } from "@/components/nav-favorites";
 import { NavMain } from "@/components/nav-main";
+import { NavProjects, SidebarProjectNavItem } from "@/components/nav-projects";
 import { NavSecondary } from "@/components/nav-secondary";
-import { NavProjects } from "@/components/nav-projects";
 import { TeamSwitcher } from "@/components/team-switcher";
 import {
   Sidebar,
@@ -23,37 +27,73 @@ import {
   SidebarHeader,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { useAppStore } from "@/stores";
+import { useAppStore, useProjectStore } from "@/stores";
+import useWorkspaceStore from "@/stores/workspace";
+import { getProjectRoute, ROUTES } from "@/utils/constants";
+
 import SettingsModal from "./modals/settings-modal";
-import useAuthStore from "@/stores/auth";
-import { UserWorkspace } from "@/types/auth";
-import { ROUTES } from "@/utils/constants";
-import { usePathname } from "next/navigation";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  // Stores
   const { setShowSettings } = useAppStore();
-  const { user } = useAuthStore();
   const pathname = usePathname();
+  const router = useRouter();
+  const { workspaceId } = useWorkspaceStore();
+  const projectRecords = useProjectStore((state) => state.projectRecords);
+  const projectCreateOpen = useProjectStore((state) => state.projectCreateOpen);
+  const setProjectCreateOpen = useProjectStore((state) => state.setProjectCreateOpen);
+  const requestWorkflowCreate = useProjectStore((state) => state.requestWorkflowCreate);
+  const hydrateProjectRecords = useProjectStore((state) => state.hydrateProjectRecords);
+  const setProjectsLoaded = useProjectStore((state) => state.setProjectsLoaded);
+  const { useWorkspaceProjects } = useWorkspaceProject();
+
+  const projectQueryParams = React.useMemo(
+    () => ({ page: 1, limit: 100, search: "", archived: false }),
+    [],
+  );
+
+  const workspaceProjectsQuery = useWorkspaceProjects(
+    workspaceId ?? "",
+    projectQueryParams,
+  );
+
+  React.useEffect(() => {
+    if (!workspaceId) {
+      hydrateProjectRecords([]);
+      setProjectsLoaded(true);
+      return;
+    }
+
+    setProjectsLoaded(false);
+  }, [hydrateProjectRecords, workspaceId, setProjectsLoaded]);
+
+  React.useEffect(() => {
+    if (!workspaceId) {
+      return;
+    }
+
+    if (workspaceProjectsQuery.data?.data?.projects) {
+      hydrateProjectRecords(
+        workspaceProjectsQuery.data.data.projects
+          .map((project) => project.record)
+          .filter(Boolean),
+      );
+      setProjectsLoaded(true);
+      return;
+    }
+
+    if (workspaceProjectsQuery.isFetched || workspaceProjectsQuery.isError) {
+      setProjectsLoaded(true);
+    }
+  }, [
+    hydrateProjectRecords,
+    setProjectsLoaded,
+    workspaceId,
+    workspaceProjectsQuery.data,
+    workspaceProjectsQuery.isError,
+    workspaceProjectsQuery.isFetched,
+  ]);
 
   const data = {
-    teams: [
-      {
-        name: "Tobe's Workspace",
-        logo: "https://res.cloudinary.com/dgiropjpp/image/upload/v1769577491/Logo_maker_project-2_jz4e09.png",
-        plan: "Enterprise",
-      },
-      {
-        name: "Kizito's Workspace",
-        logo: "https://res.cloudinary.com/dgiropjpp/image/upload/v1769577491/Logo_maker_project-2_jz4e09.png",
-        plan: "Startup",
-      },
-      {
-        name: "Test Workspace",
-        logo: "https://res.cloudinary.com/dgiropjpp/image/upload/v1769577491/Logo_maker_project-2_jz4e09.png",
-        plan: "Free",
-      },
-    ],
     navMain: [
       {
         title: "Search",
@@ -133,128 +173,49 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         emoji: "🌱",
       },
     ],
-    projects: [
-      {
-        name: "Personal Life Management",
-        emoji: "🏠",
-        pages: [
-          {
-            name: "Daily Journal & Reflection",
-            url: "#",
-            emoji: "📔",
-          },
-          {
-            name: "Health & Wellness Tracker",
-            url: "#",
-            emoji: "🍏",
-          },
-          {
-            name: "Personal Growth & Learning Goals",
-            url: "#",
-            emoji: "🌟",
-          },
-        ],
-      },
-      {
-        name: "Professional Development",
-        emoji: "💼",
-        pages: [
-          {
-            name: "Career Objectives & Milestones",
-            url: "#",
-            emoji: "🎯",
-          },
-          {
-            name: "Skill Acquisition & Training Log",
-            url: "#",
-            emoji: "🧠",
-          },
-          {
-            name: "Networking Contacts & Events",
-            url: "#",
-            emoji: "🤝",
-          },
-        ],
-      },
-      {
-        name: "Creative Projects",
-        emoji: "🎨",
-        pages: [
-          {
-            name: "Writing Ideas & Story Outlines",
-            url: "#",
-            emoji: "✍️",
-          },
-          {
-            name: "Art & Design Portfolio",
-            url: "#",
-            emoji: "🖼️",
-          },
-          {
-            name: "Music Composition & Practice Log",
-            url: "#",
-            emoji: "🎵",
-          },
-        ],
-      },
-      {
-        name: "Home Management",
-        emoji: "🏡",
-        pages: [
-          {
-            name: "Household Budget & Expense Tracking",
-            url: "#",
-            emoji: "💰",
-          },
-          {
-            name: "Home Maintenance Schedule & Tasks",
-            url: "#",
-            emoji: "🔧",
-          },
-          {
-            name: "Family Calendar & Event Planning",
-            url: "#",
-            emoji: "📅",
-          },
-        ],
-      },
-      {
-        name: "Travel & Adventure",
-        emoji: "🧳",
-        pages: [
-          {
-            name: "Trip Planning & Itineraries",
-            url: "#",
-            emoji: "🗺️",
-          },
-          {
-            name: "Travel Bucket List & Inspiration",
-            url: "#",
-            emoji: "🌎",
-          },
-          {
-            name: "Travel Journal & Photo Gallery",
-            url: "#",
-            emoji: "📸",
-          },
-        ],
-      },
-    ],
   };
+
+  const projects = React.useMemo<SidebarProjectNavItem[]>(
+    () =>
+      Object.values(projectRecords).map((project) => ({
+        id: project.id,
+        name: project.name,
+        emoji: <ProjectMark name={project.name} size="sm" />,
+        href: getProjectRoute(project.id),
+        pipelines: project.workflows.filter((workflow) => !workflow.archived).map((workflow) => ({
+          id: workflow.id,
+          name: workflow.name,
+          href: `${getProjectRoute(project.id)}?tab=workflows&workflow=${workflow.id}`,
+        })),
+      })),
+    [projectRecords],
+  );
 
   return (
     <Sidebar className="border-r-0" {...props}>
       <SidebarHeader>
-        <TeamSwitcher teams={user?.workspaces as UserWorkspace[]} />
+        <TeamSwitcher />
         <NavMain items={data.navMain} />
       </SidebarHeader>
       <SidebarContent>
         <NavFavorites favorites={data.favorites} />
-        <NavProjects workspaces={data.projects} />
+        <NavProjects
+          projects={projects}
+          onCreateProject={() => setProjectCreateOpen(true)}
+          onCreateWorkflow={(project) => {
+            requestWorkflowCreate(project.id);
+            router.push(project.href);
+          }}
+        />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
       <SidebarRail />
 
+      <CreateProjectSheet
+        key={projectCreateOpen ? "project-create-open" : "project-create-closed"}
+        open={projectCreateOpen}
+        onOpenChange={setProjectCreateOpen}
+      />
       <SettingsModal />
     </Sidebar>
   );

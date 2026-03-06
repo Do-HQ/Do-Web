@@ -28,7 +28,7 @@ const AttachmentPreview = ({ attachments }: AttachmentPreviewProps) => {
                 alt={attachment.name}
                 className="h-28 w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
               />
-              <div className="bg-background/80 text-muted-foreground absolute right-1 bottom-1 rounded-sm px-1 py-0.5 text-[10px]">
+              <div className="bg-background/80 text-muted-foreground absolute right-1 bottom-1 rounded-sm px-1 py-0.5 text-[11px]">
                 image
               </div>
             </a>
@@ -38,9 +38,9 @@ const AttachmentPreview = ({ attachments }: AttachmentPreviewProps) => {
         return (
           <div
             key={attachment.id}
-            className="bg-secondary/70 text-secondary-foreground inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[11px]"
+            className="bg-secondary/70 text-secondary-foreground inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-[12px]"
           >
-            <FileText className="size-3" />
+            <FileText className="size-3.5" />
             <span className="truncate">{attachment.name}</span>
           </div>
         );

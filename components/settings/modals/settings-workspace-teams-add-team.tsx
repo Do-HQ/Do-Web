@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useMemo, useState } from "react";
-import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -25,22 +24,29 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { CreateWorkspaceTeamRequestBody } from "@/types/team";
 
-export type CreateTeamFormValue = {
+interface LeadOption {
+  label: string;
+  value: string;
+}
+
+interface Props {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  existingTeamKeys: string[];
+  leadOptions: LeadOption[];
+  loading?: boolean;
+  onCreateTeam: (payload: CreateWorkspaceTeamRequestBody) => Promise<void>;
+}
+
+type CreateTeamFormValue = {
   teamName: string;
   teamKey: string;
   teamLead: string;
   visibility: "open" | "private";
   description: string;
 };
-
-interface Props {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  existingTeamKeys: string[];
-  leadOptions: string[];
-  onCreateTeam: (payload: CreateTeamFormValue) => void;
-}
 
 const defaultFormValues: CreateTeamFormValue = {
   teamName: "",
@@ -64,6 +70,7 @@ const SettingsWorkspaceTeamsAddTeamModal = ({
   existingTeamKeys,
   leadOptions,
   onCreateTeam,
+  loading = false,
 }: Props) => {
   const [form, setForm] = useState<CreateTeamFormValue>(defaultFormValues);
 
@@ -77,36 +84,32 @@ const SettingsWorkspaceTeamsAddTeamModal = ({
     );
   }, [existingTeamKeys, normalizedKey]);
 
-  const canSubmit =
-    !!form.teamName.trim() &&
-    !!normalizedKey.trim() &&
-    !!form.teamLead.trim() &&
-    !teamKeyExists;
+  const canSubmit = !!form.teamName.trim() && !!normalizedKey.trim() && !teamKeyExists;
 
   const resetForm = () => {
     setForm(defaultFormValues);
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!canSubmit) {
+    if (!canSubmit || loading) {
       return;
     }
 
-    onCreateTeam({
-      ...form,
-      teamName: form.teamName.trim(),
-      teamKey: normalizedKey,
-      teamLead: form.teamLead.trim(),
-      description: form.description.trim(),
-    });
-
-    toast.success("Team created", {
-      description: "Team details are saved locally for now.",
-    });
-    resetForm();
-    onOpenChange(false);
+    try {
+      await onCreateTeam({
+        name: form.teamName.trim(),
+        key: normalizedKey,
+        leadUserId: form.teamLead || null,
+        visibility: form.visibility,
+        description: form.description.trim(),
+      });
+      resetForm();
+      onOpenChange(false);
+    } catch {
+      // handled in mutation hook
+    }
   };
 
   return (
@@ -177,8 +180,8 @@ const SettingsWorkspaceTeamsAddTeamModal = ({
                   </SelectTrigger>
                   <SelectContent>
                     {leadOptions.map((lead) => (
-                      <SelectItem key={lead} value={lead}>
-                        {lead}
+                      <SelectItem key={lead.value} value={lead.value}>
+                        {lead.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -222,7 +225,7 @@ const SettingsWorkspaceTeamsAddTeamModal = ({
             </FieldGroup>
 
             <div className="flex items-center gap-2 pt-2">
-              <Button type="submit" size="sm" disabled={!canSubmit}>
+              <Button type="submit" size="sm" loading={loading} disabled={!canSubmit}>
                 Create team
               </Button>
               <Button

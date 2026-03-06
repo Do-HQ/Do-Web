@@ -7,14 +7,17 @@ import {
   SendHorizontal,
   SmilePlus,
 } from "lucide-react";
+import { Mention, MentionsInput } from "react-mentions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { ChatAttachment, SpaceMessage } from "../types";
 import AttachmentPreview from "./attachment-preview";
 import ChatItemActionsMenu from "./chat-item-actions-menu";
 import DraftAttachmentRow from "./draft-attachment-row";
+import type { MentionSuggestion, MentionTokenMeta, SpaceUserInfo } from "../types";
 
 type MainChatPanelProps = {
   activeMessages: SpaceMessage[];
@@ -26,6 +29,11 @@ type MainChatPanelProps = {
   composerAttachments: ChatAttachment[];
   canSendMessage: boolean;
   canCreateTaskFromChat: boolean;
+  currentUserId: string;
+  mentionSuggestions: MentionSuggestion[];
+  mentionMetaByToken: Record<string, MentionTokenMeta>;
+  authorInfoById: Record<string, SpaceUserInfo>;
+  onOpenMentionUser: (userId: string) => void;
   messageListRef: React.RefObject<HTMLDivElement | null>;
   mainComposerUploadRef: React.RefObject<HTMLInputElement | null>;
   onGetThreadCount: (messageId: string) => number;
@@ -45,6 +53,9 @@ type MainChatPanelProps = {
   onSendMessage: () => void;
   onUploadFromInput: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onRemoveAttachment: (attachmentId: string, target: "main" | "thread") => void;
+  onMessageListScroll?: (event: React.UIEvent<HTMLDivElement>) => void;
+  hasOlderMessages?: boolean;
+  isLoadingOlderMessages?: boolean;
 };
 
 const MainChatPanel = ({
@@ -57,6 +68,11 @@ const MainChatPanel = ({
   composerAttachments,
   canSendMessage,
   canCreateTaskFromChat,
+  currentUserId,
+  mentionSuggestions,
+  mentionMetaByToken,
+  authorInfoById,
+  onOpenMentionUser,
   messageListRef,
   mainComposerUploadRef,
   onGetThreadCount,
@@ -74,16 +90,224 @@ const MainChatPanel = ({
   onSendMessage,
   onUploadFromInput,
   onRemoveAttachment,
+  onMessageListScroll,
+  hasOlderMessages = false,
+  isLoadingOlderMessages = false,
 }: MainChatPanelProps) => {
+  const suggestionsPortalHost =
+    typeof document === "undefined" ? undefined : document.body;
+
+  const mentionInputStyle = {
+    control: {
+      backgroundColor: "transparent",
+      fontSize: 13,
+      fontWeight: 400,
+    },
+    highlighter: {
+      overflow: "hidden",
+      padding: "6px 8px",
+      minHeight: "64px",
+    },
+    input: {
+      margin: 0,
+      border: 0,
+      color: "var(--foreground)",
+      backgroundColor: "transparent",
+      minHeight: "64px",
+      maxHeight: "208px",
+      overflowY: "auto",
+      outline: "none",
+      padding: "6px 8px",
+      lineHeight: "1.35",
+    },
+    suggestions: {
+      list: {
+        backgroundColor: "var(--popover)",
+        border: "1px solid var(--border)",
+        borderRadius: "8px",
+        fontSize: 13,
+        color: "var(--popover-foreground)",
+        maxHeight: "220px",
+        overflowY: "auto",
+        zIndex: 90,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+      },
+      item: {
+        padding: "6px 8px",
+        color: "var(--popover-foreground)",
+        backgroundColor: "transparent",
+      },
+    },
+  } as const;
+
+  const toTitleCase = (value: string) =>
+    value
+      .split(" ")
+      .filter(Boolean)
+      .map((part) => part[0]?.toUpperCase() + part.slice(1))
+      .join(" ");
+
+  const formatMentionFallbackLabel = (token: string) => {
+    const normalizedToken = String(token || "").trim().toLowerCase();
+    const base = normalizedToken.replace(/[_-]+/g, " ").replace(/\./g, " ");
+
+    if (normalizedToken.startsWith("team-")) {
+      return `team:${toTitleCase(base.slice("team ".length).trim())}`;
+    }
+
+    if (normalizedToken.startsWith("project-")) {
+      return `project:${toTitleCase(base.slice("project ".length).trim())}`;
+    }
+
+    return toTitleCase(base);
+  };
+
+  const renderContentWithMentions = (content: string) => {
+    const input = String(content || "");
+    const mentionPattern = /@([a-zA-Z0-9][a-zA-Z0-9._-]*)/g;
+    const chunks: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null = mentionPattern.exec(input);
+
+    while (match) {
+      const mentionStart = match.index;
+      const mentionEnd = mentionStart + match[0].length;
+      const token = String(match[1] || "").toLowerCase();
+      const mentionMeta = mentionMetaByToken[token];
+
+      if (mentionStart > lastIndex) {
+        chunks.push(input.slice(lastIndex, mentionStart));
+      }
+
+      if (!mentionMeta) {
+        chunks.push(
+          <span
+            key={`mention-fallback-${token}-${mentionStart}`}
+            className="inline-flex rounded-md bg-orange-500/12 px-1 py-0.5 text-orange-300"
+          >
+            @{formatMentionFallbackLabel(token)}
+          </span>,
+        );
+      } else {
+        const mentionLabel = `@${mentionMeta.label}`;
+
+        if (mentionMeta.kind === "user" && mentionMeta.user) {
+          chunks.push(
+            <Tooltip key={`mention-${token}-${mentionStart}`} delayDuration={100}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  className="inline-flex cursor-pointer items-center rounded-md bg-orange-500/12 px-1 py-0.5 text-orange-300 transition-colors hover:bg-orange-500/20"
+                  onClick={() => onOpenMentionUser(mentionMeta.user?.id || "")}
+                >
+                  {mentionLabel}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent
+                side="top"
+                align="start"
+                sideOffset={8}
+                showArrow={false}
+                className="w-72 rounded-xl border border-border/60 bg-popover p-3 text-popover-foreground shadow-lg"
+              >
+                <div className="space-y-2">
+                  <div className="space-y-0.5">
+                    <div className="truncate text-[13px] font-semibold">
+                      {mentionMeta.user.name}
+                    </div>
+                    {mentionMeta.user.email ? (
+                      <div className="truncate text-[11px] text-muted-foreground">
+                        {mentionMeta.user.email}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="space-y-1.5 pt-1 text-[11px]">
+                    {mentionMeta.user.role ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Role</span>
+                        <span className="truncate text-right font-medium">
+                          {mentionMeta.user.role}
+                        </span>
+                      </div>
+                    ) : null}
+                    {mentionMeta.user.team ? (
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-muted-foreground">Team</span>
+                        <span className="truncate text-right font-medium">
+                          {mentionMeta.user.team}
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="flex items-center gap-1.5 border-t pt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 px-2 text-[11px]"
+                      onClick={() => onOpenMentionUser(mentionMeta.user?.id || "")}
+                    >
+                      Message
+                    </Button>
+                    {mentionMeta.user.email ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-[11px]"
+                        onClick={() => {
+                          if (typeof window !== "undefined") {
+                            window.location.href = `mailto:${mentionMeta.user?.email}`;
+                          }
+                        }}
+                      >
+                        Email
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              </TooltipContent>
+            </Tooltip>,
+          );
+        } else {
+          chunks.push(
+            <span
+              key={`mention-${token}-${mentionStart}`}
+              className="inline-flex rounded-md bg-orange-500/12 px-1 py-0.5 text-orange-300"
+            >
+              {mentionLabel}
+            </span>,
+          );
+        }
+      }
+
+      lastIndex = mentionEnd;
+      match = mentionPattern.exec(input);
+    }
+
+    if (lastIndex < input.length) {
+      chunks.push(input.slice(lastIndex));
+    }
+
+    return chunks;
+  };
+
   return (
-    <>
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       <div
         ref={messageListRef}
-        className="min-h-0 flex-1 overflow-y-auto px-2 py-2 sm:px-3 sm:py-2.5"
+        onScroll={onMessageListScroll}
+        className="h-0 min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2 sm:px-3 sm:py-2.5"
       >
+        {(hasOlderMessages || isLoadingOlderMessages) && (
+          <div className="mb-1 flex justify-center">
+            <span className="text-muted-foreground rounded-full border px-2 py-0.5 text-[11px]">
+              {isLoadingOlderMessages ? "Loading older messages..." : "Scroll up for older messages"}
+            </span>
+          </div>
+        )}
+
         <div className="my-1 flex items-center gap-2">
           <span className="bg-border h-px flex-1" />
-          <span className="text-muted-foreground text-[10px]">Today</span>
+          <span className="text-muted-foreground text-[11px]">Today</span>
           <span className="bg-border h-px flex-1" />
         </div>
 
@@ -92,6 +316,10 @@ const MainChatPanel = ({
             const threadCount = onGetThreadCount(message.id);
             const isThreadActive = selectedThreadMessageId === message.id;
             const isPinned = pinnedMessageIds.includes(message.id);
+            const isOwnMessage =
+              String(message.author.id || "").trim() ===
+              String(currentUserId || "").trim();
+            const authorInfo = authorInfoById[String(message.author.id || "")];
 
             return (
               <article
@@ -99,32 +327,44 @@ const MainChatPanel = ({
                 className="group rounded-md px-2 py-1.5 transition-colors hover:bg-accent/35"
               >
                 <div className="flex items-start gap-2">
-                  <Avatar size="sm" className="shrink-0">
+                  <Avatar
+                    size="sm"
+                    className="shrink-0"
+                    userCard={{
+                      name: authorInfo?.name || message.author.name,
+                      email: authorInfo?.email,
+                      role:
+                        authorInfo?.role ||
+                        (message.author.role === "agent" ? "Agent" : "Member"),
+                      team: authorInfo?.team,
+                      status: message.sentAt,
+                    }}
+                  >
                     <AvatarImage src={message.author.avatarUrl} alt={message.author.name} />
-                    <AvatarFallback className="text-[10px]">
+                    <AvatarFallback className="text-[11px]">
                       {message.author.initials}
                     </AvatarFallback>
                   </Avatar>
 
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <p className="text-[12px] font-medium">{message.author.name}</p>
+                      <p className="text-[13px] font-medium">{message.author.name}</p>
                       {message.author.role === "agent" && (
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-[11px]">
                           Agent
                         </Badge>
                       )}
                       {isPinned && (
-                        <Badge variant="secondary" className="text-[10px]">
-                          <Pin className="size-3" />
+                        <Badge variant="secondary" className="text-[11px]">
+                          <Pin className="size-3.5" />
                           Pinned
                         </Badge>
                       )}
-                      <span className="text-muted-foreground text-[10px]">
+                      <span className="text-muted-foreground text-[11px]">
                         {message.sentAt}
                       </span>
                       {message.edited && (
-                        <span className="text-muted-foreground text-[10px]">edited</span>
+                        <span className="text-muted-foreground text-[11px]">edited</span>
                       )}
                     </div>
 
@@ -141,12 +381,12 @@ const MainChatPanel = ({
                               onSaveEditedMessage(message.id);
                             }
                           }}
-                          className="min-h-16 max-h-36 resize-none px-2 py-1.5 text-[12px]"
+                          className="min-h-16 max-h-36 resize-none px-2 py-1.5 text-[13px]"
                         />
                         <div className="flex items-center gap-1">
                           <Button
                             size="sm"
-                            className="h-7 px-2 text-[11px]"
+                            className="h-8 px-2.5 text-[13px]"
                             onClick={() => onSaveEditedMessage(message.id)}
                             disabled={editingMessageValue.trim().length < 1}
                           >
@@ -155,7 +395,7 @@ const MainChatPanel = ({
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 px-2 text-[11px]"
+                            className="h-8 px-2.5 text-[13px]"
                             onClick={onCancelEditingMessage}
                           >
                             Cancel
@@ -164,7 +404,7 @@ const MainChatPanel = ({
                       </div>
                     ) : (
                       <p className="mt-0.5 text-[12.5px] leading-5 whitespace-pre-wrap">
-                        {message.content}
+                        {renderContentWithMentions(message.content)}
                       </p>
                     )}
 
@@ -174,10 +414,10 @@ const MainChatPanel = ({
                       <Button
                         size="sm"
                         variant={isThreadActive ? "secondary" : "ghost"}
-                        className="h-6 px-2 text-[11px]"
+                        className="h-7 px-2.5 text-[13px]"
                         onClick={() => onOpenThread(message.id)}
                       >
-                        <MessageSquareReply className="size-3" />
+                        <MessageSquareReply className="size-3.5" />
                         <span className="hidden sm:inline">
                           {threadCount > 0
                             ? `${threadCount} repl${threadCount > 1 ? "ies" : "y"}`
@@ -194,13 +434,21 @@ const MainChatPanel = ({
                         <ChatItemActionsMenu
                           isPinned={isPinned}
                           onReplyInThread={() => onOpenThread(message.id)}
-                          onEdit={() => onStartEditingMessage(message)}
+                          onEdit={
+                            isOwnMessage
+                              ? () => onStartEditingMessage(message)
+                              : undefined
+                          }
                           onCopy={() => onCopyText(message.content)}
                           onTogglePin={() => onTogglePinnedMessage(message.id)}
                           onForward={() => onForwardMessage(message)}
                           onCreateTask={() => onCreateTaskFromMessage(message)}
                           showCreateTask={canCreateTaskFromChat}
-                          onDelete={() => onDeleteMessage(message.id)}
+                          onDelete={
+                            isOwnMessage
+                              ? () => onDeleteMessage(message.id)
+                              : undefined
+                          }
                         />
                       </div>
                     </div>
@@ -212,9 +460,9 @@ const MainChatPanel = ({
         </div>
       </div>
 
-      <div className="border-t px-1.5 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] sm:p-1.5">
+      <div className="bg-card/95 shrink-0 border-t px-1.5 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:p-1.5">
         <div className="bg-background/88 border-border flex flex-col gap-2 rounded-none border border-x-0 border-b-0 p-1.5 backdrop-blur-sm sm:rounded-md sm:border sm:p-1.5">
-          <Textarea
+          <MentionsInput
             value={composer}
             onChange={(event) => onComposerChange(event.target.value)}
             onKeyDown={(event) => {
@@ -223,9 +471,21 @@ const MainChatPanel = ({
                 onSendMessage();
               }
             }}
-            placeholder="Message this space..."
-            className="min-h-16 max-h-52 resize-none overflow-y-auto border-0 bg-transparent px-1.5 py-1.5 text-[12px] shadow-none focus-visible:ring-0"
-          />
+            placeholder="Message this space... Use @ to mention"
+            style={mentionInputStyle}
+            className="min-h-16 max-h-52 rounded-md border-0 bg-transparent shadow-none focus-within:ring-0"
+            a11ySuggestionsListLabel="Chat mentions"
+            suggestionsPortalHost={suggestionsPortalHost}
+            forceSuggestionsAboveCursor
+          >
+            <Mention
+              trigger="@"
+              data={mentionSuggestions}
+              markup="@__id__"
+              displayTransform={(_id, display) => display || _id}
+              appendSpaceOnAdd
+            />
+          </MentionsInput>
 
           <DraftAttachmentRow
             attachments={composerAttachments}
@@ -237,10 +497,10 @@ const MainChatPanel = ({
             <Button
               size="sm"
               variant="ghost"
-              className="h-7 px-2 text-[11px]"
+              className="h-8 px-2.5 text-[13px]"
               onClick={() => mainComposerUploadRef.current?.click()}
             >
-              <ImagePlus className="size-3" />
+              <ImagePlus className="size-3.5" />
               Image
             </Button>
             <input
@@ -252,33 +512,33 @@ const MainChatPanel = ({
               onChange={onUploadFromInput}
             />
 
-            <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]">
-              <AtSign className="size-3" />
+            <Button size="sm" variant="ghost" className="h-8 px-2.5 text-[13px]">
+              <AtSign className="size-3.5" />
               Mention
             </Button>
 
-            <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]">
-              <SmilePlus className="size-3" />
+            <Button size="sm" variant="ghost" className="h-8 px-2.5 text-[13px]">
+              <SmilePlus className="size-3.5" />
               Emoji
             </Button>
 
-            <p className="text-muted-foreground hidden text-[10px] md:block">
+            <p className="text-muted-foreground hidden text-[11px] md:block">
               Enter to send
             </p>
 
             <Button
               size="sm"
-              className="ml-auto h-7 px-2.5 text-[11px]"
+              className="ml-auto h-8 px-2.5 text-[12px]"
               onClick={onSendMessage}
               disabled={!canSendMessage}
             >
-              <SendHorizontal className="size-3" />
+              <SendHorizontal className="size-3.5" />
               Send
             </Button>
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 };
 

@@ -4,12 +4,19 @@ export type SpaceScope = "workspace" | "team" | "project" | "workflow" | "task";
 
 export type SpaceRoom = {
   id: string;
+  kind?: "direct" | "group" | "project" | "task";
   name: string;
   scope: SpaceScope;
   visibility: "open" | "private";
   members: number;
   unread: number;
   topic: string;
+  meta?: {
+    projectId?: string | null;
+    workflowId?: string | null;
+    taskId?: string | null;
+    customColor?: string | null;
+  };
 };
 
 export type ChatAttachment = {
@@ -17,6 +24,33 @@ export type ChatAttachment = {
   name: string;
   kind: "image" | "file";
   url?: string;
+  file?: File;
+};
+
+export type MentionSuggestion = {
+  id: string;
+  display: string;
+};
+
+export type MentionTokenMeta = {
+  token: string;
+  label: string;
+  kind: "user" | "team" | "project";
+  user?: {
+    id: string;
+    name: string;
+    email?: string;
+    role?: string;
+    team?: string;
+  };
+};
+
+export type SpaceUserInfo = {
+  id: string;
+  name: string;
+  email?: string;
+  role?: string;
+  team?: string;
 };
 
 export type ChatAuthor = {
@@ -30,11 +64,13 @@ export type ChatAuthor = {
 export type SpaceMessage = {
   id: string;
   roomId: string;
+  parentMessageId?: string | null;
   author: ChatAuthor;
   content: string;
   sentAt: string;
   edited?: boolean;
   attachments?: ChatAttachment[];
+  threadCount?: number;
 };
 
 export type ThreadReply = {

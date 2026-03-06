@@ -1,12 +1,14 @@
 import {
+  AcceptWorkspaceInviteRequestBody,
   CreateWorkspaceInviteRequestBody,
   CreateWorkspaceRequestBody,
   JoinWorkspaceRequestBody,
+  ModerateWorkspaceJoinRequestBody,
   WorkspaceInvite,
   WorkspaceJoinRequest,
   WorkspacePerson,
   WorkspaceRole,
-  WorkspaceSettingsForm,
+  WorkspaceSettingsUpdateBody,
   WorkspaceType,
 } from "@/types/workspace";
 import axiosInstance from ".";
@@ -45,11 +47,29 @@ export const getWorkspaceById = async (wokspaceId: string) => {
 
 export const updateWorkspace = async (data: {
   workspaceId: string;
-  data: WorkspaceSettingsForm;
+  data: WorkspaceSettingsUpdateBody;
 }) => {
   return await axiosInstance.patch<ResponseObject>(
     `${WORKSPACE_ENDPOINTS.GET_PUBLIC_WORKSPACE}/${data?.workspaceId}`,
     data.data,
+  );
+};
+
+export const approveWorkspaceJoinRequest = async (
+  data: ModerateWorkspaceJoinRequestBody,
+) => {
+  return await axiosInstance.post<ResponseObject>(
+    `${WORKSPACE_ENDPOINTS.GET_PUBLIC_WORKSPACE}/${data.workspaceId}/requests/join/approve`,
+    { requestId: data.requestId },
+  );
+};
+
+export const declineWorkspaceJoinRequest = async (
+  data: ModerateWorkspaceJoinRequestBody,
+) => {
+  return await axiosInstance.post<ResponseObject>(
+    `${WORKSPACE_ENDPOINTS.GET_PUBLIC_WORKSPACE}/${data.workspaceId}/requests/join/reject`,
+    { requestId: data.requestId },
   );
 };
 
@@ -124,6 +144,15 @@ export const createWorkspaceInvite = async (data: {
   return await axiosInstance.post<ResponseObject>(
     `${WORKSPACE_ENDPOINTS.WORKSPACE_INVITE}/${data?.workspaceId}`,
     { invites: data?.data },
+  );
+};
+
+export const acceptWorkspaceInvite = async (
+  data: AcceptWorkspaceInviteRequestBody,
+) => {
+  return await axiosInstance.post<ResponseObject>(
+    `${WORKSPACE_ENDPOINTS.WORKSPACE_INVITE}/accept`,
+    data,
   );
 };
 

@@ -1,7 +1,8 @@
-import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
-import { Input as I } from "@/components/ui/input";
 import { ComponentProps } from "react";
 import { FieldError } from "react-hook-form";
+
+import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
+import { Input as I } from "@/components/ui/input";
 
 interface Props extends ComponentProps<"input"> {
   label?: string;
@@ -10,6 +11,9 @@ interface Props extends ComponentProps<"input"> {
 }
 
 export function Input({ label, tip, error, ...props }: Props) {
+  const errorMessage =
+    typeof error === "string" ? error : error?.message ?? "Invalid value";
+
   return (
     <Field>
       {label && (
@@ -23,12 +27,12 @@ export function Input({ label, tip, error, ...props }: Props) {
         placeholder={props?.placeholder}
         {...props}
       />
-      {error && (
+      {error ? (
         <FieldDescription className="text-destructive">
-          {error}
+          {errorMessage}
         </FieldDescription>
-      )}
-      {tip && <FieldDescription>{tip}</FieldDescription>}
+      ) : null}
+      {tip ? <FieldDescription>{tip}</FieldDescription> : null}
     </Field>
   );
 }

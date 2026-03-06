@@ -12,7 +12,7 @@ import { Input } from "@/components/shared/input";
 import { Button } from "@/components/ui/button";
 import { FieldGroup, FieldSet } from "@/components/ui/field";
 
-type ActionType = "archive" | "dissolve";
+type ActionType = "archive" | "restore" | "dissolve";
 
 interface Props {
   open: boolean;
@@ -20,7 +20,7 @@ interface Props {
   action: ActionType;
   teamName?: string;
   teamKey?: string;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
 }
 
 const SettingsWorkspaceTeamsConfirmActionModal = ({
@@ -43,17 +43,38 @@ const SettingsWorkspaceTeamsConfirmActionModal = ({
     return confirmText.trim().toUpperCase() === (teamKey ?? "").toUpperCase();
   }, [confirmText, requiresTypedConfirmation, teamKey]);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!canConfirm) {
       return;
     }
 
-    onConfirm();
+    await onConfirm();
     setConfirmText("");
     onOpenChange(false);
   };
+
+  const title =
+    action === "archive"
+      ? "Archive team"
+      : action === "restore"
+        ? "Restore team"
+        : "Dissolve team";
+
+  const description =
+    action === "archive"
+      ? `Archive ${teamName ?? "this team"}. It will be removed from the active teams list.`
+      : action === "restore"
+        ? `Restore ${teamName ?? "this team"}. It will return to the active teams list.`
+        : `Dissolve ${teamName ?? "this team"}. This action is destructive and should be deliberate.`;
+
+  const confirmLabel =
+    action === "archive"
+      ? "Archive"
+      : action === "restore"
+        ? "Restore"
+        : "Dissolve";
 
   return (
     <Dialog
@@ -67,14 +88,8 @@ const SettingsWorkspaceTeamsConfirmActionModal = ({
     >
       <DialogContent className="p-6 sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>
-            {action === "archive" ? "Archive team" : "Dissolve team"}
-          </DialogTitle>
-          <DialogDescription>
-            {action === "archive"
-              ? `Archive ${teamName ?? "this team"}. It will be removed from the active teams list.`
-              : `Dissolve ${teamName ?? "this team"}. This action is destructive and should be deliberate.`}
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>
@@ -90,8 +105,12 @@ const SettingsWorkspaceTeamsConfirmActionModal = ({
             </FieldGroup>
 
             <div className="flex items-center gap-2 pt-4">
-              <Button size="sm" variant="destructive" disabled={!canConfirm}>
-                {action === "archive" ? "Archive" : "Dissolve"}
+              <Button
+                size="sm"
+                variant={action === "dissolve" ? "destructive" : "default"}
+                disabled={!canConfirm}
+              >
+                {confirmLabel}
               </Button>
               <Button
                 size="sm"

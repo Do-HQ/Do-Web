@@ -426,9 +426,16 @@ const TeamCallPage = () => {
           />
         ) : (
           <div className="flex h-full items-center justify-center">
-            <Avatar size="sm">
+            <Avatar
+              size="sm"
+              userCard={{
+                name: participant.name,
+                role: participant.role ?? "Member",
+                status: participant.isMuted ? "Muted" : "Live",
+              }}
+            >
               <AvatarImage src={participant.avatarUrl} alt={participant.name} />
-              <AvatarFallback className="text-[10px]">
+              <AvatarFallback className="text-[11px]">
                 {participant.initials}
               </AvatarFallback>
             </Avatar>
@@ -436,7 +443,7 @@ const TeamCallPage = () => {
         )}
 
         <div className="absolute right-1 bottom-1 left-1 flex items-center gap-1 rounded-sm bg-black/45 px-1.5 py-0.5 text-white">
-          <p className="truncate text-[10px]">{participant.name}</p>
+          <p className="truncate text-[11px]">{participant.name}</p>
           <span className="ml-auto inline-flex items-center gap-1">
             {participant.isMuted ? (
               <MicOff className="size-2.5" />
@@ -465,11 +472,11 @@ const TeamCallPage = () => {
               />
             ) : (
               <div className="flex h-full items-center justify-center px-2 text-center">
-                <p className="text-[11px] text-white/85">Screen share is live</p>
+                <p className="text-[12px] text-white/85">Screen share is live</p>
               </div>
             )}
-            <div className="absolute top-1.5 left-1.5 inline-flex items-center gap-1 rounded-sm bg-black/45 px-1.5 py-0.5 text-[10px] text-white">
-              <MonitorUp className="size-3" />
+            <div className="absolute top-1.5 left-1.5 inline-flex items-center gap-1 rounded-sm bg-black/45 px-1.5 py-0.5 text-[11px] text-white">
+              <MonitorUp className="size-3.5" />
               Shared screen
             </div>
           </article>
@@ -505,14 +512,14 @@ const TeamCallPage = () => {
                 />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center px-3 text-center">
-                  <p className="text-[11px] font-medium text-white/90">
+                  <p className="text-[12px] font-medium text-white/90">
                     Sharing is live. Waiting for screen preview.
                   </p>
                 </div>
               )}
 
-              <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-sm border border-white/20 bg-black/45 px-1.5 py-0.5 text-[10px] text-white">
-                <MonitorUp className="size-3" />
+              <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-sm border border-white/20 bg-black/45 px-1.5 py-0.5 text-[11px] text-white">
+                <MonitorUp className="size-3.5" />
                 Screen share live
               </div>
             </>
@@ -526,7 +533,14 @@ const TeamCallPage = () => {
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center">
-              <Avatar size="lg">
+              <Avatar
+                size="lg"
+                userCard={{
+                  name: featuredParticipant.name,
+                  role: featuredParticipant.role ?? "Member",
+                  status: featuredParticipant.isMuted ? "Muted" : "Live",
+                }}
+              >
                 <AvatarImage
                   src={featuredParticipant.avatarUrl}
                   alt={featuredParticipant.name}
@@ -549,21 +563,21 @@ const TeamCallPage = () => {
           )}
 
           <div className="absolute right-2 bottom-2 left-2 flex items-center gap-1 rounded-sm bg-black/45 px-2 py-1 text-white">
-            <p className="truncate text-[11px] font-medium">{featuredParticipant.name}</p>
+            <p className="truncate text-[12px] font-medium">{featuredParticipant.name}</p>
             {featuredParticipant.role && (
-              <span className="text-[10px] text-white/70">{featuredParticipant.role}</span>
+              <span className="text-[11px] text-white/70">{featuredParticipant.role}</span>
             )}
 
-            <span className="ml-auto inline-flex items-center gap-1 text-[10px]">
+            <span className="ml-auto inline-flex items-center gap-1 text-[11px]">
               {featuredParticipant.isMuted ? (
-                <MicOff className="size-3" />
+                <MicOff className="size-3.5" />
               ) : (
-                <Mic className="size-3" />
+                <Mic className="size-3.5" />
               )}
               {featuredParticipant.isVideoOn ? (
-                <Video className="size-3" />
+                <Video className="size-3.5" />
               ) : (
-                <VideoOff className="size-3" />
+                <VideoOff className="size-3.5" />
               )}
             </span>
           </div>
@@ -585,29 +599,29 @@ const TeamCallPage = () => {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-7 shrink-0 px-2 text-[11px]"
+                className="h-8 shrink-0 px-2.5 text-[13px]"
                 onClick={handleLeaveToSpaces}
               >
-                <ArrowLeft className="size-3.5" />
+                <ArrowLeft className="size-4" />
                 <span className="hidden min-[420px]:inline">Back to Spaces</span>
               </Button>
 
-              <p className="max-w-[8.5rem] shrink-0 truncate text-[12px] font-semibold sm:max-w-none">
+              <p className="max-w-[8.5rem] shrink-0 truncate text-[13px] font-semibold sm:max-w-none">
                 {roomName}
               </p>
               <Badge
                 variant="outline"
-                className="hidden shrink-0 text-[10px] capitalize min-[430px]:inline-flex"
+                className="hidden shrink-0 text-[11px] capitalize min-[430px]:inline-flex"
               >
                 {roomScope}
               </Badge>
-              <Badge variant="secondary" className="shrink-0 text-[10px]">
+              <Badge variant="secondary" className="shrink-0 text-[11px]">
                 Live {formatDuration(durationSeconds)}
               </Badge>
 
               <Badge
                 variant={localStream ? "outline" : "secondary"}
-                className="hidden shrink-0 text-[10px] sm:inline-flex"
+                className="hidden shrink-0 text-[11px] sm:inline-flex"
               >
                 {localStream ? "Connected" : "Limited media"}
               </Badge>
@@ -615,30 +629,30 @@ const TeamCallPage = () => {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-7 shrink-0 px-2 text-[11px] lg:ml-auto lg:hidden"
+                className="h-8 shrink-0 px-2.5 text-[13px] lg:ml-auto lg:hidden"
                 onClick={() => setIsPanelSheetOpen(true)}
               >
-                <MessageSquare className="size-3.5" />
+                <MessageSquare className="size-4" />
                 Panel
               </Button>
 
               <Button
                 size="sm"
                 variant="ghost"
-                className="hidden h-7 shrink-0 px-2 text-[11px] lg:flex"
+                className="hidden h-8 shrink-0 px-2.5 text-[13px] lg:flex"
                 onClick={() => setIsPanelOpenDesktop((prev) => !prev)}
               >
                 {isPanelOpenDesktop ? (
-                  <PanelRightClose className="size-3.5" />
+                  <PanelRightClose className="size-4" />
                 ) : (
-                  <PanelRightOpen className="size-3.5" />
+                  <PanelRightOpen className="size-4" />
                 )}
                 Panel
               </Button>
             </div>
 
             {mediaError && (
-              <p className="text-destructive mt-1.5 text-[11px]">{mediaError}</p>
+              <p className="text-destructive mt-1.5 text-[12px]">{mediaError}</p>
             )}
           </div>
 
@@ -652,13 +666,13 @@ const TeamCallPage = () => {
                 <Button
                   size="sm"
                   variant={isMicOn ? "secondary" : "destructive"}
-                  className="h-8 px-2 text-[11px]"
+                  className="h-9 px-2.5 text-[13px]"
                   onClick={handleToggleMic}
                 >
                   {isMicOn ? (
-                    <Mic className="size-3.5" />
+                    <Mic className="size-4" />
                   ) : (
-                    <MicOff className="size-3.5" />
+                    <MicOff className="size-4" />
                   )}
                   {isMicOn ? "Mic" : "Muted"}
                 </Button>
@@ -666,13 +680,13 @@ const TeamCallPage = () => {
                 <Button
                   size="sm"
                   variant={isVideoOn ? "secondary" : "destructive"}
-                  className="h-8 px-2 text-[11px]"
+                  className="h-9 px-2.5 text-[13px]"
                   onClick={handleToggleVideo}
                 >
                   {isVideoOn ? (
-                    <Video className="size-3.5" />
+                    <Video className="size-4" />
                   ) : (
-                    <VideoOff className="size-3.5" />
+                    <VideoOff className="size-4" />
                   )}
                   {isVideoOn ? "Camera" : "Camera Off"}
                 </Button>
@@ -680,13 +694,13 @@ const TeamCallPage = () => {
                 <Button
                   size="sm"
                   variant={isScreenSharing ? "default" : "secondary"}
-                  className="h-8 px-2 text-[11px]"
+                  className="h-9 px-2.5 text-[13px]"
                   onClick={handleToggleScreenShare}
                 >
                   {isScreenSharing ? (
-                    <MonitorUp className="size-3.5" />
+                    <MonitorUp className="size-4" />
                   ) : (
-                    <Monitor className="size-3.5" />
+                    <Monitor className="size-4" />
                   )}
                   {isScreenSharing ? "Stop Share" : "Share Screen"}
                 </Button>
@@ -694,13 +708,13 @@ const TeamCallPage = () => {
                 <Button
                   size="sm"
                   variant={isSpeakerOn ? "secondary" : "destructive"}
-                  className="h-8 px-2 text-[11px]"
+                  className="h-9 px-2.5 text-[13px]"
                   onClick={() => setIsSpeakerOn((prev) => !prev)}
                 >
                   {isSpeakerOn ? (
-                    <Volume2 className="size-3.5" />
+                    <Volume2 className="size-4" />
                   ) : (
-                    <VolumeX className="size-3.5" />
+                    <VolumeX className="size-4" />
                   )}
                   {isSpeakerOn ? "Speaker" : "Speaker Off"}
                 </Button>
@@ -708,29 +722,29 @@ const TeamCallPage = () => {
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="h-8 px-2 text-[11px]"
+                  className="h-9 px-2.5 text-[13px]"
                   onClick={() => setIsGridView((prev) => !prev)}
                 >
-                  <LayoutGrid className="size-3.5" />
+                  <LayoutGrid className="size-4" />
                   {isGridView ? "Speaker" : "Grid"}
                 </Button>
 
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="h-8 px-2 text-[11px] lg:hidden"
+                  className="h-9 px-2.5 text-[13px] lg:hidden"
                   onClick={() => setIsPanelSheetOpen(true)}
                 >
-                  <Users className="size-3.5" />
+                  <Users className="size-4" />
                   People
                 </Button>
 
                 <Button
                   size="sm"
-                  className="h-8 bg-destructive/85 px-2 text-[11px] text-white hover:bg-destructive"
+                  className="h-9 bg-destructive/85 px-2.5 text-[13px] text-white hover:bg-destructive"
                   onClick={endCall}
                 >
-                  <PhoneOff className="size-3.5" />
+                  <PhoneOff className="size-4" />
                   End
                 </Button>
               </div>

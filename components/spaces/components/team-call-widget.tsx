@@ -40,42 +40,42 @@ const TeamCallWidget = ({
       <div className="bg-background/95 border-border pointer-events-auto rounded-md border p-2.5 shadow-md backdrop-blur-sm">
         <div className="flex items-start gap-2">
           <div className="bg-muted text-muted-foreground inline-flex size-7 items-center justify-center rounded-sm border">
-            <Users className="size-3.5" />
+            <Users className="size-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[12px] font-medium">
+            <p className="truncate text-[13px] font-medium">
               {teamCallWidget.roomName}
             </p>
-            <p className="text-muted-foreground flex items-center gap-1 text-[10px]">
-              <Clock3 className="size-3" />
+            <p className="text-muted-foreground flex items-center gap-1 text-[11px]">
+              <Clock3 className="size-3.5" />
               {formatCallDuration(teamCallDurationSeconds)}
             </p>
           </div>
-          <Badge variant="secondary" className="text-[10px] capitalize">
+          <Badge variant="secondary" className="text-[11px] capitalize">
             {teamCallWidget.roomScope}
           </Badge>
         </div>
 
-        <div className="text-muted-foreground mt-2 flex items-center gap-2 text-[10px]">
+        <div className="text-muted-foreground mt-2 flex items-center gap-2 text-[11px]">
           <span className="inline-flex items-center gap-1">
             {teamCallWidget.isMuted ? (
-              <MicOff className="size-3" />
+              <MicOff className="size-3.5" />
             ) : (
-              <Mic className="size-3" />
+              <Mic className="size-3.5" />
             )}
             {teamCallWidget.isMuted ? "Muted" : "Mic"}
           </span>
           <span className="inline-flex items-center gap-1">
             {teamCallWidget.isVideoOn ? (
-              <Video className="size-3" />
+              <Video className="size-3.5" />
             ) : (
-              <VideoOff className="size-3" />
+              <VideoOff className="size-3.5" />
             )}
             {teamCallWidget.isVideoOn ? "Video" : "No video"}
           </span>
           {teamCallWidget.isScreenSharing && (
             <span className="inline-flex items-center gap-1">
-              <MonitorUp className="size-3" />
+              <MonitorUp className="size-3.5" />
               Share on
             </span>
           )}
@@ -85,10 +85,10 @@ const TeamCallWidget = ({
           <Button
             size="sm"
             variant="ghost"
-            className="h-7 px-2 text-[11px]"
+            className="h-8 px-2.5 text-[13px]"
             onClick={onRejoin}
           >
-            <Video className="size-3.5" />
+            <Video className="size-4" />
             Rejoin
           </Button>
           <Button
@@ -96,7 +96,7 @@ const TeamCallWidget = ({
             className="ml-auto size-7 bg-destructive/75 text-white hover:bg-destructive"
             onClick={onClear}
           >
-            <PhoneOff className="size-3.5" />
+            <PhoneOff className="size-4" />
           </Button>
         </div>
       </div>

@@ -44,26 +44,26 @@ const WorkspaceDetailsDialog = ({
 
         <div className="grid gap-2.5">
           <div className="rounded-md border p-2.5">
-            <p className="text-muted-foreground text-[10px]">Workspace</p>
+            <p className="text-muted-foreground text-[11px]">Workspace</p>
             <p className="text-sm font-semibold">{workspaceName}</p>
-            <p className="text-muted-foreground mt-0.5 text-[11px]">
+            <p className="text-muted-foreground mt-0.5 text-[12px]">
               {workspaceSlug}.squircle.live
             </p>
           </div>
 
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-md border p-2.5">
-              <p className="text-muted-foreground text-[10px]">Visibility</p>
+              <p className="text-muted-foreground text-[11px]">Visibility</p>
               <p className="text-sm font-medium capitalize">{workspaceType}</p>
             </div>
             <div className="rounded-md border p-2.5">
-              <p className="text-muted-foreground text-[10px]">Members</p>
+              <p className="text-muted-foreground text-[11px]">Members</p>
               <p className="text-sm font-medium">{workspaceMembers}</p>
             </div>
           </div>
 
           <div className="rounded-md border p-2.5">
-            <p className="text-muted-foreground text-[10px]">Spaces</p>
+            <p className="text-muted-foreground text-[11px]">Spaces</p>
             <p className="text-sm font-medium">{roomsCount} active chats</p>
           </div>
         </div>
@@ -73,7 +73,7 @@ const WorkspaceDetailsDialog = ({
             Close
           </Button>
           <Button onClick={onCopyUrl}>
-            <Copy className="size-3.5" />
+            <Copy className="size-4" />
             Copy URL
           </Button>
         </DialogFooter>

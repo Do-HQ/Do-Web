@@ -249,7 +249,16 @@ const SettingsProfile = () => {
         </FieldDescription>
 
         <div className="flex flex-wrap items-center gap-4 rounded-md border p-4 max-w-130">
-          <Avatar size="lg">
+          <Avatar
+            size="lg"
+            userCard={{
+              name:
+                `${profile.firstName || ""} ${profile.lastName || ""}`.trim() ||
+                profile.email,
+              email: profile.email,
+              role: "Workspace member",
+            }}
+          >
             <AvatarImage src={profile.avatarUrl} alt={profile.email} />
             <AvatarFallback>
               {getInitials(profile.firstName, profile.lastName, profile.email)}

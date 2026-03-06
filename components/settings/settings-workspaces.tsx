@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -27,20 +28,12 @@ import { P } from "@/components/ui/typography";
 import useAuthStore from "@/stores/auth";
 import useWorkspaceStore from "@/stores/workspace";
 import useWorkspace from "@/hooks/use-workspace";
+import type {
+  WorkspaceFlowDefaults,
+  WorkspaceGovernanceSettings,
+} from "@/types/workspace";
 
-type WorkspaceFlowDefaults = {
-  projectDefaultView: "list" | "board" | "timeline";
-  workflowTemplate: "lightweight" | "delivery" | "marketing" | "custom";
-  requireWorkflowBeforeTasks: boolean;
-  useTaskIdPrefix: boolean;
-  teamVisibilityInProjects: "all" | "assigned-only";
-};
-
-type WorkspaceGovernance = {
-  allowMembersCreateProjects: boolean;
-  allowMembersCreateWorkflows: boolean;
-  restrictInvitesToAdmins: boolean;
-  requireJoinRequestApproval: boolean;
+type WorkspaceGovernance = WorkspaceGovernanceSettings & {
   workspaceVisibility: "private" | "public";
 };
 
@@ -60,52 +53,62 @@ const DEFAULT_GOVERNANCE: WorkspaceGovernance = {
   workspaceVisibility: "private",
 };
 
-const hasChanges = <T extends Record<string, string | boolean>>(
-  value: T,
-  saved: T,
-) => {
-  return (Object.keys(value) as Array<keyof T>).some(
-    (key) => value[key] !== saved[key],
-  );
+const hasChanges = <T extends object>(value: T, saved: T) => {
+  const left = value as Record<string, unknown>;
+  const right = saved as Record<string, unknown>;
+
+  return Object.keys(left).some((key) => left[key] !== right[key]);
 };
 
 const SettingsWorkspaces = () => {
-  // Store
   const { user } = useAuthStore();
   const { workspaceId, setWorkspaceId } = useWorkspaceStore();
-
-  // Query
   const queryClient = useQueryClient();
 
-  // Hooks
-  const { useSwitchWorkspace } = useWorkspace();
+  const { useSwitchWorkspace, useWorkspaceById, useUpdateWorkspace } = useWorkspace();
+  const activeWorkspaceQuery = useWorkspaceById(workspaceId!);
+  const activeWorkspace = activeWorkspaceQuery.data?.data?.workspace;
+
   const {
     isPending: isSwitchingWorkspace,
-    mutate: switchWorkspace,
+    mutateAsync: switchWorkspace,
     variables,
   } = useSwitchWorkspace({
     onSuccess(data) {
       setWorkspaceId(data?.data?.workspace?._id);
       queryClient.invalidateQueries({ queryKey: ["user"] });
-      toast.success("Workspace switched", {
-        description: "Current workspace context has been updated.",
-      });
+      queryClient.invalidateQueries({ queryKey: ["get-workspace-detail"] });
     },
   });
 
-  // State
-  const [flowDefaults, setFlowDefaults] = useState<WorkspaceFlowDefaults>(
-    DEFAULT_FLOW_DEFAULTS,
-  );
+  const [flowDefaults, setFlowDefaults] = useState<WorkspaceFlowDefaults>(DEFAULT_FLOW_DEFAULTS);
   const [savedFlowDefaults, setSavedFlowDefaults] =
     useState<WorkspaceFlowDefaults>(DEFAULT_FLOW_DEFAULTS);
+  const [governance, setGovernance] = useState<WorkspaceGovernance>(DEFAULT_GOVERNANCE);
+  const [savedGovernance, setSavedGovernance] = useState<WorkspaceGovernance>(DEFAULT_GOVERNANCE);
 
-  const [governance, setGovernance] =
-    useState<WorkspaceGovernance>(DEFAULT_GOVERNANCE);
-  const [savedGovernance, setSavedGovernance] =
-    useState<WorkspaceGovernance>(DEFAULT_GOVERNANCE);
+  useEffect(() => {
+    if (!activeWorkspace) {
+      return;
+    }
 
-  // Derived
+    const nextFlowDefaults: WorkspaceFlowDefaults = {
+      ...DEFAULT_FLOW_DEFAULTS,
+      ...(activeWorkspace.flowDefaults || {}),
+    };
+
+    const nextGovernance: WorkspaceGovernance = {
+      ...DEFAULT_GOVERNANCE,
+      ...(activeWorkspace.governance || {}),
+      workspaceVisibility: activeWorkspace.type === "public" ? "public" : "private",
+    };
+
+    setFlowDefaults(nextFlowDefaults);
+    setSavedFlowDefaults(nextFlowDefaults);
+    setGovernance(nextGovernance);
+    setSavedGovernance(nextGovernance);
+  }, [activeWorkspace]);
+
   const flowDefaultsChanged = useMemo(
     () => hasChanges(flowDefaults, savedFlowDefaults),
     [flowDefaults, savedFlowDefaults],
@@ -115,15 +118,45 @@ const SettingsWorkspaces = () => {
     [governance, savedGovernance],
   );
 
-  // Handlers
+  const { isPending: isUpdatingWorkspace, mutateAsync: updateWorkspace } = useUpdateWorkspace({
+    onSuccess() {
+      queryClient.invalidateQueries({ queryKey: ["get-workspace-detail", workspaceId] });
+      queryClient.invalidateQueries({ queryKey: ["get-user-workspaces"] });
+      queryClient.invalidateQueries({ queryKey: ["user"] });
+    },
+  });
+
   const handleSwitchWorkspace = (id: string) => {
-    switchWorkspace({ workspaceId: id });
+    const request = switchWorkspace({ workspaceId: id });
+
+    toast.promise(request, {
+      loading: "Switching workspace...",
+      success: "Workspace switched",
+      error: "Could not switch workspace",
+    });
   };
 
   const handleSaveFlowDefaults = () => {
-    setSavedFlowDefaults(flowDefaults);
-    toast.success("Workspace flow defaults updated", {
-      description: "These defaults are saved locally for now.",
+    if (!workspaceId) {
+      return;
+    }
+
+    const request = updateWorkspace(
+      {
+        workspaceId,
+        data: {
+          flowDefaults,
+        },
+      },
+    );
+
+    toast.promise(request, {
+      loading: "Saving flow defaults...",
+      success: (data) => {
+        setSavedFlowDefaults(flowDefaults);
+        return data?.data?.message || "Workspace flow defaults updated";
+      },
+      error: "Could not save workspace flow defaults",
     });
   };
 
@@ -132,9 +165,32 @@ const SettingsWorkspaces = () => {
   };
 
   const handleSaveGovernance = () => {
-    setSavedGovernance(governance);
-    toast.success("Workspace governance updated", {
-      description: "Governance settings are saved locally for now.",
+    if (!workspaceId) {
+      return;
+    }
+
+    const request = updateWorkspace(
+      {
+        workspaceId,
+        data: {
+          type: governance.workspaceVisibility,
+          governance: {
+            allowMembersCreateProjects: governance.allowMembersCreateProjects,
+            allowMembersCreateWorkflows: governance.allowMembersCreateWorkflows,
+            restrictInvitesToAdmins: governance.restrictInvitesToAdmins,
+            requireJoinRequestApproval: governance.requireJoinRequestApproval,
+          },
+        },
+      },
+    );
+
+    toast.promise(request, {
+      loading: "Saving workspace governance...",
+      success: (data) => {
+        setSavedGovernance(governance);
+        return data?.data?.message || "Workspace governance updated";
+      },
+      error: "Could not save workspace governance",
     });
   };
 
@@ -146,11 +202,9 @@ const SettingsWorkspaces = () => {
     <FieldGroup className="gap-8">
       <FieldSet>
         <FieldLegend>Workspace Directory</FieldLegend>
-        <FieldDescription>
-          Your organizations and active workspace context.
-        </FieldDescription>
+        <FieldDescription>Your organizations and active workspace context.</FieldDescription>
 
-        <div className="flex flex-col gap-2 max-w-130">
+        <div className="flex max-w-130 flex-col gap-2">
           {user?.workspaces?.length ? (
             user.workspaces.map((entry) => {
               const item = entry.workspaceId;
@@ -167,9 +221,7 @@ const SettingsWorkspaces = () => {
                 >
                   <FieldContent className="min-w-0">
                     <FieldTitle className="truncate">{item?.name}</FieldTitle>
-                    <FieldDescription className="truncate">
-                      {item?.slug}.squircle.live
-                    </FieldDescription>
+                    <FieldDescription className="truncate">{item?.slug}.squircle.live</FieldDescription>
                   </FieldContent>
 
                   <Badge variant="outline" className="capitalize">
@@ -180,9 +232,7 @@ const SettingsWorkspaces = () => {
                     {entry?.role}
                   </Badge>
 
-                  <P className="text-muted-foreground text-xs">
-                    {membersCount} members
-                  </P>
+                  <P className="text-muted-foreground text-xs">{membersCount} members</P>
 
                   {isCurrent ? (
                     <Badge className="ml-auto">Current</Badge>
@@ -192,10 +242,7 @@ const SettingsWorkspaces = () => {
                       size="sm"
                       variant="outline"
                       onClick={() => handleSwitchWorkspace(item._id)}
-                      loading={
-                        variables?.workspaceId === item._id &&
-                        isSwitchingWorkspace
-                      }
+                      loading={variables?.workspaceId === item._id && isSwitchingWorkspace}
                     >
                       Switch
                     </Button>
@@ -205,9 +252,7 @@ const SettingsWorkspaces = () => {
             })
           ) : (
             <div className="rounded-md border px-3 py-3">
-              <P className="text-muted-foreground text-sm">
-                You are not part of any workspace yet.
-              </P>
+              <P className="text-muted-foreground text-sm">You are not part of any workspace yet.</P>
             </div>
           )}
         </div>
@@ -217,24 +262,19 @@ const SettingsWorkspaces = () => {
 
       <FieldSet>
         <FieldLegend>Flow Defaults</FieldLegend>
-        <FieldDescription>
-          Organization defaults across projects, workflows, and tasks.
-        </FieldDescription>
+        <FieldDescription>Organization defaults across projects, workflows, and tasks.</FieldDescription>
 
         <Field orientation="horizontal">
           <FieldContent>
             <FieldTitle>Default project view</FieldTitle>
-            <FieldDescription>
-              Set the starting view for newly created projects.
-            </FieldDescription>
+            <FieldDescription>Set the starting view for newly created projects.</FieldDescription>
           </FieldContent>
           <Select
             value={flowDefaults.projectDefaultView}
             onValueChange={(value) =>
               setFlowDefaults((prev) => ({
                 ...prev,
-                projectDefaultView:
-                  value as WorkspaceFlowDefaults["projectDefaultView"],
+                projectDefaultView: value as WorkspaceFlowDefaults["projectDefaultView"],
               }))
             }
           >
@@ -252,17 +292,14 @@ const SettingsWorkspaces = () => {
         <Field orientation="horizontal">
           <FieldContent>
             <FieldTitle>Workflow template</FieldTitle>
-            <FieldDescription>
-              Choose the default phase structure for new projects.
-            </FieldDescription>
+            <FieldDescription>Choose the default phase structure for new projects.</FieldDescription>
           </FieldContent>
           <Select
             value={flowDefaults.workflowTemplate}
             onValueChange={(value) =>
               setFlowDefaults((prev) => ({
                 ...prev,
-                workflowTemplate:
-                  value as WorkspaceFlowDefaults["workflowTemplate"],
+                workflowTemplate: value as WorkspaceFlowDefaults["workflowTemplate"],
               }))
             }
           >
@@ -281,9 +318,7 @@ const SettingsWorkspaces = () => {
         <Field orientation="horizontal">
           <FieldContent>
             <FieldTitle>Require workflow before tasks</FieldTitle>
-            <FieldDescription>
-              Ensure tasks are created only under defined phases.
-            </FieldDescription>
+            <FieldDescription>Ensure tasks are created only under defined phases.</FieldDescription>
           </FieldContent>
           <Switch
             checked={flowDefaults.requireWorkflowBeforeTasks}
@@ -299,9 +334,7 @@ const SettingsWorkspaces = () => {
         <Field orientation="horizontal">
           <FieldContent>
             <FieldTitle>Use task ID prefix</FieldTitle>
-            <FieldDescription>
-              Prefix task IDs with workspace/project identifiers.
-            </FieldDescription>
+            <FieldDescription>Prefix task IDs with workspace/project identifiers.</FieldDescription>
           </FieldContent>
           <Switch
             checked={flowDefaults.useTaskIdPrefix}
@@ -317,9 +350,7 @@ const SettingsWorkspaces = () => {
         <Field orientation="horizontal">
           <FieldContent>
             <FieldTitle>Team visibility in projects</FieldTitle>
-            <FieldDescription>
-              Control which teams are visible when planning projects.
-            </FieldDescription>
+            <FieldDescription>Control which teams are visible when planning projects.</FieldDescription>
           </FieldContent>
           <Select
             value={flowDefaults.teamVisibilityInProjects}
@@ -345,7 +376,8 @@ const SettingsWorkspaces = () => {
           <Button
             className="max-w-20"
             size="sm"
-            disabled={!flowDefaultsChanged}
+            loading={isUpdatingWorkspace || activeWorkspaceQuery.isLoading}
+            disabled={!flowDefaultsChanged || !workspaceId}
             onClick={handleSaveFlowDefaults}
           >
             Save
@@ -366,16 +398,12 @@ const SettingsWorkspaces = () => {
 
       <FieldSet>
         <FieldLegend>Governance</FieldLegend>
-        <FieldDescription>
-          Manage organization permissions and access policies.
-        </FieldDescription>
+        <FieldDescription>Manage organization permissions and access policies.</FieldDescription>
 
         <Field orientation="horizontal">
           <FieldContent>
             <FieldTitle>Allow members to create projects</FieldTitle>
-            <FieldDescription>
-              Let members create projects without admin intervention.
-            </FieldDescription>
+            <FieldDescription>Let members create projects without admin intervention.</FieldDescription>
           </FieldContent>
           <Switch
             checked={governance.allowMembersCreateProjects}
@@ -391,9 +419,7 @@ const SettingsWorkspaces = () => {
         <Field orientation="horizontal">
           <FieldContent>
             <FieldTitle>Allow members to create workflows</FieldTitle>
-            <FieldDescription>
-              Let members define new phases inside projects.
-            </FieldDescription>
+            <FieldDescription>Let members define new phases inside projects.</FieldDescription>
           </FieldContent>
           <Switch
             checked={governance.allowMembersCreateWorkflows}
@@ -409,9 +435,7 @@ const SettingsWorkspaces = () => {
         <Field orientation="horizontal">
           <FieldContent>
             <FieldTitle>Restrict invites to admins/owners</FieldTitle>
-            <FieldDescription>
-              Prevent non-admin members from inviting new users.
-            </FieldDescription>
+            <FieldDescription>Prevent non-admin members from inviting new users.</FieldDescription>
           </FieldContent>
           <Switch
             checked={governance.restrictInvitesToAdmins}
@@ -427,9 +451,7 @@ const SettingsWorkspaces = () => {
         <Field orientation="horizontal">
           <FieldContent>
             <FieldTitle>Require join request approval</FieldTitle>
-            <FieldDescription>
-              Route workspace join requests through approval flow.
-            </FieldDescription>
+            <FieldDescription>Route workspace join requests through approval flow.</FieldDescription>
           </FieldContent>
           <Switch
             checked={governance.requireJoinRequestApproval}
@@ -445,17 +467,14 @@ const SettingsWorkspaces = () => {
         <Field orientation="horizontal">
           <FieldContent>
             <FieldTitle>Workspace visibility</FieldTitle>
-            <FieldDescription>
-              Control public discoverability of this organization.
-            </FieldDescription>
+            <FieldDescription>Control public discoverability of this organization.</FieldDescription>
           </FieldContent>
           <Select
             value={governance.workspaceVisibility}
             onValueChange={(value) =>
               setGovernance((prev) => ({
                 ...prev,
-                workspaceVisibility:
-                  value as WorkspaceGovernance["workspaceVisibility"],
+                workspaceVisibility: value as WorkspaceGovernance["workspaceVisibility"],
               }))
             }
           >
@@ -473,7 +492,8 @@ const SettingsWorkspaces = () => {
           <Button
             className="max-w-20"
             size="sm"
-            disabled={!governanceChanged}
+            loading={isUpdatingWorkspace || activeWorkspaceQuery.isLoading}
+            disabled={!governanceChanged || !workspaceId}
             onClick={handleSaveGovernance}
           >
             Save

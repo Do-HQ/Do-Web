@@ -63,12 +63,9 @@ const SettingsWorkspacePeopleAddMembers = ({ open, onOpenChange }: Props) => {
     mode: "onChange",
   });
 
-  const { isPending: isCreatingWorkspaceRole, mutate: createRole } =
+  const { isPending: isCreatingWorkspaceRole, mutateAsync: createRole } =
     useCreateWorkspaceInvite({
-      onSuccess(data) {
-        toast.success(data?.data?.message, {
-          description: data?.data?.description,
-        });
+      onSuccess() {
         reset({
           email: "",
           roles: [defaultRole?._id],
@@ -79,7 +76,7 @@ const SettingsWorkspacePeopleAddMembers = ({ open, onOpenChange }: Props) => {
     });
 
   const onSubmit = (formData: WorkspaceInviteRequestBody) => {
-    createRole({
+    const request = createRole({
       workspaceId: workspaceId!,
       data: [
         {
@@ -87,6 +84,12 @@ const SettingsWorkspacePeopleAddMembers = ({ open, onOpenChange }: Props) => {
           roleIds: formData?.roles,
         },
       ],
+    });
+
+    toast.promise(request, {
+      loading: "Sending workspace invite...",
+      success: (data) => data?.data?.message || "Workspace invite sent",
+      error: "Could not send workspace invite",
     });
   };
 
@@ -100,7 +103,7 @@ const SettingsWorkspacePeopleAddMembers = ({ open, onOpenChange }: Props) => {
         });
       }
     }
-  }, [roles, reset]);
+  }, [defaultRole, roles, reset]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>

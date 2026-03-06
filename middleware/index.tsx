@@ -1,87 +1,115 @@
 "use client";
 
-import React, { useEffect } from "react";
-import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
+import React, { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getUser } from "@/lib/services/user-service";
+import { useQuery } from "@tanstack/react-query";
+
 import LoaderComponent from "@/components/shared/loader";
+import { getUser } from "@/lib/services/user-service";
+import { getUserWorkspaces } from "@/lib/services/workspace-service";
 import useAuthStore from "@/stores/auth";
 import useWorkspaceStore from "@/stores/workspace";
-import { useQuery } from "@tanstack/react-query";
-import { getUserWorkspaces } from "@/lib/services/workspace-service";
+import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
 
 type RequireAuthProps = {
   children: React.ReactNode;
 };
 
-const RequireAuth = ({ children }: RequireAuthProps) => {
-  // Router
-  const router = useRouter();
+const STALE_TIME = 5 * 60 * 1000;
 
-  // Global
-  const { user, setUser } = useAuthStore();
+const RequireAuth = ({ children }: RequireAuthProps) => {
+  const router = useRouter();
+  const redirectHandledRef = useRef(false);
+
+  const { setUser } = useAuthStore();
   const { setWorkspaceId, setWorkspaces } = useWorkspaceStore();
 
-  // Local
-  const accessToken =
-    typeof window !== "undefined" && localStorage.getItem(LOCAL_KEYS.TOKEN);
-
-  // Query
-  const { isPending } = useQuery({
-    queryKey: ["user"],
-    queryFn: async () => {
-      try {
-        const res = await getUser();
-
-        setUser(res.data.user);
-        setWorkspaceId(res.data.user?.currentWorkspaceId?._id);
-
-        return res.data.user;
-      } catch (err) {
-        // localStorage.removeItem(LOCAL_KEYS.TOKEN);
-        // router.replace(ROUTES.SIGN_IN);
-
-        throw err;
-      }
-    },
-    retryOnMount: false,
-    retry: false,
-    enabled: !!accessToken,
-  });
-
-  const { isPending: isGettingUsersWorkspaces } = useQuery({
-    queryKey: ["get-user-workspaces"],
-    queryFn: async () => {
-      try {
-        const res = await getUserWorkspaces({ page: 1, limit: 100 });
-        setWorkspaces(res?.data?.workspaces);
-      } catch (err) {
-        // localStorage.removeItem(LOCAL_KEYS.TOKEN);
-        // router.replace(ROUTES.SIGN_IN);
-
-        throw err;
-      }
-    },
-    retryOnMount: false,
-    retry: false,
-    enabled: !!accessToken,
-  });
+  const [authChecked, setAuthChecked] = useState(false);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!accessToken) {
-      router.replace(ROUTES.SIGN_IN);
+    if (typeof window === "undefined") {
+      return;
     }
-  }, [accessToken]);
+
+    const timeoutId = window.setTimeout(() => {
+      setAccessToken(localStorage.getItem(LOCAL_KEYS.TOKEN));
+      setAuthChecked(true);
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, []);
+
+  const shouldBootstrap = authChecked && !!accessToken;
+
+  const userQuery = useQuery({
+    queryKey: ["user", accessToken],
+    queryFn: async () => {
+      const res = await getUser();
+
+      setUser(res.data.user);
+      setWorkspaceId(res.data.user?.currentWorkspaceId?._id ?? null);
+
+      return res.data.user;
+    },
+    retryOnMount: false,
+    retry: false,
+    staleTime: STALE_TIME,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    enabled: shouldBootstrap,
+  });
+
+  const workspacesQuery = useQuery({
+    queryKey: ["get-user-workspaces", accessToken],
+    queryFn: async () => {
+      const res = await getUserWorkspaces({ page: 1, limit: 100 });
+      setWorkspaces(res?.data?.workspaces ?? []);
+
+      return res?.data?.workspaces ?? [];
+    },
+    retryOnMount: false,
+    retry: false,
+    staleTime: STALE_TIME,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
+    enabled: shouldBootstrap,
+  });
+
+  const hasBootstrapError =
+    shouldBootstrap && (userQuery.isError || workspacesQuery.isError);
+  const isBootstrapping =
+    shouldBootstrap && (userQuery.isPending || workspacesQuery.isPending);
+  const shouldRedirectToSignIn =
+    authChecked && (!accessToken || hasBootstrapError);
 
   useEffect(() => {
-    if (!accessToken && !user && !isPending) {
+    if (!shouldRedirectToSignIn || redirectHandledRef.current) {
+      return;
+    }
+
+    redirectHandledRef.current = true;
+
+    if (typeof window !== "undefined") {
       const currentPath = window.location.pathname + window.location.search;
       localStorage.setItem(LOCAL_KEYS.REDIRECT, currentPath);
-      router.replace(ROUTES.SIGN_IN);
+      localStorage.removeItem(LOCAL_KEYS.TOKEN);
+      localStorage.removeItem(LOCAL_KEYS.REFRESH_TOKEN);
     }
-  }, [accessToken, user]);
 
-  if (isPending || isGettingUsersWorkspaces) {
+    setUser(null);
+    setWorkspaceId(null);
+    setWorkspaces([]);
+    router.replace(ROUTES.SIGN_IN);
+  }, [
+    router,
+    setUser,
+    setWorkspaceId,
+    setWorkspaces,
+    shouldRedirectToSignIn,
+  ]);
+
+  if (!authChecked || isBootstrapping || shouldRedirectToSignIn) {
     return <LoaderComponent />;
   }
 
