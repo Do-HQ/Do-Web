@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+import { useProjectStore } from "./project-store";
+
 interface AppStore {
   showSpotlightSearch: boolean;
   setShowSpotlightSearch: (showSpotlightSearch: boolean) => void;
@@ -18,3 +20,5 @@ export const useAppStore = create<AppStore>((set) => ({
   activeSetting: "profile",
   setActiveSetting: (activeSetting: string) => set({ activeSetting }),
 }));
+
+export { useProjectStore };

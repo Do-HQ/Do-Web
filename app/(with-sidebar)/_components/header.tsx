@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo } from "react";
+import { usePathname } from "next/navigation";
+
 import { NavActions } from "@/components/nav-actions";
 import {
   Breadcrumb,
@@ -9,19 +11,23 @@ import {
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
 import { SidebarSeparator, SidebarTrigger } from "@/components/ui/sidebar";
-import { usePathname } from "next/navigation";
+import { ROUTES } from "@/utils/constants";
 
 const routeTitleMap: Record<string, string> = {
-  "/dashboard": "Dashboard",
-  "/ask-squircle": "Ask Squircle",
-  "/spaces": "Spaces",
-  "/spaces/team-call": "Team Call",
+  [ROUTES.DASHBOARD]: "Dashboard",
+  [ROUTES.ASK_SQUIRCLE]: "Ask Squircle",
+  [ROUTES.SPACES]: "Spaces",
+  [ROUTES.SPACES_TEAM_CALL]: "Team Call",
 };
 
 const Header = () => {
   const pathname = usePathname();
 
   const breadcrumbTitle = useMemo(() => {
+    if (pathname.startsWith(`${ROUTES.PROJECTS}/`)) {
+      return "Project";
+    }
+
     return (
       routeTitleMap[pathname] ??
       pathname

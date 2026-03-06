@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "../ui/button";
 import {
   Field,
@@ -22,17 +23,11 @@ import {
 } from "../ui/select";
 import { Switch } from "../ui/switch";
 import { WorkspaceTeamsTable } from "./settings-worpspace-teams-table";
+import useWorkspaceStore from "@/stores/workspace";
+import useWorkspaceTeam from "@/hooks/use-workspace-team";
+import { WorkspaceTeamPolicy } from "@/types/team";
 
-type TeamPolicySettings = {
-  restrictTeamCreation: boolean;
-  requireLeadBeforeActivation: boolean;
-  allowMultiTeamMembership: boolean;
-  autoAssignInvitedMembers: boolean;
-  defaultVisibility: "open" | "private";
-  defaultWorkloadMode: "balanced" | "lead-driven" | "self-managed";
-};
-
-const DEFAULT_TEAM_POLICY_SETTINGS: TeamPolicySettings = {
+const DEFAULT_TEAM_POLICY_SETTINGS: WorkspaceTeamPolicy = {
   restrictTeamCreation: true,
   requireLeadBeforeActivation: true,
   allowMultiTeamMembership: true,
@@ -41,32 +36,62 @@ const DEFAULT_TEAM_POLICY_SETTINGS: TeamPolicySettings = {
   defaultWorkloadMode: "balanced",
 };
 
-const hasChanges = <T extends Record<string, string | boolean>>(
-  value: T,
-  saved: T,
+const hasChanges = (
+  value: WorkspaceTeamPolicy,
+  saved: WorkspaceTeamPolicy,
 ) => {
-  return (Object.keys(value) as Array<keyof T>).some(
+  return (Object.keys(value) as Array<keyof WorkspaceTeamPolicy>).some(
     (key) => value[key] !== saved[key],
   );
 };
 
 const SettingsWorkspaceTeams = () => {
-  const [teamPolicy, setTeamPolicy] = useState<TeamPolicySettings>(
+  const { workspaceId } = useWorkspaceStore();
+  const { useWorkspaceTeamPolicy, useUpdateWorkspaceTeamPolicy } =
+    useWorkspaceTeam();
+  const queryClient = useQueryClient();
+
+  const policyQuery = useWorkspaceTeamPolicy(workspaceId!);
+  const savedTeamPolicy = useMemo<WorkspaceTeamPolicy>(() => {
+    return policyQuery.data?.data?.teamPolicy || DEFAULT_TEAM_POLICY_SETTINGS;
+  }, [policyQuery.data]);
+
+  const [teamPolicy, setTeamPolicy] = useState<WorkspaceTeamPolicy>(
     DEFAULT_TEAM_POLICY_SETTINGS,
   );
-  const [savedTeamPolicy, setSavedTeamPolicy] = useState<TeamPolicySettings>(
-    DEFAULT_TEAM_POLICY_SETTINGS,
-  );
+
+  useEffect(() => {
+    setTeamPolicy(savedTeamPolicy);
+  }, [savedTeamPolicy]);
 
   const teamPolicyChanged = useMemo(
     () => hasChanges(teamPolicy, savedTeamPolicy),
     [teamPolicy, savedTeamPolicy],
   );
 
+  const { isPending: isSavingPolicy, mutateAsync: savePolicy } =
+    useUpdateWorkspaceTeamPolicy({
+      onSuccess() {
+        queryClient.invalidateQueries({
+          queryKey: ["workspace-team-policy", workspaceId],
+        });
+      },
+    });
+
   const handleSaveTeamPolicy = () => {
-    setSavedTeamPolicy(teamPolicy);
-    toast.success("Team policy updated", {
-      description: "Team policy settings are saved locally for now.",
+    if (!workspaceId) {
+      return;
+    }
+
+    const request = savePolicy({
+      workspaceId,
+      updates: teamPolicy,
+    });
+
+    toast.promise(request, {
+      loading: "Saving team policy...",
+      success: (data) => data?.data?.message || "Team policy updated",
+      error: "Could not save team policy",
     });
   };
 
@@ -91,6 +116,7 @@ const SettingsWorkspaceTeams = () => {
           </FieldContent>
           <Switch
             checked={teamPolicy.restrictTeamCreation}
+            disabled={policyQuery.isLoading}
             onCheckedChange={(checked) =>
               setTeamPolicy((prev) => ({
                 ...prev,
@@ -109,6 +135,7 @@ const SettingsWorkspaceTeams = () => {
           </FieldContent>
           <Switch
             checked={teamPolicy.requireLeadBeforeActivation}
+            disabled={policyQuery.isLoading}
             onCheckedChange={(checked) =>
               setTeamPolicy((prev) => ({
                 ...prev,
@@ -127,6 +154,7 @@ const SettingsWorkspaceTeams = () => {
           </FieldContent>
           <Switch
             checked={teamPolicy.allowMultiTeamMembership}
+            disabled={policyQuery.isLoading}
             onCheckedChange={(checked) =>
               setTeamPolicy((prev) => ({
                 ...prev,
@@ -145,6 +173,7 @@ const SettingsWorkspaceTeams = () => {
           </FieldContent>
           <Switch
             checked={teamPolicy.autoAssignInvitedMembers}
+            disabled={policyQuery.isLoading}
             onCheckedChange={(checked) =>
               setTeamPolicy((prev) => ({
                 ...prev,
@@ -166,7 +195,7 @@ const SettingsWorkspaceTeams = () => {
             onValueChange={(value) =>
               setTeamPolicy((prev) => ({
                 ...prev,
-                defaultVisibility: value as TeamPolicySettings["defaultVisibility"],
+                defaultVisibility: value as WorkspaceTeamPolicy["defaultVisibility"],
               }))
             }
           >
@@ -193,7 +222,7 @@ const SettingsWorkspaceTeams = () => {
               setTeamPolicy((prev) => ({
                 ...prev,
                 defaultWorkloadMode:
-                  value as TeamPolicySettings["defaultWorkloadMode"],
+                  value as WorkspaceTeamPolicy["defaultWorkloadMode"],
               }))
             }
           >
@@ -212,7 +241,8 @@ const SettingsWorkspaceTeams = () => {
           <Button
             className="max-w-20"
             size="sm"
-            disabled={!teamPolicyChanged}
+            loading={isSavingPolicy}
+            disabled={!teamPolicyChanged || !workspaceId}
             onClick={handleSaveTeamPolicy}
           >
             Save

@@ -4,6 +4,7 @@ export const ROUTES = {
   SIGN_UP: "/auth/sign-up",
   VERIFY_OTP: "/auth/verify-otp",
   DASHBOARD: "/dashboard",
+  PROJECTS: "/projects",
   ASK_SQUIRCLE: "/ask-squircle",
   SPACES: "/spaces",
   SPACES_TEAM_CALL: "/spaces/team-call",
@@ -12,6 +13,9 @@ export const ROUTES = {
   CREATE_WORKSPACE: "/workspace/create",
   ONBOARDING: "/onboarding",
 };
+
+export const getProjectRoute = (projectId: string) =>
+  `${ROUTES.PROJECTS}/${projectId}`;
 
 export const LOCAL_KEYS = {
   TOKEN: "squircle-user-token",

@@ -33,10 +33,21 @@ const WorkspaceCard = ({
   return (
     <Item variant="outline">
       <ItemMedia className="hidden sm:flex">
-        <div className="*:data-[slot=avatar]:ring-background flex -space-x-2 *:data-[slot=avatar]:ring-2 ">
+        <div className="flex -space-x-2 *:data-[slot=avatar]:ring-1 *:data-[slot=avatar]:ring-border/40">
           {data?.members?.map((d) => {
             return (
-              <Avatar key={d?._id}>
+              <Avatar
+                key={d?._id}
+                userCard={{
+                  name:
+                    `${d?.firstName || ""} ${d?.lastName || ""}`.trim() ||
+                    d?.email ||
+                    "Workspace member",
+                  email: d?.email,
+                  role: "Workspace member",
+                  team: data?.name,
+                }}
+              >
                 <AvatarImage src={d?.profilePhoto?.url} alt="@shadcn" />
                 <AvatarFallback>
                   {d?.firstName?.[0]}

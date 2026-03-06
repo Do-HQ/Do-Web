@@ -8,6 +8,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { usePathname } from "next/navigation";
 import { ROUTES } from "@/utils/constants";
 import { cn } from "@/lib/utils";
+import ProjectNotificationListener from "@/components/projects/project-notification-listener";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -24,12 +25,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             className={cn(
               "flex min-h-0 flex-1 flex-col",
               isImmersivePage
-                ? "p-0 md:px-4 md:pt-3 md:pb-0"
+                ? "overflow-hidden p-0 md:px-4 md:pt-3 md:pb-0"
                 : "gap-4 px-4 py-6 md:py-10",
             )}
           >
             {children}
             <Toaster position="top-right" />
+            <ProjectNotificationListener />
           </div>
           <CommandSearch />
         </SidebarInset>

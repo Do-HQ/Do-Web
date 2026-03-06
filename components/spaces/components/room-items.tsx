@@ -30,32 +30,32 @@ const RoomItems = ({ roomEntries, activeRoomId, onPick }: RoomItemsProps) => {
         )}
       >
         <div className="flex items-center gap-1.5">
-          <ScopeIcon className="text-muted-foreground size-3.5" />
-          <p className="truncate text-[12px] font-medium">{room.name}</p>
+          <ScopeIcon className="text-muted-foreground size-4" />
+          <p className="truncate text-[13px] font-medium">{room.name}</p>
           {room.unread > 0 && (
             <Badge
               variant="secondary"
-              className="ml-auto rounded-full px-1.5 py-0 text-[10px]"
+              className="ml-auto rounded-full px-1.5 py-0 text-[11px]"
             >
               {room.unread}
             </Badge>
           )}
         </div>
-        <p className="text-muted-foreground mt-1 line-clamp-1 text-[11px]">
+        <p className="text-muted-foreground mt-1 line-clamp-1 text-[12px]">
           {room.topic}
         </p>
-        <div className="text-muted-foreground mt-1.5 flex items-center gap-2 text-[10px]">
+        <div className="text-muted-foreground mt-1.5 flex items-center gap-2 text-[11px]">
           <span className="inline-flex items-center gap-1">
-            <Users className="size-3" />
+            <Users className="size-3.5" />
             {room.members}
           </span>
           <span className="inline-flex items-center gap-1">
             {isDirectChat ? (
-              <Phone className="size-3" />
+              <Phone className="size-3.5" />
             ) : room.visibility === "private" ? (
-              <Lock className="size-3" />
+              <Lock className="size-3.5" />
             ) : (
-              <Hash className="size-3" />
+              <Hash className="size-3.5" />
             )}
             {isDirectChat
               ? "Direct"

@@ -1,8 +1,11 @@
 import useAuthStore from "@/stores/auth";
 import useError from "./use-error";
 import {
+  acceptWorkspaceInvite,
+  approveWorkspaceJoinRequest,
   createWorkspace,
   createWorkspaceInvite,
+  declineWorkspaceJoinRequest,
   getPublicWorkspaces,
   getUserWorkspaces,
   getWorkspaceById,
@@ -16,10 +19,12 @@ import {
   updateWorkspace,
 } from "@/lib/services/workspace-service";
 import {
+  AcceptWorkspaceInviteRequestBody,
   CreateWorkspaceInviteRequestBody,
   CreateWorkspaceRequestBody,
   JoinWorkspaceRequestBody,
-  WorkspaceSettingsForm,
+  ModerateWorkspaceJoinRequestBody,
+  WorkspaceSettingsUpdateBody,
 } from "@/types/workspace";
 import {
   useMutation,
@@ -134,7 +139,7 @@ const useWorkspace = () => {
   const useUpdateWorkspace = (
     options?: UseOptions<{
       workspaceId: string;
-      data: WorkspaceSettingsForm;
+      data: WorkspaceSettingsUpdateBody;
     }>,
   ) => {
     return useMutation({
@@ -207,6 +212,19 @@ const useWorkspace = () => {
     });
   };
 
+  const useAcceptWorkspaceInvite = (
+    options?: UseOptions<AcceptWorkspaceInviteRequestBody>,
+  ) => {
+    return useMutation({
+      mutationFn: acceptWorkspaceInvite,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
   const useWorkspaceJoinRequests = (
     workspaceId: string,
     params: PaginationBody,
@@ -225,6 +243,32 @@ const useWorkspace = () => {
     });
   };
 
+  const useApproveWorkspaceJoinRequest = (
+    options?: UseOptions<ModerateWorkspaceJoinRequestBody>,
+  ) => {
+    return useMutation({
+      mutationFn: approveWorkspaceJoinRequest,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
+  const useDeclineWorkspaceJoinRequest = (
+    options?: UseOptions<ModerateWorkspaceJoinRequestBody>,
+  ) => {
+    return useMutation({
+      mutationFn: declineWorkspaceJoinRequest,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
   return {
     usePublicWorkspace,
     useWorkspaceById,
@@ -238,7 +282,10 @@ const useWorkspace = () => {
     useWorkspaceRoles,
     useWorkspaceInvites,
     useCreateWorkspaceInvite,
+    useAcceptWorkspaceInvite,
     useWorkspaceJoinRequests,
+    useApproveWorkspaceJoinRequest,
+    useDeclineWorkspaceJoinRequest,
   };
 };
 

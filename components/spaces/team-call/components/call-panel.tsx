@@ -56,16 +56,23 @@ const CallPanel = ({
         <div className="min-h-0 flex-1 space-y-1 overflow-y-auto p-2.5">
           {participants.map((participant) => (
             <div key={participant.id} className="flex items-center gap-2 rounded-sm px-1.5 py-1">
-              <Avatar size="sm">
+              <Avatar
+                size="sm"
+                userCard={{
+                  name: participant.name,
+                  role: participant.role ?? "Member",
+                  status: participant.isMuted ? "Muted" : "Speaking",
+                }}
+              >
                 <AvatarImage src={participant.avatarUrl} alt={participant.name} />
-                <AvatarFallback className="text-[10px]">
+                <AvatarFallback className="text-[11px]">
                   {participant.initials}
                 </AvatarFallback>
               </Avatar>
 
               <div className="min-w-0">
-                <p className="truncate text-[11px] font-medium">{participant.name}</p>
-                <p className="text-muted-foreground text-[10px]">
+                <p className="truncate text-[12px] font-medium">{participant.name}</p>
+                <p className="text-muted-foreground text-[11px]">
                   {participant.role ?? "Member"}
                 </p>
               </div>
@@ -73,9 +80,9 @@ const CallPanel = ({
               <div className="ml-auto inline-flex items-end gap-1.5">
                 <span className="text-muted-foreground inline-flex items-center">
                   {participant.isMuted ? (
-                    <MicOff className="size-3" />
+                    <MicOff className="size-3.5" />
                   ) : (
-                    <Mic className="size-3" />
+                    <Mic className="size-3.5" />
                   )}
                 </span>
                 {renderAudioMeter(participant.id, participant.isMuted)}
@@ -89,12 +96,12 @@ const CallPanel = ({
     if (activePanelTab === "notes") {
       return (
         <div className="min-h-0 flex-1 p-2.5">
-          <p className="text-muted-foreground mb-1 text-[10px] uppercase">Quick note</p>
+          <p className="text-muted-foreground mb-1 text-[11px] uppercase">Quick note</p>
           <Textarea
             value={callNote}
             onChange={(event) => onCallNoteChange(event.target.value)}
             placeholder="Capture decisions from this call..."
-            className="min-h-32 max-h-[58vh] resize-none px-2.5 py-2 text-[12px]"
+            className="min-h-32 max-h-[58vh] resize-none px-2.5 py-2 text-[13px]"
           />
         </div>
       );
@@ -108,11 +115,11 @@ const CallPanel = ({
               key={message.id}
               className="rounded-md border bg-background/70 px-2 py-1.5"
             >
-              <div className="flex items-center gap-1 text-[10px]">
+              <div className="flex items-center gap-1 text-[11px]">
                 <p className="font-medium">{message.author}</p>
                 <span className="text-muted-foreground">{message.sentAt}</span>
               </div>
-              <p className="mt-0.5 text-[11px] leading-5">{message.content}</p>
+              <p className="mt-0.5 text-[12px] leading-5">{message.content}</p>
             </article>
           ))}
         </div>
@@ -128,16 +135,16 @@ const CallPanel = ({
               }
             }}
             placeholder="Message everyone"
-            className="h-8 px-2.5 text-[11px]"
+            className="h-9 px-2.5 text-[12px]"
           />
           <div className="mt-1.5 flex items-center justify-end">
             <Button
               size="sm"
-              className="h-7 px-2.5 text-[11px]"
+              className="h-8 px-2.5 text-[12px]"
               onClick={onSendCallMessage}
               disabled={chatInput.trim().length < 1}
             >
-              <SendHorizontal className="size-3" />
+              <SendHorizontal className="size-3.5" />
               Send
             </Button>
           </div>
@@ -150,8 +157,8 @@ const CallPanel = ({
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-card">
       <div className="border-b px-3 py-2.5">
         <div className="flex items-center gap-1.5">
-          <p className="text-[12px] font-semibold">Call Panel</p>
-          <Badge variant="secondary" className="text-[10px]">
+          <p className="text-[13px] font-semibold">Call Panel</p>
+          <Badge variant="secondary" className="text-[11px]">
             {participants.length} people
           </Badge>
 
@@ -162,11 +169,11 @@ const CallPanel = ({
               className="ml-auto size-7"
               onClick={onCloseMobile}
             >
-              <PanelRightClose className="size-3.5" />
+              <PanelRightClose className="size-4" />
             </Button>
           )}
         </div>
-        <p className="text-muted-foreground mt-1 text-[10px]">
+        <p className="text-muted-foreground mt-1 text-[11px]">
           People, notes, and in-call messaging.
         </p>
 
@@ -176,10 +183,10 @@ const CallPanel = ({
               key={id}
               size="sm"
               variant={activePanelTab === id ? "secondary" : "ghost"}
-              className="h-7 px-2 text-[10px]"
+              className="h-8 px-2.5 text-[12px]"
               onClick={() => onActivePanelTabChange(id)}
             >
-              <Icon className="size-3.5" />
+              <Icon className="size-4" />
               {label}
             </Button>
           ))}

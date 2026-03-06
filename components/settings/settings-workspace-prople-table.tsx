@@ -50,7 +50,9 @@ import { PAGE_LIMIT } from "@/utils/constants";
 
 interface User {
   name: string;
-  team: string;
+  email: string;
+  teams: string;
+  roleLabel: string;
   role: WorkspaceRole[];
   profileImage: string;
   activeTasks: number;
@@ -67,8 +69,16 @@ export const columns: ColumnDef<User>[] = [
       return (
         <div className="capitalize">
           <div className="flex items-center gap-2">
-            <Avatar size="sm">
-              <AvatarImage src={user.name} alt={user.name} />
+            <Avatar
+              size="sm"
+              userCard={{
+                name: user.name,
+                email: user.email,
+                role: user.roleLabel,
+                team: user.teams,
+              }}
+            >
+              <AvatarImage src={user.profileImage} alt={user.name} />
               <AvatarFallback>
                 {user.name?.slice(0, 2).toUpperCase()}
               </AvatarFallback>
@@ -80,7 +90,7 @@ export const columns: ColumnDef<User>[] = [
     },
   },
   {
-    accessorKey: "team",
+    accessorKey: "teams",
     header: ({ column }) => {
       return (
         <Button
@@ -89,12 +99,12 @@ export const columns: ColumnDef<User>[] = [
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}
           size="sm"
         >
-          Team
+          Teams
           <ArrowUpDown />
         </Button>
       );
     },
-    cell: ({ row }) => <div className="text-left">{row.getValue("team")}</div>,
+    cell: ({ row }) => <div className="text-left">{row.getValue("teams")}</div>,
   },
   {
     accessorKey: "role",
@@ -233,8 +243,19 @@ const SettingsWorkspacePeopleTable = () => {
     const wp = woekspacePeopleData?.data?.members?.map((d) => {
       return {
         name: returnFullName(d?.userId) || "No name",
+        email: String(d?.userId?.email || ""),
         profileImage: d?.userId?.profilePhoto?.url,
-        team: "No team",
+        teams:
+          d?.teams
+            ?.filter((team) => team?.status === "active")
+            .map((team) => team?.name)
+            .filter(Boolean)
+            .join(", ") || "No team",
+        roleLabel:
+          d?.roles
+            ?.map((role) => role?.name)
+            .filter(Boolean)
+            .join(", ") || "Workspace member",
         role: d?.roles,
         activeTasks: 0,
         score: d?.score,

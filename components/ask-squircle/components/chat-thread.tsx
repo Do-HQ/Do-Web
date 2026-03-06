@@ -57,7 +57,15 @@ const ChatThread = ({
             </div>
 
             {!isAssistant && (
-              <Avatar size="sm" className="shrink-0">
+              <Avatar
+                size="sm"
+                className="shrink-0"
+                userCard={{
+                  name: userEmail || "You",
+                  email: userEmail,
+                  role: "Workspace member",
+                }}
+              >
                 <AvatarImage src={userAvatarUrl} alt={userEmail} />
                 <AvatarFallback className="text-[10px]">
                   {userInitials}

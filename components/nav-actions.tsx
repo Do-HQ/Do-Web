@@ -72,7 +72,14 @@ export function NavActions() {
             size="icon"
             className="data-[state=open]:bg-accent h-7 w-7"
           >
-            <Avatar size="sm">
+            <Avatar
+              size="sm"
+              userCard={{
+                name: "Tobe Squircle",
+                email: "tobe@squircle.com",
+                role: "Workspace member",
+              }}
+            >
               <AvatarImage
                 src="https://res.cloudinary.com/dgiropjpp/image/upload/v1769577491/Logo_maker_project-2_jz4e09.png"
                 alt="@shadcn"
@@ -92,7 +99,14 @@ export function NavActions() {
                   <SidebarMenuItem>
                     <SidebarMenuButton className="py-6">
                       <div className="flex items-center gap-2 px-0  text-left text-sm ">
-                        <Avatar className="h-8 w-8 rounded-lg">
+                        <Avatar
+                          className="h-8 w-8 rounded-lg"
+                          userCard={{
+                            name: "Tobe Squircle",
+                            email: "tobe@squircle.com",
+                            role: "Workspace member",
+                          }}
+                        >
                           <AvatarImage
                             src="https://res.cloudinary.com/dgiropjpp/image/upload/v1769577491/Logo_maker_project-2_jz4e09.png"
                             alt="@volfgng"

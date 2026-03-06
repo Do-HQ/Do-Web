@@ -1,30 +1,11 @@
 import React, { useMemo, useState } from "react";
-import { Input } from "../shared/input";
-import useWorkspace from "@/hooks/use-workspace";
-import useWorkspaceStore from "@/stores/workspace";
-import { useDebounce } from "@/hooks/use-debounce";
-import { PAGE_LIMIT } from "@/utils/constants";
-import { WorkspaceJoinRequest } from "@/types/workspace";
-import { Button } from "../ui/button";
-import {
-  ArrowUpDown,
-  Balloon,
-  CircleOff,
-  Construction,
-  Ellipsis,
-  MailPlus,
-} from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
-import { Badge } from "../ui/badge";
-import { cn } from "@/lib/utils";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  CheckCheck,
+  Ellipsis,
+  XCircle,
+} from "lucide-react";
 import {
   flexRender,
   getCoreRowModel,
@@ -36,113 +17,48 @@ import {
   type SortingState,
   type VisibilityState,
 } from "@tanstack/react-table";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import LoaderComponent from "../shared/loader";
+import { toast } from "sonner";
 
-interface JoinRequest {
+import useWorkspace from "@/hooks/use-workspace";
+import { useDebounce } from "@/hooks/use-debounce";
+import useWorkspaceStore from "@/stores/workspace";
+import { PAGE_LIMIT } from "@/utils/constants";
+import type { WorkspaceJoinRequest } from "@/types/workspace";
+import { cn } from "@/lib/utils";
+import { Button } from "../ui/button";
+import { Badge } from "../ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import LoaderComponent from "../shared/loader";
+import { Input } from "../shared/input";
+
+type JoinRequestRow = {
+  _id: string;
   email: string;
+  requesterName: string;
   createdAt: string;
   status: string;
-}
-
-export const columns: ColumnDef<JoinRequest>[] = [
-  {
-    accessorKey: "email",
-    header: "Email address",
-    cell: ({ row }) => <div>{row.getValue("email")}</div>,
-  },
-  {
-    accessorKey: "createdAt",
-    header: ({ column }) => {
-      return (
-        <div className="flex items-center justify-start">Date created</div>
-      );
-    },
-    cell: ({ row }) => (
-      <div className="text-left">
-        {dayjs(row.getValue("createdAt")).format("Do MMMM, YYYY")}
-      </div>
-    ),
-  },
-
-  {
-    accessorKey: "status",
-    header: () => <div className="text-left">Status</div>,
-    cell: ({ row }) => {
-      const text = row.getValue("status");
-      return (
-        <Badge
-          className={cn(
-            "capitalize",
-            text !== "pending"
-              ? "bg-green-700/30 text-green-400"
-              : "bg-yellow-700/30 text-yellow-400",
-          )}
-        >
-          {row.getValue("accepted") ? "Accepted" : "Pending"}
-        </Badge>
-      );
-    },
-  },
-  {
-    id: "actions",
-    enableHiding: false,
-    cell: () => {
-      return (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm">
-              <Ellipsis />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <Balloon />
-                Accept Join Request
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-
-            <DropdownMenuGroup>
-              <DropdownMenuItem variant="destructive">
-                <Construction />
-                Decline Join Request
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      );
-    },
-  },
-];
+};
 
 const SettingsWorkspacePropleRequestsTable = () => {
-  // States
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    [],
-  );
-  const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
 
-  // Stores
+  const queryClient = useQueryClient();
   const { workspaceId } = useWorkspaceStore();
-
-  // Utils
   const debouncedSearch = useDebounce(search, 500);
 
-  // Memo
   const queryParams = useMemo(
     () => ({
       page,
@@ -152,29 +68,181 @@ const SettingsWorkspacePropleRequestsTable = () => {
     [page, debouncedSearch],
   );
 
-  // Hooks
-  const { useWorkspaceJoinRequests } = useWorkspace();
+  const {
+    useWorkspaceJoinRequests,
+    useApproveWorkspaceJoinRequest,
+    useDeclineWorkspaceJoinRequest,
+  } = useWorkspace();
+
   const {
     data: workspaceJoinRequestsData,
     isPending: isGettingWorkspaceJoinRequests,
   } = useWorkspaceJoinRequests(workspaceId!, queryParams);
 
-  const workspaceJoinRequests: JoinRequest[] = useMemo(() => {
-    if (!workspaceJoinRequestsData) {
-      return [];
-    }
-    return workspaceJoinRequestsData?.data?.requests?.map((d) => {
-      return {
-        email: d?.userId?.email,
-        createdAt: d?.createdAt,
-        status: d?.status,
-      };
+  const refreshJoinRequests = () => {
+    queryClient.invalidateQueries({
+      queryKey: ["get-workspaces-join-requests", workspaceId],
     });
+    queryClient.invalidateQueries({
+      queryKey: ["get-workspaces-people", workspaceId],
+    });
+  };
+
+  const { isPending: isApproving, mutateAsync: approveJoinRequest } =
+    useApproveWorkspaceJoinRequest({
+      onSuccess() {
+        refreshJoinRequests();
+      },
+    });
+
+  const { isPending: isDeclining, mutateAsync: declineJoinRequest } =
+    useDeclineWorkspaceJoinRequest({
+      onSuccess() {
+        refreshJoinRequests();
+      },
+    });
+
+  const workspaceJoinRequests: JoinRequestRow[] = useMemo(() => {
+    const requests = workspaceJoinRequestsData?.data?.requests || [];
+
+    return requests.map((request: WorkspaceJoinRequest) => ({
+      _id: request._id,
+      email: request?.userId?.email || "Unknown user",
+      requesterName:
+        [
+          (request?.userId as { firstName?: string; firstname?: string } | undefined)
+            ?.firstName ??
+            request?.userId?.firstname,
+          (request?.userId as { lastName?: string; lastnale?: string } | undefined)
+            ?.lastName ??
+            request?.userId?.lastnale,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .trim() || request?.userId?.email || "Unknown user",
+      createdAt: request?.createdAt,
+      status: request?.status,
+    }));
   }, [workspaceJoinRequestsData]);
 
+  const handleApprove = React.useCallback((requestId: string) => {
+    if (!workspaceId || isApproving || isDeclining) {
+      return;
+    }
+
+    const request = approveJoinRequest({
+      workspaceId,
+      requestId,
+    });
+
+    toast.promise(request, {
+      loading: "Accepting join request...",
+      success: (data) => data?.data?.message || "Join request accepted",
+      error: "Could not accept join request",
+    });
+  }, [approveJoinRequest, isApproving, isDeclining, workspaceId]);
+
+  const handleDecline = React.useCallback((requestId: string) => {
+    if (!workspaceId || isApproving || isDeclining) {
+      return;
+    }
+
+    const request = declineJoinRequest({
+      workspaceId,
+      requestId,
+    });
+
+    toast.promise(request, {
+      loading: "Declining join request...",
+      success: (data) => data?.data?.message || "Join request declined",
+      error: "Could not decline join request",
+    });
+  }, [declineJoinRequest, isApproving, isDeclining, workspaceId]);
+
+  const columns = useMemo<ColumnDef<JoinRequestRow>[]>(
+    () => [
+      {
+        accessorKey: "requesterName",
+        header: "Requester",
+        cell: ({ row }) => {
+          const original = row.original;
+          return (
+            <div className="flex flex-col gap-1 py-0.5">
+              <div className="font-medium leading-none">{original.requesterName}</div>
+              <div className="text-muted-foreground text-xs">{original.email}</div>
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: "createdAt",
+        header: () => <div className="flex items-center justify-start">Date created</div>,
+        cell: ({ row }) => (
+          <div className="text-left text-sm">
+            {dayjs(row.original.createdAt).format("Do MMMM, YYYY")}
+          </div>
+        ),
+      },
+      {
+        accessorKey: "status",
+        header: () => <div className="text-left">Status</div>,
+        cell: ({ row }) => {
+          const status = row.original.status;
+          return (
+            <Badge
+              className={cn(
+                "capitalize",
+                status === "approved" && "bg-green-700/30 text-green-400",
+                status === "rejected" && "bg-red-700/30 text-red-400",
+                status === "pending" && "bg-yellow-700/30 text-yellow-400",
+              )}
+            >
+              {status}
+            </Badge>
+          );
+        },
+      },
+      {
+        id: "actions",
+        enableHiding: false,
+        cell: ({ row }) => {
+          const request = row.original;
+          return (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" disabled={isApproving || isDeclining}>
+                  <Ellipsis />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuGroup>
+                  <DropdownMenuItem onClick={() => handleApprove(request._id)}>
+                    <CheckCheck />
+                    Accept Join Request
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => handleDecline(request._id)}
+                  >
+                    <XCircle />
+                    Decline Join Request
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          );
+        },
+      },
+    ],
+    [handleApprove, handleDecline, isApproving, isDeclining],
+  );
+
   const table = useReactTable({
-    data: workspaceJoinRequests!,
-    columns: columns,
+    data: workspaceJoinRequests,
+    columns,
     onSortingChange: setSorting,
     manualPagination: true,
     pageCount: workspaceJoinRequestsData?.data?.pagination?.totalPages ?? -1,
@@ -192,11 +260,7 @@ const SettingsWorkspacePropleRequestsTable = () => {
     },
   });
 
-  // Helpers
-  const handlPageUpdate = (
-    isAllowed: boolean,
-    mode: "increase" | "decrease",
-  ) => {
+  const handlPageUpdate = (isAllowed: boolean, mode: "increase" | "decrease") => {
     if (!isAllowed) {
       return;
     }
@@ -207,6 +271,9 @@ const SettingsWorkspacePropleRequestsTable = () => {
       setPage((prev) => prev + 1);
     }
   };
+  const totalPages = workspaceJoinRequestsData?.data?.pagination?.totalPages ?? 0;
+  const hasPrevPage = Boolean(workspaceJoinRequestsData?.data?.pagination?.hasPrevPage);
+  const hasNextPage = Boolean(workspaceJoinRequestsData?.data?.pagination?.hasNextPage);
 
   return (
     <div className="w-full">
@@ -214,7 +281,10 @@ const SettingsWorkspacePropleRequestsTable = () => {
         <Input
           placeholder="Search by user email..."
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(event) => {
+            setPage(1);
+            setSearch(event.target.value);
+          }}
           className="max-w-sm"
         />
       </div>
@@ -224,45 +294,31 @@ const SettingsWorkspacePropleRequestsTable = () => {
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => {
-                  return (
-                    <TableHead key={header.id}>
-                      {header.isPlaceholder
-                        ? null
-                        : flexRender(
-                            header.column.columnDef.header,
-                            header.getContext(),
-                          )}
-                    </TableHead>
-                  );
-                })}
+                {headerGroup.headers.map((header) => (
+                  <TableHead key={header.id}>
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(header.column.columnDef.header, header.getContext())}
+                  </TableHead>
+                ))}
               </TableRow>
             ))}
           </TableHeader>
           <TableBody>
-            {table?.getRowModel().rows?.length ? (
-              table?.getRowModel().rows?.map((row) => (
-                <TableRow
-                  key={row.id}
-                  data-state={row.getIsSelected() && "selected"}
-                >
+            {table.getRowModel().rows?.length ? (
+              table.getRowModel().rows.map((row) => (
+                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
-                      {flexRender(
-                        cell.column.columnDef.cell,
-                        cell.getContext(),
-                      )}
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24 text-center"
-                >
-                  No results.
+                <TableCell colSpan={columns.length} className="h-24 text-center">
+                  No pending join requests.
                 </TableCell>
               </TableRow>
             )}
@@ -274,22 +330,16 @@ const SettingsWorkspacePropleRequestsTable = () => {
           </div>
         )}
       </div>
-      {workspaceJoinRequests?.length > PAGE_LIMIT && (
+      {totalPages > 1 && (
         <div className="flex items-center justify-end space-x-2 py-4">
-          <div className="space-x-2 flex items-center  gap-4">
+          <div className="flex items-center gap-4 space-x-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => {
-                handlPageUpdate(
-                  workspaceJoinRequestsData?.data?.pagination
-                    ?.hasPrevPage as boolean,
-                  "decrease",
-                );
+                handlPageUpdate(hasPrevPage, "decrease");
               }}
-              disabled={
-                !workspaceJoinRequestsData?.data?.pagination?.hasPrevPage
-              }
+              disabled={!hasPrevPage}
             >
               Previous
             </Button>
@@ -297,15 +347,9 @@ const SettingsWorkspacePropleRequestsTable = () => {
               variant="outline"
               size="sm"
               onClick={() => {
-                handlPageUpdate(
-                  workspaceJoinRequestsData?.data?.pagination
-                    ?.hasNextPage as boolean,
-                  "increase",
-                );
+                handlPageUpdate(hasNextPage, "increase");
               }}
-              disabled={
-                !workspaceJoinRequestsData?.data?.pagination?.hasNextPage
-              }
+              disabled={!hasNextPage}
             >
               Next
             </Button>

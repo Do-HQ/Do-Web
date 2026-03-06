@@ -62,7 +62,16 @@ export function TeamSwitcher() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton className="w-full px-1.5">
-              <Avatar size="sm" className="rounded-full">
+              <Avatar
+                size="sm"
+                className="rounded-full"
+                userCard={{
+                  name: `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || user?.email || "User",
+                  email: user?.email,
+                  role: "Workspace member",
+                  team: user?.currentWorkspaceId?.name,
+                }}
+              >
                 <AvatarImage src={user?.profilePhoto?.url} alt="@shadcn" />
                 <AvatarFallback>{getUserAbbreviation(user!)}</AvatarFallback>
               </Avatar>
@@ -91,7 +100,15 @@ export function TeamSwitcher() {
                     "bg-accent text-accent-foreground",
                 )}
               >
-                <Avatar size="sm" className="rounded-sm">
+                <Avatar
+                  size="sm"
+                  className="rounded-sm"
+                  userCard={{
+                    name: team?.name || "Workspace",
+                    role: "Workspace",
+                    status: workspaceId === team?._id ? "Current workspace" : "Available",
+                  }}
+                >
                   <AvatarImage
                     src="https://res.cloudinary.com/dgiropjpp/image/upload/v1769577491/Logo_maker_project-2_jz4e09.png"
                     alt="@shadcn"
