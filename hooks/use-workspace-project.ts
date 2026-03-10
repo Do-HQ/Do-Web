@@ -13,6 +13,8 @@ import {
   deleteWorkspaceProjectTask,
   deleteWorkspaceProjectSubtask,
   deleteWorkspaceProjectWorkflow,
+  getWorkspaceProjectAgent,
+  getWorkspaceProjectAgentRuns,
   getWorkspaceProjectRiskComments,
   getWorkspaceProjectRiskDetail,
   getWorkspaceProjectRisks,
@@ -31,12 +33,16 @@ import {
   updateWorkspaceProjectWorkflow,
   markAllWorkspaceProjectNotificationsRead,
   markWorkspaceProjectNotificationRead,
+  runWorkspaceProjectAgent,
+  updateWorkspaceProjectAgent,
   WorkspaceProjectsPaginationBody,
+  WorkspaceProjectAgentRunsQueryParams,
   WorkspaceProjectRisksQueryParams,
   WorkspaceProjectEventsQueryParams,
   WorkspaceProjectNotificationsQueryParams,
   WorkspaceProjectTasksQueryParams,
   WorkspaceProjectWorkflowsQueryParams,
+  UpdateWorkspaceProjectAgentRequestBody,
 } from "@/lib/services/workspace-project-service";
 import {
   createWorkspaceProjectSecret,
@@ -201,6 +207,45 @@ const useWorkspaceProject = () => {
       queryFn: async () => {
         try {
           return await getWorkspaceProjectEvents(workspaceId, projectId, params);
+        } catch (error) {
+          handleError(error as AxiosError);
+          throw error;
+        }
+      },
+    });
+  };
+
+  const useWorkspaceProjectAgent = (
+    workspaceId: string,
+    projectId: string,
+    options?: { enabled?: boolean },
+  ) => {
+    return useQuery({
+      queryKey: ["workspace-project-agent", workspaceId, projectId],
+      enabled: (options?.enabled ?? true) && !!workspaceId && !!projectId,
+      queryFn: async () => {
+        try {
+          return await getWorkspaceProjectAgent(workspaceId, projectId);
+        } catch (error) {
+          handleError(error as AxiosError);
+          throw error;
+        }
+      },
+    });
+  };
+
+  const useWorkspaceProjectAgentRuns = (
+    workspaceId: string,
+    projectId: string,
+    params: WorkspaceProjectAgentRunsQueryParams = {},
+    options?: { enabled?: boolean },
+  ) => {
+    return useQuery({
+      queryKey: ["workspace-project-agent-runs", workspaceId, projectId, params],
+      enabled: (options?.enabled ?? true) && !!workspaceId && !!projectId,
+      queryFn: async () => {
+        try {
+          return await getWorkspaceProjectAgentRuns(workspaceId, projectId, params);
         } catch (error) {
           handleError(error as AxiosError);
           throw error;
@@ -583,6 +628,40 @@ const useWorkspaceProject = () => {
     });
   };
 
+  const useUpdateWorkspaceProjectAgent = (
+    options?: UseOptions<{
+      workspaceId: string;
+      projectId: string;
+      updates: UpdateWorkspaceProjectAgentRequestBody;
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: updateWorkspaceProjectAgent,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
+  const useRunWorkspaceProjectAgent = (
+    options?: UseOptions<{
+      workspaceId: string;
+      projectId: string;
+      runType: "standup" | "overdue" | "digest" | "deadline" | "meeting";
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: runWorkspaceProjectAgent,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
   const useCreateWorkspaceProjectSecret = (
     options?: UseMutationOptions<
       Awaited<ReturnType<typeof createWorkspaceProjectSecret>>,
@@ -815,6 +894,8 @@ const useWorkspaceProject = () => {
     useWorkspaceProjectWorkflows,
     useWorkspaceProjectTasks,
     useWorkspaceProjectEvents,
+    useWorkspaceProjectAgent,
+    useWorkspaceProjectAgentRuns,
     useWorkspaceProjectNotifications,
     useWorkspaceProjectRisks,
     useWorkspaceProjectRiskDetail,
@@ -835,6 +916,8 @@ const useWorkspaceProject = () => {
     useCreateWorkspaceProjectRiskComment,
     useMarkWorkspaceProjectNotificationRead,
     useMarkAllWorkspaceProjectNotificationsRead,
+    useUpdateWorkspaceProjectAgent,
+    useRunWorkspaceProjectAgent,
     useCreateWorkspaceProjectSecret,
     useUpdateWorkspaceProjectSecret,
     useDeleteWorkspaceProjectSecret,

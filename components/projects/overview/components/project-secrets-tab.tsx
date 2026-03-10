@@ -24,11 +24,18 @@ import {
 import {
   Avatar,
   AvatarFallback,
+  AvatarImage,
   AvatarGroup,
   AvatarGroupCount,
 } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 import {
   Dialog,
   DialogContent,
@@ -606,11 +613,21 @@ export function ProjectSecretsTab({
                                   member.teamIds.length > 1
                                     ? `${member.teamIds.length} teams`
                                     : member.teamIds.length === 1
-                                      ? "1 team"
-                                      : "No team",
+                                    ? "1 team"
+                                    : "No team",
                                 status: member.active ? "Active" : "Offline",
+                                details: [
+                                  {
+                                    label: "Score",
+                                    value: `${Number(member.score || 0)} pts`,
+                                  },
+                                ],
                               }}
                             >
+                              <AvatarImage
+                                src={member.avatarUrl || ""}
+                                alt={member.name}
+                              />
                               <AvatarFallback>{member.initials}</AvatarFallback>
                             </Avatar>
                           ))}
@@ -759,11 +776,21 @@ export function ProjectSecretsTab({
                                     member.teamIds.length > 1
                                       ? `${member.teamIds.length} teams`
                                       : member.teamIds.length === 1
-                                        ? "1 team"
-                                        : "No team",
+                                      ? "1 team"
+                                      : "No team",
                                   status: member.active ? "Active" : "Offline",
+                                  details: [
+                                    {
+                                      label: "Score",
+                                      value: `${Number(member.score || 0)} pts`,
+                                    },
+                                  ],
                                 }}
                               >
+                                <AvatarImage
+                                  src={member.avatarUrl || ""}
+                                  alt={member.name}
+                                />
                                 <AvatarFallback>
                                   {member.initials}
                                 </AvatarFallback>
@@ -859,8 +886,17 @@ export function ProjectSecretsTab({
             ) : null}
           </>
         ) : (
-          <div className="text-muted-foreground px-4 py-4 text-[12px] leading-5">
-            No secrets match the current search.
+          <div className="px-4 py-4">
+            <Empty className="border-0 p-0 md:p-0">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <ShieldCheck className="size-4 text-primary/85" />
+                </EmptyMedia>
+                <EmptyDescription className="text-[12px] leading-5">
+                  No secrets match the current search.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           </div>
         )}
       </section>
@@ -952,9 +988,16 @@ export function ProjectSecretsTab({
                     );
                   })
                 ) : (
-                  <span className="text-muted-foreground text-[11px]">
-                    No teams assigned to this project yet.
-                  </span>
+                  <Empty className="border-0 p-0 md:p-0">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon" className="size-8">
+                        <ShieldCheck className="size-3.5 text-primary/80" />
+                      </EmptyMedia>
+                      <EmptyDescription className="text-[11px]">
+                        No teams assigned to this project yet.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
                 )}
               </div>
             </div>
@@ -981,9 +1024,16 @@ export function ProjectSecretsTab({
                     );
                   })
                 ) : (
-                  <span className="text-muted-foreground text-[11px]">
-                    No members assigned to this project yet.
-                  </span>
+                  <Empty className="border-0 p-0 md:p-0">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon" className="size-8">
+                        <ShieldCheck className="size-3.5 text-primary/80" />
+                      </EmptyMedia>
+                      <EmptyDescription className="text-[11px]">
+                        No members assigned to this project yet.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
                 )}
               </div>
             </div>

@@ -51,6 +51,7 @@ export type SpaceUserInfo = {
   email?: string;
   role?: string;
   team?: string;
+  avatarUrl?: string;
 };
 
 export type ChatAuthor = {
@@ -68,6 +69,7 @@ export type SpaceMessage = {
   author: ChatAuthor;
   content: string;
   sentAt: string;
+  sentAtRaw?: string;
   edited?: boolean;
   attachments?: ChatAttachment[];
   threadCount?: number;
@@ -79,6 +81,7 @@ export type ThreadReply = {
   author: ChatAuthor;
   content: string;
   sentAt: string;
+  sentAtRaw?: string;
   edited?: boolean;
   attachments?: ChatAttachment[];
 };
@@ -94,8 +97,10 @@ export type PersonalCallState = {
 };
 
 export type TeamCallWidgetState = {
+  roomId?: string;
   roomName: string;
   roomScope: string;
+  callMode?: "voice" | "video";
   startedAt: number;
   isMuted: boolean;
   isVideoOn: boolean;

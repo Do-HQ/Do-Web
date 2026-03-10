@@ -1,6 +1,13 @@
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { CalendarClock } from "lucide-react";
 
 import { FlattenedProjectTask, ProjectMember } from "../types";
 import {
@@ -124,8 +131,17 @@ export function ProjectDosCalendar({
                 </div>
               </ScrollArea>
             ) : (
-              <div className="text-muted-foreground mt-3 rounded-xl border border-dashed border-border/20 bg-background/60 px-3 py-4 text-[12px] leading-5">
-                No due tasks for the selected day.
+              <div className="mt-3 rounded-xl border border-dashed border-border/20 bg-background/60 px-3 py-4">
+                <Empty className="border-0 p-0 md:p-0">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon" className="size-8">
+                      <CalendarClock className="size-3.5 text-primary/85" />
+                    </EmptyMedia>
+                    <EmptyDescription className="text-[12px] leading-5">
+                      No due tasks for the selected day.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
               </div>
             )}
           </div>

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import {
   Bell,
+  BellOff,
   Check,
   CheckCheck,
   ChevronLeft,
@@ -19,6 +20,12 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
+import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -27,6 +34,7 @@ import LoaderComponent from "../shared/loader";
 
 type ProjectNotificationsPopoverProps = {
   projectId: string;
+  compact?: boolean;
 };
 
 type NotificationStateFilter = "all" | "unread";
@@ -61,6 +69,7 @@ function resolveNotificationRoute(
 
 export function ProjectNotificationsPopover({
   projectId,
+  compact = false,
 }: ProjectNotificationsPopoverProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -199,18 +208,36 @@ export function ProjectNotificationsPopover({
       }}
     >
       <PopoverTrigger asChild>
-        <Button type="button" variant="outline" size="sm" className="gap-1.5">
-          <Bell className="size-4" />
-          Notifications
-          {hasUnread ? (
-            <Badge
-              variant="outline"
-              className="ml-1 h-5 rounded-md border-primary/40 bg-primary/10 px-1.5 text-[10px] text-primary"
-            >
-              {unreadCount > 99 ? "99+" : unreadCount}
-            </Badge>
-          ) : null}
-        </Button>
+        {compact ? (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="relative size-8"
+            title="Project notifications"
+          >
+            <Bell className="size-4" />
+            {hasUnread ? (
+              <span
+                className="bg-primary ring-background absolute top-1.5 right-1.5 size-2 rounded-full ring-2"
+                aria-hidden="true"
+              />
+            ) : null}
+          </Button>
+        ) : (
+          <Button type="button" variant="outline" size="sm" className="gap-1.5">
+            <Bell className="size-4" />
+            Notifications
+            {hasUnread ? (
+              <Badge
+                variant="outline"
+                className="ml-1 h-5 rounded-md border-primary/40 bg-primary/10 px-1.5 text-[10px] text-primary"
+              >
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </Badge>
+            ) : null}
+          </Button>
+        )}
       </PopoverTrigger>
 
       <PopoverContent align="end" className="w-[23rem] p-0">
@@ -305,8 +332,17 @@ export function ProjectNotificationsPopover({
               </div>
             ))
           ) : (
-            <div className="text-muted-foreground px-3 py-4 text-[12px]">
-              No notifications yet for this project.
+            <div className="px-3 py-4">
+              <Empty className="border-0 p-0 md:p-0">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <BellOff className="size-4 text-primary/85" />
+                  </EmptyMedia>
+                  <EmptyDescription className="text-[12px]">
+                    No notifications yet for this project.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             </div>
           )}
         </div>

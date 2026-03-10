@@ -1,13 +1,24 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  Activity,
+  ArrowUpRight,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 import {
   Dialog,
   DialogContent,
@@ -26,7 +37,7 @@ import {
 import { WorkspaceProjectEventRecord } from "@/types/project";
 import { Pagination } from "@/types";
 
-import { ProjectActivityEvent } from "../types";
+import { ProjectActivityEvent, ProjectMember } from "../types";
 import { formatPipelineLabel } from "../utils";
 
 type ProjectOverviewActivityProps = {
@@ -34,6 +45,7 @@ type ProjectOverviewActivityProps = {
   selectedPipelineId?: string;
   selectedTeamId: string;
   fallbackActivities: ProjectActivityEvent[];
+  members?: ProjectMember[];
 };
 
 type EventQueryData = {
@@ -81,10 +93,18 @@ const formatRelativeTime = (value: string) => {
 
 const mapEventToActivity = (
   event: WorkspaceProjectEventRecord,
+  actorAvatarByUserId: Map<string, string>,
 ): ProjectActivityEvent => ({
   id: event.id,
   actor: event.actorName,
   actorInitials: event.actorInitials || "U",
+  actorAvatarUrl:
+    String(
+      actorAvatarByUserId.get(String(event.actorUserId || "")) ||
+        event.actorAvatarUrl ||
+        ((event.metadata as { actorAvatarUrl?: string } | undefined)
+          ?.actorAvatarUrl ?? ""),
+    ).trim() || undefined,
   summary: event.summary,
   createdAt: formatRelativeTime(event.createdAt),
   eventType: event.eventType,
@@ -162,6 +182,7 @@ export function ProjectOverviewActivity({
   selectedPipelineId,
   selectedTeamId,
   fallbackActivities,
+  members = [],
 }: ProjectOverviewActivityProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -300,19 +321,35 @@ export function ProjectOverviewActivity({
     selectedTeamId,
     workspaceId,
   ]);
+  const actorAvatarByUserId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const member of members) {
+      const memberId = String(member.id || "").trim();
+      const avatarUrl = String(member.avatarUrl || "").trim();
+      if (memberId && avatarUrl) {
+        map.set(memberId, avatarUrl);
+      }
+    }
+    return map;
+  }, [members]);
 
   const previewActivities = useMemo(() => {
     const apiEvents = previewEventsQuery.data?.data?.events || [];
 
     if (apiEvents.length) {
-      return apiEvents.map(mapEventToActivity).slice(0, PREVIEW_LIMIT);
+      return apiEvents
+        .map((event) => mapEventToActivity(event, actorAvatarByUserId))
+        .slice(0, PREVIEW_LIMIT);
     }
 
     return fallbackActivities.slice(0, PREVIEW_LIMIT);
-  }, [fallbackActivities, previewEventsQuery.data]);
+  }, [actorAvatarByUserId, fallbackActivities, previewEventsQuery.data]);
   const modalActivities = useMemo(
-    () => (modalEventsQuery.data?.data?.events || []).map(mapEventToActivity),
-    [modalEventsQuery.data],
+    () =>
+      (modalEventsQuery.data?.data?.events || []).map((event) =>
+        mapEventToActivity(event, actorAvatarByUserId),
+      ),
+    [actorAvatarByUserId, modalEventsQuery.data],
   );
   const modalPagination = modalEventsQuery.data?.data?.pagination;
 
@@ -370,6 +407,10 @@ export function ProjectOverviewActivity({
                     status: activity.createdAt,
                   }}
                 >
+                  <AvatarImage
+                    src={activity.actorAvatarUrl || ""}
+                    alt={activity.actor}
+                  />
                   <AvatarFallback>{activity.actorInitials}</AvatarFallback>
                 </Avatar>
 
@@ -392,15 +433,24 @@ export function ProjectOverviewActivity({
             ))}
           </div>
         ) : (
-          <div className="text-muted-foreground px-3 py-3 text-[12px] md:px-4">
-            No activity matches the current filters.
+          <div className="px-3 py-3 md:px-4">
+            <Empty className="border-0 p-0 md:p-0">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <Activity className="size-4 text-primary/85" />
+                </EmptyMedia>
+                <EmptyDescription className="text-[12px]">
+                  No activity matches the current filters.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           </div>
         )}
       </section>
 
       <Dialog open={eventsOpen} onOpenChange={setEventsOpen}>
-        <DialogContent className="max-h-[82vh] overflow-hidden sm:max-w-3xl">
-          <DialogHeader>
+        <DialogContent className="flex max-h-[82vh] flex-col overflow-hidden p-0 sm:max-w-xl">
+          <DialogHeader className="shrink-0 border-b border-border/30 px-4 py-3 md:px-5">
             <DialogTitle>Project events</DialogTitle>
             <DialogDescription>
               Real-time event stream for this project. Click an event to jump to
@@ -408,7 +458,7 @@ export function ProjectOverviewActivity({
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex min-h-0 flex-1 flex-col gap-3">
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-3 md:px-5">
             {modalEventsQuery.isLoading || modalEventsQuery.isFetching ? (
               <LoaderComponent />
             ) : modalActivities.length ? (
@@ -429,6 +479,10 @@ export function ProjectOverviewActivity({
                           status: activity.createdAt,
                         }}
                       >
+                        <AvatarImage
+                          src={activity.actorAvatarUrl || ""}
+                          alt={activity.actor}
+                        />
                         <AvatarFallback>
                           {activity.actorInitials}
                         </AvatarFallback>
@@ -454,9 +508,16 @@ export function ProjectOverviewActivity({
                 </div>
               </div>
             ) : (
-              <div className="text-muted-foreground rounded-md border border-border/35 px-3 py-3 text-[12px]">
-                No events found for this scope yet.
-              </div>
+              <Empty className="rounded-md border border-border/35 p-3 md:p-3">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <Activity className="size-4 text-primary/85" />
+                  </EmptyMedia>
+                  <EmptyDescription className="text-[12px]">
+                    No events found for this scope yet.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             )}
 
             <div className="flex items-center justify-between gap-2">

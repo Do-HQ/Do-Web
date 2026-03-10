@@ -1,658 +1,1251 @@
 "use client";
 
-import "@xyflow/react/dist/style.css";
-
-import { useCallback, useMemo, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  addEdge,
-  Background,
-  Connection,
-  Controls,
-  Edge,
-  Handle,
-  Node,
-  NodeProps,
-  Position,
-  MarkerType,
-  ReactFlow,
-  ReactFlowInstance,
-  ReactFlowProvider,
-  useEdgesState,
-  useNodesState,
-} from "@xyflow/react";
-import {
-  Bot,
-  Brain,
-  GitBranchPlus,
-  Maximize2,
-  Minimize2,
-  PencilLine,
-  Play,
+  AlarmClock,
+  BellRing,
+  CalendarPlus,
+  CalendarX2,
+  ExternalLink,
+  History,
   Save,
-  Sparkles,
   Trash2,
-  X,
+  Users,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import useWorkspaceProject from "@/hooks/use-workspace-project";
+import useWorkspaceStore from "@/stores/workspace";
+import { WorkspaceProjectAgentConfig } from "@/types/project";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 
-import { ProjectOverviewRecord } from "../types";
-
-type AgentNodeKind = "trigger" | "decision" | "action";
-
-type AgentNodeData = {
-  label: string;
-  note: string;
-  kind: AgentNodeKind;
-};
+import { ProjectMember, ProjectOverviewRecord } from "../types";
+import LoaderComponent from "@/components/shared/loader";
 
 type ProjectAgentsAutomationTabProps = {
   project: ProjectOverviewRecord;
+  members?: ProjectMember[];
 };
 
-const KIND_BADGE: Record<AgentNodeKind, string> = {
-  trigger: "border-sky-500/25 bg-sky-500/10 text-sky-600 dark:text-sky-300",
-  decision: "border-primary/20 bg-primary/10 text-primary",
-  action: "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
+type MeetingDraft = {
+  title: string;
+  description: string;
+  location: string;
+  startAt: string;
+  endAt: string;
+  memberUserIds: string[];
+  teamIds: string[];
 };
 
-function createNodeId() {
-  return `agent-node-${Math.random().toString(36).slice(2, 8)}`;
+function clampNumericInput(
+  value: string,
+  fallback: number,
+  min: number,
+  max: number,
+) {
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.max(min, Math.min(max, Math.floor(parsed)));
 }
 
-function AgentFlowNode({ data, selected }: NodeProps<Node<AgentNodeData>>) {
-  return (
-    <div
-      className={cn(
-        "relative overflow-visible min-w-[11.75rem] rounded-2xl border bg-card px-3 py-2 shadow-sm transition-shadow",
-        selected ? "border-primary/40 shadow-md" : "border-border/40",
-      )}
-    >
-      <Handle
-        type="target"
-        position={Position.Left}
-        className="!z-20 !size-4 !border-2 !border-background !bg-sky-500 !opacity-100 !shadow-[0_0_0_1px_hsl(var(--border)),0_0_0_6px_hsl(var(--background))]"
-      />
-      <div className="flex items-center justify-between gap-2">
-        <div className="truncate text-[12px] font-medium">{data.label}</div>
-        <Badge variant="outline" className={cn("text-[10px] capitalize", KIND_BADGE[data.kind])}>
-          {data.kind}
-        </Badge>
-      </div>
-      <div className="text-muted-foreground mt-1 line-clamp-2 text-[11px] leading-4">
-        {data.note}
-      </div>
-      <Handle
-        type="source"
-        position={Position.Right}
-        className="!z-20 !size-4 !border-2 !border-background !bg-primary !opacity-100 !shadow-[0_0_0_1px_hsl(var(--border)),0_0_0_6px_hsl(var(--background))]"
-      />
-    </div>
-  );
+function createLocalId(prefix: string) {
+  return `${prefix}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-function buildInitialNodes(project: ProjectOverviewRecord): Node<AgentNodeData>[] {
-  return [
-    {
-      id: "trigger-1",
-      type: "agentNode",
-      position: { x: 40, y: 120 },
-      data: {
-        label: "Task event received",
-        note: `A workflow or task change enters ${project.name}.`,
-        kind: "trigger",
-      },
-    },
-    {
-      id: "decision-1",
-      type: "agentNode",
-      position: { x: 340, y: 96 },
-      data: {
-        label: "Scope changed?",
-        note: "Check whether the change affects delivery scope, capacity, or plan assumptions.",
-        kind: "decision",
-      },
-    },
-    {
-      id: "decision-2",
-      type: "agentNode",
-      position: { x: 340, y: 244 },
-      data: {
-        label: "Risk above medium?",
-        note: "Escalate when the task or workflow pushes the project into meaningful risk.",
-        kind: "decision",
-      },
-    },
-    {
-      id: "action-1",
-      type: "agentNode",
-      position: { x: 700, y: 84 },
-      data: {
-        label: "Replan workflow",
-        note: "Adjust owners, dates, and workflow sequencing before the project drifts.",
-        kind: "action",
-      },
-    },
-    {
-      id: "action-2",
-      type: "agentNode",
-      position: { x: 700, y: 226 },
-      data: {
-        label: "Escalate to project lead",
-        note: "Notify the human lead and surface the exact decision trail.",
-        kind: "action",
-      },
-    },
-    {
-      id: "action-3",
-      type: "agentNode",
-      position: { x: 700, y: 364 },
-      data: {
-        label: "Continue execution",
-        note: "Keep the task in normal flow and record the decision for later learning.",
-        kind: "action",
-      },
-    },
-  ];
+function formatRunTime(value?: string | null) {
+  if (!value) {
+    return "Never";
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "Never";
+  }
+
+  return parsed.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
-const INITIAL_EDGES: Edge[] = [
-  { id: "e-trigger-decision-1", source: "trigger-1", target: "decision-1", label: "intake" },
-  { id: "e-trigger-decision-2", source: "trigger-1", target: "decision-2", label: "monitor" },
-  { id: "e-decision-1-action-1", source: "decision-1", target: "action-1", label: "yes" },
-  { id: "e-decision-2-action-2", source: "decision-2", target: "action-2", label: "yes" },
-  { id: "e-decision-2-action-3", source: "decision-2", target: "action-3", label: "no" },
-];
+function formatMeetingDate(value?: string | null) {
+  if (!value) {
+    return "No date";
+  }
 
-const NODE_TYPES = {
-  agentNode: AgentFlowNode,
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "No date";
+  }
+
+  return parsed.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+function formatRunTypeLabel(value?: string | null) {
+  const runType = String(value || "").trim();
+
+  if (runType === "deadline") {
+    return "Deadline reminders";
+  }
+
+  if (runType === "meeting") {
+    return "Meeting reminders";
+  }
+
+  return runType || "Automation";
+}
+
+function toGoogleDate(value: string) {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  return parsed
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "Z");
+}
+
+function buildGoogleCalendarLink(
+  meeting: {
+    title: string;
+    description?: string;
+    location?: string;
+    startAt?: string | null;
+    endAt?: string | null;
+  },
+  projectName: string,
+) {
+  const start = toGoogleDate(meeting.startAt || "");
+  const end = toGoogleDate(meeting.endAt || "");
+
+  if (!start || !end) {
+    return "";
+  }
+
+  const details =
+    `${meeting.description || ""}\n\nProject: ${projectName}`.trim();
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: meeting.title,
+    details,
+    location: meeting.location || "",
+    dates: `${start}/${end}`,
+  });
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+function buildOutlookCalendarLink(
+  meeting: {
+    title: string;
+    description?: string;
+    location?: string;
+    startAt?: string | null;
+    endAt?: string | null;
+  },
+  projectName: string,
+) {
+  const startAt = new Date(meeting.startAt || "");
+  const endAt = new Date(meeting.endAt || "");
+
+  if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
+    return "";
+  }
+
+  const start = startAt.toISOString();
+  const end = endAt.toISOString();
+
+  const params = new URLSearchParams({
+    path: "/calendar/action/compose",
+    rru: "addevent",
+    subject: meeting.title,
+    body: `${meeting.description || ""}\n\nProject: ${projectName}`.trim(),
+    location: meeting.location || "",
+    startdt: start,
+    enddt: end,
+  });
+
+  return `https://outlook.office.com/calendar/0/deeplink/compose?${params.toString()}`;
+}
+
+const EMPTY_MEETING_DRAFT: MeetingDraft = {
+  title: "",
+  description: "",
+  location: "",
+  startAt: "",
+  endAt: "",
+  memberUserIds: [],
+  teamIds: [],
 };
 
-export function ProjectAgentsAutomationTab({ project }: ProjectAgentsAutomationTabProps) {
-  const [nodes, setNodes, onNodesChange] = useNodesState(buildInitialNodes(project));
-  const [edges, setEdges, onEdgesChange] = useEdgesState(INITIAL_EDGES);
-  const [selectedNodeId, setSelectedNodeId] = useState<string>("decision-1");
-  const [agentMode, setAgentMode] = useState<"observe" | "assist" | "autopilot">("assist");
-  const [agentName, setAgentName] = useState(`${project.name} delivery agent`);
-  const [flowInstance, setFlowInstance] = useState<
-    ReactFlowInstance<Node<AgentNodeData>, Edge> | null
-  >(null);
-  const [isExpanded, setIsExpanded] = useState(false);
+export function ProjectAgentsAutomationTab({
+  project,
+  members = [],
+}: ProjectAgentsAutomationTabProps) {
+  const queryClient = useQueryClient();
+  const { workspaceId } = useWorkspaceStore();
+  const {
+    useWorkspaceProjectAgent,
+    useWorkspaceProjectAgentRuns,
+    useUpdateWorkspaceProjectAgent,
+    useRunWorkspaceProjectAgent,
+  } = useWorkspaceProject();
 
-  const selectedNode = useMemo(
-    () => nodes.find((node) => node.id === selectedNodeId) ?? null,
-    [nodes, selectedNodeId],
-  );
+  const activeWorkspaceId = String(workspaceId || "").trim();
+  const [draft, setDraft] = useState<WorkspaceProjectAgentConfig | null>(null);
+  const [dirty, setDirty] = useState(false);
+  const [meetingDialogOpen, setMeetingDialogOpen] = useState(false);
+  const [meetingDraft, setMeetingDraft] =
+    useState<MeetingDraft>(EMPTY_MEETING_DRAFT);
 
-  const learnedSignals = useMemo(() => {
-    const delayed = project.workflows.filter((workflow) => workflow.status !== "complete").length;
-    const risks = project.risks.filter((risk) => risk.kind === "risk").length;
-    const handoffs = project.activities.length;
-
-    return [
-      `${delayed} active workflows still need attention`,
-      `${risks} project risks are currently tracked`,
-      `${handoffs} recent project signals are available for learning`,
-    ];
-  }, [project.activities.length, project.risks, project.workflows]);
-
-  const onConnect = useCallback(
-    (connection: Connection) => {
-      setEdges((current) => addEdge({ ...connection, id: `edge-${Date.now()}` }, current));
+  const agentQuery = useWorkspaceProjectAgent(activeWorkspaceId, project.id, {
+    enabled: Boolean(activeWorkspaceId) && Boolean(project.id),
+  });
+  const runsQuery = useWorkspaceProjectAgentRuns(
+    activeWorkspaceId,
+    project.id,
+    {
+      page: 1,
+      limit: 8,
     },
-    [setEdges],
+    {
+      enabled: Boolean(activeWorkspaceId) && Boolean(project.id),
+    },
   );
 
-  const updateSelectedNode = useCallback(
-    (nextData: Partial<AgentNodeData>) => {
-      if (!selectedNodeId) {
-        return;
+  const updateAgentMutation = useUpdateWorkspaceProjectAgent({
+    onSuccess: (response) => {
+      const next = response.data?.agent;
+
+      if (next) {
+        setDraft(next);
+        setDirty(false);
       }
 
-      setNodes((current) =>
-        current.map((node) =>
-          node.id === selectedNodeId
-            ? {
-                ...node,
-                data: {
-                  ...node.data,
-                  ...nextData,
-                },
-              }
-            : node,
-        ),
-      );
-    },
-    [selectedNodeId, setNodes],
-  );
-
-  const handleAddNode = useCallback(
-    (kind: AgentNodeKind, position?: { x: number; y: number }) => {
-      const id = createNodeId();
-      const selected = nodes.find((node) => node.id === selectedNodeId);
-      const fallbackX = 60 + nodes.length * 34;
-      const fallbackY = 90 + (nodes.length % 5) * 76;
-
-      const nextNode: Node<AgentNodeData> = {
-        id,
-        type: "agentNode",
-        position:
-          position ??
-          (selected
-            ? { x: selected.position.x + 260, y: selected.position.y + 24 }
-            : { x: fallbackX, y: fallbackY }),
-        data: {
-          label:
-            kind === "trigger"
-              ? "New trigger"
-              : kind === "decision"
-                ? "New decision"
-                : "Freeform note",
-          note:
-            kind === "trigger"
-              ? "Start a new automation entry point."
-              : kind === "decision"
-                ? "Define the branch rule this agent should evaluate."
-                : "Drop a note anywhere on the board and refine its logic.",
-          kind,
-        },
-      };
-
-      setNodes((current) => [...current, nextNode]);
-
-      if (selected && !position) {
-        setEdges((current) => [
-          ...current,
-          {
-            id: `edge-${selected.id}-${id}`,
-            source: selected.id,
-            target: id,
-            label: kind === "decision" ? "branch" : "next",
-          },
-        ]);
-      }
-
-      setSelectedNodeId(id);
-    },
-    [nodes, selectedNodeId, setEdges, setNodes],
-  );
-
-  const handlePaneDoubleClick = useCallback(
-    (event: ReactMouseEvent<HTMLDivElement>) => {
-      const target = event.target as HTMLElement;
-
-      if (!flowInstance || !target.closest(".react-flow__pane")) {
-        return;
-      }
-
-      const position = flowInstance.screenToFlowPosition({
-        x: event.clientX,
-        y: event.clientY,
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-project-agent", activeWorkspaceId, project.id],
       });
-
-      handleAddNode("action", position);
+      queryClient.invalidateQueries({
+        queryKey: [
+          "workspace-project-agent-runs",
+          activeWorkspaceId,
+          project.id,
+        ],
+      });
     },
-    [flowInstance, handleAddNode],
-  );
+  });
 
-  const handleDuplicateNode = () => {
-    if (!selectedNode) {
+  const runAgentMutation = useRunWorkspaceProjectAgent({
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-project-agent", activeWorkspaceId, project.id],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [
+          "workspace-project-agent-runs",
+          activeWorkspaceId,
+          project.id,
+        ],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [
+          "workspace-project-notifications",
+          activeWorkspaceId,
+          project.id,
+        ],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-project-events", activeWorkspaceId, project.id],
+      });
+    },
+  });
+
+  useEffect(() => {
+    const serverAgent = agentQuery.data?.data?.agent;
+
+    if (!serverAgent) {
       return;
     }
 
-    const id = createNodeId();
-    const nextNode: Node<AgentNodeData> = {
-      ...selectedNode,
-      id,
-      position: {
-        x: selectedNode.position.x + 32,
-        y: selectedNode.position.y + 32,
-      },
-      data: {
-        ...selectedNode.data,
-        label: `${selectedNode.data.label} copy`,
-      },
+    if (dirty) {
+      return;
+    }
+
+    setDraft(serverAgent);
+  }, [agentQuery.data, dirty]);
+
+  const automationStats = useMemo(() => {
+    const serverStats = agentQuery.data?.data?.stats;
+
+    if (serverStats) {
+      return serverStats;
+    }
+
+    return {
+      totalTasks: 0,
+      totalSubtasks: 0,
+      overdueTasks: 0,
+      openRisks: 0,
+      activeWorkflows: 0,
     };
+  }, [agentQuery.data]);
 
-    setNodes((current) => [...current, nextNode]);
-    setSelectedNodeId(id);
+  const runs = runsQuery.data?.data?.runs ?? [];
+  const visibleRuns = runs.filter(
+    (run) => run.runType === "deadline" || run.runType === "meeting",
+  );
+  const meetings = (draft?.meetings ?? []).filter(
+    (meeting) => !meeting.archived,
+  );
+  const enabledAutomationCount =
+    Number(Boolean(draft?.taskReminder?.enabled)) +
+    Number(Boolean(draft?.meetingReminder?.enabled));
+
+  const updateDraft = (
+    updater: (
+      current: WorkspaceProjectAgentConfig,
+    ) => WorkspaceProjectAgentConfig,
+  ) => {
+    setDraft((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const next = updater(current);
+      setDirty(true);
+      return next;
+    });
   };
 
-  const handleDeleteNode = () => {
-    if (!selectedNodeId) {
+  const saveAutomationSettings = async () => {
+    if (!activeWorkspaceId) {
+      toast("Open this project from a workspace first.");
       return;
     }
 
-    const nextSelectedId = nodes.find((node) => node.id !== selectedNodeId)?.id ?? "";
+    if (!draft) {
+      toast("Automation settings are still loading.");
+      return;
+    }
 
-    setNodes((current) => current.filter((node) => node.id !== selectedNodeId));
-    setEdges((current) =>
-      current.filter((edge) => edge.source !== selectedNodeId && edge.target !== selectedNodeId),
+    await toast.promise(
+      updateAgentMutation.mutateAsync({
+        workspaceId: activeWorkspaceId,
+        projectId: project.id,
+        updates: {
+          enabled: draft.enabled,
+          timezone: draft.timezone,
+          taskReminder: {
+            enabled: draft.taskReminder.enabled,
+            intervalMinutes: draft.taskReminder.intervalMinutes,
+            thresholdHours: draft.taskReminder.thresholdHours,
+            includeSubtasks: draft.taskReminder.includeSubtasks,
+            includeTeamFallback: draft.taskReminder.includeTeamFallback,
+            dedupeWindowMinutes: draft.taskReminder.dedupeWindowMinutes,
+            roomId: draft.taskReminder.roomId,
+          },
+          meetingReminder: {
+            enabled: draft.meetingReminder.enabled,
+            intervalMinutes: draft.meetingReminder.intervalMinutes,
+            reminderMinutes: draft.meetingReminder.reminderMinutes,
+            dedupeWindowMinutes: draft.meetingReminder.dedupeWindowMinutes,
+            roomId: draft.meetingReminder.roomId,
+          },
+          meetings: draft.meetings.map((meeting) => ({
+            id: meeting.id,
+            title: meeting.title,
+            description: meeting.description,
+            location: meeting.location,
+            startAt: meeting.startAt || "",
+            endAt: meeting.endAt || "",
+            memberUserIds: meeting.memberUserIds,
+            teamIds: meeting.teamIds,
+            archived: meeting.archived,
+            createdByUserId: meeting.createdByUserId,
+          })),
+        },
+      }),
+      {
+        loading: "Saving automation settings...",
+        success: "Automation settings saved.",
+        error: "Could not save automation settings.",
+      },
     );
-    setSelectedNodeId(nextSelectedId);
   };
 
-  const handleSimulate = () => {
-    const currentNode = selectedNode?.data.label ?? "current agent graph";
-    toast(`Simulation run queued for ${currentNode}.`);
+  const runAutomationNow = async (runType: "deadline" | "meeting") => {
+    if (!activeWorkspaceId) {
+      toast("Open this project from a workspace first.");
+      return;
+    }
+
+    await toast.promise(
+      runAgentMutation.mutateAsync({
+        workspaceId: activeWorkspaceId,
+        projectId: project.id,
+        runType,
+      }),
+      {
+        loading:
+          runType === "deadline"
+            ? "Running task deadline reminders..."
+            : "Running meeting reminders...",
+        success: (response) =>
+          response.data?.run?.summary || "Automation run completed.",
+        error: "Automation run failed.",
+      },
+    );
   };
 
-  const handlePublish = () => {
-    toast("Agent control logic published locally.");
+  const toggleMeetingTeam = (teamId: string) => {
+    setMeetingDraft((current) => {
+      const exists = current.teamIds.includes(teamId);
+      return {
+        ...current,
+        teamIds: exists
+          ? current.teamIds.filter((item) => item !== teamId)
+          : [...current.teamIds, teamId],
+      };
+    });
   };
 
-  const renderSidebar = (idPrefix: string, compact = false) => (
-    <div className={cn("space-y-3", compact && "h-full overflow-y-auto p-4")}>
-      <section className="rounded-xl border border-border/35 bg-card/75 p-3 shadow-xs">
-        <div className="text-[13px] font-semibold">Agent memory</div>
-        <div className="mt-2 space-y-2">
-          {learnedSignals.map((signal) => (
-            <div key={signal} className="rounded-lg border border-border/20 bg-background/70 px-3 py-2 text-[12px]">
-              {signal}
-            </div>
-          ))}
-        </div>
-      </section>
+  const toggleMeetingMember = (memberId: string) => {
+    setMeetingDraft((current) => {
+      const exists = current.memberUserIds.includes(memberId);
+      return {
+        ...current,
+        memberUserIds: exists
+          ? current.memberUserIds.filter((item) => item !== memberId)
+          : [...current.memberUserIds, memberId],
+      };
+    });
+  };
 
-      <section className="rounded-xl border border-border/35 bg-card/75 p-3 shadow-xs">
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-[13px] font-semibold">Node inspector</div>
-          {selectedNode ? (
-            <Badge variant="outline" className={cn("text-[10px] capitalize", KIND_BADGE[selectedNode.data.kind])}>
-              {selectedNode.data.kind}
-            </Badge>
-          ) : null}
-        </div>
+  const handleCreateMeeting = () => {
+    if (!meetingDraft.title.trim()) {
+      toast("Meeting title is required.");
+      return;
+    }
 
-        {selectedNode ? (
-          <div className="mt-3 grid gap-3">
-            <div className="grid gap-2">
-              <Label htmlFor={`${idPrefix}-agent-name`}>Assigned agent</Label>
-              <Input
-                id={`${idPrefix}-agent-name`}
-                value={agentName}
-                onChange={(event) => setAgentName(event.target.value)}
-              />
-            </div>
+    const startAt = new Date(meetingDraft.startAt);
+    const endAt = new Date(meetingDraft.endAt);
 
-            <div className="grid gap-2">
-              <Label htmlFor={`${idPrefix}-node-label`}>Node label</Label>
-              <Input
-                id={`${idPrefix}-node-label`}
-                value={selectedNode.data.label}
-                onChange={(event) => updateSelectedNode({ label: event.target.value })}
-              />
-            </div>
+    if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
+      toast("Meeting start and end are required.");
+      return;
+    }
 
-            <div className="grid gap-2">
-              <Label>Node kind</Label>
-              <Select
-                value={selectedNode.data.kind}
-                onValueChange={(value) => updateSelectedNode({ kind: value as AgentNodeKind })}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="trigger">Trigger</SelectItem>
-                  <SelectItem value="decision">Decision</SelectItem>
-                  <SelectItem value="action">Action</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+    if (endAt.getTime() <= startAt.getTime()) {
+      toast("Meeting end time must be after start time.");
+      return;
+    }
 
-            <div className="grid gap-2">
-              <Label htmlFor={`${idPrefix}-node-note`}>Decision note</Label>
-              <Textarea
-                id={`${idPrefix}-node-note`}
-                value={selectedNode.data.note}
-                onChange={(event) => updateSelectedNode({ note: event.target.value })}
-                className="min-h-24"
-              />
-            </div>
+    updateDraft((current) => ({
+      ...current,
+      meetings: [
+        ...current.meetings,
+        {
+          id: createLocalId("meeting"),
+          title: meetingDraft.title.trim(),
+          description: meetingDraft.description.trim(),
+          location: meetingDraft.location.trim(),
+          startAt: startAt.toISOString(),
+          endAt: endAt.toISOString(),
+          memberUserIds: Array.from(new Set(meetingDraft.memberUserIds)),
+          teamIds: Array.from(new Set(meetingDraft.teamIds)),
+          archived: false,
+          createdByUserId: "",
+        },
+      ],
+    }));
 
-            <div className="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={handleDuplicateNode}>
-                <GitBranchPlus />
-                Duplicate
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={handleSimulate}>
-                <Play />
-                Simulate
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={handleDeleteNode}>
-                <Trash2 />
-                Delete
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="text-muted-foreground mt-3 text-[12px] leading-5">
-            Select a node to edit it, or double-click the canvas to drop a new freeform note.
-          </div>
-        )}
-      </section>
+    setMeetingDraft(EMPTY_MEETING_DRAFT);
+    setMeetingDialogOpen(false);
+  };
 
-      <section className="rounded-xl border border-border/35 bg-card/75 p-3 shadow-xs">
-        <div className="flex items-center gap-2 text-[13px] font-semibold">
-          <PencilLine className="size-3.5" />
-          Freeform tips
-        </div>
-        <div className="text-muted-foreground mt-2 space-y-2 text-[12px] leading-5">
-          <div>Use the canvas like a sketch surface: drop notes first, then wire the logic after.</div>
-          <div>Connectors are now visible on both sides of each node. Drag from one handle into another to branch the flow.</div>
-        </div>
-      </section>
-    </div>
-  );
+  const archiveMeeting = (meetingId: string) => {
+    updateDraft((current) => ({
+      ...current,
+      meetings: current.meetings.map((meeting) =>
+        meeting.id === meetingId
+          ? {
+              ...meeting,
+              archived: true,
+            }
+          : meeting,
+      ),
+    }));
+  };
 
-  const renderCanvas = (expanded = false) => (
-    <section
-      className={cn(
-        "overflow-hidden rounded-xl border border-border/35 bg-card shadow-xs",
-        expanded && "flex h-full min-h-0 flex-col rounded-none border-0 bg-background shadow-none",
-      )}
-    >
-      <div className="flex flex-col gap-3 border-b border-border/15 px-3 py-3 md:px-4">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <div className="text-[13px] font-semibold">Decision graph</div>
-            <div className="text-muted-foreground text-[12px] leading-5">
-              Drag to move. Drag between handles to connect. Double-click empty space to drop a new note.
-            </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" variant="ghost" size="sm" onClick={() => handleAddNode("trigger")}>
-              <Sparkles />
-              Trigger
-            </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => handleAddNode("decision")}>
-              <GitBranchPlus />
-              Decision
-            </Button>
-            <Button type="button" variant="ghost" size="sm" onClick={() => handleAddNode("action")}>
-              <Brain />
-              Action
-            </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => setIsExpanded((current) => !current)}>
-              {expanded ? <Minimize2 /> : <Maximize2 />}
-              {expanded ? "Exit full screen" : "Expand"}
-            </Button>
-          </div>
-        </div>
+  if (!draft && agentQuery.isLoading) {
+    return <LoaderComponent />;
+  }
+
+  if (!draft) {
+    return (
+      <div className="text-muted-foreground rounded-xl border border-border/35 bg-card/70 px-3 py-4 text-[12px]">
+        Automation settings are unavailable for this project.
       </div>
-
-      <div
-        className={cn("relative bg-background", expanded ? "min-h-0 flex-1" : "h-[42rem]")}
-        onDoubleClick={handlePaneDoubleClick}
-      >
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={NODE_TYPES}
-          onInit={setFlowInstance}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onNodeClick={(_, node) => setSelectedNodeId(node.id)}
-          onPaneClick={() => setSelectedNodeId("")}
-          fitView
-          fitViewOptions={{ padding: expanded ? 0.08 : 0.12 }}
-          minZoom={0.45}
-          maxZoom={1.5}
-          zoomOnDoubleClick={false}
-          defaultEdgeOptions={{
-            type: "smoothstep",
-            animated: false,
-            markerEnd: {
-              type: MarkerType.ArrowClosed,
-              color: "hsl(var(--primary))",
-              width: 18,
-              height: 18,
-            },
-            style: {
-              stroke: "hsl(var(--primary))",
-              strokeWidth: 2.4,
-            },
-            labelStyle: {
-              fill: "hsl(var(--foreground))",
-              fontSize: 11,
-              fontWeight: 600,
-            },
-          }}
-          connectionLineStyle={{
-            stroke: "hsl(var(--primary))",
-            strokeWidth: 2.6,
-          }}
-          proOptions={{ hideAttribution: true }}
-          className="!bg-background"
-        >
-          <Background gap={22} size={1} color="hsl(var(--border) / 0.42)" />
-          <Controls
-            position="bottom-right"
-            showInteractive={false}
-            className="!shadow-sm [&>button]:!size-8 [&>button]:!border-border/30 [&>button]:!bg-background"
-          />
-        </ReactFlow>
-
-        <div className="absolute left-3 top-3 z-10 flex flex-wrap items-center gap-2">
-          <div className="pointer-events-none rounded-lg border border-border/20 bg-background/92 px-2.5 py-1 text-[11px] text-muted-foreground shadow-sm">
-            Double-click to add note
-          </div>
-          <div className="pointer-events-none rounded-lg border border-border/20 bg-background/92 px-2.5 py-1 text-[11px] text-muted-foreground shadow-sm">
-            Connect visible node handles to branch logic
-          </div>
-        </div>
-
-        <div className="absolute bottom-3 left-3 z-10 flex flex-wrap items-center gap-2 rounded-xl border border-border/25 bg-background/92 p-2 shadow-sm">
-          <Button type="button" variant="outline" size="sm" onClick={() => handleAddNode("trigger")}>
-            <Sparkles />
-            Trigger
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => handleAddNode("decision")}>
-            <GitBranchPlus />
-            Decision
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => handleAddNode("action")}>
-            <Brain />
-            Note
-          </Button>
-        </div>
-      </div>
-    </section>
-  );
+    );
+  }
 
   return (
-    <ReactFlowProvider>
-      <div className="flex flex-col gap-3 md:gap-4">
-        <section className="rounded-xl border border-border/35 bg-card/75 p-3 shadow-xs md:p-4">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="flex size-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Bot className="size-4" />
-                </span>
+    <div className="flex flex-col gap-3">
+      <Card className="border-border/35 bg-card/85 shadow-xs">
+        <CardHeader className="pb-2">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="space-y-1">
+              <CardTitle className="text-[14px] md:text-[15px]">
+                Automation Hub
+              </CardTitle>
+              <CardDescription className="text-[12px]">
+                Core platform automation for deadline reminders and meeting
+                reminders. This is scheduler behavior, not a persona-style
+                agent.
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                checked={draft.enabled}
+                onCheckedChange={(checked) =>
+                  updateDraft((current) => ({
+                    ...current,
+                    enabled: checked,
+                  }))
+                }
+              />
+              <Button
+                type="button"
+                size="sm"
+                onClick={saveAutomationSettings}
+                disabled={!dirty || updateAgentMutation.isPending}
+              >
+                <Save className="size-3.5" />
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-2 pt-0 sm:grid-cols-2 xl:grid-cols-6">
+          <div className="rounded-lg border border-border/20 bg-background/75 px-3 py-2">
+            <div className="text-muted-foreground text-[11px]">
+              Automations active
+            </div>
+            <div className="mt-1 text-[13px] font-semibold">
+              {enabledAutomationCount}/2
+            </div>
+          </div>
+          <div className="rounded-lg border border-border/20 bg-background/75 px-3 py-2">
+            <div className="text-muted-foreground text-[11px]">Workflows</div>
+            <div className="mt-1 text-[13px] font-semibold">
+              {automationStats.activeWorkflows}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border/20 bg-background/75 px-3 py-2">
+            <div className="text-muted-foreground text-[11px]">Tasks</div>
+            <div className="mt-1 text-[13px] font-semibold">
+              {automationStats.totalTasks}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border/20 bg-background/75 px-3 py-2">
+            <div className="text-muted-foreground text-[11px]">Subtasks</div>
+            <div className="mt-1 text-[13px] font-semibold">
+              {automationStats.totalSubtasks ?? 0}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border/20 bg-background/75 px-3 py-2">
+            <div className="text-muted-foreground text-[11px]">Overdue</div>
+            <div className="mt-1 text-[13px] font-semibold">
+              {automationStats.overdueTasks}
+            </div>
+          </div>
+          <div className="rounded-lg border border-border/20 bg-background/75 px-3 py-2">
+            <div className="text-muted-foreground text-[11px]">Open risks</div>
+            <div className="mt-1 text-[13px] font-semibold">
+              {automationStats.openRisks}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Tabs defaultValue="deadlines" className="space-y-3">
+        <TabsList className="h-8 rounded-lg border border-border/25 bg-muted/55 p-1">
+          <TabsTrigger
+            value="deadlines"
+            className="h-6 px-2.5 text-[11px] data-[state=active]:bg-background"
+          >
+            Deadlines
+          </TabsTrigger>
+          <TabsTrigger
+            value="meetings"
+            className="h-6 px-2.5 text-[11px] data-[state=active]:bg-background"
+          >
+            Meetings
+          </TabsTrigger>
+          <TabsTrigger
+            value="runs"
+            className="h-6 px-2.5 text-[11px] data-[state=active]:bg-background"
+          >
+            Run Log
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="deadlines" className="mt-0">
+          <Card className="border-border/35 bg-card/80 shadow-xs">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between gap-2">
                 <div>
-                  <div className="text-[14px] font-semibold md:text-[15px]">Agents & automation</div>
-                  <div className="text-muted-foreground text-[12px] leading-5">
-                    Shape the project agent like a freeform board: drag nodes, connect branches, and add new notes directly on the canvas.
-                  </div>
+                  <CardTitle className="text-[13px]">
+                    Task & Subtask Deadline Reminders
+                  </CardTitle>
+                  <CardDescription className="text-[11px]">
+                    Notify assignees when due dates are close. If a task has no
+                    assignee, team fallback notifies project team members.
+                  </CardDescription>
+                </div>
+                <Switch
+                  checked={draft.taskReminder.enabled}
+                  onCheckedChange={(checked) =>
+                    updateDraft((current) => ({
+                      ...current,
+                      taskReminder: {
+                        ...current.taskReminder,
+                        enabled: checked,
+                      },
+                    }))
+                  }
+                />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2 pt-0">
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px]">
+                    Check interval (minutes)
+                  </Label>
+                  <Input
+                    type="number"
+                    min={5}
+                    max={1440}
+                    value={draft.taskReminder.intervalMinutes}
+                    onChange={(event) =>
+                      updateDraft((current) => ({
+                        ...current,
+                        taskReminder: {
+                          ...current.taskReminder,
+                          intervalMinutes: clampNumericInput(
+                            event.target.value,
+                            current.taskReminder.intervalMinutes,
+                            5,
+                            1440,
+                          ),
+                        },
+                      }))
+                    }
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px]">
+                    Near-end threshold (hours)
+                  </Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={168}
+                    value={draft.taskReminder.thresholdHours}
+                    onChange={(event) =>
+                      updateDraft((current) => ({
+                        ...current,
+                        taskReminder: {
+                          ...current.taskReminder,
+                          thresholdHours: clampNumericInput(
+                            event.target.value,
+                            current.taskReminder.thresholdHours,
+                            1,
+                            168,
+                          ),
+                        },
+                      }))
+                    }
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px]">Dedupe window (minutes)</Label>
+                  <Input
+                    type="number"
+                    min={10}
+                    max={1440}
+                    value={draft.taskReminder.dedupeWindowMinutes}
+                    onChange={(event) =>
+                      updateDraft((current) => ({
+                        ...current,
+                        taskReminder: {
+                          ...current.taskReminder,
+                          dedupeWindowMinutes: clampNumericInput(
+                            event.target.value,
+                            current.taskReminder.dedupeWindowMinutes,
+                            10,
+                            1440,
+                          ),
+                        },
+                      }))
+                    }
+                    className="h-8"
+                  />
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 text-[12px]">
-                <Badge variant="outline">Assigned: {agentName}</Badge>
-                <Badge variant="outline">Mode: {agentMode}</Badge>
-                <Badge variant="outline">{nodes.length} nodes</Badge>
-                <Badge variant="outline">{edges.length} paths</Badge>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <Select value={agentMode} onValueChange={(value) => setAgentMode(value as typeof agentMode)}>
-                <SelectTrigger size="sm" className="w-36">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="observe">Observe only</SelectItem>
-                  <SelectItem value="assist">Assist</SelectItem>
-                  <SelectItem value="autopilot">Autopilot</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button type="button" variant="outline" size="sm" onClick={handleSimulate}>
-                <Play />
-                Run simulation
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={handlePublish}>
-                <Save />
-                Publish logic
-              </Button>
-            </div>
-          </div>
-        </section>
-
-        {!isExpanded ? (
-          <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_19rem] xl:items-start">
-            {renderCanvas(false)}
-            {renderSidebar("inline")}
-          </div>
-        ) : null}
-
-        {isExpanded ? (
-          <div className="fixed inset-0 z-[80] flex h-dvh w-screen flex-col bg-background">
-            <div className="flex shrink-0 items-center justify-between border-b border-border/15 px-4 py-3">
-              <div>
-                <div className="text-[14px] font-semibold">Expanded agent editor</div>
-                <div className="text-muted-foreground text-[12px] leading-5">
-                  Full-screen editor. The canvas fills the viewport and the inspector stays docked on the right.
+              <div className="grid gap-2 sm:grid-cols-2">
+                <div className="flex items-center gap-2 rounded-md border border-border/25 px-2 py-1.5">
+                  <Switch
+                    checked={draft.taskReminder.includeSubtasks}
+                    onCheckedChange={(checked) =>
+                      updateDraft((current) => ({
+                        ...current,
+                        taskReminder: {
+                          ...current.taskReminder,
+                          includeSubtasks: checked,
+                        },
+                      }))
+                    }
+                  />
+                  <span className="text-[11px]">Include subtasks</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-md border border-border/25 px-2 py-1.5">
+                  <Switch
+                    checked={draft.taskReminder.includeTeamFallback}
+                    onCheckedChange={(checked) =>
+                      updateDraft((current) => ({
+                        ...current,
+                        taskReminder: {
+                          ...current.taskReminder,
+                          includeTeamFallback: checked,
+                        },
+                      }))
+                    }
+                  />
+                  <span className="text-[11px]">Fallback to team members</span>
                 </div>
               </div>
-              <Button type="button" variant="ghost" size="sm" onClick={() => setIsExpanded(false)}>
-                <X />
-                Close
-              </Button>
+
+              <div className="flex items-center justify-between gap-2 rounded-md border border-border/25 bg-background/70 px-2.5 py-2">
+                <div className="text-[11px] text-muted-foreground">
+                  Last run: {formatRunTime(draft.taskReminder.lastRunAt)}
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => runAutomationNow("deadline")}
+                  disabled={runAgentMutation.isPending}
+                >
+                  <AlarmClock className="size-3.5" />
+                  Run now
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="meetings" className="mt-0">
+          <Card className="border-border/35 bg-card/80 shadow-xs">
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <CardTitle className="text-[13px]">
+                    Meeting Reminders + Calendar
+                  </CardTitle>
+                  <CardDescription className="text-[11px]">
+                    Schedule project meetings, send reminders, and generate
+                    Google or Outlook calendar events.
+                  </CardDescription>
+                </div>
+                <Switch
+                  checked={draft.meetingReminder.enabled}
+                  onCheckedChange={(checked) =>
+                    updateDraft((current) => ({
+                      ...current,
+                      meetingReminder: {
+                        ...current.meetingReminder,
+                        enabled: checked,
+                      },
+                    }))
+                  }
+                />
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2 pt-0">
+              <div className="grid gap-2 sm:grid-cols-3">
+                <div className="space-y-1">
+                  <Label className="text-[11px]">
+                    Check interval (minutes)
+                  </Label>
+                  <Input
+                    type="number"
+                    min={5}
+                    max={1440}
+                    value={draft.meetingReminder.intervalMinutes}
+                    onChange={(event) =>
+                      updateDraft((current) => ({
+                        ...current,
+                        meetingReminder: {
+                          ...current.meetingReminder,
+                          intervalMinutes: clampNumericInput(
+                            event.target.value,
+                            current.meetingReminder.intervalMinutes,
+                            5,
+                            1440,
+                          ),
+                        },
+                      }))
+                    }
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px]">
+                    Reminder window (minutes)
+                  </Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={1440}
+                    value={draft.meetingReminder.reminderMinutes}
+                    onChange={(event) =>
+                      updateDraft((current) => ({
+                        ...current,
+                        meetingReminder: {
+                          ...current.meetingReminder,
+                          reminderMinutes: clampNumericInput(
+                            event.target.value,
+                            current.meetingReminder.reminderMinutes,
+                            1,
+                            1440,
+                          ),
+                        },
+                      }))
+                    }
+                    className="h-8"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-[11px]">Dedupe window (minutes)</Label>
+                  <Input
+                    type="number"
+                    min={10}
+                    max={1440}
+                    value={draft.meetingReminder.dedupeWindowMinutes}
+                    onChange={(event) =>
+                      updateDraft((current) => ({
+                        ...current,
+                        meetingReminder: {
+                          ...current.meetingReminder,
+                          dedupeWindowMinutes: clampNumericInput(
+                            event.target.value,
+                            current.meetingReminder.dedupeWindowMinutes,
+                            10,
+                            1440,
+                          ),
+                        },
+                      }))
+                    }
+                    className="h-8"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 rounded-md border border-border/25 bg-background/70 px-2.5 py-2">
+                <div className="text-[11px] text-muted-foreground">
+                  Last run: {formatRunTime(draft.meetingReminder.lastRunAt)}
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => runAutomationNow("meeting")}
+                    disabled={runAgentMutation.isPending}
+                  >
+                    <BellRing className="size-3.5" />
+                    Run now
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setMeetingDialogOpen(true)}
+                  >
+                    <CalendarPlus className="size-3.5" />
+                    Add meeting
+                  </Button>
+                </div>
+              </div>
+
+              <div className="max-h-[18rem] overflow-y-auto rounded-md border border-border/25 bg-background/65">
+                <div className="divide-y divide-border/20">
+                  {meetings.length ? (
+                    meetings.map((meeting) => {
+                      const googleLink = buildGoogleCalendarLink(
+                        meeting,
+                        project.name,
+                      );
+                      const outlookLink = buildOutlookCalendarLink(
+                        meeting,
+                        project.name,
+                      );
+
+                      return (
+                        <div key={meeting.id} className="space-y-2 px-2.5 py-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="space-y-0.5">
+                              <div className="text-[12px] font-medium">
+                                {meeting.title}
+                              </div>
+                              <div className="text-muted-foreground text-[11px]">
+                                {formatMeetingDate(meeting.startAt)} →{" "}
+                                {formatMeetingDate(meeting.endAt)}
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="size-7"
+                              onClick={() => archiveMeeting(meeting.id)}
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-1.5 text-[10px]">
+                            <Badge variant="outline" className="gap-1">
+                              <Users className="size-3" />
+                              {meeting.memberUserIds.length} members
+                            </Badge>
+                            <Badge variant="outline">
+                              {meeting.teamIds.length} teams
+                            </Badge>
+                            {meeting.location ? (
+                              <Badge variant="outline">
+                                {meeting.location}
+                              </Badge>
+                            ) : null}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {googleLink ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 text-[10px]"
+                                onClick={() =>
+                                  window.open(
+                                    googleLink,
+                                    "_blank",
+                                    "noopener,noreferrer",
+                                  )
+                                }
+                              >
+                                <ExternalLink className="size-3" />
+                                Google
+                              </Button>
+                            ) : null}
+                            {outlookLink ? (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-7 px-2 text-[10px]"
+                                onClick={() =>
+                                  window.open(
+                                    outlookLink,
+                                    "_blank",
+                                    "noopener,noreferrer",
+                                  )
+                                }
+                              >
+                                <ExternalLink className="size-3" />
+                                Outlook
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="px-2.5 py-4">
+                      <Empty className="border-0 p-0 md:p-0">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon">
+                            <CalendarX2 className="size-4 text-primary/85" />
+                          </EmptyMedia>
+                          <EmptyDescription className="text-[11px]">
+                            No meetings created yet.
+                          </EmptyDescription>
+                        </EmptyHeader>
+                      </Empty>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="runs" className="mt-0">
+          <Card className="border-border/35 bg-card/80 shadow-xs">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-[13px]">
+                Recent Automation Runs
+              </CardTitle>
+              <CardDescription className="text-[11px]">
+                Deadline and meeting reminder runs for this project.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <div className="space-y-1.5">
+                {visibleRuns.length ? (
+                  visibleRuns.map((run) => (
+                    <div
+                      key={run.id}
+                      className="flex items-start justify-between gap-2 rounded-md border border-border/20 bg-background/70 px-2.5 py-2"
+                    >
+                      <div>
+                        <div className="text-[12px] font-medium">
+                          {formatRunTypeLabel(run.runType)} · {run.status}
+                        </div>
+                        <div className="text-muted-foreground text-[11px]">
+                          {run.summary}
+                        </div>
+                      </div>
+                      <div className="text-right text-[10px] text-muted-foreground">
+                        <div>{formatRunTime(run.createdAt)}</div>
+                        <div>{run.createdNotifications} notifications</div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <Empty className="border-0 p-0 md:p-0">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <History className="size-4 text-primary/85" />
+                      </EmptyMedia>
+                      <EmptyDescription className="text-[11px]">
+                        No deadline or meeting runs yet.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      <Dialog open={meetingDialogOpen} onOpenChange={setMeetingDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Create Meeting</DialogTitle>
+            <DialogDescription>
+              Add a project meeting. Save it, then open a prefilled
+              Google/Outlook event from the meeting row.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="grid gap-1.5">
+              <Label className="text-[11px]">Title</Label>
+              <Input
+                value={meetingDraft.title}
+                onChange={(event) =>
+                  setMeetingDraft((current) => ({
+                    ...current,
+                    title: event.target.value,
+                  }))
+                }
+                placeholder="Sprint planning"
+              />
             </div>
 
-            <div className="grid min-h-0 flex-1 bg-background xl:grid-cols-[minmax(0,1fr)_22rem] xl:overflow-hidden">
-              <div className="min-h-0 border-r border-border/15 bg-background">{renderCanvas(true)}</div>
-              <div className="min-h-0 border-l border-border/15 bg-card">{renderSidebar("expanded", true)}</div>
+            <div className="grid gap-1.5">
+              <Label className="text-[11px]">Description</Label>
+              <Textarea
+                value={meetingDraft.description}
+                onChange={(event) =>
+                  setMeetingDraft((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+                className="min-h-20"
+              />
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-1.5">
+                <Label className="text-[11px]">Start</Label>
+                <Input
+                  type="datetime-local"
+                  value={meetingDraft.startAt}
+                  onChange={(event) =>
+                    setMeetingDraft((current) => ({
+                      ...current,
+                      startAt: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+              <div className="grid gap-1.5">
+                <Label className="text-[11px]">End</Label>
+                <Input
+                  type="datetime-local"
+                  value={meetingDraft.endAt}
+                  onChange={(event) =>
+                    setMeetingDraft((current) => ({
+                      ...current,
+                      endAt: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label className="text-[11px]">Location</Label>
+              <Input
+                value={meetingDraft.location}
+                onChange={(event) =>
+                  setMeetingDraft((current) => ({
+                    ...current,
+                    location: event.target.value,
+                  }))
+                }
+                placeholder="Zoom / Room A"
+              />
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label className="text-[11px]">Notify teams</Label>
+              <div className="max-h-24 overflow-y-auto rounded-md border border-border/25 p-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {project.teams.map((team) => {
+                    const selected = meetingDraft.teamIds.includes(team.id);
+
+                    return (
+                      <button
+                        key={team.id}
+                        type="button"
+                        className={cn(
+                          "rounded-md border px-2 py-1 text-[11px]",
+                          selected
+                            ? "border-primary/40 bg-primary/10 text-primary"
+                            : "border-border/30 bg-background/70 text-muted-foreground",
+                        )}
+                        onClick={() => toggleMeetingTeam(team.id)}
+                      >
+                        {team.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-1.5">
+              <Label className="text-[11px]">Notify members</Label>
+              <div className="max-h-28 overflow-y-auto rounded-md border border-border/25 p-2">
+                <div className="flex flex-wrap gap-1.5">
+                  {members.map((member) => {
+                    const selected = meetingDraft.memberUserIds.includes(
+                      member.id,
+                    );
+
+                    return (
+                      <button
+                        key={member.id}
+                        type="button"
+                        className={cn(
+                          "rounded-md border px-2 py-1 text-[11px]",
+                          selected
+                            ? "border-primary/40 bg-primary/10 text-primary"
+                            : "border-border/30 bg-background/70 text-muted-foreground",
+                        )}
+                        onClick={() => toggleMeetingMember(member.id)}
+                      >
+                        {member.name}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
-        ) : null}
-      </div>
-    </ReactFlowProvider>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setMeetingDialogOpen(false);
+                setMeetingDraft(EMPTY_MEETING_DRAFT);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="button" onClick={handleCreateMeeting}>
+              Create meeting
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

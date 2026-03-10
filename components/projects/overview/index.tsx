@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { WorkspaceProjectTaskRecord } from "@/types/project";
 import { useQueryClient } from "@tanstack/react-query";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
+import useWorkspace from "@/hooks/use-workspace";
+import { useWorkspacePermissions } from "@/hooks/use-workspace-permissions";
 import { cn } from "@/lib/utils";
 import { useProjectStore } from "@/stores";
 import useAuthStore from "@/stores/auth";
@@ -77,6 +79,27 @@ function buildDueWindow(startDate: string, targetEndDate: string) {
   }
 
   return `${formatShortDate(startDate)} - ${formatShortDate(targetEndDate)}`;
+}
+
+function normalizeMemberName(value?: string) {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function getInitialsFromName(value?: string) {
+  const normalized = String(value || "").trim();
+
+  if (!normalized) {
+    return "U";
+  }
+
+  return (
+    normalized
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((token) => token[0]?.toUpperCase() || "")
+      .join("") || "U"
+  );
 }
 
 function summarizeProjectTaskCounts(
@@ -159,9 +182,14 @@ export default function ProjectOverview({
   projectId,
   pipelineId,
   initialTab,
+  initialWorkflowId,
+  initialTaskId,
+  initialRiskId,
 }: ProjectOverviewProps) {
   const { workspaceId } = useWorkspaceStore();
+  const workspacePermissions = useWorkspacePermissions();
   const queryClient = useQueryClient();
+  const workspaceHook = useWorkspace();
   const {
     useWorkspaceProjectDetail,
     useWorkspaceProjectWorkflows,
@@ -186,6 +214,9 @@ export default function ProjectOverview({
   const pendingWorkflowCreateProjectId = useProjectStore(
     (state) => state.pendingWorkflowCreateProjectId,
   );
+  const pendingTaskCreateProjectId = useProjectStore(
+    (state) => state.pendingTaskCreateProjectId,
+  );
   const updateProject = useProjectStore((state) => state.updateProject);
   const upsertProjectRecord = useProjectStore(
     (state) => state.upsertProjectRecord,
@@ -194,11 +225,22 @@ export default function ProjectOverview({
   const consumeWorkflowCreateRequest = useProjectStore(
     (state) => state.consumeWorkflowCreateRequest,
   );
+  const consumeTaskCreateRequest = useProjectStore(
+    (state) => state.consumeTaskCreateRequest,
+  );
   const projectDetailQuery = useWorkspaceProjectDetail(
     workspaceId ?? "",
     projectId,
     {
-      enabled: Boolean(workspaceId) && !project,
+      enabled: Boolean(workspaceId),
+    },
+  );
+  const workspacePeopleQuery = workspaceHook.useWorkspacePeople(
+    workspaceId ?? "",
+    {
+      page: 1,
+      limit: 500,
+      search: "",
     },
   );
   const updateWorkspaceProjectMutation = useUpdateWorkspaceProject({
@@ -341,6 +383,9 @@ export default function ProjectOverview({
   const [workflowSheetState, setWorkflowSheetState] =
     useState<WorkflowSheetState>(null);
   const [taskSheetState, setTaskSheetState] = useState<TaskSheetState>(null);
+  const canManageProjectInvites = workspacePermissions.canManageProjectInvites;
+  const canArchiveProjects = workspacePermissions.canArchiveProjects;
+  const canCreateWorkflows = workspacePermissions.canCreateWorkflows;
 
   const workflowListQuery = useWorkspaceProjectWorkflows(
     workspaceId ?? "",
@@ -439,6 +484,49 @@ export default function ProjectOverview({
   ]);
 
   useEffect(() => {
+    if (!project) {
+      return;
+    }
+
+    if (pendingTaskCreateProjectId !== projectId) {
+      return;
+    }
+
+    const pendingTask = consumeTaskCreateRequest(projectId);
+    if (!pendingTask) {
+      return;
+    }
+
+    const nextWorkflow =
+      project.workflows.find(
+        (workflow) =>
+          !workflow.archived &&
+          pendingTask.workflowId &&
+          workflow.id === pendingTask.workflowId,
+      ) ??
+      project.workflows.find((workflow) => !workflow.archived) ??
+      null;
+
+    if (!nextWorkflow) {
+      toast("Create a workflow first, then add tasks.");
+      setActiveTab("workflows");
+      setWorkflowSheetState({ mode: "create" });
+      return;
+    }
+
+    setActiveTab("dos");
+    setTaskSheetState({
+      mode: "create",
+      workflowId: nextWorkflow.id,
+    });
+  }, [
+    consumeTaskCreateRequest,
+    pendingTaskCreateProjectId,
+    project,
+    projectId,
+  ]);
+
+  useEffect(() => {
     setWorkflowPage(1);
   }, [workflowView, workflowSortMode, teamFilter, startDate, pipelineId]);
 
@@ -484,6 +572,259 @@ export default function ProjectOverview({
     }
   }, [projectDetailQuery.data, upsertProjectRecord]);
 
+  const currentUserAvatarUrl =
+    String(user?.profilePhoto?.url || "").trim() || undefined;
+
+  const memberProfileIndexes = useMemo(() => {
+    const entries = workspacePeopleQuery.data?.data?.members ?? [];
+    const byAnyId = new Map<
+      string,
+      {
+        userId: string;
+        workspaceMemberId: string;
+        name: string;
+        normalizedName: string;
+        email: string;
+        initials: string;
+        avatarUrl?: string;
+      }
+    >();
+    const byName = new Map<
+      string,
+      {
+        userId: string;
+        workspaceMemberId: string;
+        name: string;
+        normalizedName: string;
+        email: string;
+        initials: string;
+        avatarUrl?: string;
+      }
+    >();
+
+    for (const entry of entries) {
+      const userRecord = entry?.userId;
+      const workspaceMemberId = String(entry?._id || "").trim();
+      const userId = String(userRecord?._id || "").trim();
+
+      if (!userId && !workspaceMemberId) {
+        continue;
+      }
+
+      const firstName = String(userRecord?.firstName || "").trim();
+      const lastName = String(userRecord?.lastName || "").trim();
+      const email = String(userRecord?.email || "").trim();
+      const displayName =
+        `${firstName} ${lastName}`.trim() || email || "Project member";
+      const normalizedName = normalizeMemberName(displayName);
+      const profile = {
+        userId,
+        workspaceMemberId,
+        name: displayName,
+        normalizedName,
+        email: email.toLowerCase(),
+        initials: getInitialsFromName(displayName),
+        avatarUrl: String(userRecord?.profilePhoto?.url || "").trim() || undefined,
+      };
+
+      if (userId) {
+        byAnyId.set(userId, profile);
+      }
+
+      if (workspaceMemberId) {
+        byAnyId.set(workspaceMemberId, profile);
+      }
+
+      if (normalizedName && !byName.has(normalizedName)) {
+        byName.set(normalizedName, profile);
+      }
+    }
+
+    return {
+      byAnyId,
+      byName,
+    };
+  }, [workspacePeopleQuery.data]);
+
+  const resolvedMembers = useMemo(
+    () => {
+      const baseMembers = Array.isArray(project?.members) ? project.members : [];
+      const memberIdSet = new Set<string>();
+
+      for (const member of baseMembers) {
+        const memberId = String(member.id || "").trim();
+
+        if (memberId) {
+          memberIdSet.add(memberId);
+        }
+      }
+
+      for (const team of project?.teams ?? []) {
+        for (const memberId of team.memberIds ?? []) {
+          const normalizedId = String(memberId || "").trim();
+
+          if (normalizedId) {
+            memberIdSet.add(normalizedId);
+          }
+        }
+      }
+
+      for (const workflow of project?.workflows ?? []) {
+        const ownerId = String(workflow.ownerId || "").trim();
+
+        if (ownerId) {
+          memberIdSet.add(ownerId);
+        }
+
+        for (const task of workflow.tasks ?? []) {
+          const assigneeId = String(task.assigneeId || "").trim();
+
+          if (assigneeId) {
+            memberIdSet.add(assigneeId);
+          }
+
+          for (const subtask of task.subtasks ?? []) {
+            const subtaskAssigneeId = String(subtask.assigneeId || "").trim();
+
+            if (subtaskAssigneeId) {
+              memberIdSet.add(subtaskAssigneeId);
+            }
+          }
+        }
+      }
+
+      for (const risk of project?.risks ?? []) {
+        const ownerUserId = String(risk.ownerUserId || "").trim();
+        const createdByUserId = String(risk.createdByUserId || "").trim();
+        const resolvedByUserId = String(risk.resolvedByUserId || "").trim();
+        const closedByUserId = String(risk.closedByUserId || "").trim();
+
+        if (ownerUserId) {
+          memberIdSet.add(ownerUserId);
+        }
+        if (createdByUserId) {
+          memberIdSet.add(createdByUserId);
+        }
+        if (resolvedByUserId) {
+          memberIdSet.add(resolvedByUserId);
+        }
+        if (closedByUserId) {
+          memberIdSet.add(closedByUserId);
+        }
+
+        for (const comment of risk.comments ?? []) {
+          const authorUserId = String(comment.authorUserId || "").trim();
+
+          if (authorUserId) {
+            memberIdSet.add(authorUserId);
+          }
+        }
+      }
+
+      const resolved = baseMembers.map((member) => {
+        const memberId = String(member.id || "").trim();
+        const memberName = String(member.name || "").trim();
+        const normalizedMemberName = normalizeMemberName(memberName);
+        const memberAvatar = String(member.avatarUrl || "").trim();
+        const memberInitials = String(member.initials || "").trim();
+        let profile = memberId
+          ? memberProfileIndexes.byAnyId.get(memberId)
+          : undefined;
+
+        if (
+          profile &&
+          normalizedMemberName &&
+          profile.normalizedName &&
+          profile.normalizedName !== normalizedMemberName &&
+          !profile.normalizedName.includes(normalizedMemberName) &&
+          !normalizedMemberName.includes(profile.normalizedName)
+        ) {
+          profile = undefined;
+        }
+
+        if (!profile && normalizedMemberName) {
+          profile = memberProfileIndexes.byName.get(normalizedMemberName);
+        }
+
+        const shouldUseProfileAvatar =
+          Boolean(profile?.avatarUrl) &&
+          (!memberAvatar ||
+            (Boolean(currentUserAvatarUrl) &&
+              memberAvatar === currentUserAvatarUrl &&
+              Boolean(memberId) &&
+              memberId !== currentUserId));
+
+        return {
+          ...member,
+          id: memberId || profile?.userId || profile?.workspaceMemberId || member.id,
+          name: memberName || profile?.name || "Project member",
+          initials:
+            memberInitials ||
+            profile?.initials ||
+            getInitialsFromName(memberName || profile?.name),
+          avatarUrl: shouldUseProfileAvatar
+            ? profile?.avatarUrl
+            : member.avatarUrl || profile?.avatarUrl,
+        };
+      });
+
+      const existingIds = new Set(
+        resolved.map((member) => String(member.id || "").trim()).filter(Boolean),
+      );
+
+      for (const memberId of memberIdSet) {
+        if (existingIds.has(memberId)) {
+          continue;
+        }
+
+        const profile = memberProfileIndexes.byAnyId.get(memberId);
+
+        if (!profile) {
+          continue;
+        }
+
+        const canonicalId = profile.userId || profile.workspaceMemberId || memberId;
+
+        if (existingIds.has(canonicalId)) {
+          continue;
+        }
+
+        existingIds.add(canonicalId);
+        resolved.push({
+          id: canonicalId,
+          name: profile.name || "Project member",
+          initials: profile.initials || getInitialsFromName(profile.name),
+          role: "Project member",
+          avatarUrl: profile.avatarUrl,
+          active: true,
+          teamIds:
+            (project?.teams ?? [])
+              .filter((team) =>
+                (team.memberIds ?? []).some(
+                  (teamMemberId) =>
+                    String(teamMemberId || "").trim() === memberId ||
+                    String(teamMemberId || "").trim() === profile.userId ||
+                    String(teamMemberId || "").trim() === profile.workspaceMemberId,
+                ),
+              )
+              .map((team) => team.id) ?? [],
+        });
+      }
+
+      return resolved;
+    },
+    [
+      currentUserAvatarUrl,
+      currentUserId,
+      memberProfileIndexes.byAnyId,
+      memberProfileIndexes.byName,
+      project?.members,
+      project?.risks,
+      project?.teams,
+      project?.workflows,
+    ],
+  );
+
   if (!project) {
     return (
       <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4">
@@ -525,7 +866,7 @@ export default function ProjectOverview({
     return teamMatches && pipelineMatches;
   });
 
-  const visibleMembers = project.members.filter((member) =>
+  const visibleMembers = resolvedMembers.filter((member) =>
     member.teamIds.some((teamId) =>
       scopedTeams.some((team) => team.id === teamId),
     ),
@@ -667,6 +1008,11 @@ export default function ProjectOverview({
   };
 
   const handleArchiveProject = async () => {
+    if (!canArchiveProjects) {
+      toast("Only workspace owners/admins can archive projects.");
+      return;
+    }
+
     if (!workspaceId) {
       toast("Open this project from a workspace to archive it.");
       return;
@@ -800,12 +1146,22 @@ export default function ProjectOverview({
   };
 
   const openCreateWorkflow = () => {
+    if (!canCreateWorkflows) {
+      toast("You do not have permission to create workflows in this workspace.");
+      return;
+    }
+
     setWorkflowSheetState({
       mode: "create",
     });
   };
 
   const openEditWorkflow = (workflowId: string) => {
+    if (!canCreateWorkflows) {
+      toast("You do not have permission to edit workflows in this workspace.");
+      return;
+    }
+
     setWorkflowSheetState({ mode: "edit", workflowId });
   };
 
@@ -1047,12 +1403,24 @@ export default function ProjectOverview({
   };
 
   const handleWorkflowSubmit = (values: ProjectWorkflowEditorValues) => {
+    if (!canCreateWorkflows) {
+      toast("You do not have permission to manage workflows in this workspace.");
+      return;
+    }
+
     const payload = {
       name: values.name.trim(),
+      teamId: values.teamId,
+      pipelineId: selectedPipeline?.id,
     };
 
     if (!payload.name) {
       toast("Workflow name is required.");
+      return;
+    }
+
+    if (!payload.teamId) {
+      toast("Workflow team is required.");
       return;
     }
 
@@ -1162,6 +1530,11 @@ export default function ProjectOverview({
     workflowId: string,
     workflowName?: string,
   ) => {
+    if (!canCreateWorkflows) {
+      toast("You do not have permission to manage workflows in this workspace.");
+      return;
+    }
+
     if (!workspaceId) {
       toast("Open this project from a workspace to manage workflows.");
       return;
@@ -1449,6 +1822,8 @@ export default function ProjectOverview({
               dueWindow={scopedDueWindow}
               onArchiveProject={handleArchiveProject}
               archivePending={updateWorkspaceProjectMutation.isPending}
+              canInviteCollaborators={canManageProjectInvites}
+              canArchiveProject={canArchiveProjects}
             />
 
             <ProjectOverviewStatCards
@@ -1477,8 +1852,9 @@ export default function ProjectOverview({
         {activeTab === "overview" ? (
           <>
             <ProjectOverviewWorkflowTable
+              projectId={projectId}
               workflows={overviewWorkflows}
-              members={project.members}
+              members={resolvedMembers}
               teams={project.teams}
               selectedPipeline={selectedPipeline}
               selectedTeamId={teamFilter}
@@ -1506,6 +1882,7 @@ export default function ProjectOverview({
               onCreateSubtask={openCreateSubtask}
               onWorkflowAction={handleWorkflowAction}
               onTaskAction={handleTaskAction}
+              canManageWorkflowActions={canCreateWorkflows}
             />
 
             <div className="grid gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
@@ -1521,11 +1898,14 @@ export default function ProjectOverview({
                 selectedPipelineId={selectedPipeline?.id}
                 selectedTeamId={teamFilter}
                 fallbackActivities={visibleActivities}
+                members={resolvedMembers}
               />
             </div>
           </>
         ) : activeTab === "workflows" ? (
           <ProjectWorkflowsTab
+            projectId={projectId}
+            initialWorkflowId={initialWorkflowId}
             workflows={workflowsTabWorkflows}
             loading={workflowsTabListQuery.isLoading || workflowsTabListQuery.isFetching}
             archivedWorkflows={workflowsTabArchivedWorkflows}
@@ -1538,7 +1918,7 @@ export default function ProjectOverview({
                 workflowsTabListQuery.data?.data?.pagination?.hasNextPage ? current + 1 : current,
               )
             }
-            members={project.members}
+            members={resolvedMembers}
             teams={project.teams}
             selectedPipeline={selectedPipeline}
             selectedTeamId={teamFilter}
@@ -1556,12 +1936,14 @@ export default function ProjectOverview({
             onWorkflowAction={handleWorkflowAction}
             onTaskAction={handleTaskAction}
             onSubtaskAction={handleSubtaskAction}
+            canManageWorkflowActions={canCreateWorkflows}
           />
         ) : activeTab === "dos" ? (
           <ProjectDosTab
             projectId={projectId}
             project={project}
-            members={project.members}
+            initialTaskId={initialTaskId}
+            members={resolvedMembers}
             teams={project.teams}
             selectedPipeline={selectedPipeline}
             selectedTeamId={teamFilter}
@@ -1579,29 +1961,30 @@ export default function ProjectOverview({
             onDeleteCustomSection={handleDeleteCustomSection}
           />
         ) : activeTab === "files-assets" ? (
-          <ProjectFilesAssetsTab project={project} members={project.members} />
+          <ProjectFilesAssetsTab project={project} members={resolvedMembers} />
         ) : activeTab === "risks-issues" ? (
           <ProjectRisksIssuesTab
             workspaceId={workspaceId}
             projectId={projectId}
+            initialRiskId={initialRiskId}
             view={riskView}
             onViewChange={setRiskView}
             selectedPipeline={selectedPipeline}
             selectedTeamId={teamFilter}
             onTeamChange={setTeamFilter}
             teams={project.teams}
-            members={project.members}
+            members={resolvedMembers}
             onProjectRecordSynced={handleRiskRecordSynced}
           />
         ) : activeTab === "secrets" ? (
           <ProjectSecretsTab
             workspaceId={workspaceId}
             projectId={projectId}
-            members={project.members}
+            members={resolvedMembers}
             teams={project.teams}
           />
         ) : activeTab === "agents-automation" ? (
-          <ProjectAgentsAutomationTab project={project} />
+          <ProjectAgentsAutomationTab project={project} members={resolvedMembers} />
         ) : (
           <ProjectOverviewPlaceholder kind="coming-soon" label="coming soon" />
         )}
@@ -1612,12 +1995,21 @@ export default function ProjectOverview({
           key={`workflow-${workflowSheetState.mode}-${workflowSheetState.workflowId ?? "new"}`}
           open
           mode={workflowSheetState.mode}
+          teams={project.teams}
           initialValues={
             workflowSheetState.mode === "edit" && workflowForSheet
               ? {
                   name: workflowForSheet.name,
+                  teamId: workflowForSheet.teamId,
                 }
-              : workflowSheetState.defaults
+              : {
+                  teamId:
+                    workflowSheetState.defaults?.teamId ??
+                    selectedTeam?.id ??
+                    project.teams[0]?.id ??
+                    "",
+                  ...workflowSheetState.defaults,
+                }
           }
           onOpenChange={(open) => {
             if (!open) {
@@ -1634,7 +2026,7 @@ export default function ProjectOverview({
           open
           mode={taskSheetState.mode}
           workflowName={taskSheetWorkflow.name}
-          members={project.members}
+          members={resolvedMembers}
           teams={project.teams}
           pipelines={project.pipelines}
           sections={project.customSections ?? []}

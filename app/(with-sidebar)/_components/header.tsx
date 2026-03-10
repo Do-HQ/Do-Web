@@ -15,6 +15,7 @@ import { ROUTES } from "@/utils/constants";
 
 const routeTitleMap: Record<string, string> = {
   [ROUTES.DASHBOARD]: "Dashboard",
+  [ROUTES.CALENDAR]: "Calendar",
   [ROUTES.ASK_SQUIRCLE]: "Ask Squircle",
   [ROUTES.SPACES]: "Spaces",
   [ROUTES.SPACES_TEAM_CALL]: "Team Call",
@@ -42,7 +43,7 @@ const Header = () => {
   }, [pathname]);
 
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2">
+    <header className="bg-background/92 sticky top-0 z-40 flex h-14 shrink-0 items-center gap-2 border-b backdrop-blur supports-[backdrop-filter]:bg-background/80">
       <div className="flex flex-1 items-center gap-2 px-3">
         <SidebarTrigger />
         <SidebarSeparator

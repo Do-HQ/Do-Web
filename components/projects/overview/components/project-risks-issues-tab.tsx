@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -11,6 +11,8 @@ import {
   Plus,
   Send,
   ShieldAlert,
+  Star,
+  StarOff,
   TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -30,10 +32,12 @@ import {
   unsubscribeProjectRiskComments,
 } from "@/lib/realtime/project-risk-socket";
 import { cn } from "@/lib/utils";
+import { useFavoritesStore } from "@/stores";
 import useAuthStore from "@/stores/auth";
 import { WorkspaceProjectRecord } from "@/types/project";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +53,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -81,6 +91,7 @@ import LoaderComponent from "@/components/shared/loader";
 type ProjectRisksIssuesTabProps = {
   workspaceId: string | null;
   projectId: string;
+  initialRiskId?: string;
   view: ProjectRiskKind;
   onViewChange: (value: ProjectRiskKind) => void;
   selectedPipeline: ProjectPipelineSummary | null;
@@ -183,6 +194,7 @@ function toRiskDraft(item: ProjectRisk): RiskDraft {
 export function ProjectRisksIssuesTab({
   workspaceId,
   projectId,
+  initialRiskId,
   view,
   onViewChange,
   selectedPipeline,
@@ -192,6 +204,8 @@ export function ProjectRisksIssuesTab({
   members,
   onProjectRecordSynced,
 }: ProjectRisksIssuesTabProps) {
+  const favorites = useFavoritesStore((state) => state.favorites);
+  const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
   const { user } = useAuthStore();
   const { resolvedTheme } = useTheme();
   const queryClient = useQueryClient();
@@ -219,6 +233,7 @@ export function ProjectRisksIssuesTab({
   const [commentDraftMarkup, setCommentDraftMarkup] = useState("");
   const [commentDraftPlain, setCommentDraftPlain] = useState("");
   const [commentMentions, setCommentMentions] = useState<MentionItem[]>([]);
+  const autoOpenedRiskRef = useRef(false);
 
   const risksQuery = useWorkspaceProjectRisks(
     workspaceId ?? "",
@@ -293,6 +308,10 @@ export function ProjectRisksIssuesTab({
     () => new Map(members.map((member) => [member.id, member.name])),
     [members],
   );
+  const memberById = useMemo(
+    () => new Map(members.map((member) => [String(member.id), member])),
+    [members],
+  );
   const mentionListBg =
     resolvedTheme === "dark" ? "#000000" : "hsl(var(--popover))";
   const mentionListText =
@@ -318,6 +337,21 @@ export function ProjectRisksIssuesTab({
     ],
     [currentUserId, members, teams],
   );
+  const favoriteKeySet = useMemo(
+    () => new Set(favorites.map((item) => item.key)),
+    [favorites],
+  );
+
+  const toggleRiskFavorite = (item: ProjectRisk) => {
+    const favoriteType = item.kind === "issue" ? "issue" : "risk";
+    toggleFavorite({
+      key: `${favoriteType}:${projectId}:${item.id}`,
+      type: favoriteType,
+      label: item.title,
+      subtitle: item.kind === "issue" ? "Issue" : "Risk",
+      href: `/projects/${projectId}?tab=risks-issues&riskId=${encodeURIComponent(item.id)}`,
+    });
+  };
 
   const handleCommentInputChange: OnChangeHandlerFunc = (
     _event,
@@ -480,11 +514,11 @@ export function ProjectRisksIssuesTab({
     };
   }, [detailRiskId, projectId, queryClient, workspaceId]);
 
-  const resetCommentDraft = () => {
+  const resetCommentDraft = useCallback(() => {
     setCommentDraftMarkup("");
     setCommentDraftPlain("");
     setCommentMentions([]);
-  };
+  }, []);
 
   const openCreate = () => {
     setDialogMode("create");
@@ -506,6 +540,26 @@ export function ProjectRisksIssuesTab({
     resetCommentDraft();
     setEditorOpen(true);
   };
+
+  useEffect(() => {
+    if (!initialRiskId || autoOpenedRiskRef.current || editorOpen) {
+      return;
+    }
+
+    const target = visibleItems.find((item) => item.id === initialRiskId);
+    if (!target) {
+      return;
+    }
+
+    autoOpenedRiskRef.current = true;
+    if (target.kind !== view) {
+      onViewChange(target.kind);
+    }
+    setDialogMode("view");
+    setDraft(toRiskDraft(target));
+    resetCommentDraft();
+    setEditorOpen(true);
+  }, [editorOpen, initialRiskId, onViewChange, resetCommentDraft, view, visibleItems]);
 
   const handleSave = async () => {
     if (dialogMode === "view") {
@@ -996,6 +1050,17 @@ export function ProjectRisksIssuesTab({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => toggleRiskFavorite(item)}>
+                          {favoriteKeySet.has(`${item.kind}:${projectId}:${item.id}`) ? (
+                            <StarOff className="size-3.5" />
+                          ) : (
+                            <Star className="size-3.5" />
+                          )}
+                          {favoriteKeySet.has(`${item.kind}:${projectId}:${item.id}`)
+                            ? "Remove favorite"
+                            : "Add to favorites"}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => openDetails(item)}>
                           Open details
                         </DropdownMenuItem>
@@ -1044,9 +1109,18 @@ export function ProjectRisksIssuesTab({
             })}
           </div>
         ) : (
-          <div className="text-muted-foreground px-4 py-4 text-[12px] leading-5">
-            No {view === "risk" ? "risks" : "issues"} match the current search
-            and filters.
+          <div className="px-4 py-4">
+            <Empty className="border-0 p-0 md:p-0">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <TriangleAlert className="size-4 text-primary/85" />
+                </EmptyMedia>
+                <EmptyDescription className="text-[12px] leading-5">
+                  No {view === "risk" ? "risks" : "issues"} match the current
+                  search and filters.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           </div>
         )}
 
@@ -1311,47 +1385,76 @@ export function ProjectRisksIssuesTab({
                       <LoaderComponent />
                     </div>
                   ) : detailComments.length ? (
-                    detailComments.map((comment) => (
-                      <div
-                        key={comment.id}
-                        className="rounded-md border border-border/25 bg-background/70 px-2.5 py-2"
-                      >
-                        <div className="mb-1 flex items-center gap-2 text-[11px]">
-                          <Badge variant="outline" className="font-medium">
-                            {comment.authorInitials}
-                          </Badge>
-                          <span className="font-medium">
-                            {comment.authorName ||
-                              ownerLabelMap.get(comment.authorUserId) ||
-                              "Project member"}
-                          </span>
-                          <span className="text-muted-foreground">
-                            {new Date(comment.createdAt).toLocaleString()}
-                          </span>
-                        </div>
-                        <p className="text-[12px] leading-5">
-                          {comment.message}
-                        </p>
-                        {Array.isArray(comment.mentions) &&
-                        comment.mentions.length ? (
-                          <div className="mt-1.5 flex flex-wrap gap-1">
-                            {comment.mentions.map((mention) => (
-                              <Badge
-                                key={`${comment.id}-${mention.kind}-${mention.id}`}
-                                variant="outline"
-                                className="h-5 rounded-md px-1.5 text-[10px]"
-                              >
-                                @{formatMentionLabel(mention.label, mention.id)}
-                              </Badge>
-                            ))}
+                    detailComments.map((comment) => {
+                      const commentAuthor = memberById.get(
+                        String(comment.authorUserId || ""),
+                      );
+                      const commentAuthorName =
+                        comment.authorName ||
+                        commentAuthor?.name ||
+                        ownerLabelMap.get(comment.authorUserId) ||
+                        "Project member";
+                      const commentAuthorInitials =
+                        comment.authorInitials || commentAuthor?.initials || "U";
+                      const commentAuthorAvatar =
+                        commentAuthor?.avatarUrl || comment.authorAvatarUrl || "";
+
+                      return (
+                        <div
+                          key={comment.id}
+                          className="rounded-md border border-border/25 bg-background/70 px-2.5 py-2"
+                        >
+                          <div className="mb-1 flex items-center gap-2 text-[11px]">
+                            <Avatar
+                              size="sm"
+                              userCard={{
+                                name: commentAuthorName,
+                                role: commentAuthor?.role,
+                                status: new Date(comment.createdAt).toLocaleString(),
+                              }}
+                            >
+                              <AvatarImage
+                                src={commentAuthorAvatar}
+                                alt={commentAuthorName}
+                              />
+                              <AvatarFallback>{commentAuthorInitials}</AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium">{commentAuthorName}</span>
+                            <span className="text-muted-foreground">
+                              {new Date(comment.createdAt).toLocaleString()}
+                            </span>
                           </div>
-                        ) : null}
-                      </div>
-                    ))
+                          <p className="text-[12px] leading-5">
+                            {comment.message}
+                          </p>
+                          {Array.isArray(comment.mentions) &&
+                          comment.mentions.length ? (
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              {comment.mentions.map((mention) => (
+                                <Badge
+                                  key={`${comment.id}-${mention.kind}-${mention.id}`}
+                                  variant="outline"
+                                  className="h-5 rounded-md px-1.5 text-[10px]"
+                                >
+                                  @{formatMentionLabel(mention.label, mention.id)}
+                                </Badge>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })
                   ) : (
-                    <div className="text-muted-foreground text-[12px]">
-                      No comments yet.
-                    </div>
+                    <Empty className="border-0 p-0 md:p-0">
+                      <EmptyHeader>
+                        <EmptyMedia variant="icon" className="size-8">
+                          <MessageSquare className="size-3.5 text-primary/85" />
+                        </EmptyMedia>
+                        <EmptyDescription className="text-[12px]">
+                          No comments yet.
+                        </EmptyDescription>
+                      </EmptyHeader>
+                    </Empty>
                   )}
                 </div>
 

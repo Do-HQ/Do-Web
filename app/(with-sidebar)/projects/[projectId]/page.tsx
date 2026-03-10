@@ -4,6 +4,8 @@ type SearchParams = {
   pipeline?: string | string[];
   tab?: string | string[];
   workflow?: string | string[];
+  task?: string | string[];
+  riskId?: string | string[];
 };
 
 type ProjectOverviewPageProps = {
@@ -35,13 +37,20 @@ export default async function ProjectOverviewPage({
       : undefined;
   const workflowValue = resolvedSearchParams?.workflow;
   const workflowId = Array.isArray(workflowValue) ? workflowValue[0] : workflowValue;
+  const taskValue = resolvedSearchParams?.task;
+  const taskId = Array.isArray(taskValue) ? taskValue[0] : taskValue;
+  const riskValue = resolvedSearchParams?.riskId;
+  const riskId = Array.isArray(riskValue) ? riskValue[0] : riskValue;
 
   return (
     <ProjectOverview
-      key={`${resolvedParams.projectId}:${pipelineId ?? "base"}:${normalizedTab ?? "overview"}:${workflowId ?? "none"}`}
+      key={`${resolvedParams.projectId}:${pipelineId ?? "base"}:${normalizedTab ?? "overview"}:${workflowId ?? "none"}:${taskId ?? "none"}:${riskId ?? "none"}`}
       projectId={resolvedParams.projectId}
       pipelineId={pipelineId}
       initialTab={normalizedTab}
+      initialWorkflowId={workflowId}
+      initialTaskId={taskId}
+      initialRiskId={riskId}
     />
   );
 }

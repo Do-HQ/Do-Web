@@ -1,7 +1,14 @@
 import React, { useMemo, useState } from "react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { ArrowUpDown, CircleOff, Ellipsis, MailPlus, Send } from "lucide-react";
+import {
+  ArrowUpDown,
+  CircleOff,
+  Ellipsis,
+  MailPlus,
+  SearchX,
+  Send,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +25,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 import {
   flexRender,
   getCoreRowModel,
@@ -39,6 +52,7 @@ import { PAGE_LIMIT } from "@/utils/constants";
 import { WorkspaceInvite, WorkspaceRole } from "@/types/workspace";
 import dayJs from "@/lib/helpers/dayJs";
 import LoaderComponent from "../shared/loader";
+import { useWorkspacePermissions } from "@/hooks/use-workspace-permissions";
 
 export const columns: ColumnDef<WorkspaceInvite>[] = [
   {
@@ -175,6 +189,7 @@ const SettingsWorkspacePropleInvitesTable = () => {
 
   // Stores
   const { workspaceId } = useWorkspaceStore();
+  const { canInviteWorkspaceMembers } = useWorkspacePermissions();
 
   // Memo
   const queryParams = useMemo(
@@ -227,7 +242,15 @@ const SettingsWorkspacePropleInvitesTable = () => {
           onChange={(event) => setSearch(event.target.value)}
           className="max-w-sm"
         />
-        <Button onClick={handleOpenAddMemberModalAction}>
+        <Button
+          onClick={handleOpenAddMemberModalAction}
+          disabled={!canInviteWorkspaceMembers}
+          title={
+            !canInviteWorkspaceMembers
+              ? "Only workspace owners/admins can send invites."
+              : undefined
+          }
+        >
           <Send />
           Invite a new member
         </Button>
@@ -273,9 +296,18 @@ const SettingsWorkspacePropleInvitesTable = () => {
               <TableRow>
                 <TableCell
                   colSpan={columns.length}
-                  className="h-24 text-center"
+                  className="h-24"
                 >
-                  No results.
+                  <Empty className="border-0 p-0 md:p-0">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon" className="size-8">
+                        <SearchX className="size-3.5 text-primary/85" />
+                      </EmptyMedia>
+                      <EmptyDescription className="text-[12px]">
+                        No results.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
                 </TableCell>
               </TableRow>
             )}

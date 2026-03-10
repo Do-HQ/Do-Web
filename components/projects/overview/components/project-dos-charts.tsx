@@ -2,11 +2,19 @@ import { useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { GanttChartSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { FlattenedProjectTask } from "../types";
 import { getSubtaskProgressLabel, getTaskStatusLabel } from "../utils";
+import { ProjectInfoTip } from "./project-info-tip";
 
 type ProjectDosChartsProps = {
   tasks: FlattenedProjectTask[];
@@ -223,7 +231,10 @@ export function ProjectDosCharts({ tasks, onEditTask }: ProjectDosChartsProps) {
       <div className="border-b border-border/20 px-3 py-2.5">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <div className="text-[13px] font-semibold">Task timeline</div>
+            <div className="flex items-center gap-1.5">
+              <div className="text-[13px] font-semibold">Task timeline</div>
+              <ProjectInfoTip content="Timeline uses each task's start and due dates. If start date is missing, a fallback window is estimated from status and subtask count." />
+            </div>
             <div className="text-muted-foreground text-[12px] leading-5">
               Gantt-style timeline built from task start and due dates.
             </div>
@@ -254,6 +265,10 @@ export function ProjectDosCharts({ tasks, onEditTask }: ProjectDosChartsProps) {
             <Badge variant="outline" className="text-[11px]">
               {timeline.windowLabel}
             </Badge>
+            <ProjectInfoTip
+              content="Window range shows the earliest start and latest due date among currently scoped tasks."
+              align="end"
+            />
           </div>
         </div>
       </div>
@@ -342,8 +357,17 @@ export function ProjectDosCharts({ tasks, onEditTask }: ProjectDosChartsProps) {
           <ScrollBar orientation="horizontal" />
         </ScrollArea>
       ) : (
-        <div className="text-muted-foreground px-4 py-4 text-[12px] leading-5">
-          No task timeline data yet.
+        <div className="px-4 py-4">
+          <Empty className="border-0 p-0 md:p-0">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <GanttChartSquare className="size-4 text-primary/85" />
+              </EmptyMedia>
+              <EmptyDescription className="text-[12px]">
+                No task timeline data yet.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         </div>
       )}
     </section>

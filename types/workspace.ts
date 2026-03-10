@@ -15,6 +15,19 @@ export interface WorkspaceGovernanceSettings {
   allowMembersCreateWorkflows: boolean;
   restrictInvitesToAdmins: boolean;
   requireJoinRequestApproval: boolean;
+  enableMessageExpiry: boolean;
+  messageRetentionDays: number;
+}
+
+export interface WorkspaceWorkSchedule {
+  enabled: boolean;
+  timezone: string;
+  startTime: string;
+  closeTime: string;
+  lastDigest?: {
+    startSentOn?: string;
+    closeSentOn?: string;
+  };
 }
 
 export interface WorkspaceType {
@@ -30,6 +43,7 @@ export interface WorkspaceType {
   allowedDomains?: string[];
   flowDefaults?: WorkspaceFlowDefaults;
   governance?: WorkspaceGovernanceSettings;
+  workSchedule?: WorkspaceWorkSchedule;
 }
 
 export interface JoinWorkspaceRequestBody {
@@ -54,6 +68,7 @@ export interface WorkspaceSettingsUpdateBody {
   allowedDomains?: string;
   flowDefaults?: Partial<WorkspaceFlowDefaults>;
   governance?: Partial<WorkspaceGovernanceSettings>;
+  workSchedule?: Partial<WorkspaceWorkSchedule>;
 }
 
 export interface WorkspaceInviteRequestBody {

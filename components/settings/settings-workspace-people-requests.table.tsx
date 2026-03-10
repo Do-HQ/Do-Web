@@ -4,6 +4,7 @@ import dayjs from "dayjs";
 import {
   CheckCheck,
   Ellipsis,
+  SearchX,
   XCircle,
 } from "lucide-react";
 import {
@@ -20,6 +21,7 @@ import {
 import { toast } from "sonner";
 
 import useWorkspace from "@/hooks/use-workspace";
+import { useWorkspacePermissions } from "@/hooks/use-workspace-permissions";
 import { useDebounce } from "@/hooks/use-debounce";
 import useWorkspaceStore from "@/stores/workspace";
 import { PAGE_LIMIT } from "@/utils/constants";
@@ -28,6 +30,12 @@ import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,6 +65,7 @@ const SettingsWorkspacePropleRequestsTable = () => {
 
   const queryClient = useQueryClient();
   const { workspaceId } = useWorkspaceStore();
+  const { canModerateJoinRequests } = useWorkspacePermissions();
   const debouncedSearch = useDebounce(search, 500);
 
   const queryParams = useMemo(
@@ -126,7 +135,7 @@ const SettingsWorkspacePropleRequestsTable = () => {
   }, [workspaceJoinRequestsData]);
 
   const handleApprove = React.useCallback((requestId: string) => {
-    if (!workspaceId || isApproving || isDeclining) {
+    if (!workspaceId || isApproving || isDeclining || !canModerateJoinRequests) {
       return;
     }
 
@@ -140,10 +149,10 @@ const SettingsWorkspacePropleRequestsTable = () => {
       success: (data) => data?.data?.message || "Join request accepted",
       error: "Could not accept join request",
     });
-  }, [approveJoinRequest, isApproving, isDeclining, workspaceId]);
+  }, [approveJoinRequest, canModerateJoinRequests, isApproving, isDeclining, workspaceId]);
 
   const handleDecline = React.useCallback((requestId: string) => {
-    if (!workspaceId || isApproving || isDeclining) {
+    if (!workspaceId || isApproving || isDeclining || !canModerateJoinRequests) {
       return;
     }
 
@@ -157,7 +166,7 @@ const SettingsWorkspacePropleRequestsTable = () => {
       success: (data) => data?.data?.message || "Join request declined",
       error: "Could not decline join request",
     });
-  }, [declineJoinRequest, isApproving, isDeclining, workspaceId]);
+  }, [canModerateJoinRequests, declineJoinRequest, isApproving, isDeclining, workspaceId]);
 
   const columns = useMemo<ColumnDef<JoinRequestRow>[]>(
     () => [
@@ -210,13 +219,25 @@ const SettingsWorkspacePropleRequestsTable = () => {
           return (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" disabled={isApproving || isDeclining}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={isApproving || isDeclining || !canModerateJoinRequests}
+                  title={
+                    !canModerateJoinRequests
+                      ? "Only workspace owners/admins can moderate join requests."
+                      : undefined
+                  }
+                >
                   <Ellipsis />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuGroup>
-                  <DropdownMenuItem onClick={() => handleApprove(request._id)}>
+                  <DropdownMenuItem
+                    disabled={!canModerateJoinRequests}
+                    onClick={() => handleApprove(request._id)}
+                  >
                     <CheckCheck />
                     Accept Join Request
                   </DropdownMenuItem>
@@ -225,6 +246,7 @@ const SettingsWorkspacePropleRequestsTable = () => {
                 <DropdownMenuGroup>
                   <DropdownMenuItem
                     variant="destructive"
+                    disabled={!canModerateJoinRequests}
                     onClick={() => handleDecline(request._id)}
                   >
                     <XCircle />
@@ -237,7 +259,7 @@ const SettingsWorkspacePropleRequestsTable = () => {
         },
       },
     ],
-    [handleApprove, handleDecline, isApproving, isDeclining],
+    [canModerateJoinRequests, handleApprove, handleDecline, isApproving, isDeclining],
   );
 
   const table = useReactTable({
@@ -317,8 +339,17 @@ const SettingsWorkspacePropleRequestsTable = () => {
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  No pending join requests.
+                <TableCell colSpan={columns.length} className="h-24">
+                  <Empty className="border-0 p-0 md:p-0">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon" className="size-8">
+                        <SearchX className="size-3.5 text-primary/85" />
+                      </EmptyMedia>
+                      <EmptyDescription className="text-[12px]">
+                        No pending join requests.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
                 </TableCell>
               </TableRow>
             )}

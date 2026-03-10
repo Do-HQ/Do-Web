@@ -19,11 +19,19 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { TeamMemberRole } from "@/types/team";
 import useWorkspace from "@/hooks/use-workspace";
 import useWorkspaceStore from "@/stores/workspace";
+import { SearchX } from "lucide-react";
+import LoaderComponent from "@/components/shared/loader";
 
 export type TeamMemberInviteValue = {
   members: Array<{
@@ -38,6 +46,7 @@ interface Props {
   teamName?: string;
   existingMemberIds: string[];
   loading?: boolean;
+  disabled?: boolean;
   onSubmit: (payload: TeamMemberInviteValue) => Promise<void>;
 }
 
@@ -47,6 +56,7 @@ type AvailableMember = {
   email: string;
   searchText: string;
   initials: string;
+  avatarUrl: string;
   roleLabel: string;
   teamLabel: string;
 };
@@ -57,6 +67,7 @@ const SettingsWorkspaceTeamsAddMemberModal = ({
   teamName,
   existingMemberIds,
   loading = false,
+  disabled = false,
   onSubmit,
 }: Props) => {
   const { workspaceId } = useWorkspaceStore();
@@ -90,7 +101,8 @@ const SettingsWorkspaceTeamsAddMemberModal = ({
 
         const label =
           [
-            user?.firstName ?? (user as { firstname?: string } | null)?.firstname,
+            user?.firstName ??
+              (user as { firstname?: string } | null)?.firstname,
             user?.lastName ?? (user as { lastnale?: string } | null)?.lastnale,
           ]
             .filter(Boolean)
@@ -100,12 +112,16 @@ const SettingsWorkspaceTeamsAddMemberModal = ({
           "Unknown member";
 
         const email = String(user?.email || "");
-        const searchText = [label, email].filter(Boolean).join(" ").toLowerCase();
+        const searchText = [label, email]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
         const initials = label
           .split(" ")
           .slice(0, 2)
           .map((chunk) => chunk[0]?.toUpperCase())
           .join("");
+        const avatarUrl = String(user?.profilePhoto?.url || "");
         const roleLabel = (Array.isArray(member?.roles) ? member.roles : [])
           .map((role) =>
             String((role && typeof role === "object" ? role.name : role) || "")
@@ -126,6 +142,7 @@ const SettingsWorkspaceTeamsAddMemberModal = ({
           email,
           searchText,
           initials,
+          avatarUrl,
           roleLabel: roleLabel || "Workspace member",
           teamLabel: teamLabel || "No active team",
         };
@@ -161,7 +178,7 @@ const SettingsWorkspaceTeamsAddMemberModal = ({
   };
 
   const handleSubmit = async () => {
-    if (!canSubmit || loading) {
+    if (!canSubmit || loading || disabled) {
       return;
     }
 
@@ -200,12 +217,17 @@ const SettingsWorkspaceTeamsAddMemberModal = ({
               label="Search workspace members"
               placeholder="Filter by name or email"
               value={search}
+              disabled={disabled}
               onChange={(event) => setSearch(event.target.value)}
             />
 
             <div className="flex flex-col gap-2">
               <FieldLabel>Role for selected members</FieldLabel>
-              <Select value={role} onValueChange={(value) => setRole(value as TeamMemberRole)}>
+              <Select
+                disabled={disabled}
+                value={role}
+                onValueChange={(value) => setRole(value as TeamMemberRole)}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Select role" />
                 </SelectTrigger>
@@ -227,6 +249,7 @@ const SettingsWorkspaceTeamsAddMemberModal = ({
                         className="flex cursor-pointer items-center gap-3 px-3 py-2"
                       >
                         <Checkbox
+                          disabled={disabled}
                           checked={selectedIds.includes(member.id)}
                           onCheckedChange={() => toggleMember(member.id)}
                         />
@@ -242,21 +265,37 @@ const SettingsWorkspaceTeamsAddMemberModal = ({
                               : "Available",
                           }}
                         >
+                          <AvatarImage src={member.avatarUrl} alt={member.label} />
                           <AvatarFallback>{member.initials}</AvatarFallback>
                         </Avatar>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">{member.label}</p>
-                          <p className="text-muted-foreground truncate text-xs">{member.email}</p>
+                          <p className="truncate text-sm font-medium">
+                            {member.label}
+                          </p>
+                          <p className="text-muted-foreground truncate text-xs">
+                            {member.email}
+                          </p>
                         </div>
                       </label>
                     ))
                   ) : (
-                    <div className="text-muted-foreground px-3 py-6 text-center text-sm">
-                      {workspacePeopleQuery.isFetching
-                        ? "Loading workspace members..."
-                        : allMembersAssigned
-                          ? "All workspace members are already assigned to this team."
-                          : "No available workspace members match this search."}
+                    <div className="px-3 py-6">
+                      <Empty className="border-0 p-0 md:p-0">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon" className="size-8">
+                            <SearchX className="size-3.5 text-primary/85" />
+                          </EmptyMedia>
+                          <EmptyDescription className="text-[12px]">
+                            {workspacePeopleQuery.isFetching ? (
+                              <LoaderComponent />
+                            ) : allMembersAssigned ? (
+                              "All workspace members are already assigned to this team."
+                            ) : (
+                              "No available workspace members match this search."
+                            )}
+                          </EmptyDescription>
+                        </EmptyHeader>
+                      </Empty>
                     </div>
                   )}
                 </div>
@@ -269,7 +308,7 @@ const SettingsWorkspaceTeamsAddMemberModal = ({
               type="button"
               size="sm"
               loading={loading || workspacePeopleQuery.isFetching}
-              disabled={!canSubmit}
+              disabled={!canSubmit || disabled}
               onClick={handleSubmit}
             >
               Add selected members

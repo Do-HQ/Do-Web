@@ -50,6 +50,7 @@ export interface CreateWorkspaceProjectWorkflowRequestBody {
 
 export interface UpdateWorkspaceProjectWorkflowRequestBody {
   name: string;
+  teamId?: string;
 }
 
 export interface CreateWorkspaceProjectTaskRequestBody {
@@ -163,7 +164,115 @@ export type WorkspaceProjectNotificationType =
   | "risk.mentioned"
   | "issue.mentioned"
   | "team.mentioned"
-  | "workflow.team.assigned";
+  | "workflow.team.assigned"
+  | "agent.standup.prompt"
+  | "agent.overdue.reminder"
+  | "agent.manager.digest"
+  | "task.deadline.reminder"
+  | "subtask.deadline.reminder"
+  | "meeting.reminder";
+
+export type WorkspaceProjectAgentRunType =
+  | "standup"
+  | "overdue"
+  | "digest"
+  | "deadline"
+  | "meeting";
+
+export interface WorkspaceProjectAutomationMeeting {
+  id: string;
+  title: string;
+  description: string;
+  startAt: string | null;
+  endAt: string | null;
+  location: string;
+  memberUserIds: string[];
+  teamIds: string[];
+  archived: boolean;
+  createdByUserId: string;
+}
+
+export interface WorkspaceProjectAgentConfig {
+  id: string;
+  workspaceId: string;
+  projectId: string;
+  enabled: boolean;
+  timezone: string;
+  standup: {
+    enabled: boolean;
+    hour: number;
+    minute: number;
+    promptTemplate: string;
+    roomId: string;
+    lastRunAt: string | null;
+  };
+  overdueReminder: {
+    enabled: boolean;
+    intervalMinutes: number;
+    includeUnassigned: boolean;
+    dedupeWindowMinutes: number;
+    roomId: string;
+    lastRunAt: string | null;
+  };
+  managerDigest: {
+    enabled: boolean;
+    hour: number;
+    minute: number;
+    managerUserIds: string[];
+    roomId: string;
+    lastRunAt: string | null;
+  };
+  taskReminder: {
+    enabled: boolean;
+    intervalMinutes: number;
+    thresholdHours: number;
+    includeSubtasks: boolean;
+    includeTeamFallback: boolean;
+    dedupeWindowMinutes: number;
+    roomId: string;
+    lastRunAt: string | null;
+  };
+  meetingReminder: {
+    enabled: boolean;
+    intervalMinutes: number;
+    reminderMinutes: number;
+    dedupeWindowMinutes: number;
+    roomId: string;
+    lastRunAt: string | null;
+  };
+  meetings: WorkspaceProjectAutomationMeeting[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceProjectAgentStats {
+  totalTasks: number;
+  totalSubtasks?: number;
+  overdueTasks: number;
+  openRisks: number;
+  activeWorkflows: number;
+}
+
+export interface WorkspaceProjectAgentRunRecord {
+  id: string;
+  workspaceId: string;
+  projectId: string;
+  agentId: string;
+  runType: WorkspaceProjectAgentRunType;
+  status: "success" | "skipped" | "failed";
+  summary: string;
+  metrics: Record<string, unknown>;
+  createdEvents: number;
+  createdMessages: number;
+  createdNotifications: number;
+  triggeredBy: {
+    kind: "scheduler" | "manual" | "event";
+    userId: string;
+  };
+  error: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface WorkspaceProjectNotificationRecord {
   id: string;
@@ -205,6 +314,7 @@ export interface WorkspaceProjectEventRecord {
   actorUserId: string;
   actorName: string;
   actorInitials: string;
+  actorAvatarUrl?: string;
   route: string;
   target: WorkspaceProjectEventTarget;
   pipelineId: string;

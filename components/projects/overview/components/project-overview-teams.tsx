@@ -1,10 +1,18 @@
 import {
   Avatar,
   AvatarFallback,
+  AvatarImage,
   AvatarGroup,
   AvatarGroupCount,
 } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
+import { UsersRound } from "lucide-react";
 
 import { ProjectMember, ProjectTeamSummary } from "../types";
 
@@ -71,8 +79,15 @@ export function ProjectOverviewTeams({
                           role: member.role,
                           team: team.name,
                           status: member.active ? "Active" : "Offline",
+                          details: [
+                            {
+                              label: "Score",
+                              value: `${Number(member.score || 0)} pts`,
+                            },
+                          ],
                         }}
                       >
+                        <AvatarImage src={member.avatarUrl || ""} alt={member.name} />
                         <AvatarFallback>{member.initials}</AvatarFallback>
                       </Avatar>
                     ))}
@@ -90,8 +105,17 @@ export function ProjectOverviewTeams({
           })}
         </div>
       ) : (
-        <div className="text-muted-foreground border-y py-4 text-[13px] md:text-sm">
-          No teams match the current filters.
+        <div className="border-y py-4">
+          <Empty className="border-0 p-0 md:p-0">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <UsersRound className="size-4 text-primary/85" />
+              </EmptyMedia>
+              <EmptyDescription className="text-[12px] md:text-[13px]">
+                No teams match the current filters.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         </div>
       )}
     </section>

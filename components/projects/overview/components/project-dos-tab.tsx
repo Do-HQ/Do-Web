@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -45,6 +45,7 @@ import { ProjectDosViewSwitcher } from "./project-dos-view-switcher";
 type ProjectDosTabProps = {
   projectId: string;
   project: ProjectOverviewRecord;
+  initialTaskId?: string;
   members: ProjectMember[];
   teams: ProjectTeamSummary[];
   selectedPipeline: ProjectPipelineSummary | null;
@@ -132,6 +133,7 @@ const STATUS_OPTIONS: { value: ProjectDosStatusFilter; label: string }[] = [
 export function ProjectDosTab({
   projectId,
   project,
+  initialTaskId,
   members,
   teams,
   selectedPipeline,
@@ -153,6 +155,7 @@ export function ProjectDosTab({
   const { useWorkspaceProjectTasks } = useWorkspaceProject();
   const [view, setView] = useState<ProjectDosView>("kanban");
   const [statusFilter, setStatusFilter] = useState<ProjectDosStatusFilter>("all");
+  const autoOpenedTaskRef = useRef(false);
 
   const selectedTeam = resolveSelectedTeam(project, selectedTeamId);
 
@@ -186,6 +189,21 @@ export function ProjectDosTab({
   }, [fallbackTasks, statusFilter, taskListQuery.data]);
 
   const visibleTasks = scopedTasks;
+
+  useEffect(() => {
+    if (autoOpenedTaskRef.current || !initialTaskId) {
+      return;
+    }
+
+    const targetTask = visibleTasks.find((task) => task.id === initialTaskId);
+    if (!targetTask) {
+      return;
+    }
+
+    autoOpenedTaskRef.current = true;
+    setView("table");
+    onEditTask(targetTask.workflowId, targetTask.id);
+  }, [initialTaskId, onEditTask, visibleTasks]);
 
   const visibleWorkflowOptions = useMemo(
     () =>
@@ -332,6 +350,7 @@ export function ProjectDosTab({
 
       {view === "table" ? (
         <ProjectDosTable
+          projectId={projectId}
           tasks={visibleTasks}
           members={members}
           teams={teams}

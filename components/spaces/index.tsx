@@ -2,9 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ChevronLeft,
+  ChevronRight,
+  Clock3,
   Building2,
   Bell,
   Menu,
+  MessageSquareText,
   PanelRightClose,
   Phone,
   Plus,
@@ -13,6 +17,7 @@ import {
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,9 +28,16 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 import { cn } from "@/lib/utils";
 import useAuthStore from "@/stores/auth";
 import useWorkspaceStore from "@/stores/workspace";
+import { useFavoritesStore } from "@/stores";
 import useWorkspace from "@/hooks/use-workspace";
 import useWorkspaceSpace from "@/hooks/use-workspace-space";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
@@ -42,7 +54,6 @@ import {
 } from "@/lib/realtime/spaces-socket";
 import CreateChatDialog from "./components/create-chat-dialog";
 import MainChatPanel from "./components/main-chat-panel";
-import PersonalCallWidget from "./components/personal-call-widget";
 import RoomItems from "./components/room-items";
 import TeamCallWidget from "./components/team-call-widget";
 import ThreadPanel from "./components/thread-panel";
@@ -53,27 +64,32 @@ import type {
   ChatAuthor,
   MentionTokenMeta,
   MentionSuggestion,
-  PersonalCallState,
   SpaceUserInfo,
   SpaceMessage,
   SpaceRoom,
   ThreadReply,
   TeamCallWidgetState,
 } from "./types";
-import { clamp, createId, getInitials, isDirectRoom, parseTeamCallWidget } from "./utils";
+import {
+  clamp,
+  createId,
+  getInitials,
+  isDirectRoom,
+  parseTeamCallWidget,
+} from "./utils";
 import type {
   WorkspaceSpaceKeepUpItem,
   WorkspaceSpaceMessageRecord,
   WorkspaceSpaceRoomRecord,
 } from "@/types/space";
+import LoaderComponent from "../shared/loader";
 
 const roomQueryParams = {
-  page: 1,
-  limit: 100,
+  limit: 30,
 } as const;
 
 const messageQueryParams = {
-  limit: 50,
+  limit: 30,
 } as const;
 
 const formatChatTimestamp = (value?: string) => {
@@ -111,7 +127,9 @@ const mentionSlug = (value = "") =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
 
-const normalizeAuthor = (author: WorkspaceSpaceMessageRecord["author"]): ChatAuthor => ({
+const normalizeAuthor = (
+  author: WorkspaceSpaceMessageRecord["author"],
+): ChatAuthor => ({
   id: String(author?.id || ""),
   name: String(author?.name || "Unknown"),
   initials: String(author?.initials || "U"),
@@ -131,6 +149,21 @@ const mapRoomToUi = (room: WorkspaceSpaceRoomRecord): SpaceRoom => ({
   meta: room.meta,
 });
 
+const findProjectRootRoom = (rooms: SpaceRoom[], projectId: string) => {
+  const normalizedProjectId = String(projectId || "").trim();
+  if (!normalizedProjectId) {
+    return null;
+  }
+
+  return (
+    rooms.find(
+      (room) =>
+        room.scope === "project" &&
+        String(room.meta?.projectId || "") === normalizedProjectId,
+    ) || null
+  );
+};
+
 const mapMessageToUi = (
   message: WorkspaceSpaceMessageRecord,
 ): SpaceMessage => ({
@@ -140,6 +173,7 @@ const mapMessageToUi = (
   author: normalizeAuthor(message.author),
   content: String(message.content || ""),
   sentAt: formatChatTimestamp(message.sentAt),
+  sentAtRaw: String(message.sentAt || ""),
   edited: Boolean(message.edited),
   attachments: Array.isArray(message.attachments)
     ? message.attachments.map((attachment) => ({
@@ -158,6 +192,9 @@ const SpacesPage = () => {
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const { workspaceId } = useWorkspaceStore();
+  const setFavoritesWorkspaceScope = useFavoritesStore(
+    (state) => state.setWorkspaceScope,
+  );
   const workspaceHook = useWorkspace();
   const spaceHook = useWorkspaceSpace();
   const workspaceProjectHook = useWorkspaceProject();
@@ -166,35 +203,48 @@ const SpacesPage = () => {
   const resolvedWorkspaceId =
     workspaceId || String(user?.currentWorkspaceId?._id || "");
 
+  useEffect(() => {
+    setFavoritesWorkspaceScope(resolvedWorkspaceId);
+  }, [resolvedWorkspaceId, setFavoritesWorkspaceScope]);
+
   const [roomQuery, setRoomQuery] = useState("");
   const [activeRoomId, setActiveRoomId] = useState("");
-  const [selectedThreadMessageId, setSelectedThreadMessageId] = useState<string | null>(
-    null,
-  );
+  const [selectedThreadMessageId, setSelectedThreadMessageId] = useState<
+    string | null
+  >(null);
 
   const [composer, setComposer] = useState("");
   const [threadComposer, setThreadComposer] = useState("");
-  const [composerAttachments, setComposerAttachments] = useState<ChatAttachment[]>([]);
-  const [threadAttachments, setThreadAttachments] = useState<ChatAttachment[]>([]);
+  const [composerAttachments, setComposerAttachments] = useState<
+    ChatAttachment[]
+  >([]);
+  const [threadAttachments, setThreadAttachments] = useState<ChatAttachment[]>(
+    [],
+  );
   const [optimisticMessagesByRoom, setOptimisticMessagesByRoom] = useState<
     Record<string, SpaceMessage[]>
   >({});
-  const [optimisticThreadRepliesByMessage, setOptimisticThreadRepliesByMessage] =
-    useState<Record<string, ThreadReply[]>>({});
+  const [
+    optimisticThreadRepliesByMessage,
+    setOptimisticThreadRepliesByMessage,
+  ] = useState<Record<string, ThreadReply[]>>({});
 
-  const [leftPanelWidth, setLeftPanelWidth] = useState(266);
-  const [threadPanelWidth, setThreadPanelWidth] = useState(340);
-  const [resizingPane, setResizingPane] = useState<"left" | "thread" | null>(null);
+  const [leftPanelWidth, setLeftPanelWidth] = useState(304);
+  const [threadPanelWidth, setThreadPanelWidth] = useState(392);
+  const [resizingPane, setResizingPane] = useState<"left" | "thread" | null>(
+    null,
+  );
 
   const [isRoomsSheetOpen, setIsRoomsSheetOpen] = useState(false);
   const [isThreadSheetOpen, setIsThreadSheetOpen] = useState(false);
   const [isCreateChatOpen, setIsCreateChatOpen] = useState(false);
   const [isWorkspaceDetailsOpen, setIsWorkspaceDetailsOpen] = useState(false);
   const [isKeepUpOpen, setIsKeepUpOpen] = useState(false);
+  const [keepUpPage, setKeepUpPage] = useState(1);
+  const [keepUpSearch, setKeepUpSearch] = useState("");
 
-  const [personalCall, setPersonalCall] = useState<PersonalCallState | null>(null);
-  const [callDurationSeconds, setCallDurationSeconds] = useState(0);
-  const [teamCallWidget, setTeamCallWidget] = useState<TeamCallWidgetState | null>(null);
+  const [teamCallWidget, setTeamCallWidget] =
+    useState<TeamCallWidgetState | null>(null);
   const [teamCallDurationSeconds, setTeamCallDurationSeconds] = useState(0);
 
   const [pinnedMessageIds, setPinnedMessageIds] = useState<string[]>([]);
@@ -207,10 +257,14 @@ const SpacesPage = () => {
   const [newChatMode, setNewChatMode] = useState<"direct" | "group">("direct");
   const [newChatGroupName, setNewChatGroupName] = useState("");
   const [newChatSearch, setNewChatSearch] = useState("");
-  const [selectedCreateMemberIds, setSelectedCreateMemberIds] = useState<string[]>([]);
+  const [selectedCreateMemberIds, setSelectedCreateMemberIds] = useState<
+    string[]
+  >([]);
 
   const mainComposerUploadRef = useRef<HTMLInputElement | null>(null);
   const threadComposerUploadRef = useRef<HTMLInputElement | null>(null);
+  const roomListDesktopRef = useRef<HTMLDivElement | null>(null);
+  const roomListSheetRef = useRef<HTMLDivElement | null>(null);
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const threadListRef = useRef<HTMLDivElement | null>(null);
   const layoutRef = useRef<HTMLDivElement | null>(null);
@@ -218,7 +272,10 @@ const SpacesPage = () => {
   const beforeOlderLoadScrollHeightRef = useRef(0);
   const beforeOlderLoadScrollTopRef = useRef(0);
   const seenMentionToastIdsRef = useRef(new Set<string>());
-  const notificationServiceWorkerRef = useRef<ServiceWorkerRegistration | null>(null);
+  const missingProjectRoomToastRef = useRef<string | null>(null);
+  const notificationServiceWorkerRef = useRef<ServiceWorkerRegistration | null>(
+    null,
+  );
   const hasRequestedNotificationPermissionRef = useRef(false);
   const lastMarkedReadRef = useRef<{
     workspaceId: string;
@@ -250,23 +307,26 @@ const SpacesPage = () => {
     user?.profilePhoto?.url,
   ]);
 
-  const roomsQuery = spaceHook.useWorkspaceSpaceRooms(
+  const roomsQuery = spaceHook.useWorkspaceSpaceRoomsInfinite(
     resolvedWorkspaceId,
     {
-      ...roomQueryParams,
       search: roomQuery,
       kind: "all",
     },
     {
       enabled: Boolean(resolvedWorkspaceId),
+      limit: roomQueryParams.limit,
     },
   );
 
-  const workspacePeopleQuery = workspaceHook.useWorkspacePeople(resolvedWorkspaceId, {
-    page: 1,
-    limit: 200,
-    search: newChatSearch,
-  });
+  const workspacePeopleQuery = workspaceHook.useWorkspacePeople(
+    resolvedWorkspaceId,
+    {
+      page: 1,
+      limit: 200,
+      search: newChatSearch,
+    },
+  );
   const workspaceMentionPeopleQuery = workspaceHook.useWorkspacePeople(
     resolvedWorkspaceId,
     {
@@ -276,13 +336,25 @@ const SpacesPage = () => {
     },
   );
 
-  const rooms = useMemo(
-    () => (roomsQuery.data?.data?.rooms || []).map(mapRoomToUi),
-    [roomsQuery.data?.data?.rooms],
-  );
+  const rooms = useMemo(() => {
+    const pages = roomsQuery.data?.pages ?? [];
+    const roomMap = new Map<string, WorkspaceSpaceRoomRecord>();
+
+    pages.forEach((page) => {
+      (page.data?.rooms || []).forEach((room) => {
+        roomMap.set(String(room.id), room);
+      });
+    });
+
+    return Array.from(roomMap.values()).map(mapRoomToUi);
+  }, [roomsQuery.data?.pages]);
+  const hasRooms = rooms.length > 0;
+  const hasMoreRooms = Boolean(roomsQuery.hasNextPage);
+  const isLoadingMoreRooms = Boolean(roomsQuery.isFetchingNextPage);
   const searchParamsString = searchParams.toString();
   const urlRoomId = String(searchParams.get("room") || "").trim();
   const urlThreadId = String(searchParams.get("thread") || "").trim();
+  const urlProjectId = String(searchParams.get("project") || "").trim();
 
   useEffect(() => {
     if (!rooms.length) {
@@ -301,6 +373,15 @@ const SpacesPage = () => {
         return;
       }
 
+      if (urlProjectId) {
+        const projectRoom = findProjectRootRoom(rooms, urlProjectId);
+
+        if (projectRoom) {
+          setActiveRoomId(projectRoom.id);
+          return;
+        }
+      }
+
       setActiveRoomId(rooms[0].id);
       return;
     }
@@ -312,27 +393,31 @@ const SpacesPage = () => {
     }
 
     if (!rooms.some((room) => room.id === activeRoomId)) {
-      if (pendingRoomSyncRef.current && pendingRoomSyncRef.current === activeRoomId) {
+      if (
+        pendingRoomSyncRef.current &&
+        pendingRoomSyncRef.current === activeRoomId
+      ) {
         return;
       }
 
       setActiveRoomId(rooms[0].id);
       setSelectedThreadMessageId(null);
     }
-  }, [activeRoomId, rooms, urlRoomId]);
+  }, [activeRoomId, rooms, urlProjectId, urlRoomId]);
 
   const activeRoom = useMemo(() => {
     return rooms.find((room) => room.id === activeRoomId) ?? null;
   }, [activeRoomId, rooms]);
 
   const activeProjectId = String(activeRoom?.meta?.projectId || "").trim();
-  const activeProjectDetailQuery = workspaceProjectHook.useWorkspaceProjectDetail(
-    resolvedWorkspaceId,
-    activeProjectId,
-    {
-      enabled: Boolean(resolvedWorkspaceId && activeProjectId),
-    },
-  );
+  const activeProjectDetailQuery =
+    workspaceProjectHook.useWorkspaceProjectDetail(
+      resolvedWorkspaceId,
+      activeProjectId,
+      {
+        enabled: Boolean(resolvedWorkspaceId && activeProjectId),
+      },
+    );
 
   const messagesQuery = spaceHook.useWorkspaceSpaceRoomMessagesInfinite(
     resolvedWorkspaceId,
@@ -365,10 +450,62 @@ const SpacesPage = () => {
 
   const selectedThreadMessage = useMemo(() => {
     return (
-      activeMessages.find((message) => message.id === selectedThreadMessageId) ??
-      null
+      activeMessages.find(
+        (message) => message.id === selectedThreadMessageId,
+      ) ?? null
     );
   }, [activeMessages, selectedThreadMessageId]);
+
+  useEffect(() => {
+    if (!urlProjectId || urlRoomId || !rooms.length) {
+      missingProjectRoomToastRef.current = null;
+      return;
+    }
+
+    const projectRoom = findProjectRootRoom(rooms, urlProjectId);
+
+    if (projectRoom) {
+      if (projectRoom.id !== activeRoomId) {
+        pendingRoomSyncRef.current = projectRoom.id;
+        setActiveRoomId(projectRoom.id);
+      }
+      missingProjectRoomToastRef.current = null;
+      return;
+    }
+
+    if (missingProjectRoomToastRef.current === urlProjectId) {
+      return;
+    }
+
+    missingProjectRoomToastRef.current = urlProjectId;
+    toast("Project chat room not found yet in this workspace.");
+  }, [activeRoomId, rooms, urlProjectId, urlRoomId]);
+
+  useEffect(() => {
+    const wantsRoom = Boolean(urlRoomId);
+    const wantsProjectRoom = Boolean(urlProjectId) && !urlRoomId;
+
+    if (!wantsRoom && !wantsProjectRoom) {
+      return;
+    }
+
+    const hasTargetRoom = wantsRoom
+      ? rooms.some((room) => room.id === urlRoomId)
+      : Boolean(findProjectRootRoom(rooms, urlProjectId));
+
+    if (hasTargetRoom || !hasMoreRooms || isLoadingMoreRooms) {
+      return;
+    }
+
+    void roomsQuery.fetchNextPage();
+  }, [
+    rooms,
+    hasMoreRooms,
+    isLoadingMoreRooms,
+    roomsQuery.fetchNextPage,
+    urlProjectId,
+    urlRoomId,
+  ]);
 
   useEffect(() => {
     if (!activeRoom?.id || !urlThreadId) {
@@ -389,7 +526,10 @@ const SpacesPage = () => {
       return;
     }
 
-    if (!selectedThreadMessageId && activeMessages.some((message) => message.id === urlThreadId)) {
+    if (
+      !selectedThreadMessageId &&
+      activeMessages.some((message) => message.id === urlThreadId)
+    ) {
       setSelectedThreadMessageId(urlThreadId);
     }
   }, [activeMessages, activeRoom?.id, selectedThreadMessageId, urlThreadId]);
@@ -410,7 +550,10 @@ const SpacesPage = () => {
       return;
     }
 
-    if (pendingRoomSyncRef.current && pendingRoomSyncRef.current !== urlRoomId) {
+    if (
+      pendingRoomSyncRef.current &&
+      pendingRoomSyncRef.current !== urlRoomId
+    ) {
       return;
     }
 
@@ -424,7 +567,9 @@ const SpacesPage = () => {
     selectedThreadMessage?.id || "",
     messageQueryParams,
     {
-      enabled: Boolean(resolvedWorkspaceId && activeRoom?.id && selectedThreadMessage?.id),
+      enabled: Boolean(
+        resolvedWorkspaceId && activeRoom?.id && selectedThreadMessage?.id,
+      ),
     },
   );
 
@@ -439,6 +584,7 @@ const SpacesPage = () => {
         author: mapped.author,
         content: mapped.content,
         sentAt: mapped.sentAt,
+        sentAtRaw: mapped.sentAtRaw,
         edited: mapped.edited,
         attachments: mapped.attachments,
       };
@@ -471,7 +617,9 @@ const SpacesPage = () => {
       return;
     }
 
-    const serverMessageIds = new Set(serverMessages.map((message) => message.id));
+    const serverMessageIds = new Set(
+      serverMessages.map((message) => message.id),
+    );
 
     setOptimisticMessagesByRoom((prev) => {
       const current = prev[activeRoom.id] || [];
@@ -479,7 +627,9 @@ const SpacesPage = () => {
         return prev;
       }
 
-      const next = current.filter((message) => !serverMessageIds.has(message.id));
+      const next = current.filter(
+        (message) => !serverMessageIds.has(message.id),
+      );
       if (next.length === current.length) {
         return prev;
       }
@@ -503,7 +653,9 @@ const SpacesPage = () => {
       return;
     }
 
-    const serverReplyIds = new Set(serverThreadReplies.map((reply) => reply.id));
+    const serverReplyIds = new Set(
+      serverThreadReplies.map((reply) => reply.id),
+    );
 
     setOptimisticThreadRepliesByMessage((prev) => {
       const current = prev[selectedThreadMessage.id] || [];
@@ -529,8 +681,8 @@ const SpacesPage = () => {
   const keepUpQuery = spaceHook.useWorkspaceSpaceKeepUp(
     resolvedWorkspaceId,
     {
-      page: 1,
-      limit: 30,
+      page: keepUpPage,
+      limit: 20,
     },
     {
       enabled: Boolean(resolvedWorkspaceId && isKeepUpOpen),
@@ -552,7 +704,8 @@ const SpacesPage = () => {
   const createMessageMutation = spaceHook.useCreateWorkspaceSpaceMessage();
   const updateMessageMutation = spaceHook.useUpdateWorkspaceSpaceMessage();
   const deleteMessageMutation = spaceHook.useDeleteWorkspaceSpaceMessage();
-  const createThreadReplyMutation = spaceHook.useCreateWorkspaceSpaceThreadReply();
+  const createThreadReplyMutation =
+    spaceHook.useCreateWorkspaceSpaceThreadReply();
   const markReadMutation = spaceHook.useMarkWorkspaceSpaceRoomRead();
   const markKeepUpSeenMutation = spaceHook.useMarkWorkspaceSpaceKeepUpSeen();
   const uploadAssetMutation = fileHook.useUploadAsset();
@@ -568,6 +721,33 @@ const SpacesPage = () => {
     activeRoom?.scope === "task";
 
   const keepUpCount = keepUpBadgeQuery.data?.data?.pagination?.total ?? 0;
+  const keepUpItems = useMemo(
+    () => keepUpQuery.data?.data?.items ?? [],
+    [keepUpQuery.data?.data?.items],
+  );
+  const keepUpPagination = keepUpQuery.data?.data?.pagination;
+  const keepUpFilteredItems = useMemo(() => {
+    const query = keepUpSearch.trim().toLowerCase();
+    if (!query) {
+      return keepUpItems;
+    }
+
+    return keepUpItems.filter((item) => {
+      const authorName = String(item.author?.name || "").toLowerCase();
+      const roomName = String(item.roomName || "").toLowerCase();
+      const content = String(item.content || "").toLowerCase();
+      const parentPreview = String(
+        item.parentMessagePreview || "",
+      ).toLowerCase();
+
+      return (
+        authorName.includes(query) ||
+        roomName.includes(query) ||
+        content.includes(query) ||
+        parentPreview.includes(query)
+      );
+    });
+  }, [keepUpItems, keepUpSearch]);
   const hasOlderMessages = Boolean(messagesQuery.hasNextPage);
   const isLoadingOlderMessages = Boolean(messagesQuery.isFetchingNextPage);
 
@@ -575,7 +755,10 @@ const SpacesPage = () => {
     const members = workspacePeopleQuery.data?.data?.members ?? [];
 
     return members
-      .filter((entry) => String(entry?.userId?._id || "") !== String(currentUser.id || ""))
+      .filter(
+        (entry) =>
+          String(entry?.userId?._id || "") !== String(currentUser.id || ""),
+      )
       .map((entry) => ({
         id: String(entry.userId._id),
         name:
@@ -600,7 +783,8 @@ const SpacesPage = () => {
         `${entry?.userId?.firstName || ""} ${entry?.userId?.lastName || ""}`.trim() ||
         entry?.userId?.email ||
         "Unknown";
-      const emailAlias = String(entry?.userId?.email || "").split("@")[0] || display;
+      const emailAlias =
+        String(entry?.userId?.email || "").split("@")[0] || display;
       const id = mentionSlug(display) || mentionSlug(emailAlias);
 
       if (!id) {
@@ -617,11 +801,17 @@ const SpacesPage = () => {
           email: String(entry?.userId?.email || ""),
           role:
             Array.isArray(entry?.roles) && entry.roles.length
-              ? entry.roles.map((role) => String(role?.name || "")).filter(Boolean).join(", ")
+              ? entry.roles
+                  .map((role) => String(role?.name || ""))
+                  .filter(Boolean)
+                  .join(", ")
               : "Member",
           team:
             Array.isArray(entry?.teams) && entry.teams.length
-              ? entry.teams.map((team) => String(team?.name || "")).filter(Boolean).join(", ")
+              ? entry.teams
+                  .map((team) => String(team?.name || ""))
+                  .filter(Boolean)
+                  .join(", ")
               : undefined,
         },
       };
@@ -641,8 +831,11 @@ const SpacesPage = () => {
       });
     });
 
-    const projectName =
-      String(activeProjectDetailQuery.data?.data?.project?.name || activeRoom?.name || "").trim();
+    const projectName = String(
+      activeProjectDetailQuery.data?.data?.project?.name ||
+        activeRoom?.name ||
+        "",
+    ).trim();
     const projectId = mentionSlug(projectName);
 
     if (projectId && !seenIds.has(`project-${projectId}`)) {
@@ -734,13 +927,20 @@ const SpacesPage = () => {
         id: userId,
         name,
         email: String(entry?.userId?.email || ""),
+        avatarUrl: String(entry?.userId?.profilePhoto?.url || "") || undefined,
         role:
           Array.isArray(entry?.roles) && entry.roles.length
-            ? entry.roles.map((role) => String(role?.name || "")).filter(Boolean).join(", ")
+            ? entry.roles
+                .map((role) => String(role?.name || ""))
+                .filter(Boolean)
+                .join(", ")
             : "Member",
         team:
           Array.isArray(entry?.teams) && entry.teams.length
-            ? entry.teams.map((team) => String(team?.name || "")).filter(Boolean).join(", ")
+            ? entry.teams
+                .map((team) => String(team?.name || ""))
+                .filter(Boolean)
+                .join(", ")
             : undefined,
       };
     });
@@ -749,11 +949,13 @@ const SpacesPage = () => {
       infoById[currentUser.id] = {
         id: currentUser.id,
         name: currentUser.name,
+        avatarUrl: currentUser.avatarUrl,
       };
     }
 
     return infoById;
   }, [
+    currentUser.avatarUrl,
     currentUser.id,
     currentUser.name,
     workspaceMentionPeopleQuery.data?.data?.members,
@@ -765,20 +967,9 @@ const SpacesPage = () => {
       : Boolean(newChatGroupName.trim()) && selectedCreateMemberIds.length >= 1;
 
   const isDesktopThreadOpen = Boolean(selectedThreadMessage);
-  const isActivePersonalCall = personalCall?.roomId === activeRoom?.id;
-  const personalCallStartedAt = personalCall?.startedAt ?? null;
-  const personalCallInitials = useMemo(() => {
-    if (!personalCall?.contactName) {
-      return "PC";
-    }
-
-    return personalCall.contactName
-      .split(" ")
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((part) => part[0]?.toUpperCase())
-      .join("");
-  }, [personalCall?.contactName]);
+  const isActiveCallForRoom =
+    Boolean(teamCallWidget?.roomId) &&
+    String(teamCallWidget?.roomId || "") === String(activeRoom?.id || "");
 
   useEffect(() => {
     const container = messageListRef.current;
@@ -787,8 +978,10 @@ const SpacesPage = () => {
     }
 
     if (isLoadingOlderMessagesRef.current) {
-      const delta = container.scrollHeight - beforeOlderLoadScrollHeightRef.current;
-      container.scrollTop = beforeOlderLoadScrollTopRef.current + Math.max(0, delta);
+      const delta =
+        container.scrollHeight - beforeOlderLoadScrollHeightRef.current;
+      container.scrollTop =
+        beforeOlderLoadScrollTopRef.current + Math.max(0, delta);
       isLoadingOlderMessagesRef.current = false;
       return;
     }
@@ -810,22 +1003,6 @@ const SpacesPage = () => {
       behavior: "smooth",
     });
   }, [activeThreadReplies.length]);
-
-  useEffect(() => {
-    if (!personalCallStartedAt) {
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setCallDurationSeconds(
-        Math.floor((Date.now() - personalCallStartedAt) / 1000),
-      );
-    }, 1000);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [personalCallStartedAt]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -883,14 +1060,18 @@ const SpacesPage = () => {
         const rawWidth = event.clientX - rect.left;
         const maxLeftWidth =
           rect.width -
-          (isDesktopThreadOpen ? threadPanelWidth + minMainWidth : minMainWidth);
-        setLeftPanelWidth(clamp(rawWidth, 220, Math.max(280, maxLeftWidth)));
+          (isDesktopThreadOpen
+            ? threadPanelWidth + minMainWidth
+            : minMainWidth);
+        setLeftPanelWidth(clamp(rawWidth, 240, Math.max(300, maxLeftWidth)));
       }
 
       if (resizingPane === "thread") {
         const rawWidth = rect.right - event.clientX;
         const maxThreadWidth = rect.width - leftPanelWidth - minMainWidth;
-        setThreadPanelWidth(clamp(rawWidth, 280, Math.max(320, maxThreadWidth)));
+        setThreadPanelWidth(
+          clamp(rawWidth, 320, Math.max(360, maxThreadWidth)),
+        );
       }
     };
 
@@ -928,6 +1109,7 @@ const SpacesPage = () => {
 
     const next = new URLSearchParams(searchParamsString);
     next.set("room", activeRoom.id);
+    next.delete("project");
 
     if (selectedThreadMessageId) {
       next.set("thread", selectedThreadMessageId);
@@ -983,7 +1165,10 @@ const SpacesPage = () => {
 
       let permission = Notification.permission;
 
-      if (permission === "default" && !hasRequestedNotificationPermissionRef.current) {
+      if (
+        permission === "default" &&
+        !hasRequestedNotificationPermissionRef.current
+      ) {
         hasRequestedNotificationPermissionRef.current = true;
         try {
           permission = await Notification.requestPermission();
@@ -998,7 +1183,8 @@ const SpacesPage = () => {
 
       const title = String(payload.title || "You were mentioned").trim();
       const body = String(payload.summary || "").trim();
-      const route = String(payload.route || ROUTES.SPACES).trim() || ROUTES.SPACES;
+      const route =
+        String(payload.route || ROUTES.SPACES).trim() || ROUTES.SPACES;
 
       const registration =
         notificationServiceWorkerRef.current ||
@@ -1096,7 +1282,11 @@ const SpacesPage = () => {
       }
 
       queryClient.invalidateQueries({
-        queryKey: ["workspace-spaces-room-messages", resolvedWorkspaceId, activeRoom.id],
+        queryKey: [
+          "workspace-spaces-room-messages",
+          resolvedWorkspaceId,
+          activeRoom.id,
+        ],
       });
       queryClient.invalidateQueries({
         queryKey: [
@@ -1136,7 +1326,11 @@ const SpacesPage = () => {
       }
 
       queryClient.invalidateQueries({
-        queryKey: ["workspace-spaces-room-messages", resolvedWorkspaceId, activeRoom.id],
+        queryKey: [
+          "workspace-spaces-room-messages",
+          resolvedWorkspaceId,
+          activeRoom.id,
+        ],
       });
       queryClient.invalidateQueries({
         queryKey: [
@@ -1169,13 +1363,19 @@ const SpacesPage = () => {
         return;
       }
 
-      if (selectedThreadMessageId === String(messageId) ||
-          selectedThreadMessageId === String(parentMessageId || "")) {
+      if (
+        selectedThreadMessageId === String(messageId) ||
+        selectedThreadMessageId === String(parentMessageId || "")
+      ) {
         setSelectedThreadMessageId(null);
       }
 
       queryClient.invalidateQueries({
-        queryKey: ["workspace-spaces-room-messages", resolvedWorkspaceId, activeRoom.id],
+        queryKey: [
+          "workspace-spaces-room-messages",
+          resolvedWorkspaceId,
+          activeRoom.id,
+        ],
       });
       queryClient.invalidateQueries({
         queryKey: [
@@ -1271,44 +1471,44 @@ const SpacesPage = () => {
     return `${minutes}:${seconds}`;
   };
 
-  const startPersonalCall = (mode: "voice" | "video") => {
-    if (!activeRoom) {
-      return;
-    }
-
-    setCallDurationSeconds(0);
-    setPersonalCall({
-      roomId: activeRoom.id,
-      contactName: activeRoom.name,
-      mode,
-      startedAt: Date.now(),
-      isMuted: false,
-      isVideoOn: mode === "video",
-      isSpeakerOn: true,
-    });
-  };
-
-  const endPersonalCall = () => {
-    setPersonalCall(null);
-    setCallDurationSeconds(0);
-  };
-
   const clearTeamCallWidget = () => {
     window.sessionStorage.removeItem(TEAM_CALL_WIDGET_KEY);
     setTeamCallWidget(null);
     setTeamCallDurationSeconds(0);
   };
 
-  const openTeamCall = () => {
+  const openTeamCall = (mode: "voice" | "video" = "video") => {
     if (!activeRoom) {
       return;
     }
 
     clearTeamCallWidget();
 
+    const startedAt = Date.now();
+
+    if (resolvedWorkspaceId) {
+      const socket = getSpacesSocket();
+      if (!socket.connected) {
+        socket.connect();
+      }
+
+      socket.emit("team-call:start", {
+        workspaceId: resolvedWorkspaceId,
+        roomId: activeRoom.id,
+        roomName: activeRoom.name,
+        roomScope: activeRoom.scope,
+        callMode: mode,
+        startedAt,
+        startedByName: currentUser.name,
+      });
+    }
+
     const query = new URLSearchParams({
+      roomId: activeRoom.id,
       room: activeRoom.name,
       scope: activeRoom.scope,
+      callMode: mode,
+      startedAt: String(startedAt),
     });
     router.push(`${ROUTES.SPACES_TEAM_CALL}?${query.toString()}`);
   };
@@ -1321,18 +1521,17 @@ const SpacesPage = () => {
     const query = new URLSearchParams({
       room: teamCallWidget.roomName,
       scope: teamCallWidget.roomScope,
+      callMode: teamCallWidget.callMode || "video",
       startedAt: `${teamCallWidget.startedAt}`,
     });
+    if (teamCallWidget.roomId) {
+      query.set("roomId", teamCallWidget.roomId);
+    }
     router.push(`${ROUTES.SPACES_TEAM_CALL}?${query.toString()}`);
   };
 
   const handleStartCall = (mode: "voice" | "video") => {
-    if (isPersonalChat) {
-      startPersonalCall(mode);
-      return;
-    }
-
-    openTeamCall();
+    openTeamCall(mode);
   };
 
   const attachFiles = (files: FileList, target: "main" | "thread") => {
@@ -1367,7 +1566,9 @@ const SpacesPage = () => {
 
   const uploadDraftAttachments = async (
     draftAttachments: ChatAttachment[],
-  ): Promise<Array<{ id: string; name: string; kind: "image" | "file"; url?: string }>> => {
+  ): Promise<
+    Array<{ id: string; name: string; kind: "image" | "file"; url?: string }>
+  > => {
     if (!draftAttachments.length) {
       return [];
     }
@@ -1409,7 +1610,9 @@ const SpacesPage = () => {
         };
         const asset = uploadResponse?.data?.asset;
         const assetMimeType = String(asset?.mimeType || "").toLowerCase();
-        const assetResourceType = String(asset?.resourceType || "").toLowerCase();
+        const assetResourceType = String(
+          asset?.resourceType || "",
+        ).toLowerCase();
         const kind: "image" | "file" =
           assetMimeType.startsWith("image/") || assetResourceType === "image"
             ? "image"
@@ -1501,6 +1704,24 @@ const SpacesPage = () => {
     void messagesQuery.fetchNextPage();
   };
 
+  const loadMoreRooms = () => {
+    if (!roomsQuery.hasNextPage || roomsQuery.isFetchingNextPage) {
+      return;
+    }
+
+    void roomsQuery.fetchNextPage();
+  };
+
+  const handleRoomListScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const target = event.currentTarget;
+    const distanceToBottom =
+      target.scrollHeight - target.scrollTop - target.clientHeight;
+
+    if (distanceToBottom <= 120) {
+      loadMoreRooms();
+    }
+  };
+
   const handleMessageListScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
 
@@ -1525,7 +1746,10 @@ const SpacesPage = () => {
     });
   };
 
-  const appendOptimisticRoomMessage = (roomId: string, message: SpaceMessage) => {
+  const appendOptimisticRoomMessage = (
+    roomId: string,
+    message: SpaceMessage,
+  ) => {
     setOptimisticMessagesByRoom((prev) => ({
       ...prev,
       [roomId]: [...(prev[roomId] || []), message],
@@ -1576,7 +1800,10 @@ const SpacesPage = () => {
     });
   };
 
-  const appendOptimisticThreadReply = (messageId: string, reply: ThreadReply) => {
+  const appendOptimisticThreadReply = (
+    messageId: string,
+    reply: ThreadReply,
+  ) => {
     setOptimisticThreadRepliesByMessage((prev) => ({
       ...prev,
       [messageId]: [...(prev[messageId] || []), reply],
@@ -1688,6 +1915,7 @@ const SpacesPage = () => {
       author: currentUser,
       content,
       sentAt: "Sending...",
+      sentAtRaw: new Date().toISOString(),
       edited: false,
       attachments: draftAttachments,
       threadCount: 0,
@@ -1712,7 +1940,11 @@ const SpacesPage = () => {
         : null;
 
       if (persistedMessage) {
-        replaceOptimisticRoomMessage(roomId, optimisticMessageId, persistedMessage);
+        replaceOptimisticRoomMessage(
+          roomId,
+          optimisticMessageId,
+          persistedMessage,
+        );
       } else {
         removeOptimisticRoomMessage(roomId, optimisticMessageId);
       }
@@ -1727,11 +1959,7 @@ const SpacesPage = () => {
   };
 
   const handleSendThreadReply = async () => {
-    if (
-      !resolvedWorkspaceId ||
-      !activeRoom ||
-      !selectedThreadMessage
-    ) {
+    if (!resolvedWorkspaceId || !activeRoom || !selectedThreadMessage) {
       return;
     }
 
@@ -1751,6 +1979,7 @@ const SpacesPage = () => {
       author: currentUser,
       content,
       sentAt: "Sending...",
+      sentAtRaw: new Date().toISOString(),
       edited: false,
       attachments: draftAttachments,
     };
@@ -1780,6 +2009,7 @@ const SpacesPage = () => {
           author: mappedReply.author,
           content: mappedReply.content,
           sentAt: mappedReply.sentAt,
+          sentAtRaw: mappedReply.sentAtRaw,
           edited: mappedReply.edited,
           attachments: mappedReply.attachments,
         });
@@ -1822,7 +2052,10 @@ const SpacesPage = () => {
     }
 
     const forwardedContent = source.content.trim();
-    if (!forwardedContent && (!source.attachments || source.attachments.length === 0)) {
+    if (
+      !forwardedContent &&
+      (!source.attachments || source.attachments.length === 0)
+    ) {
       return;
     }
 
@@ -1856,12 +2089,21 @@ const SpacesPage = () => {
   };
 
   const saveEditedMessage = async (messageId: string) => {
-    if (!resolvedWorkspaceId || !activeRoom || updateMessageMutation.isPending) {
+    if (
+      !resolvedWorkspaceId ||
+      !activeRoom ||
+      updateMessageMutation.isPending
+    ) {
       return;
     }
 
-    const targetMessage = activeMessages.find((message) => message.id === messageId);
-    if (!targetMessage || String(targetMessage.author.id || "") !== String(currentUser.id || "")) {
+    const targetMessage = activeMessages.find(
+      (message) => message.id === messageId,
+    );
+    if (
+      !targetMessage ||
+      String(targetMessage.author.id || "") !== String(currentUser.id || "")
+    ) {
       return;
     }
 
@@ -1888,12 +2130,21 @@ const SpacesPage = () => {
   };
 
   const deleteMessageFromChat = async (messageId: string) => {
-    if (!resolvedWorkspaceId || !activeRoom || deleteMessageMutation.isPending) {
+    if (
+      !resolvedWorkspaceId ||
+      !activeRoom ||
+      deleteMessageMutation.isPending
+    ) {
       return;
     }
 
-    const targetMessage = activeMessages.find((message) => message.id === messageId);
-    if (!targetMessage || String(targetMessage.author.id || "") !== String(currentUser.id || "")) {
+    const targetMessage = activeMessages.find(
+      (message) => message.id === messageId,
+    );
+    if (
+      !targetMessage ||
+      String(targetMessage.author.id || "") !== String(currentUser.id || "")
+    ) {
       return;
     }
 
@@ -1942,12 +2193,21 @@ const SpacesPage = () => {
   };
 
   const saveEditedReply = async (replyId: string) => {
-    if (!resolvedWorkspaceId || !activeRoom || updateMessageMutation.isPending) {
+    if (
+      !resolvedWorkspaceId ||
+      !activeRoom ||
+      updateMessageMutation.isPending
+    ) {
       return;
     }
 
-    const targetReply = activeThreadReplies.find((reply) => reply.id === replyId);
-    if (!targetReply || String(targetReply.author.id || "") !== String(currentUser.id || "")) {
+    const targetReply = activeThreadReplies.find(
+      (reply) => reply.id === replyId,
+    );
+    if (
+      !targetReply ||
+      String(targetReply.author.id || "") !== String(currentUser.id || "")
+    ) {
       return;
     }
 
@@ -1985,12 +2245,21 @@ const SpacesPage = () => {
   };
 
   const deleteThreadReply = async (replyId: string) => {
-    if (!resolvedWorkspaceId || !activeRoom || deleteMessageMutation.isPending) {
+    if (
+      !resolvedWorkspaceId ||
+      !activeRoom ||
+      deleteMessageMutation.isPending
+    ) {
       return;
     }
 
-    const targetReply = activeThreadReplies.find((reply) => reply.id === replyId);
-    if (!targetReply || String(targetReply.author.id || "") !== String(currentUser.id || "")) {
+    const targetReply = activeThreadReplies.find(
+      (reply) => reply.id === replyId,
+    );
+    if (
+      !targetReply ||
+      String(targetReply.author.id || "") !== String(currentUser.id || "")
+    ) {
       return;
     }
 
@@ -2025,7 +2294,9 @@ const SpacesPage = () => {
 
   const togglePinnedReply = (replyId: string) => {
     setPinnedReplyIds((prev) =>
-      prev.includes(replyId) ? prev.filter((id) => id !== replyId) : [replyId, ...prev],
+      prev.includes(replyId)
+        ? prev.filter((id) => id !== replyId)
+        : [replyId, ...prev],
     );
   };
 
@@ -2060,7 +2331,10 @@ const SpacesPage = () => {
     }
 
     const normalizedTargetUserId = String(targetUserId || "").trim();
-    if (!normalizedTargetUserId || normalizedTargetUserId === String(currentUser.id || "")) {
+    if (
+      !normalizedTargetUserId ||
+      normalizedTargetUserId === String(currentUser.id || "")
+    ) {
       return;
     }
 
@@ -2102,13 +2376,23 @@ const SpacesPage = () => {
     }
   };
 
-  const ActiveScopeIcon = activeRoom ? SCOPE_META[activeRoom.scope].icon : Search;
+  useEffect(() => {
+    if (!isKeepUpOpen) {
+      return;
+    }
+
+    setKeepUpPage(1);
+  }, [isKeepUpOpen]);
+
+  const ActiveScopeIcon = activeRoom
+    ? SCOPE_META[activeRoom.scope].icon
+    : Search;
 
   return (
     <>
       <div
         ref={layoutRef}
-        className="flex min-h-0 w-full flex-1 overflow-hidden"
+        className="flex h-full min-h-0 w-full flex-1 overflow-hidden"
       >
         <aside
           style={{ width: leftPanelWidth }}
@@ -2142,12 +2426,48 @@ const SpacesPage = () => {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2">
-            <RoomItems
-              roomEntries={rooms}
-              activeRoomId={activeRoom?.id || ""}
-              onPick={handleSelectRoom}
-            />
+          <div
+            ref={roomListDesktopRef}
+            onScroll={handleRoomListScroll}
+            className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2"
+          >
+            {roomsQuery.isLoading ? (
+              <div className="flex h-full min-h-[14rem] items-center justify-center">
+                <LoaderComponent />
+              </div>
+            ) : hasRooms ? (
+              <>
+                <RoomItems
+                  roomEntries={rooms}
+                  activeRoomId={activeRoom?.id || ""}
+                  onPick={handleSelectRoom}
+                />
+                {isLoadingMoreRooms ? (
+                  <div className="flex justify-center py-1.5">
+                    <LoaderComponent />
+                  </div>
+                ) : hasMoreRooms ? (
+                  <div className="text-muted-foreground py-1 text-center text-[11px]">
+                    Scroll for more spaces
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="flex h-full min-h-[14rem] items-center justify-center px-2">
+                <Empty className="border-0 p-0 md:p-0">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <MessageSquareText className="size-4 text-primary/85" />
+                    </EmptyMedia>
+                    <EmptyDescription className="text-center text-[12px]">
+                      {roomQuery.trim()
+                        ? "No chats match this search."
+                        : "No spaces yet. Create your first chat to get started."}
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              </div>
+            )}
           </div>
         </aside>
 
@@ -2160,7 +2480,7 @@ const SpacesPage = () => {
           <span className="bg-border/70 hover:bg-primary/60 absolute top-1/2 left-1/2 h-12 w-px -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors" />
         </button>
 
-        <section className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-none border border-x-0 border-b-0 bg-card sm:rounded-md sm:border-x sm:border-b">
+        <section className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-none border border-x-0 border-b-0 bg-card sm:rounded-md sm:border-x sm:border-b">
           <div className="border-b px-3 py-2.5">
             <div className="flex flex-wrap items-center gap-1.5">
               <Button
@@ -2183,7 +2503,10 @@ const SpacesPage = () => {
                 {workspaceName}
               </Button>
 
-              <Badge variant="outline" className="hidden text-[11px] sm:inline-flex">
+              <Badge
+                variant="outline"
+                className="hidden text-[11px] sm:inline-flex"
+              >
                 {workspaceType}
               </Badge>
 
@@ -2204,7 +2527,10 @@ const SpacesPage = () => {
                   <Bell className="size-4" />
                   Keep-up
                   {keepUpCount > 0 && (
-                    <Badge variant="secondary" className="ml-1 rounded-full px-1.5 py-0 text-[11px]">
+                    <Badge
+                      variant="secondary"
+                      className="ml-1 rounded-full px-1.5 py-0 text-[11px]"
+                    >
                       {keepUpCount}
                     </Badge>
                   )}
@@ -2219,7 +2545,7 @@ const SpacesPage = () => {
                       onClick={() => handleStartCall("voice")}
                     >
                       <Phone className="size-4" />
-                      {isActivePersonalCall ? "In Call" : "Voice"}
+                      {isActiveCallForRoom ? "In Call" : "Voice"}
                     </Button>
                     <Button
                       size="sm"
@@ -2236,7 +2562,7 @@ const SpacesPage = () => {
                     size="sm"
                     variant="outline"
                     className="h-8 px-2.5 text-[13px]"
-                    onClick={openTeamCall}
+                    onClick={() => openTeamCall("video")}
                     disabled={!activeRoom}
                   >
                     <Video className="size-4" />
@@ -2271,7 +2597,9 @@ const SpacesPage = () => {
                   <ActiveScopeIcon className="size-4" />
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{activeRoom.name}</p>
+                  <p className="truncate text-sm font-semibold">
+                    {activeRoom.name}
+                  </p>
                   <p className="text-muted-foreground truncate text-[12px]">
                     {activeRoom.topic || "No topic yet"}
                   </p>
@@ -2294,90 +2622,82 @@ const SpacesPage = () => {
             )}
           </div>
 
-          {personalCall && (
-            <PersonalCallWidget
-              personalCall={personalCall}
-              personalCallInitials={personalCallInitials}
-              callDurationSeconds={callDurationSeconds}
-              formatCallDuration={formatCallDuration}
-              onToggleMute={() =>
-                setPersonalCall((prev) =>
-                  prev ? { ...prev, isMuted: !prev.isMuted } : prev,
-                )
-              }
-              onToggleVideo={() =>
-                setPersonalCall((prev) =>
-                  prev ? { ...prev, isVideoOn: !prev.isVideoOn } : prev,
-                )
-              }
-              onToggleSpeaker={() =>
-                setPersonalCall((prev) =>
-                  prev ? { ...prev, isSpeakerOn: !prev.isSpeakerOn } : prev,
-                )
-              }
-              onEndCall={endPersonalCall}
-            />
-          )}
-
           {teamCallWidget && (
             <TeamCallWidget
               teamCallWidget={teamCallWidget}
               teamCallDurationSeconds={teamCallDurationSeconds}
               formatCallDuration={formatCallDuration}
-              className={
-                personalCall
-                  ? personalCall.mode === "video"
-                    ? "top-[11.1rem]"
-                    : "top-[7.2rem]"
-                  : "top-3"
-              }
+              className="top-3"
               onRejoin={rejoinTeamCall}
               onClear={clearTeamCallWidget}
             />
           )}
 
-          <MainChatPanel
-            activeMessages={activeMessages}
-            selectedThreadMessageId={selectedThreadMessageId}
-            pinnedMessageIds={pinnedMessageIds}
-            editingMessageId={editingMessageId}
-            editingMessageValue={editingMessageValue}
-            composer={composer}
-            composerAttachments={composerAttachments}
-            canSendMessage={canSendMessage}
-            canCreateTaskFromChat={Boolean(canCreateTaskFromChat)}
-            currentUserId={String(currentUser.id || "")}
-            mentionSuggestions={mentionSuggestions}
-            mentionMetaByToken={mentionMetaByToken}
-            authorInfoById={authorInfoById}
-            onOpenMentionUser={openMentionDirectChat}
-            messageListRef={messageListRef}
-            mainComposerUploadRef={mainComposerUploadRef}
-            onGetThreadCount={getThreadCount}
-            onOpenThread={openThreadForMessage}
-            onEditingMessageValueChange={setEditingMessageValue}
-            onSaveEditedMessage={saveEditedMessage}
-            onCancelEditingMessage={cancelEditingMessage}
-            onStartEditingMessage={startEditingMessage}
-            onCopyText={copyTextToClipboard}
-            onTogglePinnedMessage={togglePinnedMessage}
-            onForwardMessage={forwardToMainChat}
-            onCreateTaskFromMessage={createTaskFromMessage}
-            onDeleteMessage={deleteMessageFromChat}
-            onComposerChange={setComposer}
-            onSendMessage={handleSendMessage}
-            onUploadFromInput={(event) => handleUploadFromInput(event, "main")}
-            onRemoveAttachment={removeDraftAttachment}
-            onMessageListScroll={handleMessageListScroll}
-            hasOlderMessages={hasOlderMessages}
-            isLoadingOlderMessages={isLoadingOlderMessages}
-          />
+          {hasRooms && activeRoom ? (
+            <MainChatPanel
+              activeMessages={activeMessages}
+              selectedThreadMessageId={selectedThreadMessageId}
+              pinnedMessageIds={pinnedMessageIds}
+              editingMessageId={editingMessageId}
+              editingMessageValue={editingMessageValue}
+              composer={composer}
+              composerAttachments={composerAttachments}
+              canSendMessage={canSendMessage}
+              canCreateTaskFromChat={Boolean(canCreateTaskFromChat)}
+              currentUserId={String(currentUser.id || "")}
+              currentUserAvatarUrl={currentUser.avatarUrl}
+              mentionSuggestions={mentionSuggestions}
+              mentionMetaByToken={mentionMetaByToken}
+              authorInfoById={authorInfoById}
+              onOpenMentionUser={openMentionDirectChat}
+              messageListRef={messageListRef}
+              mainComposerUploadRef={mainComposerUploadRef}
+              onGetThreadCount={getThreadCount}
+              onOpenThread={openThreadForMessage}
+              onEditingMessageValueChange={setEditingMessageValue}
+              onSaveEditedMessage={saveEditedMessage}
+              onCancelEditingMessage={cancelEditingMessage}
+              onStartEditingMessage={startEditingMessage}
+              onCopyText={copyTextToClipboard}
+              onTogglePinnedMessage={togglePinnedMessage}
+              onForwardMessage={forwardToMainChat}
+              onCreateTaskFromMessage={createTaskFromMessage}
+              onDeleteMessage={deleteMessageFromChat}
+              onComposerChange={setComposer}
+              onSendMessage={handleSendMessage}
+              onUploadFromInput={(event) => handleUploadFromInput(event, "main")}
+              onRemoveAttachment={removeDraftAttachment}
+              onMessageListScroll={handleMessageListScroll}
+              hasOlderMessages={hasOlderMessages}
+              isLoadingOlderMessages={isLoadingOlderMessages}
+              isMessagesLoading={messagesQuery.isLoading}
+            />
+          ) : (
+            <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-8">
+              <Empty className="border-0 p-0 md:p-0">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <MessageSquareText className="size-4 text-primary/85" />
+                  </EmptyMedia>
+                  <EmptyDescription className="text-center text-[12px]">
+                    {roomsQuery.isLoading
+                      ? "Loading spaces..."
+                      : hasRooms
+                        ? "Select a space to start chatting."
+                        : "No spaces yet. Create a direct chat or group to begin."}
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            </div>
+          )}
         </section>
 
         <div
           className={cn(
             "hidden min-h-0 overflow-hidden xl:flex transition-[width,opacity] duration-300 ease-out",
-            isDesktopThreadOpen ? "opacity-100" : "opacity-0 pointer-events-none",
+            isDesktopThreadOpen
+              ? "opacity-100"
+              : "opacity-0 pointer-events-none",
           )}
           style={{ width: isDesktopThreadOpen ? threadPanelWidth + 8 : 0 }}
         >
@@ -2408,6 +2728,7 @@ const SpacesPage = () => {
                   canSendThreadReply={canSendThreadReply}
                   canCreateTaskFromChat={Boolean(canCreateTaskFromChat)}
                   currentUserId={String(currentUser.id || "")}
+                  currentUserAvatarUrl={currentUser.avatarUrl}
                   mentionSuggestions={mentionSuggestions}
                   mentionMetaByToken={mentionMetaByToken}
                   authorInfoById={authorInfoById}
@@ -2469,12 +2790,48 @@ const SpacesPage = () => {
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2">
-            <RoomItems
-              roomEntries={rooms}
-              activeRoomId={activeRoom?.id || ""}
-              onPick={handleSelectRoom}
-            />
+          <div
+            ref={roomListSheetRef}
+            onScroll={handleRoomListScroll}
+            className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2"
+          >
+            {roomsQuery.isLoading ? (
+              <div className="flex h-full min-h-[14rem] items-center justify-center">
+                <LoaderComponent />
+              </div>
+            ) : hasRooms ? (
+              <>
+                <RoomItems
+                  roomEntries={rooms}
+                  activeRoomId={activeRoom?.id || ""}
+                  onPick={handleSelectRoom}
+                />
+                {isLoadingMoreRooms ? (
+                  <div className="flex justify-center py-1.5">
+                    <LoaderComponent />
+                  </div>
+                ) : hasMoreRooms ? (
+                  <div className="text-muted-foreground py-1 text-center text-[11px]">
+                    Scroll for more spaces
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="flex h-full min-h-[14rem] items-center justify-center px-2">
+                <Empty className="border-0 p-0 md:p-0">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <MessageSquareText className="size-4 text-primary/85" />
+                    </EmptyMedia>
+                    <EmptyDescription className="text-center text-[12px]">
+                      {roomQuery.trim()
+                        ? "No chats match this search."
+                        : "No spaces yet. Create your first chat to get started."}
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              </div>
+            )}
           </div>
         </SheetContent>
       </Sheet>
@@ -2490,7 +2847,10 @@ const SpacesPage = () => {
           }
         }}
       >
-        <SheetContent side="right" className="w-full max-w-none overflow-hidden p-0 sm:max-w-md">
+        <SheetContent
+          side="right"
+          className="w-full max-w-none overflow-hidden p-0 sm:max-w-sm"
+        >
           <ThreadPanel
             selectedThreadMessage={selectedThreadMessage}
             activeThreadReplies={activeThreadReplies}
@@ -2502,6 +2862,7 @@ const SpacesPage = () => {
             canSendThreadReply={canSendThreadReply}
             canCreateTaskFromChat={Boolean(canCreateTaskFromChat)}
             currentUserId={String(currentUser.id || "")}
+            currentUserAvatarUrl={currentUser.avatarUrl}
             mentionSuggestions={mentionSuggestions}
             mentionMetaByToken={mentionMetaByToken}
             authorInfoById={authorInfoById}
@@ -2520,29 +2881,40 @@ const SpacesPage = () => {
             onDeleteThreadReply={deleteThreadReply}
             onThreadComposerChange={setThreadComposer}
             onSendThreadReply={handleSendThreadReply}
-            onUploadFromInput={(event) => handleUploadFromInput(event, "thread")}
+            onUploadFromInput={(event) =>
+              handleUploadFromInput(event, "thread")
+            }
             onRemoveAttachment={removeDraftAttachment}
           />
         </SheetContent>
       </Sheet>
 
       <Sheet open={isKeepUpOpen} onOpenChange={setIsKeepUpOpen}>
-        <SheetContent side="right" className="w-full max-w-none p-0 sm:max-w-lg">
-          <SheetHeader className="border-b p-4 pb-3">
-            <SheetTitle>Keep-up</SheetTitle>
-            <SheetDescription>
+        <SheetContent
+          side="right"
+          className="w-full max-w-none p-0 sm:max-w-md"
+        >
+          <SheetHeader className="border-b border-border/35 px-4 py-3">
+            <SheetTitle className="text-[15px]">Keep-up</SheetTitle>
+            <SheetDescription className="text-[12px]">
               Replies in threads you may have missed.
             </SheetDescription>
           </SheetHeader>
 
-          <div className="flex items-center justify-between border-b px-4 py-2.5">
-            <p className="text-muted-foreground text-[12px]">
-              {keepUpQuery.data?.data?.pagination?.total || 0} pending thread updates
-            </p>
+          <div className="flex items-center gap-2 border-b px-4 py-2.5">
+            <div className="relative flex-1 min-w-0">
+              <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
+              <Input
+                value={keepUpSearch}
+                onChange={(event) => setKeepUpSearch(event.target.value)}
+                placeholder="Search updates"
+                className="h-8 pl-8 text-[12px]"
+              />
+            </div>
             <Button
               size="sm"
               variant="outline"
-              className="h-8 px-2.5 text-[12px]"
+              className="h-8 shrink-0 px-2.5 text-[12px]"
               onClick={handleMarkKeepUpSeen}
               disabled={markKeepUpSeenMutation.isPending}
             >
@@ -2550,46 +2922,117 @@ const SpacesPage = () => {
             </Button>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <div className="min-h-0 flex-1 overflow-y-auto">
             {keepUpQuery.isLoading ? (
-              <p className="text-muted-foreground text-[13px]">Loading updates...</p>
-            ) : (keepUpQuery.data?.data?.items?.length || 0) === 0 ? (
-              <p className="text-muted-foreground text-[13px]">No missed thread replies.</p>
+              <div className="px-4 py-4">
+                <LoaderComponent />
+              </div>
+            ) : keepUpFilteredItems.length === 0 ? (
+              <p className="text-muted-foreground px-4 py-4 text-[12.5px]">
+                No missed thread replies.
+              </p>
             ) : (
-              <div className="space-y-2">
-                {(keepUpQuery.data?.data?.items || []).map((item) => (
-                  <article
-                    key={item.id}
-                    className="rounded-md border px-3 py-2"
-                  >
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <p className="text-[13px] font-medium">{item.author.name}</p>
-                      <Badge variant="outline" className="text-[11px]">
-                        {item.roomName}
-                      </Badge>
-                      <span className="text-muted-foreground text-[11px]">
-                        {formatChatTimestamp(item.sentAt)}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[12.5px]">{item.content}</p>
-                    {item.parentMessagePreview && (
-                      <p className="text-muted-foreground mt-1 line-clamp-1 text-[11px]">
-                        Thread root: {item.parentMessagePreview}
-                      </p>
-                    )}
-                    <div className="mt-2 flex justify-end">
-                      <Button
-                        size="sm"
-                        className="h-8 px-2.5 text-[12px]"
-                        onClick={() => handleOpenKeepUpItem(item)}
-                      >
-                        Open thread
-                      </Button>
-                    </div>
-                  </article>
-                ))}
+              <div className="divide-y divide-border/25">
+                {keepUpFilteredItems.map((item) => {
+                  const keepUpAuthorAvatar =
+                    item.author.avatarUrl ||
+                    authorInfoById[String(item.author.id || "")]?.avatarUrl ||
+                    (String(item.author.id || "").trim() ===
+                    String(currentUser.id || "").trim()
+                      ? currentUser.avatarUrl || ""
+                      : "");
+
+                  return (
+                    <article
+                      key={item.id}
+                      className="bg-background/75 px-4 py-2.5 transition-colors hover:bg-muted/20"
+                    >
+                      <div className="flex items-start gap-2.5">
+                        <Avatar
+                          size="sm"
+                          userCard={{
+                            name: item.author.name,
+                            role:
+                              item.author.role === "agent" ? "Agent" : "Member",
+                            status: formatChatTimestamp(item.sentAt),
+                          }}
+                        >
+                          <AvatarImage
+                            src={keepUpAuthorAvatar}
+                            alt={item.author.name}
+                          />
+                          <AvatarFallback className="text-[11px]">
+                            {item.author.initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <p className="text-[12.5px] font-medium">
+                              {item.author.name}
+                            </p>
+                            <Badge variant="outline" className="h-5 px-1.5 text-[10.5px]">
+                              {item.roomName}
+                            </Badge>
+                            <span className="text-muted-foreground inline-flex items-center gap-1 text-[11px]">
+                              <Clock3 className="size-3" />
+                              {formatChatTimestamp(item.sentAt)}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-[12px] leading-4.5">
+                            {item.content}
+                          </p>
+                          {item.parentMessagePreview ? (
+                            <div className="text-muted-foreground mt-1.5 inline-flex max-w-full items-center gap-1 rounded-md bg-muted/25 px-2 py-1 text-[10.5px]">
+                              <MessageSquareText className="size-3 shrink-0" />
+                              <span className="line-clamp-1">
+                                {item.parentMessagePreview}
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="mt-1.5 flex justify-end">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={() => handleOpenKeepUpItem(item)}
+                        >
+                          Open thread
+                        </Button>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             )}
+          </div>
+
+          <div className="flex items-center justify-between border-t px-4 py-2.5">
+            <p className="text-muted-foreground text-[11px]">
+              Page {keepUpPagination?.page || keepUpPage} of{" "}
+              {keepUpPagination?.totalPages || 1}
+            </p>
+            <div className="flex items-center gap-1">
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="size-7"
+                onClick={() => setKeepUpPage((prev) => Math.max(1, prev - 1))}
+                disabled={!(keepUpPagination?.hasPrev || keepUpPage > 1)}
+              >
+                <ChevronLeft className="size-4" />
+              </Button>
+              <Button
+                size="icon-sm"
+                variant="ghost"
+                className="size-7"
+                onClick={() => setKeepUpPage((prev) => prev + 1)}
+                disabled={!keepUpPagination?.hasNext}
+              >
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
           </div>
         </SheetContent>
       </Sheet>
@@ -2640,7 +3083,9 @@ const SpacesPage = () => {
         roomsCount={rooms.length}
         onClose={() => setIsWorkspaceDetailsOpen(false)}
         onCopyUrl={() =>
-          navigator?.clipboard?.writeText(`https://${workspaceSlug}.squircle.live`)
+          navigator?.clipboard?.writeText(
+            `https://${workspaceSlug}.squircle.live`,
+          )
         }
       />
     </>

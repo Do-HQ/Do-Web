@@ -36,11 +36,19 @@ export interface AuthUser {
   isVerified: boolean;
   firstName: string;
   lastName: string;
+  phoneNumber: string;
+  phoneVerified: boolean;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
   workspaces: UserWorkspace[];
   createdAt: string;
   updatedAt: string;
   __v: number;
-  profilePhoto: CustomFile;
+  profilePhoto: CustomFile | null;
   currentWorkspaceId: WorkspaceType;
 }
 
@@ -54,7 +62,15 @@ export interface AuthResponse {
 export interface UpdateUserBody {
   firstName: string;
   lastName: string;
-  profilePhoto: string;
+  profilePhoto: string | null;
+  phoneNumber?: string;
+  phoneVerified?: boolean;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  state?: string;
+  postalCode?: string;
+  country?: string;
 }
 
 export interface LogoutRequestBody {

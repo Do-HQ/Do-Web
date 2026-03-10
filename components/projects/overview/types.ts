@@ -48,6 +48,19 @@ export interface ProjectMember {
   avatarUrl?: string;
   active: boolean;
   teamIds: string[];
+  score?: number;
+  scoreBreakdown?: {
+    taskAssignedPoints?: number;
+    taskCompletionPoints?: number;
+    taskOverduePenaltyPoints?: number;
+    subtaskCompletionPoints?: number;
+    subtaskOverduePenaltyPoints?: number;
+    workflowCompletionPoints?: number;
+    riskResolutionPoints?: number;
+    riskClosurePoints?: number;
+    awardedPoints?: number;
+    penaltyPoints?: number;
+  };
 }
 
 export interface ProjectHeatmapDay {
@@ -112,6 +125,7 @@ export interface ProjectRiskComment {
   authorUserId: string;
   authorName: string;
   authorInitials: string;
+  authorAvatarUrl?: string;
   createdAt: string;
 }
 
@@ -119,6 +133,7 @@ export interface ProjectActivityEvent {
   id: string;
   actor: string;
   actorInitials: string;
+  actorAvatarUrl?: string;
   summary: string;
   createdAt: string;
   route?: string;
@@ -266,6 +281,7 @@ export interface ProjectEditorValues {
 
 export interface ProjectWorkflowEditorValues {
   name: string;
+  teamId: string;
 }
 
 export interface ProjectSubtaskEditorValues {
@@ -318,4 +334,7 @@ export interface ProjectOverviewProps {
   projectId: string;
   pipelineId?: string;
   initialTab?: ProjectTabKey;
+  initialWorkflowId?: string;
+  initialTaskId?: string;
+  initialRiskId?: string;
 }

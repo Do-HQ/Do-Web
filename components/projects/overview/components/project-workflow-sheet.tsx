@@ -9,12 +9,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-import { ProjectWorkflowEditorValues } from "../types";
+import { ProjectTeamSummary, ProjectWorkflowEditorValues } from "../types";
 
 type ProjectWorkflowSheetProps = {
   open: boolean;
   mode: "create" | "edit";
+  teams: ProjectTeamSummary[];
   initialValues?: Partial<ProjectWorkflowEditorValues>;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: ProjectWorkflowEditorValues) => void;
@@ -23,6 +31,7 @@ type ProjectWorkflowSheetProps = {
 export function ProjectWorkflowSheet({
   open,
   mode,
+  teams,
   initialValues,
   onOpenChange,
   onSubmit,
@@ -33,6 +42,7 @@ export function ProjectWorkflowSheet({
   const [prompt, setPrompt] = useState("");
   const [draftReady, setDraftReady] = useState(mode === "edit");
   const [name, setName] = useState(initialValues?.name ?? "");
+  const [teamId, setTeamId] = useState(initialValues?.teamId ?? teams[0]?.id ?? "");
 
   const handleGenerateDraft = () => {
     const normalized = prompt.toLowerCase();
@@ -54,6 +64,7 @@ export function ProjectWorkflowSheet({
   const handleSubmit = () => {
     onSubmit({
       name: name.trim(),
+      teamId,
     });
   };
 
@@ -62,7 +73,7 @@ export function ProjectWorkflowSheet({
       open={open}
       onOpenChange={onOpenChange}
       title={mode === "create" ? "Create workflow" : "Edit workflow"}
-      description="Workflows are name-first. Team, scope, progress, and timeline are inferred from the project context and the tasks created under the workflow."
+      description="Workflows are lightweight. Set a workflow name and owning team. Timeline/progress are inferred from tasks under the workflow."
       mode={createMode}
       onModeChange={setCreateMode}
       prompt={prompt}
@@ -79,7 +90,7 @@ export function ProjectWorkflowSheet({
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="button" onClick={handleSubmit} disabled={!name.trim()}>
+          <Button type="button" onClick={handleSubmit} disabled={!name.trim() || !teamId}>
             {mode === "create" ? "Create workflow" : "Save workflow"}
           </Button>
         </div>
@@ -96,8 +107,24 @@ export function ProjectWorkflowSheet({
           />
         </div>
 
+        <div className="grid gap-2">
+          <Label htmlFor="workflow-team">Workflow team</Label>
+          <Select value={teamId} onValueChange={setTeamId}>
+            <SelectTrigger id="workflow-team" className="w-full">
+              <SelectValue placeholder="Select team" />
+            </SelectTrigger>
+            <SelectContent>
+              {teams.map((team) => (
+                <SelectItem key={team.id} value={team.id}>
+                  {team.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="rounded-xl border border-border/20 bg-muted/10 px-3 py-3 text-[12px] leading-5 text-muted-foreground">
-          This workflow will inherit its initial scope from the current project. Its timeline and progress will be derived automatically from the tasks added under it.
+          The assigned workflow team becomes the default team context for new tasks in this workflow.
         </div>
       </div>
     </AiCreateSheetShell>

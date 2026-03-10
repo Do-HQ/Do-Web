@@ -1,7 +1,15 @@
 import { Badge } from "@/components/ui/badge";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 import { cn } from "@/lib/utils";
+import { Timer } from "lucide-react";
 
 import { ProjectWorkflowTimingSummary } from "../types";
+import { ProjectInfoTip } from "./project-info-tip";
 
 type ProjectWorkflowDurationChartProps = {
   summaries: ProjectWorkflowTimingSummary[];
@@ -53,7 +61,10 @@ export function ProjectWorkflowDurationChart({
   return (
     <section className="overflow-hidden rounded-xl border border-border/35 bg-card/70 shadow-xs">
       <div className="border-b border-border/35 px-3 py-3 md:px-4">
-        <h2 className="text-[14px] font-semibold md:text-[15px]">Phase timing</h2>
+        <div className="flex items-center gap-1.5">
+          <h2 className="text-[14px] font-semibold md:text-[15px]">Phase timing</h2>
+          <ProjectInfoTip content="Compares planned duration with elapsed duration. Negative variance is ahead of schedule, positive variance is delayed." />
+        </div>
         <p className="text-muted-foreground text-[12px] leading-5">
           Click a phase to inspect it. The bars compare planned duration against elapsed time.
         </p>
@@ -95,6 +106,11 @@ export function ProjectWorkflowDurationChart({
                   <span className="text-muted-foreground w-12 text-right text-[11px] font-medium">
                     {getVarianceLabel(summary)}
                   </span>
+                  <ProjectInfoTip
+                    className="shrink-0"
+                    align="end"
+                    content={`Variance = elapsed days - planned days.${summary.status === "complete" ? " Done means this workflow is completed." : summary.varianceDays < 0 ? " This workflow is currently ahead of schedule." : summary.varianceDays > 0 ? " This workflow is currently behind schedule." : " This workflow is currently on schedule."}`}
+                  />
                   <Badge variant="outline" className={STATUS_STYLES[summary.status]}>
                     {getStatusLabel(summary)}
                   </Badge>
@@ -104,8 +120,17 @@ export function ProjectWorkflowDurationChart({
           })}
         </div>
       ) : (
-        <div className="text-muted-foreground px-3 py-3 text-[12px] md:px-4">
-          No workflow timing data is available in this scope.
+        <div className="px-3 py-3 md:px-4">
+          <Empty className="border-0 p-0 md:p-0">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Timer className="size-4 text-primary/85" />
+              </EmptyMedia>
+              <EmptyDescription className="text-[12px]">
+                No workflow timing data is available in this scope.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         </div>
       )}
     </section>

@@ -25,9 +25,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import useWorkspaceStore from "@/stores/workspace";
 import useWorkspaceTeam from "@/hooks/use-workspace-team";
@@ -37,6 +43,7 @@ import SettingsWorkspaceTeamsAddMemberModal, {
 } from "./settings-workspace-teams-add-member";
 import { TeamMemberRole, TeamVisibility } from "@/types/team";
 import LoaderComponent from "@/components/shared/loader";
+import { Users2 } from "lucide-react";
 
 type TeamIdentityTab = "general" | "members" | "security";
 
@@ -54,6 +61,9 @@ interface Props {
   teamId: string | null;
   initialTab?: TeamIdentityTab;
   openMemberPickerOnMount?: boolean;
+  canEditGeneral?: boolean;
+  canManageMembers?: boolean;
+  canRunSecurityActions?: boolean;
 }
 
 const toKey = (value: string) => {
@@ -78,6 +88,9 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
   teamId,
   initialTab = "general",
   openMemberPickerOnMount = false,
+  canEditGeneral = true,
+  canManageMembers = true,
+  canRunSecurityActions = true,
 }: Props) => {
   const { workspaceId } = useWorkspaceStore();
   const { useWorkspacePeople } = useWorkspace();
@@ -265,6 +278,11 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
     });
 
   const handleSaveGeneral = async () => {
+    if (!canEditGeneral) {
+      toast("You do not have permission to update this team.");
+      return;
+    }
+
     if (!workspaceId || !teamId || !team || keyTaken) {
       return;
     }
@@ -290,6 +308,11 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
   };
 
   const handleAddMembers = async (payload: TeamMemberInviteValue) => {
+    if (!canManageMembers) {
+      toast("You do not have permission to manage team members.");
+      return;
+    }
+
     if (!workspaceId || !teamId) {
       return;
     }
@@ -309,6 +332,11 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
   };
 
   const handleRoleChange = async (memberId: string, role: TeamMemberRole) => {
+    if (!canManageMembers) {
+      toast("You do not have permission to update member roles.");
+      return;
+    }
+
     if (!workspaceId || !teamId) {
       return;
     }
@@ -329,6 +357,11 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
   };
 
   const handleRemoveMember = async (memberId: string) => {
+    if (!canManageMembers) {
+      toast("You do not have permission to remove members from this team.");
+      return;
+    }
+
     if (!workspaceId || !teamId) {
       return;
     }
@@ -348,6 +381,11 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
   };
 
   const handleArchive = async () => {
+    if (!canRunSecurityActions) {
+      toast("Only workspace owners/admins can archive teams.");
+      return;
+    }
+
     if (!workspaceId || !teamId) {
       return;
     }
@@ -360,6 +398,11 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
   };
 
   const handleDissolve = async () => {
+    if (!canRunSecurityActions) {
+      toast("Only workspace owners/admins can dissolve teams.");
+      return;
+    }
+
     if (!workspaceId || !teamId) {
       return;
     }
@@ -403,6 +446,7 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
               <FieldGroup className="gap-4">
                 <Input
                   label="Team name"
+                  disabled={!canEditGeneral}
                   value={generalForm.name}
                   onChange={(event) =>
                     setGeneralForm((prev) => ({
@@ -414,6 +458,7 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
 
                 <Input
                   label="Team key"
+                  disabled={!canEditGeneral}
                   value={generalForm.key}
                   onChange={(event) =>
                     setGeneralForm((prev) => ({
@@ -431,6 +476,7 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
                 <div className="flex flex-col gap-2">
                   <FieldLabel>Team lead</FieldLabel>
                   <Select
+                    disabled={!canEditGeneral}
                     value={generalForm.leadUserId}
                     onValueChange={(value) =>
                       setGeneralForm((prev) => ({ ...prev, leadUserId: value }))
@@ -452,6 +498,7 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
                 <div className="flex flex-col gap-2">
                   <FieldLabel>Visibility</FieldLabel>
                   <Select
+                    disabled={!canEditGeneral}
                     value={generalForm.visibility}
                     onValueChange={(value) =>
                       setGeneralForm((prev) => ({
@@ -473,6 +520,7 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
                 <div className="flex flex-col gap-2">
                   <FieldLabel>Description</FieldLabel>
                   <Textarea
+                    disabled={!canEditGeneral}
                     value={generalForm.description}
                     placeholder="Describe the team focus and ownership..."
                     onChange={(event) =>
@@ -489,6 +537,7 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
                 <Button
                   size="sm"
                   loading={isSavingGeneral}
+                  disabled={!canEditGeneral}
                   onClick={handleSaveGeneral}
                 >
                   Save changes
@@ -515,6 +564,7 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
                 />
                 <Button
                   size="sm"
+                  disabled={!canManageMembers}
                   onClick={() => {
                     queryClient.invalidateQueries({
                       queryKey: ["get-workspaces-people", workspaceId],
@@ -565,6 +615,10 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
                                     : "Active member",
                               }}
                             >
+                              <AvatarImage
+                                src={user?.profilePhoto?.url || ""}
+                                alt={fullName}
+                              />
                               <AvatarFallback>
                                 {fullName
                                   .split(" ")
@@ -593,6 +647,7 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
                             </div>
                           </div>
                           <Select
+                            disabled={!canManageMembers}
                             value={member.role}
                             onValueChange={(value) =>
                               handleRoleChange(
@@ -613,7 +668,7 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
                           <Button
                             size="sm"
                             variant="ghost"
-                            disabled={memberIsLead}
+                            disabled={memberIsLead || !canManageMembers}
                             onClick={() => handleRemoveMember(member._id)}
                           >
                             Remove
@@ -622,11 +677,20 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
                       );
                     })
                   ) : (
-                    <div className="text-muted-foreground px-3 py-8 text-sm text-center">
+                    <div className="px-3 py-8 text-sm text-center">
                       {detailQuery.isLoading ? (
                         <LoaderComponent />
                       ) : (
-                        "No members found for this team."
+                        <Empty className="border-0 p-0 md:p-0">
+                          <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                              <Users2 className="size-4 text-primary/85" />
+                            </EmptyMedia>
+                            <EmptyDescription className="text-[12px]">
+                              No members found for this team.
+                            </EmptyDescription>
+                          </EmptyHeader>
+                        </Empty>
                       )}
                     </div>
                   )}
@@ -683,6 +747,7 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
                   size="sm"
                   variant="outline"
                   loading={isArchiving}
+                  disabled={!canRunSecurityActions}
                   onClick={handleArchive}
                 >
                   Archive team
@@ -691,6 +756,7 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
                   size="sm"
                   variant="destructive"
                   loading={isDissolving}
+                  disabled={!canRunSecurityActions}
                   onClick={handleDissolve}
                 >
                   Dissolve team
@@ -707,6 +773,7 @@ const SettingsWorkspaceTeamsManageTeamModal = ({
           existingMemberIds={existingMemberIds}
           loading={isAddingMembers || workspacePeopleQuery.isFetching}
           onSubmit={handleAddMembers}
+          disabled={!canManageMembers}
         />
       </DialogContent>
     </Dialog>

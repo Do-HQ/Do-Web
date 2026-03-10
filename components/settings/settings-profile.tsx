@@ -9,6 +9,7 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLegend,
+  FieldLabel,
   FieldSeparator,
   FieldSet,
   FieldTitle,
@@ -19,7 +20,9 @@ import {
   Check,
   Copy,
   Download,
+  Info,
   Link2,
+  Loader2,
   LogOut,
   Trash2,
   Upload,
@@ -36,11 +39,24 @@ import {
   SelectValue,
 } from "../ui/select";
 import { Switch } from "../ui/switch";
+import useUser from "@/hooks/use-user";
+import useFile from "@/hooks/use-file";
+import { UpdateUserBody } from "@/types/auth";
+import { getMissingProfileCompletionFields } from "@/lib/helpers/profile-completion";
+import { Country, State } from "country-state-city";
 
 type ProfileFormState = {
   firstName: string;
   lastName: string;
   email: string;
+  phoneNumber: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+  avatarId: string;
   avatarUrl: string;
 };
 
@@ -81,18 +97,28 @@ const buildInitialProfile = (
   firstName: user?.firstName ?? "",
   lastName: user?.lastName ?? "",
   email: user?.email ?? "",
+  phoneNumber: user?.phoneNumber ?? "",
+  addressLine1: user?.addressLine1 ?? "",
+  addressLine2: user?.addressLine2 ?? "",
+  city: user?.city ?? "",
+  state: user?.state ?? "",
+  postalCode: user?.postalCode ?? "",
+  country: user?.country ?? "",
+  avatarId: user?.profilePhoto?._id ?? "",
   avatarUrl: user?.profilePhoto?.url ?? "",
 });
 
 const SettingsProfile = () => {
   // Store
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Hooks
   const { copy, copied } = useCopyToClipboard();
+  const { useUpdateUser } = useUser();
+  const { useUploadAsset } = useFile();
 
   // Memo
   const initialProfile = useMemo(() => buildInitialProfile(user), [user]);
@@ -106,6 +132,42 @@ const SettingsProfile = () => {
   const [savedAgentPreferences, setSavedAgentPreferences] =
     useState<AgentPreferencesState>(DEFAULT_AGENT_PREFERENCES);
 
+  // Mutations
+  const { mutate: updateProfile, isPending: isSavingProfile } = useUpdateUser({
+    onSuccess: (data) => {
+      const updatedUser = data?.data?.user;
+      if (updatedUser) {
+        setUser(updatedUser);
+      }
+      const nextProfile = buildInitialProfile(updatedUser ?? user);
+      setProfile(nextProfile);
+      setSavedProfile(nextProfile);
+      toast.success("Profile updated", {
+        description: "Your profile details have been saved.",
+      });
+    },
+  });
+
+  const { mutate: uploadProfileImage, isPending: isUploadingProfileImage } =
+    useUploadAsset({
+      onSuccess: (data) => {
+        const asset = data?.data?.asset;
+        if (!asset) {
+          return;
+        }
+
+        setProfile((prev) => ({
+          ...prev,
+          avatarId: asset._id,
+          avatarUrl: asset.url,
+        }));
+
+        toast.success("Photo uploaded", {
+          description: "Save profile to persist this change.",
+        });
+      },
+    });
+
   // Effects
   useEffect(() => {
     setProfile(initialProfile);
@@ -118,6 +180,59 @@ const SettingsProfile = () => {
       (key) => profile[key] !== savedProfile[key],
     );
   }, [profile, savedProfile]);
+
+  const missingProfileFields = useMemo(
+    () => getMissingProfileCompletionFields(profile),
+    [profile],
+  );
+
+  const countryOptions = useMemo(
+    () =>
+      Country.getAllCountries()
+        .map((country) => ({
+          code: country.isoCode,
+          label: country.name,
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    [],
+  );
+
+  const countryCodeByName = useMemo(
+    () =>
+      new Map(countryOptions.map((country) => [country.label, country.code])),
+    [countryOptions],
+  );
+
+  const selectedCountryCode = useMemo(
+    () => countryCodeByName.get(profile.country) ?? "",
+    [countryCodeByName, profile.country],
+  );
+
+  const stateOptions = useMemo(() => {
+    if (!selectedCountryCode) {
+      return [];
+    }
+
+    return State.getStatesOfCountry(selectedCountryCode)
+      .map((state) => ({
+        code: state.isoCode,
+        label: state.name,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [selectedCountryCode]);
+
+  const countryValue = useMemo(
+    () => (countryCodeByName.has(profile.country) ? profile.country : ""),
+    [countryCodeByName, profile.country],
+  );
+
+  const stateValue = useMemo(
+    () =>
+      stateOptions.some((state) => state.label === profile.state)
+        ? profile.state
+        : "",
+    [profile.state, stateOptions],
+  );
 
   const agentPreferencesChanged = useMemo(() => {
     return (
@@ -143,26 +258,61 @@ const SettingsProfile = () => {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      updateProfileField("avatarUrl", String(reader.result ?? ""));
-    };
-    reader.readAsDataURL(file);
+    if (!user?._id) {
+      toast.error("Unable to upload image", {
+        description: "No user session is available.",
+      });
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", "profile");
+    formData.append("ownerId", String(user._id));
+    uploadProfileImage(formData);
+    event.target.value = "";
   };
 
   const handleRemoveAvatar = () => {
-    updateProfileField("avatarUrl", "");
+    setProfile((prev) => ({
+      ...prev,
+      avatarId: "",
+      avatarUrl: "",
+    }));
   };
 
   const handleSaveProfile = () => {
-    setSavedProfile(profile);
-    toast.success("Profile updated", {
-      description: "Profile changes are saved locally for now.",
-    });
+    const payload: UpdateUserBody = {
+      firstName: profile.firstName.trim(),
+      lastName: profile.lastName.trim(),
+      profilePhoto: profile.avatarId || null,
+      phoneNumber: profile.phoneNumber.trim(),
+      addressLine1: profile.addressLine1.trim(),
+      addressLine2: profile.addressLine2.trim(),
+      city: profile.city.trim(),
+      state: profile.state.trim(),
+      postalCode: profile.postalCode.trim(),
+      country: profile.country.trim(),
+    };
+
+    updateProfile(payload);
   };
 
   const handleResetProfile = () => {
     setProfile(savedProfile);
+  };
+
+  const handleCountryChange = (countryName: string) => {
+    const code = countryCodeByName.get(countryName);
+    const nextStateOptions = code
+      ? State.getStatesOfCountry(code).map((state) => state.name)
+      : [];
+
+    setProfile((prev) => ({
+      ...prev,
+      country: countryName,
+      state: nextStateOptions.includes(prev.state) ? prev.state : "",
+    }));
   };
 
   const handleCopyProfileLink = () => {
@@ -187,6 +337,13 @@ const SettingsProfile = () => {
         firstName: profile.firstName,
         lastName: profile.lastName,
         email: profile.email,
+        phoneNumber: profile.phoneNumber,
+        addressLine1: profile.addressLine1,
+        addressLine2: profile.addressLine2,
+        city: profile.city,
+        state: profile.state,
+        postalCode: profile.postalCode,
+        country: profile.country,
         avatarUrl: profile.avatarUrl,
       },
       account: {
@@ -248,77 +405,219 @@ const SettingsProfile = () => {
           across your workspace.
         </FieldDescription>
 
-        <div className="flex flex-wrap items-center gap-4 rounded-md border p-4 max-w-130">
-          <Avatar
-            size="lg"
-            userCard={{
-              name:
-                `${profile.firstName || ""} ${profile.lastName || ""}`.trim() ||
-                profile.email,
-              email: profile.email,
-              role: "Workspace member",
-            }}
-          >
-            <AvatarImage src={profile.avatarUrl} alt={profile.email} />
-            <AvatarFallback>
-              {getInitials(profile.firstName, profile.lastName, profile.email)}
-            </AvatarFallback>
-          </Avatar>
+        {missingProfileFields.length > 0 ? (
+          <div className="mb-2 rounded-md border border-primary/25 bg-primary/8 px-3 py-2 text-xs text-foreground">
+            <div className="flex items-start gap-2">
+              <Info className="mt-0.5 size-3.5 shrink-0 text-primary" />
+              <div className="space-y-1">
+                <p className="font-medium">Complete your profile</p>
+                <p className="text-muted-foreground">
+                  Add{" "}
+                  {missingProfileFields.map((item) => item.label).join(", ")} to
+                  finish your account setup.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
-          <FieldContent className="min-w-0">
-            <FieldTitle>Profile Photo</FieldTitle>
-            <FieldDescription>
-              Shown in comments, mentions, and member lists.
-            </FieldDescription>
-          </FieldContent>
-
-          <div className="ml-auto flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={handlePickAvatar}>
-              <Upload />
-              Upload
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={handleRemoveAvatar}
-              disabled={!profile.avatarUrl}
+        <div className="rounded-lg">
+          <div className="flex flex-wrap items-center gap-4">
+            <Avatar
+              size="lg"
+              userCard={{
+                name:
+                  `${profile.firstName || ""} ${profile.lastName || ""}`.trim() ||
+                  profile.email,
+                email: profile.email,
+                role: "Workspace member",
+              }}
             >
-              <X />
-              Remove
-            </Button>
+              <AvatarImage src={profile.avatarUrl} alt={profile.email} />
+              <AvatarFallback>
+                {getInitials(
+                  profile.firstName,
+                  profile.lastName,
+                  profile.email,
+                )}
+              </AvatarFallback>
+            </Avatar>
+
+            <FieldContent className="min-w-0 flex-1">
+              <FieldTitle>Profile Photo</FieldTitle>
+              <FieldDescription>
+                Shown in comments, mentions, and member lists.
+              </FieldDescription>
+            </FieldContent>
+
+            <div className="ml-auto flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                loading={isUploadingProfileImage}
+                onClick={handlePickAvatar}
+              >
+                {isUploadingProfileImage ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <Upload />
+                )}
+                Upload
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleRemoveAvatar}
+                disabled={!profile.avatarUrl || isUploadingProfileImage}
+              >
+                <X />
+                Remove
+              </Button>
+            </div>
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              className="hidden"
+              accept="image/*"
+              onChange={handleAvatarUpload}
+            />
           </div>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            className="hidden"
-            accept="image/*"
-            onChange={handleAvatarUpload}
-          />
-        </div>
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <Input
+              label="First name"
+              id="settings-first-name"
+              className="max-w-none"
+              value={profile.firstName}
+              onChange={(event) =>
+                updateProfileField("firstName", event.target.value)
+              }
+              placeholder="Enter your first name"
+            />
 
-        <div className="grid gap-4 md:grid-cols-2 max-w-130">
-          <Input
-            label="First name"
-            id="settings-first-name"
-            className="max-w-none"
-            value={profile.firstName}
-            onChange={(event) =>
-              updateProfileField("firstName", event.target.value)
-            }
-            placeholder="Enter your first name"
-          />
+            <Input
+              label="Last name"
+              id="settings-last-name"
+              className="max-w-none"
+              value={profile.lastName}
+              onChange={(event) =>
+                updateProfileField("lastName", event.target.value)
+              }
+              placeholder="Enter your last name"
+            />
 
-          <Input
-            label="Last name"
-            id="settings-last-name"
-            className="max-w-none"
-            value={profile.lastName}
-            onChange={(event) =>
-              updateProfileField("lastName", event.target.value)
-            }
-            placeholder="Enter your last name"
-          />
+            <Input
+              label="Phone number"
+              id="settings-phone-number"
+              className="max-w-none"
+              value={profile.phoneNumber}
+              onChange={(event) =>
+                updateProfileField("phoneNumber", event.target.value)
+              }
+              placeholder="+234 800 000 0000"
+              tip="Phone verification will be enabled in a later pass."
+            />
+
+            <Input
+              label="City"
+              id="settings-city"
+              className="max-w-none"
+              value={profile.city}
+              onChange={(event) =>
+                updateProfileField("city", event.target.value)
+              }
+              placeholder="Enter your city"
+            />
+
+            <Input
+              label="Address line 1"
+              id="settings-address-line-1"
+              className="max-w-none md:col-span-2"
+              value={profile.addressLine1}
+              onChange={(event) =>
+                updateProfileField("addressLine1", event.target.value)
+              }
+              placeholder="Street address"
+            />
+
+            <Input
+              label="Address line 2"
+              id="settings-address-line-2"
+              className="max-w-none md:col-span-2"
+              value={profile.addressLine2}
+              onChange={(event) =>
+                updateProfileField("addressLine2", event.target.value)
+              }
+              placeholder="Apartment, suite, landmark (optional)"
+            />
+
+            <Field className="md:col-span-1">
+              <FieldLabel htmlFor="settings-country-select">Country</FieldLabel>
+              <Select value={countryValue} onValueChange={handleCountryChange}>
+                <SelectTrigger
+                  id="settings-country-select"
+                  className="w-full max-w-none"
+                >
+                  <SelectValue placeholder="Select country" />
+                </SelectTrigger>
+                <SelectContent className="max-h-80">
+                  {countryOptions.map((country) => (
+                    <SelectItem key={country.code} value={country.label}>
+                      {country.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="settings-state-select">
+                State / Region
+              </FieldLabel>
+              <Select
+                value={stateValue}
+                onValueChange={(value) => updateProfileField("state", value)}
+                disabled={!selectedCountryCode || stateOptions.length === 0}
+              >
+                <SelectTrigger
+                  id="settings-state-select"
+                  className="w-full max-w-none"
+                >
+                  <SelectValue
+                    placeholder={
+                      selectedCountryCode
+                        ? "Select state / region"
+                        : "Select country first"
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent className="max-h-80">
+                  {stateOptions.map((state) => (
+                    <SelectItem key={state.code} value={state.label}>
+                      {state.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {!selectedCountryCode || stateOptions.length === 0 ? (
+                <FieldDescription>
+                  This country does not have mapped states, or no country is
+                  selected yet.
+                </FieldDescription>
+              ) : null}
+            </Field>
+
+            <Input
+              label="Postal code"
+              id="settings-postal-code"
+              value={profile.postalCode}
+              onChange={(event) =>
+                updateProfileField("postalCode", event.target.value)
+              }
+              placeholder="Postal code"
+            />
+          </div>
         </div>
 
         <Input
@@ -327,14 +626,16 @@ const SettingsProfile = () => {
           value={profile.email}
           readOnly
           tip="Email changes are managed through authentication settings."
-          className="max-w-130"
         />
 
         <div className="flex items-center gap-2">
           <Button
             className="max-w-20"
             size="sm"
-            disabled={!profileChanged}
+            disabled={
+              !profileChanged || isSavingProfile || isUploadingProfileImage
+            }
+            loading={isSavingProfile}
             onClick={handleSaveProfile}
           >
             Save
@@ -343,7 +644,9 @@ const SettingsProfile = () => {
             className="max-w-20"
             size="sm"
             variant="ghost"
-            disabled={!profileChanged}
+            disabled={
+              !profileChanged || isSavingProfile || isUploadingProfileImage
+            }
             onClick={handleResetProfile}
           >
             Reset

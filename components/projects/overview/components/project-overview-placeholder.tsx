@@ -1,5 +1,12 @@
 import LoaderComponent from "@/components/shared/loader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
+import { FolderSearch, Sparkles } from "lucide-react";
 
 type ProjectOverviewPlaceholderProps = {
   kind: "missing" | "coming-soon" | "loading";
@@ -29,9 +36,20 @@ export function ProjectOverviewPlaceholder({
         <CardTitle className="text-[13px]">{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        <p className="text-muted-foreground text-[12px] leading-5">
-          {description}
-        </p>
+        <Empty className="border-0 p-0 md:p-0">
+          <EmptyHeader className="items-start text-left">
+            <EmptyMedia variant="icon">
+              {kind === "missing" ? (
+                <FolderSearch className="size-4 text-amber-400" />
+              ) : (
+                <Sparkles className="size-4 text-primary" />
+              )}
+            </EmptyMedia>
+            <EmptyDescription className="text-[12px] leading-5">
+              {description}
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       </CardContent>
     </Card>
   );

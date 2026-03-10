@@ -3,12 +3,15 @@ import {
   Archive,
   ArrowUpDown,
   ChevronRight,
+  FolderSearch,
   ListFilter,
   MoreHorizontal,
   Pencil,
   Plus,
   PlusSquare,
   Rows3,
+  Star,
+  StarOff,
   Trash2,
 } from "lucide-react";
 
@@ -38,7 +41,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 import { cn } from "@/lib/utils";
+import { useFavoritesStore } from "@/stores";
 import { Pagination } from "@/types";
 
 import {
@@ -59,6 +69,7 @@ import {
 import LoaderComponent from "@/components/shared/loader";
 
 type ProjectOverviewWorkflowTableProps = {
+  projectId: string;
   workflows: ProjectWorkflow[];
   members: ProjectMember[];
   teams: ProjectTeamSummary[];
@@ -93,6 +104,7 @@ type ProjectOverviewWorkflowTableProps = {
     taskId: string,
     taskName: string,
   ) => void;
+  canManageWorkflowActions?: boolean;
 };
 
 const VIEW_OPTIONS: { value: ProjectWorkflowView; label: string }[] = [
@@ -132,9 +144,9 @@ const PRIORITY_DOT: Record<
 };
 
 const WORKFLOW_DOT: Record<ProjectWorkflow["status"], string> = {
-  "on-track": "bg-emerald-500",
-  "at-risk": "bg-primary",
-  blocked: "bg-amber-500",
+  "on-track": "bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.12)]",
+  "at-risk": "bg-primary shadow-[0_0_0_3px_rgba(249,115,22,0.16)]",
+  blocked: "bg-amber-500 shadow-[0_0_0_3px_rgba(245,158,11,0.16)]",
   complete: "bg-muted-foreground",
 };
 
@@ -144,6 +156,7 @@ type DensityMode = "compact" | "comfortable";
 type QuickFilterMode = "all" | "active" | "at-risk" | "completed";
 
 export function ProjectOverviewWorkflowTable({
+  projectId,
   workflows,
   members,
   teams,
@@ -169,7 +182,10 @@ export function ProjectOverviewWorkflowTable({
   onCreateSubtask,
   onWorkflowAction,
   onTaskAction,
+  canManageWorkflowActions = true,
 }: ProjectOverviewWorkflowTableProps) {
+  const favorites = useFavoritesStore((state) => state.favorites);
+  const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
   const selectedTeam = teams.find((team) => team.id === selectedTeamId) ?? null;
   const [density, setDensity] = useState<DensityMode>("compact");
 
@@ -178,6 +194,28 @@ export function ProjectOverviewWorkflowTable({
     quickFilterMode !== "all" || selectedTeamId !== "all" || Boolean(startDate);
 
   const displayedWorkflows = workflows;
+
+  const favoriteKeySet = new Set(favorites.map((item) => item.key));
+
+  const toggleWorkflowFavorite = (workflow: ProjectWorkflow) => {
+    toggleFavorite({
+      key: `workflow:${projectId}:${workflow.id}`,
+      type: "workflow",
+      label: workflow.name,
+      subtitle: "Workflow",
+      href: `/projects/${projectId}?tab=workflows&workflow=${encodeURIComponent(workflow.id)}`,
+    });
+  };
+
+  const toggleTaskFavorite = (workflow: ProjectWorkflow, task: ProjectWorkflow["tasks"][number]) => {
+    toggleFavorite({
+      key: `task:${projectId}:${workflow.id}:${task.id}`,
+      type: "task",
+      label: task.title,
+      subtitle: workflow.name,
+      href: `/projects/${projectId}?tab=dos&workflow=${encodeURIComponent(workflow.id)}&task=${encodeURIComponent(task.id)}`,
+    });
+  };
 
   return (
     <section className="overflow-hidden rounded-xl border border-border/35 bg-card/70 shadow-xs">
@@ -372,6 +410,12 @@ export function ProjectOverviewWorkflowTable({
               variant="outline"
               size="sm"
               onClick={onCreateWorkflow}
+              disabled={!canManageWorkflowActions}
+              title={
+                !canManageWorkflowActions
+                  ? "You do not have permission to create workflows."
+                  : undefined
+              }
             >
               <Plus />
               Workflow
@@ -431,6 +475,7 @@ export function ProjectOverviewWorkflowTable({
                           className={cn(
                             "size-2 shrink-0 rounded-full",
                             WORKFLOW_DOT[workflow.status],
+                            workflow.status !== "complete" && "animate-pulse",
                           )}
                         />
                         <div className="min-w-0">
@@ -488,6 +533,24 @@ export function ProjectOverviewWorkflowTable({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuItem
+                            onClick={() => toggleWorkflowFavorite(workflow)}
+                          >
+                            {favoriteKeySet.has(
+                              `workflow:${projectId}:${workflow.id}`,
+                            ) ? (
+                              <StarOff />
+                            ) : (
+                              <Star />
+                            )}
+                            {favoriteKeySet.has(
+                              `workflow:${projectId}:${workflow.id}`,
+                            )
+                              ? "Remove favorite"
+                              : "Add to favorites"}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            disabled={!canManageWorkflowActions}
                             onClick={() => onCreateTask(workflow.id)}
                           >
                             <PlusSquare />
@@ -495,6 +558,7 @@ export function ProjectOverviewWorkflowTable({
                           </DropdownMenuItem>
 
                           <DropdownMenuItem
+                            disabled={!canManageWorkflowActions}
                             onClick={() => onEditWorkflow(workflow.id)}
                           >
                             <Pencil />
@@ -504,6 +568,7 @@ export function ProjectOverviewWorkflowTable({
 
                           <DropdownMenuItem
                             variant="destructive"
+                            disabled={!canManageWorkflowActions}
                             onClick={() =>
                               onWorkflowAction(
                                 "Archive workflow",
@@ -518,6 +583,7 @@ export function ProjectOverviewWorkflowTable({
 
                           <DropdownMenuItem
                             variant="destructive"
+                            disabled={!canManageWorkflowActions}
                             onClick={() =>
                               onWorkflowAction(
                                 "Delete workflow",
@@ -626,6 +692,26 @@ export function ProjectOverviewWorkflowTable({
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuItem
                                     onClick={() =>
+                                      toggleTaskFavorite(workflow, task)
+                                    }
+                                  >
+                                    {favoriteKeySet.has(
+                                      `task:${projectId}:${workflow.id}:${task.id}`,
+                                    ) ? (
+                                      <StarOff />
+                                    ) : (
+                                      <Star />
+                                    )}
+                                    {favoriteKeySet.has(
+                                      `task:${projectId}:${workflow.id}:${task.id}`,
+                                    )
+                                      ? "Remove favorite"
+                                      : "Add to favorites"}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    disabled={!canManageWorkflowActions}
+                                    onClick={() =>
                                       onCreateSubtask(workflow.id, task.id)
                                     }
                                   >
@@ -633,6 +719,7 @@ export function ProjectOverviewWorkflowTable({
                                     Add subtask
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
+                                    disabled={!canManageWorkflowActions}
                                     onClick={() =>
                                       onEditTask(workflow.id, task.id)
                                     }
@@ -643,6 +730,7 @@ export function ProjectOverviewWorkflowTable({
                                   <DropdownMenuSeparator />
                                   <DropdownMenuItem
                                     variant="destructive"
+                                    disabled={!canManageWorkflowActions}
                                     onClick={() =>
                                       onTaskAction(
                                         "Delete task",
@@ -672,9 +760,16 @@ export function ProjectOverviewWorkflowTable({
           {loading ? (
             <LoaderComponent />
           ) : (
-            <p className="text-center">
-              No workflows match the current filters.
-            </p>
+            <Empty className="border-0 p-0 md:p-0">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <FolderSearch className="size-4 text-primary/85" />
+                </EmptyMedia>
+                <EmptyDescription className="text-[12px]">
+                  No workflows match the current filters.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           )}
         </div>
       )}
