@@ -1,6 +1,8 @@
-import { Hash, Lock, Phone, Users } from "lucide-react";
+import { useMemo } from "react";
+import { Hash, Lock, Phone, Star, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useFavoritesStore } from "@/stores";
 import { SCOPE_META } from "../constants";
 import type { SpaceRoom } from "../types";
 import { isDirectRoom } from "../utils";
@@ -12,18 +14,34 @@ type RoomItemsProps = {
 };
 
 const RoomItems = ({ roomEntries, activeRoomId, onPick }: RoomItemsProps) => {
+  const favorites = useFavoritesStore((state) => state.favorites);
+  const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
+  const favoriteKeys = useMemo(
+    () => new Set(favorites.map((item) => item.key)),
+    [favorites],
+  );
+
   return roomEntries.map((room) => {
     const ScopeIcon = SCOPE_META[room.scope].icon;
     const isActive = room.id === activeRoomId;
     const isDirectChat = isDirectRoom(room);
+    const favoriteKey = `chat:${room.id}`;
+    const isFavorite = favoriteKeys.has(favoriteKey);
 
     return (
-      <button
+      <div
         key={room.id}
-        type="button"
+        role="button"
+        tabIndex={0}
         onClick={() => onPick(room.id)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onPick(room.id);
+          }
+        }}
         className={cn(
-          "w-full rounded-md border px-2.5 py-2 text-left transition-colors",
+          "w-full cursor-pointer rounded-md border px-2.5 py-2 text-left transition-colors outline-none",
           isActive
             ? "bg-accent/55 border-border"
             : "border-transparent hover:bg-accent/35",
@@ -32,10 +50,34 @@ const RoomItems = ({ roomEntries, activeRoomId, onPick }: RoomItemsProps) => {
         <div className="flex items-center gap-1.5">
           <ScopeIcon className="text-muted-foreground size-4" />
           <p className="truncate text-[13px] font-medium">{room.name}</p>
+          <button
+            type="button"
+            className={cn(
+              "text-muted-foreground hover:text-foreground ml-auto inline-flex size-6 items-center justify-center rounded-md transition-colors",
+              isFavorite && "text-amber-500",
+            )}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              toggleFavorite({
+                key: favoriteKey,
+                type: "chat",
+                label: room.name,
+                subtitle: `${SCOPE_META[room.scope].label} chat`,
+                href: `/spaces?room=${encodeURIComponent(room.id)}`,
+              });
+            }}
+            title={isFavorite ? "Remove from favorites" : "Add to favorites"}
+            aria-label={
+              isFavorite ? "Remove chat from favorites" : "Add chat to favorites"
+            }
+          >
+            <Star className={cn("size-3.5", isFavorite && "fill-current")} />
+          </button>
           {room.unread > 0 && (
             <Badge
               variant="secondary"
-              className="ml-auto rounded-full px-1.5 py-0 text-[11px]"
+              className="rounded-full px-1.5 py-0 text-[11px]"
             >
               {room.unread}
             </Badge>
@@ -58,13 +100,13 @@ const RoomItems = ({ roomEntries, activeRoomId, onPick }: RoomItemsProps) => {
               <Hash className="size-3.5" />
             )}
             {isDirectChat
-              ? "Direct"
+            ? "Direct"
               : room.visibility === "private"
                 ? "Private"
                 : "Open"}
           </span>
         </div>
-      </button>
+      </div>
     );
   });
 };

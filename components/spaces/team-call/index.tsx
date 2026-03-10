@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   LayoutGrid,
@@ -29,7 +29,17 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import {
+  disconnectTeamCallSocket,
+  getTeamCallSocket,
+  joinTeamCallRoom,
+  leaveTeamCallRoom,
+  sendTeamCallChatMessage,
+  sendTeamCallSignal,
+  updateTeamCallParticipantState,
+} from "@/lib/realtime/team-call-socket";
 import useAuthStore from "@/stores/auth";
+import useWorkspaceStore from "@/stores/workspace";
 import { ROUTES } from "@/utils/constants";
 import { useRouter, useSearchParams } from "next/navigation";
 import CallPanel from "./components/call-panel";
@@ -39,20 +49,55 @@ import type {
   PanelTab,
   Participant,
 } from "./types";
-import { formatDuration, getInitials, stopMediaStream, TEAM_CALL_WIDGET_KEY } from "./utils";
+import {
+  formatDuration,
+  getInitials,
+  stopMediaStream,
+  TEAM_CALL_WIDGET_KEY,
+} from "./utils";
+
+const ICE_SERVERS: RTCIceServer[] = [
+  {
+    urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"],
+  },
+];
+
+const formatChatTime = (isoValue: string) => {
+  const date = new Date(isoValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return "now";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+};
+
+const shouldInitiatePeer = (localUserId: string, remoteUserId: string) =>
+  localUserId.localeCompare(remoteUserId) > 0;
 
 const TeamCallPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuthStore();
+  const { workspaceId } = useWorkspaceStore();
 
+  const roomId = String(searchParams.get("roomId") || "").trim();
   const roomName = searchParams.get("room") || "Team Call";
   const roomScope = searchParams.get("scope") || "team";
+  const callModeParam = String(searchParams.get("callMode") || "video").trim();
+  const callMode: "voice" | "video" =
+    callModeParam === "voice" ? "voice" : "video";
   const startedAtParamRaw = searchParams.get("startedAt");
   const startedAtParam = startedAtParamRaw ? Number(startedAtParamRaw) : NaN;
+  const resolvedWorkspaceId =
+    workspaceId || String(user?.currentWorkspaceId?._id || "").trim();
 
   const [isMicOn, setIsMicOn] = useState(true);
-  const [isVideoOn, setIsVideoOn] = useState(true);
+  const [isVideoOn, setIsVideoOn] = useState(callMode === "video");
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [isGridView, setIsGridView] = useState(false);
 
@@ -68,74 +113,317 @@ const TeamCallPage = () => {
 
   const [chatInput, setChatInput] = useState("");
   const [callNote, setCallNote] = useState("");
-  const [callMessages, setCallMessages] = useState<CallChatMessage[]>([
-    {
-      id: "c1",
-      author: "Aya",
-      content: "Let's align on blockers before we close this call.",
-      sentAt: "09:11",
-    },
-    {
-      id: "c2",
-      author: "Jude",
-      content: "I shared updated QA timing in the thread.",
-      sentAt: "09:13",
-    },
-  ]);
+  const [callMessages, setCallMessages] = useState<CallChatMessage[]>([]);
+
+  const [remoteParticipantsMap, setRemoteParticipantsMap] = useState<
+    Record<string, Participant>
+  >({});
 
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const localPreviewRef = useRef<HTMLVideoElement | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
+  const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+  const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
+  const socketRef = useRef<ReturnType<typeof getTeamCallSocket> | null>(null);
 
+  const currentUserId = String(user?._id || "").trim();
   const currentUserName =
     `${user?.firstName ?? ""} ${user?.lastName ?? ""}`.trim() || "You";
 
-  const participants = useMemo<Participant[]>(() => {
-    return [
-      {
-        id: "you",
-        name: currentUserName,
-        initials: getInitials(currentUserName),
-        avatarUrl: user?.profilePhoto?.url,
-        role: "Host",
-        isMuted: !isMicOn,
-        isVideoOn,
-      },
-      {
-        id: "aya",
-        name: "Aya Wilson",
-        initials: "AW",
-        avatarUrl:
-          "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=120&q=80",
-        isMuted: false,
-        isVideoOn: true,
-      },
-      {
-        id: "jude",
-        name: "Jude Okafor",
-        initials: "JO",
-        avatarUrl:
-          "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=120&q=80",
-        isMuted: true,
-        isVideoOn: true,
-      },
-      {
-        id: "mariam",
-        name: "Mariam Bello",
-        initials: "MB",
-        avatarUrl:
-          "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=120&q=80",
-        isMuted: false,
-        isVideoOn: false,
-      },
-    ];
-  }, [currentUserName, isMicOn, isVideoOn, user?.profilePhoto?.url]);
+  const localParticipant = useMemo<Participant>(
+    () => ({
+      id: currentUserId || "you",
+      name: currentUserName,
+      initials: getInitials(currentUserName),
+      avatarUrl: user?.profilePhoto?.url,
+      role: "Host",
+      isMuted: !isMicOn,
+      isVideoOn,
+      isScreenSharing: Boolean(screenStream),
+      stream: localStream,
+    }),
+    [
+      currentUserId,
+      currentUserName,
+      isMicOn,
+      isVideoOn,
+      localStream,
+      screenStream,
+      user?.profilePhoto?.url,
+    ],
+  );
 
-  const featuredParticipant = participants[0];
+  const participants = useMemo<Participant[]>(() => {
+    const remoteParticipants = Object.values(remoteParticipantsMap).sort((a, b) =>
+      a.name.localeCompare(b.name),
+    );
+
+    return [localParticipant, ...remoteParticipants];
+  }, [localParticipant, remoteParticipantsMap]);
+
+  const featuredParticipant = participants[0] || localParticipant;
   const tileParticipants = participants.slice(1);
   const isScreenSharing = Boolean(screenStream);
+  const resolvedMediaError = roomId
+    ? mediaError
+    : "Missing call room context. Start the call from a chat room.";
+
+  const upsertRemoteParticipant = useCallback(
+    (userId: string, patch: Partial<Participant>) => {
+      if (!userId || userId === currentUserId) {
+        return;
+      }
+
+      setRemoteParticipantsMap((prev) => {
+        const existing = prev[userId];
+
+        const nextParticipant: Participant = {
+          id: userId,
+          name: existing?.name || "Member",
+          initials: existing?.initials || getInitials(existing?.name || "Member"),
+          avatarUrl: existing?.avatarUrl,
+          role: existing?.role || "Member",
+          isMuted: existing?.isMuted ?? true,
+          isVideoOn: existing?.isVideoOn ?? false,
+          isScreenSharing: existing?.isScreenSharing ?? false,
+          stream: existing?.stream || null,
+          ...patch,
+        };
+
+        return {
+          ...prev,
+          [userId]: nextParticipant,
+        };
+      });
+    },
+    [currentUserId],
+  );
+
+  const removeRemoteParticipant = useCallback((userId: string) => {
+    setRemoteParticipantsMap((prev) => {
+      if (!prev[userId]) {
+        return prev;
+      }
+
+      const next = { ...prev };
+      delete next[userId];
+      return next;
+    });
+  }, []);
+
+  const closePeerConnection = useCallback((targetUserId: string) => {
+    const existing = peerConnectionsRef.current.get(targetUserId);
+    if (existing) {
+      existing.onicecandidate = null;
+      existing.ontrack = null;
+      existing.onconnectionstatechange = null;
+      existing.close();
+      peerConnectionsRef.current.delete(targetUserId);
+    }
+
+    const existingRemoteStream = remoteStreamsRef.current.get(targetUserId);
+    if (existingRemoteStream) {
+      stopMediaStream(existingRemoteStream);
+      remoteStreamsRef.current.delete(targetUserId);
+    }
+  }, []);
+
+  const createPeerConnection = useCallback(
+    (targetUserId: string) => {
+      const existing = peerConnectionsRef.current.get(targetUserId);
+      if (existing) {
+        return existing;
+      }
+
+      const connection = new RTCPeerConnection({
+        iceServers: ICE_SERVERS,
+      });
+
+      const currentAudioTracks = localStreamRef.current?.getAudioTracks() || [];
+      currentAudioTracks.forEach((track) => {
+        connection.addTrack(track, localStreamRef.current as MediaStream);
+      });
+
+      const currentVideoTrack =
+        screenStreamRef.current?.getVideoTracks()?.[0] ||
+        localStreamRef.current?.getVideoTracks()?.[0];
+
+      if (currentVideoTrack) {
+        const videoCarrierStream =
+          screenStreamRef.current || localStreamRef.current || new MediaStream([currentVideoTrack]);
+        connection.addTrack(currentVideoTrack, videoCarrierStream);
+      }
+
+      connection.onicecandidate = (event) => {
+        if (!event.candidate || !resolvedWorkspaceId || !roomId) {
+          return;
+        }
+
+        sendTeamCallSignal({
+          workspaceId: resolvedWorkspaceId,
+          roomId,
+          targetUserId,
+          signal: {
+            type: "ice-candidate",
+            candidate: event.candidate.toJSON(),
+          },
+        });
+      };
+
+      connection.ontrack = (event) => {
+        const [incomingStream] = event.streams;
+        if (!incomingStream) {
+          return;
+        }
+
+        remoteStreamsRef.current.set(targetUserId, incomingStream);
+        upsertRemoteParticipant(targetUserId, {
+          stream: incomingStream,
+          isVideoOn: incomingStream.getVideoTracks().length > 0,
+        });
+      };
+
+      connection.onconnectionstatechange = () => {
+        const state = connection.connectionState;
+        if (["failed", "closed", "disconnected"].includes(state)) {
+          closePeerConnection(targetUserId);
+        }
+      };
+
+      peerConnectionsRef.current.set(targetUserId, connection);
+      return connection;
+    },
+    [closePeerConnection, resolvedWorkspaceId, roomId, upsertRemoteParticipant],
+  );
+
+  const applyLocalTracksToPeers = useCallback(() => {
+    const audioTrack = localStreamRef.current?.getAudioTracks()?.[0] || null;
+    const videoTrack =
+      screenStreamRef.current?.getVideoTracks()?.[0] ||
+      localStreamRef.current?.getVideoTracks()?.[0] ||
+      null;
+
+    peerConnectionsRef.current.forEach((connection) => {
+      const senders = connection.getSenders();
+      const audioSender = senders.find((sender) => sender.track?.kind === "audio");
+      const videoSender = senders.find((sender) => sender.track?.kind === "video");
+
+      if (audioSender && audioSender.track !== audioTrack) {
+        void audioSender.replaceTrack(audioTrack);
+      } else if (!audioSender && audioTrack && localStreamRef.current) {
+        connection.addTrack(audioTrack, localStreamRef.current);
+      }
+
+      if (videoSender && videoSender.track !== videoTrack) {
+        void videoSender.replaceTrack(videoTrack);
+      } else if (!videoSender && videoTrack) {
+        const videoCarrier =
+          screenStreamRef.current || localStreamRef.current || new MediaStream([videoTrack]);
+        connection.addTrack(videoTrack, videoCarrier);
+      }
+    });
+  }, []);
+
+  const createOfferToParticipant = useCallback(
+    async (targetUserId: string) => {
+      if (!resolvedWorkspaceId || !roomId || !targetUserId || targetUserId === currentUserId) {
+        return;
+      }
+
+      const connection = createPeerConnection(targetUserId);
+      const offer = await connection.createOffer();
+      await connection.setLocalDescription(offer);
+
+      sendTeamCallSignal({
+        workspaceId: resolvedWorkspaceId,
+        roomId,
+        targetUserId,
+        signal: {
+          type: "offer",
+          sdp: connection.localDescription?.toJSON() || offer,
+        },
+      });
+    },
+    [createPeerConnection, currentUserId, resolvedWorkspaceId, roomId],
+  );
+
+  const handleIncomingSignal = useCallback(
+    async (payload: {
+      workspaceId: string;
+      roomId: string;
+      fromUserId: string;
+      signal: {
+        type: "offer" | "answer" | "ice-candidate";
+        sdp?: RTCSessionDescriptionInit;
+        candidate?: RTCIceCandidateInit;
+      };
+    }) => {
+      if (
+        !payload ||
+        String(payload.workspaceId) !== String(resolvedWorkspaceId) ||
+        String(payload.roomId) !== String(roomId)
+      ) {
+        return;
+      }
+
+      const fromUserId = String(payload.fromUserId || "").trim();
+      if (!fromUserId || fromUserId === currentUserId) {
+        return;
+      }
+
+      const signal = payload.signal;
+      if (!signal) {
+        return;
+      }
+
+      const connection = createPeerConnection(fromUserId);
+
+      if (signal.type === "offer" && signal.sdp) {
+        await connection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        const answer = await connection.createAnswer();
+        await connection.setLocalDescription(answer);
+
+        sendTeamCallSignal({
+          workspaceId: resolvedWorkspaceId,
+          roomId,
+          targetUserId: fromUserId,
+          signal: {
+            type: "answer",
+            sdp: connection.localDescription?.toJSON() || answer,
+          },
+        });
+        return;
+      }
+
+      if (signal.type === "answer" && signal.sdp) {
+        await connection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        return;
+      }
+
+      if (signal.type === "ice-candidate" && signal.candidate) {
+        await connection.addIceCandidate(new RTCIceCandidate(signal.candidate));
+      }
+    },
+    [createPeerConnection, currentUserId, resolvedWorkspaceId, roomId],
+  );
+
+  const cleanupCallConnections = useCallback(() => {
+    peerConnectionsRef.current.forEach((connection) => {
+      connection.onicecandidate = null;
+      connection.ontrack = null;
+      connection.onconnectionstatechange = null;
+      connection.close();
+    });
+    peerConnectionsRef.current.clear();
+
+    remoteStreamsRef.current.forEach((stream) => {
+      stopMediaStream(stream);
+    });
+    remoteStreamsRef.current.clear();
+    setRemoteParticipantsMap({});
+  }, []);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -153,9 +441,7 @@ const TeamCallPage = () => {
     }
 
     const timer = window.setTimeout(() => {
-      setDurationSeconds(
-        Math.max(0, Math.floor((Date.now() - startedAtParam) / 1000)),
-      );
+      setDurationSeconds(Math.max(0, Math.floor((Date.now() - startedAtParam) / 1000)));
     }, 0);
 
     return () => {
@@ -189,11 +475,13 @@ const TeamCallPage = () => {
 
   useEffect(() => {
     localStreamRef.current = localStream;
-  }, [localStream]);
+    applyLocalTracksToPeers();
+  }, [applyLocalTracksToPeers, localStream]);
 
   useEffect(() => {
     screenStreamRef.current = screenStream;
-  }, [screenStream]);
+    applyLocalTracksToPeers();
+  }, [applyLocalTracksToPeers, screenStream]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -203,7 +491,7 @@ const TeamCallPage = () => {
     window.sessionStorage.removeItem(TEAM_CALL_WIDGET_KEY);
   }, []);
 
-  const initLocalMedia = async () => {
+  const initLocalMedia = useCallback(async (preferVideo: boolean) => {
     if (
       typeof navigator === "undefined" ||
       !navigator.mediaDevices ||
@@ -215,7 +503,7 @@ const TeamCallPage = () => {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
+        video: preferVideo,
         audio: true,
       });
 
@@ -232,17 +520,17 @@ const TeamCallPage = () => {
       setMediaError("Camera or microphone permission is unavailable.");
       return null;
     }
-  };
+  }, []);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void initLocalMedia();
+      void initLocalMedia(isVideoOn);
     }, 0);
 
     return () => {
       window.clearTimeout(timer);
     };
-  }, []);
+  }, [initLocalMedia, isVideoOn]);
 
   useEffect(() => {
     localStream?.getAudioTracks().forEach((track) => {
@@ -257,15 +545,282 @@ const TeamCallPage = () => {
   }, [isVideoOn, localStream]);
 
   useEffect(() => {
+    if (!resolvedWorkspaceId || !roomId || !currentUserId) {
+      return;
+    }
+
+    const socket = getTeamCallSocket();
+    socketRef.current = socket;
+
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    const handleUserJoined = (payload: {
+      workspaceId: string;
+      roomId: string;
+      participant: {
+        userId: string;
+        name: string;
+        initials: string;
+        avatarUrl?: string;
+        role?: string;
+        isMuted: boolean;
+        isVideoOn: boolean;
+        isScreenSharing: boolean;
+      };
+    }) => {
+      if (
+        String(payload.workspaceId) !== String(resolvedWorkspaceId) ||
+        String(payload.roomId) !== String(roomId)
+      ) {
+        return;
+      }
+
+      const participant = payload.participant;
+      if (!participant?.userId || participant.userId === currentUserId) {
+        return;
+      }
+
+      upsertRemoteParticipant(participant.userId, {
+        id: participant.userId,
+        name: participant.name,
+        initials: participant.initials,
+        avatarUrl: participant.avatarUrl,
+        role: participant.role || "Member",
+        isMuted: participant.isMuted,
+        isVideoOn: participant.isVideoOn,
+        isScreenSharing: participant.isScreenSharing,
+      });
+
+      if (shouldInitiatePeer(currentUserId, participant.userId)) {
+        void createOfferToParticipant(participant.userId);
+      }
+    };
+
+    const handleUserLeft = (payload: {
+      workspaceId: string;
+      roomId: string;
+      userId: string;
+    }) => {
+      if (
+        String(payload.workspaceId) !== String(resolvedWorkspaceId) ||
+        String(payload.roomId) !== String(roomId)
+      ) {
+        return;
+      }
+
+      const targetUserId = String(payload.userId || "").trim();
+      if (!targetUserId || targetUserId === currentUserId) {
+        return;
+      }
+
+      closePeerConnection(targetUserId);
+      removeRemoteParticipant(targetUserId);
+    };
+
+    const handleUserState = (payload: {
+      workspaceId: string;
+      roomId: string;
+      userId: string;
+      state: {
+        isMuted: boolean;
+        isVideoOn: boolean;
+        isScreenSharing: boolean;
+      };
+    }) => {
+      if (
+        String(payload.workspaceId) !== String(resolvedWorkspaceId) ||
+        String(payload.roomId) !== String(roomId)
+      ) {
+        return;
+      }
+
+      const participantUserId = String(payload.userId || "").trim();
+      if (!participantUserId || participantUserId === currentUserId) {
+        return;
+      }
+
+      upsertRemoteParticipant(participantUserId, {
+        isMuted: Boolean(payload.state?.isMuted),
+        isVideoOn: Boolean(payload.state?.isVideoOn),
+        isScreenSharing: Boolean(payload.state?.isScreenSharing),
+      });
+    };
+
+    const handleSignal = (payload: {
+      workspaceId: string;
+      roomId: string;
+      fromUserId: string;
+      signal: {
+        type: "offer" | "answer" | "ice-candidate";
+        sdp?: RTCSessionDescriptionInit;
+        candidate?: RTCIceCandidateInit;
+      };
+    }) => {
+      void handleIncomingSignal(payload);
+    };
+
+    const handleChatMessage = (payload: {
+      workspaceId: string;
+      roomId: string;
+      message: {
+        id: string;
+        authorUserId: string;
+        authorName: string;
+        content: string;
+        sentAt: string;
+      };
+    }) => {
+      if (
+        String(payload.workspaceId) !== String(resolvedWorkspaceId) ||
+        String(payload.roomId) !== String(roomId)
+      ) {
+        return;
+      }
+
+      const message = payload.message;
+      if (!message?.id) {
+        return;
+      }
+
+      setCallMessages((prev) => {
+        if (prev.some((entry) => entry.id === message.id)) {
+          return prev;
+        }
+
+        return [
+          ...prev,
+          {
+            id: message.id,
+            authorUserId: message.authorUserId,
+            author: message.authorName,
+            content: message.content,
+            sentAt: formatChatTime(message.sentAt),
+          },
+        ];
+      });
+    };
+
+    socket.on("team-call:user-joined", handleUserJoined);
+    socket.on("team-call:user-left", handleUserLeft);
+    socket.on("team-call:user-state", handleUserState);
+    socket.on("team-call:signal", handleSignal);
+    socket.on("team-call:chat:new", handleChatMessage);
+
+    void joinTeamCallRoom({
+      workspaceId: resolvedWorkspaceId,
+      roomId,
+      profile: {
+        name: currentUserName,
+        initials: getInitials(currentUserName),
+        avatarUrl: user?.profilePhoto?.url,
+        role: "Host",
+        isMuted: false,
+        isVideoOn: callMode === "video",
+        isScreenSharing: false,
+      },
+    }).then((response) => {
+      if (!response?.ok) {
+        setMediaError(response?.message || "Unable to join call room.");
+        return;
+      }
+
+      const participantsFromServer = Array.isArray(response.participants)
+        ? response.participants
+        : [];
+      const remoteOnly = participantsFromServer.filter(
+        (participant) => String(participant.userId || "") !== currentUserId,
+      );
+
+      setRemoteParticipantsMap((prev) => {
+        const next = { ...prev };
+
+        remoteOnly.forEach((participant) => {
+          const remoteUserId = String(participant.userId || "").trim();
+          if (!remoteUserId) {
+            return;
+          }
+
+          next[remoteUserId] = {
+            id: remoteUserId,
+            name: participant.name,
+            initials: participant.initials,
+            avatarUrl: participant.avatarUrl,
+            role: participant.role || "Member",
+            isMuted: participant.isMuted,
+            isVideoOn: participant.isVideoOn,
+            isScreenSharing: participant.isScreenSharing,
+            stream: prev[remoteUserId]?.stream || null,
+          };
+        });
+
+        return next;
+      });
+
+      remoteOnly.forEach((participant) => {
+        const remoteUserId = String(participant.userId || "").trim();
+        if (!remoteUserId) {
+          return;
+        }
+
+        if (shouldInitiatePeer(currentUserId, remoteUserId)) {
+          void createOfferToParticipant(remoteUserId);
+        }
+      });
+    });
+
     return () => {
+      socket.off("team-call:user-joined", handleUserJoined);
+      socket.off("team-call:user-left", handleUserLeft);
+      socket.off("team-call:user-state", handleUserState);
+      socket.off("team-call:signal", handleSignal);
+      socket.off("team-call:chat:new", handleChatMessage);
+      leaveTeamCallRoom();
+    };
+  }, [
+    closePeerConnection,
+    createOfferToParticipant,
+    currentUserId,
+    currentUserName,
+    callMode,
+    handleIncomingSignal,
+    removeRemoteParticipant,
+    resolvedWorkspaceId,
+    roomId,
+    upsertRemoteParticipant,
+    user?.profilePhoto?.url,
+  ]);
+
+  useEffect(() => {
+    if (!resolvedWorkspaceId || !roomId || !currentUserId) {
+      return;
+    }
+
+    updateTeamCallParticipantState({
+      workspaceId: resolvedWorkspaceId,
+      roomId,
+      state: {
+        isMuted: !isMicOn,
+        isVideoOn,
+        isScreenSharing,
+      },
+    });
+  }, [currentUserId, isMicOn, isScreenSharing, isVideoOn, resolvedWorkspaceId, roomId]);
+
+  useEffect(() => {
+    return () => {
+      leaveTeamCallRoom();
+      disconnectTeamCallSocket();
+      cleanupCallConnections();
       stopMediaStream(localStreamRef.current);
       stopMediaStream(screenStreamRef.current);
     };
-  }, []);
+  }, [cleanupCallConnections]);
 
   const handleToggleMic = async () => {
     if (!isMicOn && !localStream) {
-      const stream = await initLocalMedia();
+      const stream = await initLocalMedia(isVideoOn);
       if (!stream) {
         return;
       }
@@ -276,7 +831,7 @@ const TeamCallPage = () => {
 
   const handleToggleVideo = async () => {
     if (!isVideoOn && !localStream) {
-      const stream = await initLocalMedia();
+      const stream = await initLocalMedia(true);
       if (!stream) {
         return;
       }
@@ -287,8 +842,17 @@ const TeamCallPage = () => {
 
   const handleToggleScreenShare = async () => {
     if (screenStream) {
-      stopMediaStream(screenStream);
-      setScreenStream(null);
+      setScreenStream((current) => {
+        if (!current) {
+          return current;
+        }
+
+        current.getVideoTracks().forEach((track) => {
+          track.onended = null;
+        });
+        stopMediaStream(current);
+        return null;
+      });
       return;
     }
 
@@ -304,18 +868,27 @@ const TeamCallPage = () => {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         video: true,
-        audio: true,
+        audio: false,
       });
 
       const [videoTrack] = stream.getVideoTracks();
       if (videoTrack) {
-        videoTrack.addEventListener("ended", () => {
-          stopMediaStream(stream);
-          setScreenStream(null);
-        });
+        videoTrack.onended = () => {
+          setScreenStream((current) => {
+            if (current !== stream) {
+              return current;
+            }
+
+            stopMediaStream(stream);
+            return null;
+          });
+        };
       }
 
       setScreenStream((prev) => {
+        prev?.getVideoTracks().forEach((track) => {
+          track.onended = null;
+        });
         stopMediaStream(prev);
         return stream;
       });
@@ -332,8 +905,10 @@ const TeamCallPage = () => {
 
     const startedAt = Date.now() - durationSeconds * 1000;
     const payload: MinimizedTeamCall = {
+      roomId,
       roomName,
       roomScope,
+      callMode,
       startedAt,
       isMuted: !isMicOn,
       isVideoOn,
@@ -345,6 +920,9 @@ const TeamCallPage = () => {
 
   const handleLeaveToSpaces = () => {
     persistMinimizedCall();
+    leaveTeamCallRoom();
+    disconnectTeamCallSocket();
+    cleanupCallConnections();
     stopMediaStream(localStreamRef.current);
     stopMediaStream(screenStreamRef.current);
     router.push(ROUTES.SPACES);
@@ -355,27 +933,27 @@ const TeamCallPage = () => {
       window.sessionStorage.removeItem(TEAM_CALL_WIDGET_KEY);
     }
 
+    leaveTeamCallRoom();
+    disconnectTeamCallSocket();
+    cleanupCallConnections();
     stopMediaStream(localStreamRef.current);
     stopMediaStream(screenStreamRef.current);
     router.push(ROUTES.SPACES);
   };
 
-  const sendCallMessage = () => {
+  const sendCallMessage = async () => {
     const message = chatInput.trim();
-    if (!message) {
+    if (!message || !resolvedWorkspaceId || !roomId) {
       return;
     }
 
-    setCallMessages((prev) => [
-      ...prev,
-      {
-        id: Math.random().toString(36).slice(2, 10),
-        author: "You",
-        content: message,
-        sentAt: formatDuration(durationSeconds),
-      },
-    ]);
     setChatInput("");
+
+    await sendTeamCallChatMessage({
+      workspaceId: resolvedWorkspaceId,
+      roomId,
+      content: message,
+    });
   };
 
   const renderAudioMeter = (participantId: string, muted: boolean) => {
@@ -409,6 +987,10 @@ const TeamCallPage = () => {
   };
 
   const renderParticipantTile = (participant: Participant, compact = false) => {
+    const hasVideo = Boolean(
+      participant.isVideoOn && participant.stream?.getVideoTracks()?.length,
+    );
+
     return (
       <article
         key={participant.id}
@@ -417,11 +999,20 @@ const TeamCallPage = () => {
           compact && "w-[7rem] shrink-0",
         )}
       >
-        {participant.isVideoOn ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={participant.avatarUrl}
-            alt={participant.name}
+        {hasVideo ? (
+          <video
+            autoPlay
+            playsInline
+            muted={participant.id === currentUserId}
+            ref={(node) => {
+              if (!node || !participant.stream) {
+                return;
+              }
+
+              if (node.srcObject !== participant.stream) {
+                node.srcObject = participant.stream;
+              }
+            }}
             className="h-full w-full object-cover"
           />
         ) : (
@@ -626,6 +1217,13 @@ const TeamCallPage = () => {
                 {localStream ? "Connected" : "Limited media"}
               </Badge>
 
+              <Badge
+                variant="outline"
+                className="hidden shrink-0 text-[11px] md:inline-flex"
+              >
+                {participants.length} in call
+              </Badge>
+
               <Button
                 size="sm"
                 variant="ghost"
@@ -651,8 +1249,8 @@ const TeamCallPage = () => {
               </Button>
             </div>
 
-            {mediaError && (
-              <p className="text-destructive mt-1.5 text-[12px]">{mediaError}</p>
+            {resolvedMediaError && (
+              <p className="text-destructive mt-1.5 text-[12px]">{resolvedMediaError}</p>
             )}
           </div>
 
@@ -669,11 +1267,7 @@ const TeamCallPage = () => {
                   className="h-9 px-2.5 text-[13px]"
                   onClick={handleToggleMic}
                 >
-                  {isMicOn ? (
-                    <Mic className="size-4" />
-                  ) : (
-                    <MicOff className="size-4" />
-                  )}
+                  {isMicOn ? <Mic className="size-4" /> : <MicOff className="size-4" />}
                   {isMicOn ? "Mic" : "Muted"}
                 </Button>
 
@@ -769,7 +1363,9 @@ const TeamCallPage = () => {
                 onActivePanelTabChange={setActivePanelTab}
                 onCallNoteChange={setCallNote}
                 onChatInputChange={setChatInput}
-                onSendCallMessage={sendCallMessage}
+                onSendCallMessage={() => {
+                  void sendCallMessage();
+                }}
                 renderAudioMeter={renderAudioMeter}
               />
             </aside>
@@ -793,7 +1389,9 @@ const TeamCallPage = () => {
             onActivePanelTabChange={setActivePanelTab}
             onCallNoteChange={setCallNote}
             onChatInputChange={setChatInput}
-            onSendCallMessage={sendCallMessage}
+            onSendCallMessage={() => {
+              void sendCallMessage();
+            }}
             onCloseMobile={() => setIsPanelSheetOpen(false)}
             renderAudioMeter={renderAudioMeter}
           />

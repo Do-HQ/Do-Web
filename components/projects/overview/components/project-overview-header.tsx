@@ -1,17 +1,28 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Archive, CalendarDays, Copy, Share2, UserPlus, Users } from "lucide-react";
+import {
+  Archive,
+  CalendarDays,
+  Copy,
+  FolderKanban,
+  MessageSquare,
+  MoreHorizontal,
+  Share2,
+  UserPlus,
+  Users,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import useWorkspace from "@/hooks/use-workspace";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
 import useWorkspaceTeam from "@/hooks/use-workspace-team";
-import { ProjectMark } from "@/components/projects/project-mark";
 import { ProjectNotificationsPopover } from "@/components/projects/project-notifications-popover";
 import {
   Avatar,
   AvatarFallback,
+  AvatarImage,
   AvatarGroup,
   AvatarGroupCount,
 } from "@/components/ui/avatar";
@@ -25,6 +36,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -38,6 +56,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useProjectStore } from "@/stores";
 import useWorkspaceStore from "@/stores/workspace";
+import { ROUTES } from "@/utils/constants";
 
 import {
   ProjectMember,
@@ -54,6 +73,8 @@ type ProjectOverviewHeaderProps = {
   dueWindow: string;
   onArchiveProject: () => void | Promise<void>;
   archivePending?: boolean;
+  canInviteCollaborators?: boolean;
+  canArchiveProject?: boolean;
 };
 
 const STATUS_STYLES: Record<ProjectOverviewRecord["status"], string> = {
@@ -90,12 +111,32 @@ function getUserName(
     return "Unknown member";
   }
 
-  const firstName =
-    String(user.firstName || user.firstname || "").trim();
-  const lastName =
-    String(user.lastName || user.lastnale || "").trim();
+  const firstName = String(user.firstName || user.firstname || "").trim();
+  const lastName = String(user.lastName || user.lastnale || "").trim();
 
-  return `${firstName} ${lastName}`.trim() || String(user.email || "Unknown member");
+  return (
+    `${firstName} ${lastName}`.trim() || String(user.email || "Unknown member")
+  );
+}
+
+function formatHeaderDueDateLabel(value?: string) {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+
+  const now = Date.now();
+  const formatted = parsed.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+
+  return parsed.getTime() < now ? `Overdue since ${formatted}` : `Next due ${formatted}`;
 }
 
 export function ProjectOverviewHeader({
@@ -107,7 +148,10 @@ export function ProjectOverviewHeader({
   dueWindow,
   onArchiveProject,
   archivePending = false,
+  canInviteCollaborators = true,
+  canArchiveProject = true,
 }: ProjectOverviewHeaderProps) {
+  const router = useRouter();
   const updateProject = useProjectStore((state) => state.updateProject);
   const workspaceId = useWorkspaceStore((state) => state.workspaceId);
   const { useWorkspacePeople } = useWorkspace();
@@ -115,7 +159,19 @@ export function ProjectOverviewHeader({
   const { useInviteWorkspaceProjectCollaborators } = useWorkspaceProject();
 
   const displayedMembers = visibleMembers.slice(0, 5);
-  const extraMembers = Math.max(visibleMembers.length - displayedMembers.length, 0);
+  const extraMembers = Math.max(
+    visibleMembers.length - displayedMembers.length,
+    0,
+  );
+  const topContributor = useMemo(() => {
+    if (!visibleMembers.length) {
+      return null;
+    }
+
+    return [...visibleMembers].sort(
+      (left, right) => Number(right.score || 0) - Number(left.score || 0),
+    )[0];
+  }, [visibleMembers]);
 
   const [inviteOpen, setInviteOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -133,6 +189,67 @@ export function ProjectOverviewHeader({
   );
   const [shareAccess, setShareAccess] =
     useState<(typeof ACCESS_OPTIONS)[number]["value"]>("view");
+
+  const nearestDueLabel = useMemo(() => {
+    const dueCandidates: string[] = [];
+
+    project.milestones.forEach((milestone) => {
+      if (
+        selectedPipeline &&
+        milestone.pipelineId &&
+        milestone.pipelineId !== selectedPipeline.id
+      ) {
+        return;
+      }
+
+      if (milestone.dueDate) {
+        dueCandidates.push(milestone.dueDate);
+      }
+    });
+
+    project.workflows
+      .filter((workflow) => !workflow.archived)
+      .forEach((workflow) => {
+        workflow.tasks.forEach((task) => {
+          if (
+            selectedPipeline &&
+            task.pipelineId &&
+            task.pipelineId !== selectedPipeline.id
+          ) {
+            return;
+          }
+
+          if (task.status !== "done" && task.dueDate) {
+            dueCandidates.push(task.dueDate);
+          }
+
+          (task.subtasks ?? []).forEach((subtask) => {
+            if (
+              selectedPipeline &&
+              task.pipelineId &&
+              task.pipelineId !== selectedPipeline.id
+            ) {
+              return;
+            }
+
+            if (subtask.status !== "done" && subtask.dueDate) {
+              dueCandidates.push(subtask.dueDate);
+            }
+          });
+        });
+      });
+
+    const nearest = dueCandidates
+      .filter((value) => !Number.isNaN(new Date(value).getTime()))
+      .sort((left, right) => new Date(left).getTime() - new Date(right).getTime())[0];
+
+    return formatHeaderDueDateLabel(nearest);
+  }, [project.milestones, project.workflows, selectedPipeline]);
+
+  const dueBadgeLabel =
+    dueWindow && dueWindow !== "No date range"
+      ? dueWindow
+      : nearestDueLabel || "No active due dates";
 
   const { data: workspacePeopleData } = useWorkspacePeople(workspaceId ?? "", {
     page: 1,
@@ -165,9 +282,13 @@ export function ProjectOverviewHeader({
 
   const workspaceMembers = workspacePeopleData?.data?.members ?? [];
   const workspaceTeams = workspaceTeamsData?.data?.teams ?? [];
-  const availableWorkflows = project.workflows.filter((workflow) => !workflow.archived);
+  const availableWorkflows = project.workflows.filter(
+    (workflow) => !workflow.archived,
+  );
   const selectedWorkflowId =
-    inviteWorkflowId && inviteWorkflowId !== "__project__" ? inviteWorkflowId : undefined;
+    inviteWorkflowId && inviteWorkflowId !== "__project__"
+      ? inviteWorkflowId
+      : undefined;
   const canSendInvite =
     !!workspaceId &&
     ((inviteTargetType === "team" && !!inviteTeamId) ||
@@ -175,6 +296,11 @@ export function ProjectOverviewHeader({
       (inviteTargetType === "email" && !!inviteEmail.trim()));
 
   const handleInviteTeam = async () => {
+    if (!canInviteCollaborators) {
+      toast("Only workspace owners/admins can invite collaborators.");
+      return;
+    }
+
     if (!workspaceId || !canSendInvite) {
       return;
     }
@@ -238,6 +364,13 @@ export function ProjectOverviewHeader({
     setArchiveOpen(false);
   };
 
+  const handleOpenProjectChat = () => {
+    const next = new URLSearchParams({
+      project: project.id,
+    });
+    router.push(`${ROUTES.SPACES}?${next.toString()}`);
+  };
+
   return (
     <>
       <section className="overflow-hidden rounded-xl border border-border/35 bg-card/80 shadow-xs backdrop-blur-sm">
@@ -245,7 +378,9 @@ export function ProjectOverviewHeader({
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0 space-y-2">
               <div className="flex flex-wrap items-center gap-2.5">
-                <ProjectMark name={project.name} />
+                <span className="bg-muted/60 text-muted-foreground inline-flex size-7 items-center justify-center rounded-md border border-border/35">
+                  <FolderKanban className="size-4" />
+                </span>
                 <h1 className="truncate text-[19px] font-semibold tracking-tight md:text-[21px]">
                   {project.name}
                 </h1>
@@ -253,7 +388,12 @@ export function ProjectOverviewHeader({
                   variant="outline"
                   className={cn("capitalize", STATUS_STYLES[project.status])}
                 >
-                  <span className="size-1.5 rounded-full bg-current" />
+                  <span
+                    className={cn(
+                      "size-1.5 rounded-full bg-current",
+                      project.status !== "paused" && "animate-pulse",
+                    )}
+                  />
                   {project.status.replace("-", " ")}
                 </Badge>
                 {selectedPipeline ? (
@@ -271,20 +411,54 @@ export function ProjectOverviewHeader({
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-              <ProjectNotificationsPopover projectId={project.id} />
-              <Button type="button" variant="outline" size="sm" onClick={() => setInviteOpen(true)}>
-                <UserPlus />
-                Invite
+            <div className="bg-background/70 border-border/40 inline-flex flex-wrap items-center gap-1 rounded-lg border p-1 backdrop-blur-sm lg:justify-end">
+              <ProjectNotificationsPopover projectId={project.id} compact />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={handleOpenProjectChat}
+                title="Open project chat"
+                className="size-8 rounded-md"
+              >
+                <MessageSquare className="size-4" />
               </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => setShareOpen(true)}>
-                <Share2 />
-                Share
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => setArchiveOpen(true)}>
-                <Archive />
-                Archive
-              </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-8 rounded-md"
+                    title="Project actions"
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    disabled={!canInviteCollaborators}
+                    onClick={() => setInviteOpen(true)}
+                  >
+                    <UserPlus className="size-4" />
+                    Invite
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setShareOpen(true)}>
+                    <Share2 className="size-4" />
+                    Share
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    disabled={!canArchiveProject}
+                    onClick={() => setArchiveOpen(true)}
+                  >
+                    <Archive className="size-4" />
+                    Archive
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
@@ -299,7 +473,7 @@ export function ProjectOverviewHeader({
               </Badge>
               <Badge variant="outline" className="gap-1.5 font-medium">
                 <CalendarDays className="size-3.5" />
-                {dueWindow}
+                {dueBadgeLabel}
               </Badge>
             </div>
 
@@ -316,22 +490,40 @@ export function ProjectOverviewHeader({
                         member.teamIds.length > 1
                           ? `${member.teamIds.length} teams`
                           : member.teamIds.length === 1
-                            ? "1 team"
-                            : "No team",
+                        ? "1 team"
+                        : "No team",
                       status: member.active ? "Active" : "Offline",
+                      details: [
+                        {
+                          label: "Score",
+                          value: `${Number(member.score || 0)} pts`,
+                        },
+                      ],
                     }}
                   >
+                    <AvatarImage src={member.avatarUrl || ""} alt={member.name} />
                     <AvatarFallback>{member.initials}</AvatarFallback>
                   </Avatar>
                 ))}
                 {extraMembers ? (
-                  <AvatarGroupCount className="text-[11px]">+{extraMembers}</AvatarGroupCount>
+                  <AvatarGroupCount className="text-[11px]">
+                    +{extraMembers}
+                  </AvatarGroupCount>
                 ) : null}
               </AvatarGroup>
               <span className="text-muted-foreground text-[12px]">
                 {visibleMembers.length} active contributor
                 {visibleMembers.length === 1 ? "" : "s"}
               </span>
+              {topContributor ? (
+                <Badge
+                  variant="outline"
+                  className="text-[10.5px] font-medium text-primary border-primary/25 bg-primary/8"
+                >
+                  Top: {topContributor.name.split(" ")[0]} •{" "}
+                  {Number(topContributor.score || 0)} pts
+                </Badge>
+              ) : null}
             </div>
           </div>
         </div>
@@ -342,7 +534,8 @@ export function ProjectOverviewHeader({
           <DialogHeader>
             <DialogTitle>Invite collaborators</DialogTitle>
             <DialogDescription>
-              Add a workspace team or member directly, or send a workspace invite email with project or workflow access attached.
+              Add a workspace team or member directly, or send a workspace
+              invite email with project or workflow access attached.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -371,7 +564,10 @@ export function ProjectOverviewHeader({
 
             <div className="grid gap-2">
               <Label>Scope</Label>
-              <Select value={inviteWorkflowId} onValueChange={setInviteWorkflowId}>
+              <Select
+                value={inviteWorkflowId}
+                onValueChange={setInviteWorkflowId}
+              >
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -407,7 +603,10 @@ export function ProjectOverviewHeader({
             {inviteTargetType === "member" ? (
               <div className="grid gap-2">
                 <Label>Workspace member</Label>
-                <Select value={inviteMemberId} onValueChange={setInviteMemberId}>
+                <Select
+                  value={inviteMemberId}
+                  onValueChange={setInviteMemberId}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select member" />
                   </SelectTrigger>
@@ -415,7 +614,10 @@ export function ProjectOverviewHeader({
                     {workspaceMembers
                       .filter((member) => member?.userId?._id)
                       .map((member) => (
-                        <SelectItem key={member._id} value={String(member.userId._id)}>
+                        <SelectItem
+                          key={member._id}
+                          value={String(member.userId._id)}
+                        >
                           {getUserName(member.userId)}
                         </SelectItem>
                       ))}
@@ -440,7 +642,9 @@ export function ProjectOverviewHeader({
               <Select
                 value={inviteAccess}
                 onValueChange={(value) =>
-                  setInviteAccess(value as (typeof ACCESS_OPTIONS)[number]["value"])
+                  setInviteAccess(
+                    value as (typeof ACCESS_OPTIONS)[number]["value"],
+                  )
                 }
               >
                 <SelectTrigger className="w-full">
@@ -466,13 +670,21 @@ export function ProjectOverviewHeader({
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setInviteOpen(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setInviteOpen(false)}
+            >
               Cancel
             </Button>
             <Button
               type="button"
               onClick={handleInviteTeam}
-              disabled={!canSendInvite || inviteCollaborators.isPending}
+              disabled={
+                !canInviteCollaborators ||
+                !canSendInvite ||
+                inviteCollaborators.isPending
+              }
             >
               Send invite
             </Button>
@@ -497,7 +709,9 @@ export function ProjectOverviewHeader({
               <Select
                 value={shareAccess}
                 onValueChange={(value) =>
-                  setShareAccess(value as (typeof ACCESS_OPTIONS)[number]["value"])
+                  setShareAccess(
+                    value as (typeof ACCESS_OPTIONS)[number]["value"],
+                  )
                 }
               >
                 <SelectTrigger className="w-full">
@@ -514,7 +728,11 @@ export function ProjectOverviewHeader({
             </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setShareOpen(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setShareOpen(false)}
+            >
               Close
             </Button>
             <Button type="button" onClick={handleCopyShareLink}>
@@ -530,7 +748,8 @@ export function ProjectOverviewHeader({
           <DialogHeader>
             <DialogTitle>Archive project</DialogTitle>
             <DialogDescription>
-              This will pause the project and persist the archived state to the backend.
+              This will pause the project and persist the archived state to the
+              backend.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-xl border border-border/20 bg-muted/20 px-3 py-3 text-[12px] leading-5">
@@ -538,14 +757,18 @@ export function ProjectOverviewHeader({
             <span className="font-medium">Paused</span>.
           </div>
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setArchiveOpen(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setArchiveOpen(false)}
+            >
               Cancel
             </Button>
             <Button
               type="button"
               variant="outline"
               onClick={() => void handleArchiveProject()}
-              disabled={archivePending}
+              disabled={archivePending || !canArchiveProject}
             >
               Archive project
             </Button>

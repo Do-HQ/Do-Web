@@ -9,6 +9,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 
 import { ProjectRisk, ProjectRiskKind } from "../types";
 import {
@@ -163,8 +169,18 @@ export function ProjectOverviewRisks({
           })}
         </div>
       ) : (
-        <div className="text-muted-foreground px-3 py-3 text-[12px] md:px-4">
-          No {view === "risk" ? "risks" : "issues"} match the current filters.
+        <div className="px-3 py-3 md:px-4">
+          <Empty className="border-0 p-0 md:p-0">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <TriangleAlert className="size-4 text-primary/85" />
+              </EmptyMedia>
+              <EmptyDescription className="text-[12px]">
+                No {view === "risk" ? "risks" : "issues"} match the current
+                filters.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         </div>
       )}
     </section>

@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { ChevronRight, MoreHorizontal } from "lucide-react";
+import { ChevronRight, ListTodo, MoreHorizontal, Star, StarOff } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 import { cn } from "@/lib/utils";
+import { useFavoritesStore } from "@/stores";
 
 import {
   FlattenedProjectTask,
@@ -36,6 +43,7 @@ import {
 } from "../utils";
 
 type ProjectDosTableProps = {
+  projectId: string;
   tasks: FlattenedProjectTask[];
   members: ProjectMember[];
   teams: ProjectTeamSummary[];
@@ -67,6 +75,7 @@ const PRIORITY_STYLES = {
 } as const;
 
 export function ProjectDosTable({
+  projectId,
   tasks,
   members,
   teams,
@@ -76,7 +85,10 @@ export function ProjectDosTable({
   onTaskAction,
   onSubtaskAction,
 }: ProjectDosTableProps) {
+  const favorites = useFavoritesStore((state) => state.favorites);
+  const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
   const [expandedTaskIds, setExpandedTaskIds] = useState<string[]>([]);
+  const favoriteKeySet = new Set(favorites.map((item) => item.key));
 
   const toggleTask = (taskId: string) => {
     setExpandedTaskIds((current) =>
@@ -84,6 +96,30 @@ export function ProjectDosTable({
         ? current.filter((item) => item !== taskId)
         : [...current, taskId],
     );
+  };
+
+  const toggleTaskFavorite = (task: FlattenedProjectTask) => {
+    toggleFavorite({
+      key: `task:${projectId}:${task.workflowId}:${task.id}`,
+      type: "task",
+      label: task.title,
+      subtitle: task.workflowName,
+      href: `/projects/${projectId}?tab=dos&workflow=${encodeURIComponent(task.workflowId)}&task=${encodeURIComponent(task.id)}`,
+    });
+  };
+
+  const toggleSubtaskFavorite = (
+    task: FlattenedProjectTask,
+    subtaskId: string,
+    subtaskTitle: string,
+  ) => {
+    toggleFavorite({
+      key: `subtask:${projectId}:${task.workflowId}:${task.id}:${subtaskId}`,
+      type: "subtask",
+      label: subtaskTitle,
+      subtitle: task.title,
+      href: `/projects/${projectId}?tab=dos&workflow=${encodeURIComponent(task.workflowId)}&task=${encodeURIComponent(task.id)}&subtask=${encodeURIComponent(subtaskId)}`,
+    });
   };
 
   return (
@@ -191,6 +227,23 @@ export function ProjectDosTable({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => toggleTaskFavorite(task)}
+                          >
+                            {favoriteKeySet.has(
+                              `task:${projectId}:${task.workflowId}:${task.id}`,
+                            ) ? (
+                              <StarOff />
+                            ) : (
+                              <Star />
+                            )}
+                            {favoriteKeySet.has(
+                              `task:${projectId}:${task.workflowId}:${task.id}`,
+                            )
+                              ? "Remove favorite"
+                              : "Add to favorites"}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem onClick={() => onEditTask(task.workflowId, task.id)}>
                             Edit task
                           </DropdownMenuItem>
@@ -264,6 +317,29 @@ export function ProjectDosTable({
                                   </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      toggleSubtaskFavorite(
+                                        task,
+                                        subtask.id,
+                                        subtask.title,
+                                      )
+                                    }
+                                  >
+                                    {favoriteKeySet.has(
+                                      `subtask:${projectId}:${task.workflowId}:${task.id}:${subtask.id}`,
+                                    ) ? (
+                                      <StarOff />
+                                    ) : (
+                                      <Star />
+                                    )}
+                                    {favoriteKeySet.has(
+                                      `subtask:${projectId}:${task.workflowId}:${task.id}:${subtask.id}`,
+                                    )
+                                      ? "Remove favorite"
+                                      : "Add to favorites"}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
                                   {onEditSubtask ? (
                                     <DropdownMenuItem
                                       onClick={() =>
@@ -305,8 +381,17 @@ export function ProjectDosTable({
           </TableBody>
         </Table>
       ) : (
-        <div className="text-muted-foreground px-4 py-4 text-[12px] leading-5">
-          No tasks match this view yet.
+        <div className="px-4 py-4">
+          <Empty className="border-0 p-0 md:p-0">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <ListTodo className="size-4 text-primary/85" />
+              </EmptyMedia>
+              <EmptyDescription className="text-[12px]">
+                No tasks match this view yet.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         </div>
       )}
     </section>

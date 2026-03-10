@@ -25,7 +25,9 @@ import { Switch } from "../ui/switch";
 import { WorkspaceTeamsTable } from "./settings-worpspace-teams-table";
 import useWorkspaceStore from "@/stores/workspace";
 import useWorkspaceTeam from "@/hooks/use-workspace-team";
+import { useWorkspacePermissions } from "@/hooks/use-workspace-permissions";
 import { WorkspaceTeamPolicy } from "@/types/team";
+import { cn } from "@/lib/utils";
 
 const DEFAULT_TEAM_POLICY_SETTINGS: WorkspaceTeamPolicy = {
   restrictTeamCreation: true,
@@ -49,6 +51,7 @@ const SettingsWorkspaceTeams = () => {
   const { workspaceId } = useWorkspaceStore();
   const { useWorkspaceTeamPolicy, useUpdateWorkspaceTeamPolicy } =
     useWorkspaceTeam();
+  const { isAdminLike, canManageTeamPolicy } = useWorkspacePermissions();
   const queryClient = useQueryClient();
 
   const policyQuery = useWorkspaceTeamPolicy(workspaceId!);
@@ -59,6 +62,7 @@ const SettingsWorkspaceTeams = () => {
   const [teamPolicy, setTeamPolicy] = useState<WorkspaceTeamPolicy>(
     DEFAULT_TEAM_POLICY_SETTINGS,
   );
+  const canCreateTeam = isAdminLike || teamPolicy.restrictTeamCreation === false;
 
   useEffect(() => {
     setTeamPolicy(savedTeamPolicy);
@@ -106,6 +110,18 @@ const SettingsWorkspaceTeams = () => {
         <FieldDescription>
           Define how teams are created and managed across the workspace.
         </FieldDescription>
+        {!canManageTeamPolicy ? (
+          <FieldDescription>
+            Read-only for workspace members. Ask an owner/admin to update team policy.
+          </FieldDescription>
+        ) : null}
+
+        <div
+          className={cn(
+            "mt-3 flex flex-col gap-4",
+            !canManageTeamPolicy && "pointer-events-none opacity-65",
+          )}
+        >
 
         <Field orientation="horizontal">
           <FieldContent>
@@ -237,12 +253,12 @@ const SettingsWorkspaceTeams = () => {
           </Select>
         </Field>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 pt-1">
           <Button
             className="max-w-20"
             size="sm"
             loading={isSavingPolicy}
-            disabled={!teamPolicyChanged || !workspaceId}
+            disabled={!teamPolicyChanged || !workspaceId || !canManageTeamPolicy}
             onClick={handleSaveTeamPolicy}
           >
             Save
@@ -251,11 +267,12 @@ const SettingsWorkspaceTeams = () => {
             className="max-w-20"
             size="sm"
             variant="ghost"
-            disabled={!teamPolicyChanged}
+            disabled={!teamPolicyChanged || !canManageTeamPolicy}
             onClick={handleResetTeamPolicy}
           >
             Reset
           </Button>
+        </div>
         </div>
       </FieldSet>
 
@@ -266,7 +283,11 @@ const SettingsWorkspaceTeams = () => {
         <FieldDescription>
           Teams currently operating across projects and workflow phases.
         </FieldDescription>
-        <WorkspaceTeamsTable />
+        <WorkspaceTeamsTable
+          canCreateTeam={canCreateTeam}
+          canManageTeamPolicy={canManageTeamPolicy}
+          canManageTeamLifecycle={isAdminLike}
+        />
       </FieldSet>
     </FieldGroup>
   );

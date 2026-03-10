@@ -21,6 +21,8 @@ import { ProjectWorkflowDurationChart } from "./project-workflow-duration-chart"
 import { ProjectWorkflowsTable } from "./project-workflows-table";
 
 type ProjectWorkflowsTabProps = {
+  projectId: string;
+  initialWorkflowId?: string;
   workflows: ProjectWorkflow[];
   loading?: boolean;
   archivedWorkflows: ProjectWorkflow[];
@@ -53,9 +55,12 @@ type ProjectWorkflowsTabProps = {
     subtaskId: string,
     subtaskName: string,
   ) => void;
+  canManageWorkflowActions?: boolean;
 };
 
 export function ProjectWorkflowsTab({
+  projectId,
+  initialWorkflowId,
   workflows,
   loading = false,
   archivedWorkflows,
@@ -82,6 +87,7 @@ export function ProjectWorkflowsTab({
   onWorkflowAction,
   onTaskAction,
   onSubtaskAction,
+  canManageWorkflowActions = true,
 }: ProjectWorkflowsTabProps) {
   const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(null);
   const [expandedWorkflowIds, setExpandedWorkflowIds] = useState<string[]>([]);
@@ -95,13 +101,19 @@ export function ProjectWorkflowsTab({
 
   const effectiveSelectedWorkflowId = useMemo(() => {
     if (!selectedWorkflowId) {
+      if (
+        initialWorkflowId &&
+        workflows.some((workflow) => workflow.id === initialWorkflowId)
+      ) {
+        return initialWorkflowId;
+      }
       return fallbackWorkflowId;
     }
 
     return workflows.some((workflow) => workflow.id === selectedWorkflowId)
       ? selectedWorkflowId
       : fallbackWorkflowId;
-  }, [fallbackWorkflowId, selectedWorkflowId, workflows]);
+  }, [fallbackWorkflowId, initialWorkflowId, selectedWorkflowId, workflows]);
 
   const timingSummaries = useMemo(
     () => getWorkflowTimingSummary(workflows),
@@ -141,6 +153,10 @@ export function ProjectWorkflowsTab({
   };
 
   const handleCreateTask = (workflowId: string) => {
+    if (!canManageWorkflowActions) {
+      return;
+    }
+
     setDetailOpen(false);
     setExpandedWorkflowIds((current) =>
       current.includes(workflowId) ? current : [...current, workflowId],
@@ -149,6 +165,10 @@ export function ProjectWorkflowsTab({
   };
 
   const handleCreateSubtask = (workflowId: string, taskId: string) => {
+    if (!canManageWorkflowActions) {
+      return;
+    }
+
     setExpandedWorkflowIds((current) =>
       current.includes(workflowId) ? current : [...current, workflowId],
     );
@@ -168,6 +188,7 @@ export function ProjectWorkflowsTab({
         />
 
         <ProjectWorkflowsTable
+          projectId={projectId}
           workflows={workflows}
           loading={loading}
           sortMode={sortMode}
@@ -200,6 +221,7 @@ export function ProjectWorkflowsTab({
           onWorkflowAction={onWorkflowAction}
           onTaskAction={onTaskAction}
           onSubtaskAction={onSubtaskAction}
+          canManageWorkflowActions={canManageWorkflowActions}
         />
 
         {archivedWorkflows.length ? (
@@ -223,6 +245,12 @@ export function ProjectWorkflowsTab({
                     <button
                       type="button"
                       className="text-[11px] font-medium text-primary"
+                      disabled={!canManageWorkflowActions}
+                      title={
+                        !canManageWorkflowActions
+                          ? "You do not have permission to restore workflows."
+                          : undefined
+                      }
                       onClick={() => onWorkflowAction("Restore workflow", workflow.id, workflow.name)}
                     >
                       Restore
@@ -230,6 +258,12 @@ export function ProjectWorkflowsTab({
                     <button
                       type="button"
                       className="text-[11px] font-medium text-destructive"
+                      disabled={!canManageWorkflowActions}
+                      title={
+                        !canManageWorkflowActions
+                          ? "You do not have permission to delete workflows."
+                          : undefined
+                      }
                       onClick={() => onWorkflowAction("Delete workflow", workflow.id, workflow.name)}
                     >
                       Delete
@@ -250,6 +284,7 @@ export function ProjectWorkflowsTab({
         teams={teams}
         onOpenChange={setDetailOpen}
         onAddTask={handleCreateTask}
+        canManageWorkflowActions={canManageWorkflowActions}
         onEditWorkflow={(workflowId) => {
           setDetailOpen(false);
           onEditWorkflow(workflowId);

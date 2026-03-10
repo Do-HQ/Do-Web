@@ -8,6 +8,9 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
+import { shouldShowProfileCompletionIndicator } from "@/lib/helpers/profile-completion";
+import { useWorkspacePermissions } from "@/hooks/use-workspace-permissions";
+import useAuthStore from "@/stores/auth";
 import { useAppStore } from "@/stores";
 import { LogOut, LucideIcon } from "lucide-react";
 import { useState } from "react";
@@ -21,9 +24,26 @@ interface Props {
 const SettingsSideBar = ({ workspace, profile }: Props) => {
   // Store
   const { setActiveSetting, activeSetting } = useAppStore();
+  const { user } = useAuthStore();
+  const { isAdminLike } = useWorkspacePermissions();
 
   // States
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const showProfileCompletionIndicator = shouldShowProfileCompletionIndicator(user);
+
+  const canAccessWorkspaceSetting = (settingName: string) => {
+    const normalized = settingName.toLowerCase();
+
+    if (
+      normalized.includes("automation") ||
+      normalized === "security" ||
+      normalized === "import"
+    ) {
+      return isAdminLike;
+    }
+
+    return true;
+  };
 
   return (
     <Sidebar collapsible="none" className="hidden md:flex">
@@ -45,7 +65,16 @@ const SettingsSideBar = ({ workspace, profile }: Props) => {
                   >
                     <a href="#">
                       <item.icon />
-                      <span>{item.name}</span>
+                      <span className="inline-flex items-center gap-1.5">
+                        <span>{item.name}</span>
+                        {item.name.toLowerCase() === "profile" &&
+                        showProfileCompletionIndicator ? (
+                          <span
+                            className="inline-flex size-2 rounded-full bg-primary/70 ring-1 ring-primary/35"
+                            aria-hidden="true"
+                          />
+                        ) : null}
+                      </span>
                     </a>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -59,15 +88,24 @@ const SettingsSideBar = ({ workspace, profile }: Props) => {
           <SidebarGroupContent>
             <SidebarMenu>
               {workspace.nav.map((item) => (
+                // Keep visible for members, but lock interaction for admin-only sections.
                 <SidebarMenuItem
                   key={item.name}
                   onClick={() => {
+                    if (!canAccessWorkspaceSetting(item.name)) {
+                      return;
+                    }
                     setActiveSetting(item?.name?.toLowerCase());
                   }}
                 >
                   <SidebarMenuButton
                     asChild
                     isActive={item.name?.toLowerCase() === activeSetting}
+                    className={
+                      canAccessWorkspaceSetting(item.name)
+                        ? undefined
+                        : "cursor-not-allowed opacity-55"
+                    }
                   >
                     <a href="#">
                       <item.icon />

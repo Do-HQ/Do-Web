@@ -125,12 +125,18 @@ type ProjectStore = {
   projectsLoaded: boolean;
   projectCreateOpen: boolean;
   pendingWorkflowCreateProjectId: string | null;
+  pendingTaskCreateProjectId: string | null;
+  pendingTaskCreateWorkflowId: string | null;
   setProjectsLoaded: (projectsLoaded: boolean) => void;
   hydrateProjectRecords: (records: ProjectOverviewRecord[]) => void;
   upsertProjectRecord: (record: ProjectOverviewRecord) => void;
   setProjectCreateOpen: (open: boolean) => void;
   requestWorkflowCreate: (projectId: string) => void;
   consumeWorkflowCreateRequest: (projectId: string) => boolean;
+  requestTaskCreate: (projectId: string, workflowId?: string) => void;
+  consumeTaskCreateRequest: (
+    projectId: string,
+  ) => { workflowId?: string } | null;
   createProject: (values: ProjectEditorValues) => string;
   updateProject: (
     projectId: string,
@@ -143,6 +149,8 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   projectsLoaded: false,
   projectCreateOpen: false,
   pendingWorkflowCreateProjectId: null,
+  pendingTaskCreateProjectId: null,
+  pendingTaskCreateWorkflowId: null,
   setProjectsLoaded: (projectsLoaded) => set({ projectsLoaded }),
   hydrateProjectRecords: (records) =>
     set(() => {
@@ -179,6 +187,25 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     }
 
     return matches;
+  },
+  requestTaskCreate: (projectId, workflowId) =>
+    set({
+      pendingTaskCreateProjectId: projectId,
+      pendingTaskCreateWorkflowId: workflowId || null,
+    }),
+  consumeTaskCreateRequest: (projectId) => {
+    if (get().pendingTaskCreateProjectId !== projectId) {
+      return null;
+    }
+
+    const workflowId = get().pendingTaskCreateWorkflowId ?? undefined;
+
+    set({
+      pendingTaskCreateProjectId: null,
+      pendingTaskCreateWorkflowId: null,
+    });
+
+    return { workflowId };
   },
   createProject: (values) => {
     let nextRecord = createProjectRecord(values);

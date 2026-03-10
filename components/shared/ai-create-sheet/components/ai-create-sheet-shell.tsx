@@ -37,7 +37,7 @@ export function AiCreateSheetShell({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="w-full gap-0 border-l border-border/50 sm:max-w-[34rem] lg:max-w-[38rem]"
+        className="w-full gap-0 border-l border-border/50 sm:max-w-[28rem] lg:max-w-[31rem]"
       >
         <SheetHeader className="gap-3 border-b border-border/35 pb-4 pr-10">
           <div className="space-y-1.5">

@@ -18,6 +18,10 @@ import {
   WorkspaceProjectRiskRecord,
   WorkspaceProjectEventRecord,
   WorkspaceProjectNotificationRecord,
+  WorkspaceProjectAgentConfig,
+  WorkspaceProjectAgentRunRecord,
+  WorkspaceProjectAgentRunType,
+  WorkspaceProjectAgentStats,
   WorkspaceProjectSubtaskRecord,
   WorkspaceProjectTaskRecord,
 } from "@/types/project";
@@ -38,6 +42,12 @@ const WORKSPACE_PROJECT_ENDPOINTS = {
     `/workspace/${workspaceId}/projects/${projectId}/tasks`,
   events: (workspaceId: string, projectId: string) =>
     `/workspace/${workspaceId}/projects/${projectId}/events`,
+  agent: (workspaceId: string, projectId: string) =>
+    `/workspace/${workspaceId}/projects/${projectId}/agent`,
+  agentRun: (workspaceId: string, projectId: string) =>
+    `/workspace/${workspaceId}/projects/${projectId}/agent/run`,
+  agentRuns: (workspaceId: string, projectId: string) =>
+    `/workspace/${workspaceId}/projects/${projectId}/agent/runs`,
   notifications: (workspaceId: string, projectId: string) =>
     `/workspace/${workspaceId}/projects/${projectId}/notifications`,
   notificationRead: (
@@ -119,6 +129,12 @@ export interface WorkspaceProjectNotificationsQueryParams {
   type?: string;
 }
 
+export interface WorkspaceProjectAgentRunsQueryParams {
+  page?: number;
+  limit?: number;
+  runType?: WorkspaceProjectAgentRunType | "";
+}
+
 export interface WorkspaceProjectRisksQueryParams {
   page?: number;
   limit?: number;
@@ -129,6 +145,60 @@ export interface WorkspaceProjectRisksQueryParams {
   pipelineId?: string;
   search?: string;
   sort?: "updated" | "created" | "severity" | "title";
+}
+
+export interface UpdateWorkspaceProjectAgentRequestBody {
+  enabled?: boolean;
+  timezone?: string;
+  standup?: {
+    enabled?: boolean;
+    hour?: number;
+    minute?: number;
+    promptTemplate?: string;
+    roomId?: string;
+  };
+  overdueReminder?: {
+    enabled?: boolean;
+    intervalMinutes?: number;
+    includeUnassigned?: boolean;
+    dedupeWindowMinutes?: number;
+    roomId?: string;
+  };
+  managerDigest?: {
+    enabled?: boolean;
+    hour?: number;
+    minute?: number;
+    managerUserIds?: string[];
+    roomId?: string;
+  };
+  taskReminder?: {
+    enabled?: boolean;
+    intervalMinutes?: number;
+    thresholdHours?: number;
+    includeSubtasks?: boolean;
+    includeTeamFallback?: boolean;
+    dedupeWindowMinutes?: number;
+    roomId?: string;
+  };
+  meetingReminder?: {
+    enabled?: boolean;
+    intervalMinutes?: number;
+    reminderMinutes?: number;
+    dedupeWindowMinutes?: number;
+    roomId?: string;
+  };
+  meetings?: Array<{
+    id?: string;
+    title: string;
+    description?: string;
+    startAt: string;
+    endAt: string;
+    location?: string;
+    memberUserIds?: string[];
+    teamIds?: string[];
+    archived?: boolean;
+    createdByUserId?: string;
+  }>;
 }
 
 export const getWorkspaceProjects = async (
@@ -487,6 +557,67 @@ export const getWorkspaceProjectNotifications = async (
       limit,
       state,
       type,
+    },
+  });
+};
+
+export const getWorkspaceProjectAgent = async (
+  workspaceId: string,
+  projectId: string,
+) => {
+  return await axiosInstance.get<{
+    message: string;
+    agent: WorkspaceProjectAgentConfig;
+    stats: WorkspaceProjectAgentStats;
+  }>(WORKSPACE_PROJECT_ENDPOINTS.agent(workspaceId, projectId));
+};
+
+export const updateWorkspaceProjectAgent = async (data: {
+  workspaceId: string;
+  projectId: string;
+  updates: UpdateWorkspaceProjectAgentRequestBody;
+}) => {
+  return await axiosInstance.patch<{
+    message: string;
+    agent: WorkspaceProjectAgentConfig;
+    stats: WorkspaceProjectAgentStats;
+  }>(
+    WORKSPACE_PROJECT_ENDPOINTS.agent(data.workspaceId, data.projectId),
+    data.updates,
+  );
+};
+
+export const runWorkspaceProjectAgent = async (data: {
+  workspaceId: string;
+  projectId: string;
+  runType: WorkspaceProjectAgentRunType;
+}) => {
+  return await axiosInstance.post<{
+    message: string;
+    run: WorkspaceProjectAgentRunRecord;
+    agent: WorkspaceProjectAgentConfig;
+    stats: WorkspaceProjectAgentStats;
+  }>(WORKSPACE_PROJECT_ENDPOINTS.agentRun(data.workspaceId, data.projectId), {
+    runType: data.runType,
+  });
+};
+
+export const getWorkspaceProjectAgentRuns = async (
+  workspaceId: string,
+  projectId: string,
+  params: WorkspaceProjectAgentRunsQueryParams = {},
+) => {
+  const { page = 1, limit = 10, runType = "" } = params;
+
+  return await axiosInstance.get<{
+    message: string;
+    runs: WorkspaceProjectAgentRunRecord[];
+    pagination: Pagination;
+  }>(WORKSPACE_PROJECT_ENDPOINTS.agentRuns(workspaceId, projectId), {
+    params: {
+      page,
+      limit,
+      runType,
     },
   });
 };

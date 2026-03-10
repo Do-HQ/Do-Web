@@ -1,4 +1,12 @@
+import { Flag } from "lucide-react";
+
 import { Badge } from "@/components/ui/badge";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 
 import { ProjectMilestone } from "../types";
 import { formatPipelineLabel, formatShortDate } from "../utils";
@@ -71,8 +79,17 @@ export function ProjectOverviewCalendar({
           })}
         </div>
       ) : (
-        <div className="text-muted-foreground border-y py-4 text-[13px] md:text-sm">
-          No milestones are visible for the current scope.
+        <div className="border-y py-4">
+          <Empty className="border-0 p-0 md:p-0">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Flag className="size-4 text-primary/85" />
+              </EmptyMedia>
+              <EmptyDescription className="text-[12px] md:text-[13px]">
+                No milestones are visible for the current scope.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
         </div>
       )}
     </section>

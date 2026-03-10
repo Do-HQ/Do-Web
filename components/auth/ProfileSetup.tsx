@@ -7,7 +7,6 @@ import { useRouter } from "next/navigation";
 import { ROUTES } from "@/utils/constants";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { UpdateUserBody } from "@/types/auth";
 import { updateUserSchema } from "@/lib/schemas/user";
 import useAuthStore from "@/stores/auth";
 import UserImageUpload from "../shared/user-image-upload";
@@ -15,6 +14,9 @@ import { CustomFile } from "@/types/file";
 import { useState } from "react";
 import useUser from "@/hooks/use-user";
 import useWorkspaceStore from "@/stores/workspace";
+import { z } from "zod";
+
+type ProfileSetupFormValues = z.infer<typeof updateUserSchema>;
 
 const ProfileSetup = () => {
   // Store
@@ -47,7 +49,7 @@ const ProfileSetup = () => {
     setValue,
     watch,
     formState: { errors, isValid, isDirty },
-  } = useForm<UpdateUserBody>({
+  } = useForm<ProfileSetupFormValues>({
     resolver: zodResolver(updateUserSchema),
     mode: "onChange",
     defaultValues: {
@@ -57,7 +59,7 @@ const ProfileSetup = () => {
     },
   });
 
-  const handleUpdateUser = (data: UpdateUserBody) => {
+  const handleUpdateUser = (data: ProfileSetupFormValues) => {
     updateUser(data);
   };
 

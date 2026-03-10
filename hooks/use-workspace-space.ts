@@ -52,6 +52,52 @@ const useWorkspaceSpace = () => {
     });
   };
 
+  const useWorkspaceSpaceRoomsInfinite = (
+    workspaceId: string,
+    params: WorkspaceSpaceRoomsQueryParams = {},
+    options?: { enabled?: boolean; limit?: number },
+  ) => {
+    const pageSize = options?.limit ?? params.limit ?? 30;
+    const search = String(params.search || "");
+    const kind = params.kind ?? "all";
+
+    return useInfiniteQuery({
+      queryKey: [
+        "workspace-spaces-rooms",
+        workspaceId,
+        "infinite",
+        search,
+        kind,
+        pageSize,
+      ],
+      initialPageParam: 1,
+      enabled: (options?.enabled ?? true) && !!workspaceId,
+      queryFn: async ({ pageParam }) => {
+        try {
+          return await getWorkspaceSpaceRooms(workspaceId, {
+            page: Number(pageParam || 1),
+            limit: pageSize,
+            search,
+            kind,
+          });
+        } catch (error) {
+          handleError(error as AxiosError);
+          throw error;
+        }
+      },
+      getNextPageParam: (lastPage) => {
+        const pagination = lastPage?.data?.pagination;
+        const hasNext = Boolean(pagination?.hasNext);
+
+        if (!hasNext) {
+          return undefined;
+        }
+
+        return Number(pagination?.page || 1) + 1;
+      },
+    });
+  };
+
   const useWorkspaceSpaceRoomMessages = (
     workspaceId: string,
     roomId: string,
@@ -100,13 +146,14 @@ const useWorkspaceSpace = () => {
         }
       },
       getNextPageParam: (lastPage, allPages) => {
+        const pagination = lastPage?.data?.pagination;
         const hasNext = Boolean(lastPage?.data?.pagination?.hasNext);
 
         if (!hasNext) {
           return undefined;
         }
 
-        return allPages.length + 1;
+        return Number(pagination?.page || allPages.length) + 1;
       },
     });
   };
@@ -279,6 +326,7 @@ const useWorkspaceSpace = () => {
 
   return {
     useWorkspaceSpaceRooms,
+    useWorkspaceSpaceRoomsInfinite,
     useWorkspaceSpaceRoomMessages,
     useWorkspaceSpaceRoomMessagesInfinite,
     useWorkspaceSpaceThreadReplies,

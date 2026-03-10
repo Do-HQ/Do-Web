@@ -27,6 +27,7 @@ import {
   getWorkflowStatusLabel,
   resolveMemberById,
 } from "../utils";
+import { ProjectInfoTip } from "./project-info-tip";
 
 type ProjectWorkflowDetailSheetProps = {
   open: boolean;
@@ -37,6 +38,7 @@ type ProjectWorkflowDetailSheetProps = {
   onOpenChange: (open: boolean) => void;
   onAddTask: (workflowId: string) => void;
   onEditWorkflow: (workflowId: string) => void;
+  canManageWorkflowActions?: boolean;
 };
 
 const STATUS_STYLES: Record<ProjectWorkflow["status"], string> = {
@@ -75,6 +77,7 @@ export function ProjectWorkflowDetailSheet({
   onOpenChange,
   onAddTask,
   onEditWorkflow,
+  canManageWorkflowActions = true,
 }: ProjectWorkflowDetailSheetProps) {
   const owner = workflow ? resolveMemberById(members, workflow.ownerId) : null;
   const team = workflow ? teams.find((item) => item.id === workflow.teamId) : null;
@@ -85,7 +88,7 @@ export function ProjectWorkflowDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="w-full gap-0 sm:max-w-[30rem] lg:max-w-[34rem]">
+      <SheetContent side="right" className="w-full gap-0 sm:max-w-[26rem] lg:max-w-[29rem]">
         <SheetHeader className="gap-3 border-b border-border/35 pb-4">
           <div className="space-y-1">
             <SheetTitle className="text-[16px]">Workflow details</SheetTitle>
@@ -145,7 +148,10 @@ export function ProjectWorkflowDetailSheet({
               </div>
 
               <div className="space-y-3 rounded-xl border border-border/35 bg-background/80 p-4">
-                <div className="text-[13px] font-medium">Timing</div>
+                <div className="flex items-center gap-1.5">
+                  <div className="text-[13px] font-medium">Timing</div>
+                  <ProjectInfoTip content="Timing compares started date, target end, and actual completion. Variance shows whether execution is ahead or behind schedule." />
+                </div>
                 <div className="grid gap-2 text-[12px] text-muted-foreground sm:grid-cols-2">
                   <div className="rounded-lg bg-muted/35 px-3 py-2">
                     <div>Started</div>
@@ -162,7 +168,13 @@ export function ProjectWorkflowDetailSheet({
                     </div>
                   ) : null}
                   <div className="rounded-lg bg-muted/35 px-3 py-2">
-                    <div>Variance</div>
+                    <div className="inline-flex items-center gap-1">
+                      <span>Variance</span>
+                      <ProjectInfoTip
+                        content="Variance = elapsed days minus planned days. Negative means ahead, positive means late, and on time means aligned with plan."
+                        align="start"
+                      />
+                    </div>
                     <div className="text-foreground">{getTimingLabel(timingSummary)}</div>
                   </div>
                 </div>
@@ -205,10 +217,29 @@ export function ProjectWorkflowDetailSheet({
 
         {workflow ? (
           <div className="flex justify-end gap-2 border-t border-border/35 px-4 py-3">
-            <Button type="button" variant="ghost" onClick={() => onEditWorkflow(workflow.id)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onEditWorkflow(workflow.id)}
+              disabled={!canManageWorkflowActions}
+              title={
+                !canManageWorkflowActions
+                  ? "You do not have permission to edit workflows."
+                  : undefined
+              }
+            >
               Edit workflow
             </Button>
-            <Button type="button" onClick={() => onAddTask(workflow.id)}>
+            <Button
+              type="button"
+              onClick={() => onAddTask(workflow.id)}
+              disabled={!canManageWorkflowActions}
+              title={
+                !canManageWorkflowActions
+                  ? "You do not have permission to add tasks to this workflow."
+                  : undefined
+              }
+            >
               Add task
             </Button>
           </div>

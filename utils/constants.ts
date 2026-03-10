@@ -4,6 +4,7 @@ export const ROUTES = {
   SIGN_UP: "/auth/sign-up",
   VERIFY_OTP: "/auth/verify-otp",
   DASHBOARD: "/dashboard",
+  CALENDAR: "/calendar",
   PROJECTS: "/projects",
   ASK_SQUIRCLE: "/ask-squircle",
   SPACES: "/spaces",

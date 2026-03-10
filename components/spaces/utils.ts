@@ -56,8 +56,13 @@ export const parseTeamCallWidget = (
   try {
     const parsed = JSON.parse(raw) as TeamCallWidgetState;
     if (
+      (typeof parsed.roomId === "undefined" ||
+        typeof parsed.roomId === "string") &&
       typeof parsed.roomName === "string" &&
       typeof parsed.roomScope === "string" &&
+      (typeof parsed.callMode === "undefined" ||
+        parsed.callMode === "voice" ||
+        parsed.callMode === "video") &&
       typeof parsed.startedAt === "number" &&
       typeof parsed.isMuted === "boolean" &&
       typeof parsed.isVideoOn === "boolean" &&

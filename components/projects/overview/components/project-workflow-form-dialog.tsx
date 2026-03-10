@@ -62,6 +62,7 @@ export function ProjectWorkflowFormDialog({
             event.preventDefault();
             onSubmit({
               name: name.trim(),
+              teamId: initialValues?.teamId ?? "",
             });
           }}
         >

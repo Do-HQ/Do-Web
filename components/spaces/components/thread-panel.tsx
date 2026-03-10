@@ -36,6 +36,7 @@ type ThreadPanelProps = {
   canSendThreadReply: boolean;
   canCreateTaskFromChat: boolean;
   currentUserId: string;
+  currentUserAvatarUrl?: string;
   mentionSuggestions: MentionSuggestion[];
   mentionMetaByToken: Record<string, MentionTokenMeta>;
   authorInfoById: Record<string, SpaceUserInfo>;
@@ -70,6 +71,7 @@ const ThreadPanel = ({
   canSendThreadReply,
   canCreateTaskFromChat,
   currentUserId,
+  currentUserAvatarUrl,
   mentionSuggestions,
   mentionMetaByToken,
   authorInfoById,
@@ -288,9 +290,9 @@ const ThreadPanel = ({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+    <div className="bg-gradient-to-b from-muted/[0.22] to-transparent flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       <div className="bg-card/95 flex shrink-0 items-center gap-1.5 border-b px-2 py-2 backdrop-blur-sm sm:px-3 sm:py-2.5">
-        <p className="text-sm font-semibold">Thread</p>
+        <p className="text-[14px] font-semibold tracking-tight">Thread</p>
         <Badge variant="secondary" className="text-[11px]">
           {activeThreadReplies.length} replies
         </Badge>
@@ -326,13 +328,13 @@ const ThreadPanel = ({
       ) : (
         <>
           <div className="shrink-0 border-b px-2 py-2 sm:px-3 sm:py-2.5">
-            <p className="text-muted-foreground text-[11px]">From main chat</p>
-            <p className="mt-1 text-[12.5px] leading-5">
-              {renderContentWithMentions(selectedThreadMessage.content)}
-            </p>
-            <AttachmentPreview
-              attachments={selectedThreadMessage.attachments}
-            />
+            <div className="rounded-lg border border-border/50 bg-card/70 px-2.5 py-2.5 shadow-xs">
+              <p className="text-muted-foreground text-[11px]">From main chat</p>
+              <p className="mt-1 text-[12.5px] leading-5">
+                {renderContentWithMentions(selectedThreadMessage.content)}
+              </p>
+              <AttachmentPreview attachments={selectedThreadMessage.attachments} />
+            </div>
           </div>
 
           <div
@@ -350,11 +352,15 @@ const ThreadPanel = ({
                   String(reply.author.id || "").trim() ===
                   String(currentUserId || "").trim();
                 const authorInfo = authorInfoById[String(reply.author.id || "")];
+                const replyAvatarUrl =
+                  reply.author.avatarUrl ||
+                  authorInfo?.avatarUrl ||
+                  (isOwnReply ? currentUserAvatarUrl || "" : "");
 
                 return (
                   <article
                     key={reply.id}
-                    className="rounded-md border bg-background/70 p-2"
+                    className="group rounded-lg border border-border/45 bg-card/70 px-2.5 py-2 shadow-xs transition-colors hover:border-border hover:bg-card"
                   >
                     <div className="flex items-center gap-1.5">
                       <Avatar
@@ -370,7 +376,7 @@ const ThreadPanel = ({
                         }}
                       >
                         <AvatarImage
-                          src={reply.author.avatarUrl}
+                          src={replyAvatarUrl}
                           alt={reply.author.name}
                         />
                         <AvatarFallback className="text-[11px]">
@@ -462,7 +468,7 @@ const ThreadPanel = ({
           </div>
 
           <div className="bg-card/95 shrink-0 border-t px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:p-2.5">
-            <div className="bg-background/88 border-border rounded-none border border-x-0 border-b-0 p-2 backdrop-blur-sm sm:rounded-md sm:border sm:p-2.5">
+            <div className="bg-background/88 border-border rounded-none border border-x-0 border-b-0 p-2 shadow-xs backdrop-blur-sm sm:rounded-md sm:border sm:p-2.5">
               <MentionsInput
                 value={threadComposer}
                 onChange={(event) => onThreadComposerChange(event.target.value)}

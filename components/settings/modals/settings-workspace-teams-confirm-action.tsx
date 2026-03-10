@@ -21,6 +21,7 @@ interface Props {
   teamName?: string;
   teamKey?: string;
   onConfirm: () => void | Promise<void>;
+  disabled?: boolean;
 }
 
 const SettingsWorkspaceTeamsConfirmActionModal = ({
@@ -30,6 +31,7 @@ const SettingsWorkspaceTeamsConfirmActionModal = ({
   teamName,
   teamKey,
   onConfirm,
+  disabled = false,
 }: Props) => {
   const [confirmText, setConfirmText] = useState("");
 
@@ -46,7 +48,7 @@ const SettingsWorkspaceTeamsConfirmActionModal = ({
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!canConfirm) {
+    if (!canConfirm || disabled) {
       return;
     }
 
@@ -108,7 +110,7 @@ const SettingsWorkspaceTeamsConfirmActionModal = ({
               <Button
                 size="sm"
                 variant={action === "dissolve" ? "destructive" : "default"}
-                disabled={!canConfirm}
+                disabled={!canConfirm || disabled}
               >
                 {confirmLabel}
               </Button>

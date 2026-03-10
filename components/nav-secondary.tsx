@@ -21,6 +21,7 @@ export function NavSecondary({
     icon: LucideIcon;
     badge?: React.ReactNode;
     onClick?: () => void;
+    isActive?: boolean;
   }[];
 } & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
   return (
@@ -31,7 +32,7 @@ export function NavSecondary({
             if (item?.onClick) {
               return (
                 <SidebarMenuItem key={item.title} onClick={item?.onClick}>
-                  <SidebarMenuButton asChild>
+                  <SidebarMenuButton asChild isActive={item.isActive}>
                     <div>
                       <item.icon />
                       <span>{item.title}</span>
@@ -43,17 +44,19 @@ export function NavSecondary({
                 </SidebarMenuItem>
               );
             } else {
-              <SidebarMenuItem key={item.title} onClick={item?.onClick}>
-                <SidebarMenuButton asChild>
-                  <Link href={item?.url}>
-                    <item.icon />
-                    <span>{item.title}</span>
-                  </Link>
-                </SidebarMenuButton>
-                {item.badge && (
-                  <SidebarMenuBadge>{item.badge}</SidebarMenuBadge>
-                )}
-              </SidebarMenuItem>;
+              return (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton asChild isActive={item.isActive}>
+                    <Link href={item?.url}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                  {item.badge && (
+                    <SidebarMenuBadge>{item.badge}</SidebarMenuBadge>
+                  )}
+                </SidebarMenuItem>
+              );
             }
           })}
         </SidebarMenu>

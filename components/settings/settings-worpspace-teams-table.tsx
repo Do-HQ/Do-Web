@@ -5,6 +5,12 @@ import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuGroup,
@@ -25,18 +31,20 @@ import {
   ArrowUpDown,
   CircleOff,
   Ellipsis,
+  FolderSearch,
   Plus,
   RotateCcw,
   Settings2,
   Trash2,
   UserPlus2,
 } from "lucide-react";
-import { Avatar, AvatarFallback } from "../ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Badge } from "../ui/badge";
 import SettingsWorkspaceTeamsAddTeamModal from "./modals/settings-workspace-teams-add-team";
 import SettingsWorkspaceTeamsManageTeamModal from "./modals/settings-workspace-teams-manage-team";
 import SettingsWorkspaceTeamsConfirmActionModal from "./modals/settings-workspace-teams-confirm-action";
 import useWorkspaceStore from "@/stores/workspace";
+import useAuthStore from "@/stores/auth";
 import useWorkspaceTeam from "@/hooks/use-workspace-team";
 import useWorkspace from "@/hooks/use-workspace";
 import { CreateWorkspaceTeamRequestBody, WorkspaceTeam } from "@/types/team";
@@ -47,8 +55,19 @@ type ConfirmAction = "archive" | "restore" | "dissolve" | null;
 
 type ManageTab = "general" | "members" | "security";
 
-export function WorkspaceTeamsTable() {
+type WorkspaceTeamsTableProps = {
+  canCreateTeam?: boolean;
+  canManageTeamPolicy?: boolean;
+  canManageTeamLifecycle?: boolean;
+};
+
+export function WorkspaceTeamsTable({
+  canCreateTeam = true,
+  canManageTeamPolicy = true,
+  canManageTeamLifecycle = true,
+}: WorkspaceTeamsTableProps) {
   const { workspaceId } = useWorkspaceStore();
+  const { user } = useAuthStore();
   const { useWorkspacePeople } = useWorkspace();
   const {
     useWorkspaceTeams,
@@ -71,6 +90,7 @@ export function WorkspaceTeamsTable() {
   const [manageInitialTab, setManageInitialTab] = React.useState<ManageTab>("general");
   const [openMemberPickerOnMount, setOpenMemberPickerOnMount] =
     React.useState(false);
+  const currentUserId = String(user?._id || "").trim();
 
   const debouncedSearch = useDebounce(search, 500);
 
@@ -102,6 +122,17 @@ export function WorkspaceTeamsTable() {
   const selectedTeam = React.useMemo<WorkspaceTeam | null>(() => {
     return teams.find((team) => team._id === selectedTeamId) || null;
   }, [selectedTeamId, teams]);
+  const selectedTeamCanManage = React.useMemo(() => {
+    if (!selectedTeam) {
+      return false;
+    }
+
+    const leadUserId = String(
+      selectedTeam.leadUser?._id || selectedTeam.leadUserId || "",
+    ).trim();
+
+    return canManageTeamLifecycle || (Boolean(leadUserId) && leadUserId === currentUserId);
+  }, [canManageTeamLifecycle, currentUserId, selectedTeam]);
 
   const leadOptions = React.useMemo(() => {
     return (peopleQuery.data?.data?.members || []).map((member) => {
@@ -162,6 +193,11 @@ export function WorkspaceTeamsTable() {
     });
 
   const handleCreateTeam = async (payload: CreateWorkspaceTeamRequestBody) => {
+    if (!canCreateTeam) {
+      toast("You do not have permission to create teams in this workspace.");
+      return;
+    }
+
     if (!workspaceId) {
       return;
     }
@@ -180,6 +216,11 @@ export function WorkspaceTeamsTable() {
   };
 
   const handleArchiveTeam = async () => {
+    if (!canManageTeamLifecycle) {
+      toast("Only workspace owners/admins can archive teams.");
+      return;
+    }
+
     if (!workspaceId || !selectedTeamId) {
       return;
     }
@@ -198,6 +239,11 @@ export function WorkspaceTeamsTable() {
   };
 
   const handleRestoreTeam = async () => {
+    if (!canManageTeamLifecycle) {
+      toast("Only workspace owners/admins can restore teams.");
+      return;
+    }
+
     if (!workspaceId || !selectedTeamId) {
       return;
     }
@@ -216,6 +262,11 @@ export function WorkspaceTeamsTable() {
   };
 
   const handleDissolveTeam = async () => {
+    if (!canManageTeamLifecycle) {
+      toast("Only workspace owners/admins can dissolve teams.");
+      return;
+    }
+
     if (!workspaceId || !selectedTeamId) {
       return;
     }
@@ -237,6 +288,23 @@ export function WorkspaceTeamsTable() {
     action: "add-member" | "manage" | "archive" | "restore" | "dissolve",
     team: WorkspaceTeam,
   ) => {
+    const leadUserId = String(team.leadUser?._id || team.leadUserId || "").trim();
+    const canManageThisTeam =
+      canManageTeamLifecycle || (Boolean(leadUserId) && leadUserId === currentUserId);
+
+    if ((action === "manage" || action === "add-member") && !canManageThisTeam) {
+      toast("You do not have permission to manage this team.");
+      return;
+    }
+
+    if (
+      (action === "archive" || action === "restore" || action === "dissolve") &&
+      !canManageTeamLifecycle
+    ) {
+      toast("Only workspace owners/admins can perform this team action.");
+      return;
+    }
+
     setSelectedTeamId(team._id);
 
     if (action === "add-member") {
@@ -300,11 +368,25 @@ export function WorkspaceTeamsTable() {
           </Button>
         </div>
 
-        <Button className="sm:ml-auto" onClick={() => setShowAddTeamModal(true)}>
+        <Button
+          className="sm:ml-auto"
+          onClick={() => setShowAddTeamModal(true)}
+          disabled={!canCreateTeam}
+          title={
+            !canCreateTeam
+              ? "You do not have permission to create teams."
+              : undefined
+          }
+        >
           <Plus />
           New team
         </Button>
       </div>
+      {!canManageTeamPolicy ? (
+        <div className="text-muted-foreground -mt-1 mb-2 text-[12px]">
+          Team policy is managed by workspace owners/admins.
+        </div>
+      ) : null}
 
       <div className="overflow-hidden rounded-md border">
         <Table>
@@ -349,6 +431,12 @@ export function WorkspaceTeamsTable() {
                     .filter(Boolean)
                     .join(" ")
                     .trim() || "No lead assigned";
+                const leadUserId = String(
+                  team.leadUser?._id || team.leadUserId || "",
+                ).trim();
+                const canManageThisTeam =
+                  canManageTeamLifecycle ||
+                  (Boolean(leadUserId) && leadUserId === currentUserId);
 
                 return (
                   <TableRow key={team._id}>
@@ -386,6 +474,10 @@ export function WorkspaceTeamsTable() {
                               team.status === "archived" ? "Archived team" : "Active team",
                           }}
                         >
+                          <AvatarImage
+                            src={team.leadUser?.profilePhoto?.url || ""}
+                            alt={leadName}
+                          />
                           <AvatarFallback>
                             {leadName
                               .split(" ")
@@ -408,19 +500,30 @@ export function WorkspaceTeamsTable() {
                     <TableCell className="px-3 py-3 text-right">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 w-8 p-0"
+                            disabled={!canManageThisTeam && !canManageTeamLifecycle}
+                          >
                             <Ellipsis />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuGroup>
                             {team.status === "active" ? (
-                              <DropdownMenuItem onClick={() => openActionModal("add-member", team)}>
+                              <DropdownMenuItem
+                                disabled={!canManageThisTeam}
+                                onClick={() => openActionModal("add-member", team)}
+                              >
                                 <UserPlus2 />
                                 Add member
                               </DropdownMenuItem>
                             ) : null}
-                            <DropdownMenuItem onClick={() => openActionModal("manage", team)}>
+                            <DropdownMenuItem
+                              disabled={!canManageThisTeam}
+                              onClick={() => openActionModal("manage", team)}
+                            >
                               <Settings2 />
                               Manage team
                             </DropdownMenuItem>
@@ -428,18 +531,25 @@ export function WorkspaceTeamsTable() {
                           <DropdownMenuSeparator />
                           <DropdownMenuGroup>
                             {team.status === "active" ? (
-                              <DropdownMenuItem onClick={() => openActionModal("archive", team)}>
+                              <DropdownMenuItem
+                                disabled={!canManageTeamLifecycle}
+                                onClick={() => openActionModal("archive", team)}
+                              >
                                 <CircleOff />
                                 Archive {team.name}
                               </DropdownMenuItem>
                             ) : (
-                              <DropdownMenuItem onClick={() => openActionModal("restore", team)}>
+                              <DropdownMenuItem
+                                disabled={!canManageTeamLifecycle}
+                                onClick={() => openActionModal("restore", team)}
+                              >
                                 <RotateCcw />
                                 Restore {team.name}
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuItem
                               variant="destructive"
+                              disabled={!canManageTeamLifecycle}
                               onClick={() => openActionModal("dissolve", team)}
                             >
                               <Trash2 />
@@ -455,7 +565,16 @@ export function WorkspaceTeamsTable() {
             ) : (
               <TableRow>
                 <TableCell colSpan={4} className="h-24 text-center">
-                  No {status} teams found.
+                  <Empty className="border-0 p-0 md:p-0">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <FolderSearch className="size-4 text-primary/85" />
+                      </EmptyMedia>
+                      <EmptyDescription className="text-[12px]">
+                        No {status} teams found.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
                 </TableCell>
               </TableRow>
             )}
@@ -506,6 +625,9 @@ export function WorkspaceTeamsTable() {
         teamId={selectedTeamId}
         initialTab={manageInitialTab}
         openMemberPickerOnMount={openMemberPickerOnMount}
+        canEditGeneral={selectedTeamCanManage}
+        canManageMembers={selectedTeamCanManage}
+        canRunSecurityActions={canManageTeamLifecycle}
       />
 
       <SettingsWorkspaceTeamsConfirmActionModal
@@ -519,6 +641,7 @@ export function WorkspaceTeamsTable() {
         teamName={selectedTeam?.name}
         teamKey={selectedTeam?.key}
         onConfirm={handleArchiveTeam}
+        disabled={!canManageTeamLifecycle}
       />
 
       <SettingsWorkspaceTeamsConfirmActionModal
@@ -532,6 +655,7 @@ export function WorkspaceTeamsTable() {
         teamName={selectedTeam?.name}
         teamKey={selectedTeam?.key}
         onConfirm={handleRestoreTeam}
+        disabled={!canManageTeamLifecycle}
       />
 
       <SettingsWorkspaceTeamsConfirmActionModal
@@ -545,6 +669,7 @@ export function WorkspaceTeamsTable() {
         teamName={selectedTeam?.name}
         teamKey={selectedTeam?.key}
         onConfirm={handleDissolveTeam}
+        disabled={!canManageTeamLifecycle}
       />
     </div>
   );

@@ -63,7 +63,7 @@ export const PROJECT_TABS: { key: ProjectTabKey; label: string }[] = [
   { key: "files-assets", label: "Files & Assets" },
   { key: "risks-issues", label: "Risks & Issues" },
   { key: "secrets", label: "Secrets" },
-  { key: "agents-automation", label: "Agents & Automation" },
+  { key: "agents-automation", label: "Automation" },
 ];
 
 export const HEATMAP_LEVEL_CLASSES: Record<ProjectHeatmapDay["level"], string> = {

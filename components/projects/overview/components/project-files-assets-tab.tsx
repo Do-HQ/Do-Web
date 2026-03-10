@@ -10,6 +10,7 @@ import {
   Image as ImageIcon,
   MoreHorizontal,
   RefreshCcw,
+  SearchX,
   Send,
   Trash2,
   Upload,
@@ -25,6 +26,12 @@ import useFile from "@/hooks/use-file";
 import type { CustomFile } from "@/types/file";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 import {
   Dialog,
   DialogContent,
@@ -65,6 +72,7 @@ import {
   ProjectMember,
   ProjectOverviewRecord,
 } from "../types";
+import LoaderComponent from "@/components/shared/loader";
 
 const SEND_TARGETS = [
   "Project chat",
@@ -134,10 +142,16 @@ function isTextPreviewAsset(asset: ProjectAsset) {
 }
 
 function getOfficePreviewUrl(url: string) {
-  return "https://view.officeapps.live.com/op/embed.aspx?src=" + encodeURIComponent(url);
+  return (
+    "https://view.officeapps.live.com/op/embed.aspx?src=" +
+    encodeURIComponent(url)
+  );
 }
 
-function inferAssetType(mimeType?: string, resourceType?: string): ProjectAssetType {
+function inferAssetType(
+  mimeType?: string,
+  resourceType?: string,
+): ProjectAssetType {
   const normalizedMime = String(mimeType || "").toLowerCase();
   const normalizedResource = String(resourceType || "").toLowerCase();
 
@@ -282,11 +296,7 @@ function AssetPreviewPanel({ asset, onDownload }: AssetPreviewPanelProps) {
 
   if (asset.url && isTextPreviewAsset(asset)) {
     if (textPreviewQuery.isLoading || textPreviewQuery.isFetching) {
-      return (
-        <div className="flex h-[72vh] items-center justify-center rounded-lg border border-border/20 bg-muted/20 text-[12px]">
-          Loading preview...
-        </div>
-      );
+      return <LoaderComponent />;
     }
 
     if (textPreviewQuery.error) {
@@ -295,7 +305,8 @@ function AssetPreviewPanel({ asset, onDownload }: AssetPreviewPanelProps) {
           <div>
             <div className="text-[14px] font-semibold">{asset.name}</div>
             <div className="text-muted-foreground mt-1 text-[12px]">
-              This document cannot be previewed inline in this browser. You can still download it.
+              This document cannot be previewed inline in this browser. You can
+              still download it.
             </div>
             <Button
               type="button"
@@ -363,7 +374,9 @@ export function ProjectFilesAssetsTab({
   const { workspaceId } = useWorkspaceStore();
   const { useUpdateWorkspaceProject } = useWorkspaceProject();
   const { useUploadAsset, useDeleteAsset } = useFile();
-  const upsertProjectRecord = useProjectStore((state) => state.upsertProjectRecord);
+  const upsertProjectRecord = useProjectStore(
+    (state) => state.upsertProjectRecord,
+  );
 
   const updateWorkspaceProjectMutation = useUpdateWorkspaceProject({
     onSuccess: (response) => {
@@ -387,10 +400,11 @@ export function ProjectFilesAssetsTab({
   const [sendTarget, setSendTarget] = useState<string>(SEND_TARGETS[0]);
   const [sendNote, setSendNote] = useState("");
   const [uploadFileValue, setUploadFileValue] = useState<File | null>(null);
-  const [uploadLinkedTaskId, setUploadLinkedTaskId] = useState(
-    NO_LINKED_TASK_VALUE,
+  const [uploadLinkedTaskId, setUploadLinkedTaskId] =
+    useState(NO_LINKED_TASK_VALUE);
+  const [replacingAsset, setReplacingAsset] = useState<ProjectAsset | null>(
+    null,
   );
-  const [replacingAsset, setReplacingAsset] = useState<ProjectAsset | null>(null);
 
   const linkedTasks = useMemo(() => getLinkedTaskOptions(project), [project]);
   const assets = useMemo(() => project.assets ?? [], [project.assets]);
@@ -441,7 +455,9 @@ export function ProjectFilesAssetsTab({
 
   const buildProjectAsset = (asset: CustomFile, linkedTaskId: string) => {
     const linkedTask = linkedTasks.find((task) => task.id === linkedTaskId);
-    const uploader = members.find((member) => member.id === String(asset.ownerId));
+    const uploader = members.find(
+      (member) => member.id === String(asset.ownerId),
+    );
 
     return {
       id: `asset-${String(asset._id)}`,
@@ -530,9 +546,11 @@ export function ProjectFilesAssetsTab({
       const uploadResponse = await uploadPromise;
 
       if (replacingAsset.assetId) {
-        await deleteAssetMutation.mutateAsync(replacingAsset.assetId).catch(() => {
-          toast("The old file could not be removed automatically.");
-        });
+        await deleteAssetMutation
+          .mutateAsync(replacingAsset.assetId)
+          .catch(() => {
+            toast("The old file could not be removed automatically.");
+          });
       }
 
       const uploadedAsset = buildProjectAsset(
@@ -632,9 +650,12 @@ export function ProjectFilesAssetsTab({
         <div className="flex flex-col gap-3 border-b border-border/20 px-3 py-3 md:px-4">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
-              <div className="text-[14px] font-semibold md:text-[15px]">Files & assets</div>
+              <div className="text-[14px] font-semibold md:text-[15px]">
+                Files & assets
+              </div>
               <div className="text-muted-foreground text-[12px] leading-5">
-                Upload, replace, preview, send, and download project files from one place.
+                Upload, replace, preview, send, and download project files from
+                one place.
               </div>
             </div>
 
@@ -660,7 +681,12 @@ export function ProjectFilesAssetsTab({
                   </SelectContent>
                 </Select>
 
-                <Button type="button" variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setUploadOpen(true)}
+                >
                   <Upload />
                   Upload
                 </Button>
@@ -686,7 +712,9 @@ export function ProjectFilesAssetsTab({
                       <Icon className="size-4 text-primary" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <div className="truncate text-[13px] font-medium">{asset.name}</div>
+                      <div className="truncate text-[13px] font-medium">
+                        {asset.name}
+                      </div>
                       <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-[11px]">
                         <span>{asset.type}</span>
                         <span>{asset.fileSize}</span>
@@ -720,7 +748,10 @@ export function ProjectFilesAssetsTab({
                       const Icon = getAssetIcon(asset.type);
 
                       return (
-                        <TableRow key={asset.id} className="h-11 bg-background/40 [&>td]:py-2">
+                        <TableRow
+                          key={asset.id}
+                          className="h-11 bg-background/40 [&>td]:py-2"
+                        >
                           <TableCell>
                             <button
                               type="button"
@@ -744,31 +775,47 @@ export function ProjectFilesAssetsTab({
                           </TableCell>
                           <TableCell>{asset.fileSize}</TableCell>
                           <TableCell>{asset.uploadedBy}</TableCell>
-                          <TableCell className="text-muted-foreground">{asset.uploadedAt}</TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {asset.uploadedAt}
+                          </TableCell>
                           <TableCell>
-                            <span className="truncate text-[12px] md:text-[12.5px]">{asset.linkedTask}</span>
+                            <span className="truncate text-[12px] md:text-[12.5px]">
+                              {asset.linkedTask}
+                            </span>
                           </TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
-                                <Button type="button" variant="ghost" size="icon-sm">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                >
                                   <MoreHorizontal />
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => setViewerAsset(asset)}>
+                                <DropdownMenuItem
+                                  onClick={() => setViewerAsset(asset)}
+                                >
                                   <Eye />
                                   Preview
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => setSendAsset(asset)}>
+                                <DropdownMenuItem
+                                  onClick={() => setSendAsset(asset)}
+                                >
                                   <Send />
                                   Send file
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleCopyLink(asset)}>
+                                <DropdownMenuItem
+                                  onClick={() => handleCopyLink(asset)}
+                                >
                                   <Copy />
                                   Copy link
                                 </DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => handleDownload(asset)}>
+                                <DropdownMenuItem
+                                  onClick={() => handleDownload(asset)}
+                                >
                                   <Download />
                                   Download
                                 </DropdownMenuItem>
@@ -801,8 +848,17 @@ export function ProjectFilesAssetsTab({
             </div>
           </>
         ) : (
-          <div className="text-muted-foreground px-4 py-4 text-[12px] leading-5">
-            No files match the current search and type filters.
+          <div className="px-4 py-4">
+            <Empty className="border-0 p-0 md:p-0">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <SearchX className="size-4 text-primary/85" />
+                </EmptyMedia>
+                <EmptyDescription className="text-[12px]">
+                  No files match the current search and type filters.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           </div>
         )}
       </section>
@@ -823,7 +879,10 @@ export function ProjectFilesAssetsTab({
         }}
       />
 
-      <Dialog open={Boolean(viewerAsset)} onOpenChange={(open) => !open && setViewerAsset(null)}>
+      <Dialog
+        open={Boolean(viewerAsset)}
+        onOpenChange={(open) => !open && setViewerAsset(null)}
+      >
         <DialogContent className="max-w-[92vw] xl:max-w-6xl">
           <DialogHeader>
             <DialogTitle>{viewerAsset?.name}</DialogTitle>
@@ -835,7 +894,10 @@ export function ProjectFilesAssetsTab({
           {viewerAsset ? (
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_14rem]">
               <div className="rounded-xl border border-border/20 bg-background/70 p-4">
-                <AssetPreviewPanel asset={viewerAsset} onDownload={handleDownload} />
+                <AssetPreviewPanel
+                  asset={viewerAsset}
+                  onDownload={handleDownload}
+                />
               </div>
 
               <div className="space-y-2 rounded-xl border border-border/20 bg-background/70 p-3">
@@ -843,23 +905,39 @@ export function ProjectFilesAssetsTab({
                   Details
                 </div>
                 <div className="text-[12px]">
-                  <span className="text-muted-foreground">Type:</span> {viewerAsset.type}
+                  <span className="text-muted-foreground">Type:</span>{" "}
+                  {viewerAsset.type}
                 </div>
                 <div className="text-[12px]">
-                  <span className="text-muted-foreground">Uploaded by:</span> {viewerAsset.uploadedBy}
+                  <span className="text-muted-foreground">Uploaded by:</span>{" "}
+                  {viewerAsset.uploadedBy}
                 </div>
                 <div className="text-[12px]">
-                  <span className="text-muted-foreground">Updated:</span> {viewerAsset.uploadedAt}
+                  <span className="text-muted-foreground">Updated:</span>{" "}
+                  {viewerAsset.uploadedAt}
                 </div>
                 <div className="text-[12px]">
-                  <span className="text-muted-foreground">Linked task:</span> {viewerAsset.linkedTask}
+                  <span className="text-muted-foreground">Linked task:</span>{" "}
+                  {viewerAsset.linkedTask}
                 </div>
                 <div className="pt-2 space-y-2">
-                  <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => handleDownload(viewerAsset)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => handleDownload(viewerAsset)}
+                  >
                     <Download />
                     Download
                   </Button>
-                  <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => setSendAsset(viewerAsset)}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setSendAsset(viewerAsset)}
+                  >
                     <Send />
                     Send file
                   </Button>
@@ -870,7 +948,10 @@ export function ProjectFilesAssetsTab({
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(sendAsset)} onOpenChange={(open) => !open && setSendAsset(null)}>
+      <Dialog
+        open={Boolean(sendAsset)}
+        onOpenChange={(open) => !open && setSendAsset(null)}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>Send file</DialogTitle>
@@ -907,10 +988,18 @@ export function ProjectFilesAssetsTab({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setSendAsset(null)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setSendAsset(null)}
+            >
               Cancel
             </Button>
-            <Button type="button" onClick={handleSendFile} disabled={!sendAsset}>
+            <Button
+              type="button"
+              onClick={handleSendFile}
+              disabled={!sendAsset}
+            >
               Send
             </Button>
           </DialogFooter>
@@ -922,7 +1011,8 @@ export function ProjectFilesAssetsTab({
           <DialogHeader>
             <DialogTitle>Upload file</DialogTitle>
             <DialogDescription>
-              Upload a real file, link it to a task, and keep it persisted on this project.
+              Upload a real file, link it to a task, and keep it persisted on
+              this project.
             </DialogDescription>
           </DialogHeader>
 
@@ -932,7 +1022,9 @@ export function ProjectFilesAssetsTab({
               <Input
                 id="project-upload-file"
                 type="file"
-                onChange={(event) => setUploadFileValue(event.target.files?.[0] ?? null)}
+                onChange={(event) =>
+                  setUploadFileValue(event.target.files?.[0] ?? null)
+                }
               />
             </div>
 
@@ -960,13 +1052,21 @@ export function ProjectFilesAssetsTab({
           </div>
 
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setUploadOpen(false)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setUploadOpen(false)}
+            >
               Cancel
             </Button>
             <Button
               type="button"
               onClick={() => void handleUpload()}
-              disabled={!uploadFileValue || uploadAssetMutation.isPending || updateWorkspaceProjectMutation.isPending}
+              disabled={
+                !uploadFileValue ||
+                uploadAssetMutation.isPending ||
+                updateWorkspaceProjectMutation.isPending
+              }
             >
               Upload file
             </Button>

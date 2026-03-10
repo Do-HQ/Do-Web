@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { ArrowDown01, ArrowUpDown } from "lucide-react";
+import { ArrowDown01, ArrowUpDown, SearchX } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -27,6 +27,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+} from "@/components/ui/empty";
 import {
   flexRender,
   getCoreRowModel,
@@ -244,7 +250,7 @@ const SettingsWorkspacePeopleTable = () => {
       return {
         name: returnFullName(d?.userId) || "No name",
         email: String(d?.userId?.email || ""),
-        profileImage: d?.userId?.profilePhoto?.url,
+        profileImage: d?.userId?.profilePhoto?.url || "",
         teams:
           d?.teams
             ?.filter((team) => team?.status === "active")
@@ -367,9 +373,18 @@ const SettingsWorkspacePeopleTable = () => {
                 <TableRow>
                   <TableCell
                     colSpan={columns.length}
-                    className="h-24 text-center"
+                    className="h-24"
                   >
-                    No results.
+                    <Empty className="border-0 p-0 md:p-0">
+                      <EmptyHeader>
+                        <EmptyMedia variant="icon" className="size-8">
+                          <SearchX className="size-3.5 text-primary/85" />
+                        </EmptyMedia>
+                        <EmptyDescription className="text-[12px]">
+                          No results.
+                        </EmptyDescription>
+                      </EmptyHeader>
+                    </Empty>
                   </TableCell>
                 </TableRow>
               )}

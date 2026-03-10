@@ -24,13 +24,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
 import { P } from "@/components/ui/typography";
 import useAuthStore from "@/stores/auth";
 import useWorkspaceStore from "@/stores/workspace";
 import useWorkspace from "@/hooks/use-workspace";
+import { useWorkspacePermissions } from "@/hooks/use-workspace-permissions";
+import { cn } from "@/lib/utils";
 import type {
   WorkspaceFlowDefaults,
   WorkspaceGovernanceSettings,
+  WorkspaceWorkSchedule,
 } from "@/types/workspace";
 
 type WorkspaceGovernance = WorkspaceGovernanceSettings & {
@@ -50,7 +54,20 @@ const DEFAULT_GOVERNANCE: WorkspaceGovernance = {
   allowMembersCreateWorkflows: true,
   restrictInvitesToAdmins: false,
   requireJoinRequestApproval: true,
+  enableMessageExpiry: false,
+  messageRetentionDays: 30,
   workspaceVisibility: "private",
+};
+
+const DEFAULT_WORK_SCHEDULE: WorkspaceWorkSchedule = {
+  enabled: false,
+  timezone: "Africa/Lagos",
+  startTime: "09:00",
+  closeTime: "18:00",
+  lastDigest: {
+    startSentOn: "",
+    closeSentOn: "",
+  },
 };
 
 const hasChanges = <T extends object>(value: T, saved: T) => {
@@ -64,6 +81,8 @@ const SettingsWorkspaces = () => {
   const { user } = useAuthStore();
   const { workspaceId, setWorkspaceId } = useWorkspaceStore();
   const queryClient = useQueryClient();
+  const { canManageWorkspaceSettings } = useWorkspacePermissions();
+  const readOnlyWorkspaceSettings = !canManageWorkspaceSettings;
 
   const { useSwitchWorkspace, useWorkspaceById, useUpdateWorkspace } = useWorkspace();
   const activeWorkspaceQuery = useWorkspaceById(workspaceId!);
@@ -86,6 +105,9 @@ const SettingsWorkspaces = () => {
     useState<WorkspaceFlowDefaults>(DEFAULT_FLOW_DEFAULTS);
   const [governance, setGovernance] = useState<WorkspaceGovernance>(DEFAULT_GOVERNANCE);
   const [savedGovernance, setSavedGovernance] = useState<WorkspaceGovernance>(DEFAULT_GOVERNANCE);
+  const [workSchedule, setWorkSchedule] = useState<WorkspaceWorkSchedule>(DEFAULT_WORK_SCHEDULE);
+  const [savedWorkSchedule, setSavedWorkSchedule] =
+    useState<WorkspaceWorkSchedule>(DEFAULT_WORK_SCHEDULE);
 
   useEffect(() => {
     if (!activeWorkspace) {
@@ -107,6 +129,18 @@ const SettingsWorkspaces = () => {
     setSavedFlowDefaults(nextFlowDefaults);
     setGovernance(nextGovernance);
     setSavedGovernance(nextGovernance);
+
+    const nextWorkSchedule: WorkspaceWorkSchedule = {
+      ...DEFAULT_WORK_SCHEDULE,
+      ...(activeWorkspace.workSchedule || {}),
+      lastDigest: {
+        ...DEFAULT_WORK_SCHEDULE.lastDigest,
+        ...(activeWorkspace.workSchedule?.lastDigest || {}),
+      },
+    };
+
+    setWorkSchedule(nextWorkSchedule);
+    setSavedWorkSchedule(nextWorkSchedule);
   }, [activeWorkspace]);
 
   const flowDefaultsChanged = useMemo(
@@ -116,6 +150,10 @@ const SettingsWorkspaces = () => {
   const governanceChanged = useMemo(
     () => hasChanges(governance, savedGovernance),
     [governance, savedGovernance],
+  );
+  const workScheduleChanged = useMemo(
+    () => hasChanges(workSchedule, savedWorkSchedule),
+    [workSchedule, savedWorkSchedule],
   );
 
   const { isPending: isUpdatingWorkspace, mutateAsync: updateWorkspace } = useUpdateWorkspace({
@@ -179,6 +217,8 @@ const SettingsWorkspaces = () => {
             allowMembersCreateWorkflows: governance.allowMembersCreateWorkflows,
             restrictInvitesToAdmins: governance.restrictInvitesToAdmins,
             requireJoinRequestApproval: governance.requireJoinRequestApproval,
+            enableMessageExpiry: governance.enableMessageExpiry,
+            messageRetentionDays: governance.messageRetentionDays,
           },
         },
       },
@@ -196,6 +236,37 @@ const SettingsWorkspaces = () => {
 
   const handleResetGovernance = () => {
     setGovernance(savedGovernance);
+  };
+
+  const handleSaveWorkSchedule = () => {
+    if (!workspaceId) {
+      return;
+    }
+
+    const request = updateWorkspace({
+      workspaceId,
+      data: {
+        workSchedule: {
+          enabled: workSchedule.enabled,
+          timezone: workSchedule.timezone.trim(),
+          startTime: workSchedule.startTime,
+          closeTime: workSchedule.closeTime,
+        },
+      },
+    });
+
+    toast.promise(request, {
+      loading: "Saving work schedule...",
+      success: (data) => {
+        setSavedWorkSchedule(workSchedule);
+        return data?.data?.message || "Workspace work schedule updated";
+      },
+      error: "Could not save workspace work schedule",
+    });
+  };
+
+  const handleResetWorkSchedule = () => {
+    setWorkSchedule(savedWorkSchedule);
   };
 
   return (
@@ -263,6 +334,13 @@ const SettingsWorkspaces = () => {
       <FieldSet>
         <FieldLegend>Flow Defaults</FieldLegend>
         <FieldDescription>Organization defaults across projects, workflows, and tasks.</FieldDescription>
+        {readOnlyWorkspaceSettings ? (
+          <FieldDescription>
+            Read-only for workspace members. Ask an owner/admin to update these defaults.
+          </FieldDescription>
+        ) : null}
+
+        <div className={cn(readOnlyWorkspaceSettings && "pointer-events-none opacity-65")}>
 
         <Field orientation="horizontal">
           <FieldContent>
@@ -377,7 +455,7 @@ const SettingsWorkspaces = () => {
             className="max-w-20"
             size="sm"
             loading={isUpdatingWorkspace || activeWorkspaceQuery.isLoading}
-            disabled={!flowDefaultsChanged || !workspaceId}
+            disabled={!flowDefaultsChanged || !workspaceId || readOnlyWorkspaceSettings}
             onClick={handleSaveFlowDefaults}
           >
             Save
@@ -386,11 +464,12 @@ const SettingsWorkspaces = () => {
             className="max-w-20"
             size="sm"
             variant="ghost"
-            disabled={!flowDefaultsChanged}
+            disabled={!flowDefaultsChanged || readOnlyWorkspaceSettings}
             onClick={handleResetFlowDefaults}
           >
             Reset
           </Button>
+        </div>
         </div>
       </FieldSet>
 
@@ -399,6 +478,13 @@ const SettingsWorkspaces = () => {
       <FieldSet>
         <FieldLegend>Governance</FieldLegend>
         <FieldDescription>Manage organization permissions and access policies.</FieldDescription>
+        {readOnlyWorkspaceSettings ? (
+          <FieldDescription>
+            Read-only for workspace members. Ask an owner/admin to update governance.
+          </FieldDescription>
+        ) : null}
+
+        <div className={cn(readOnlyWorkspaceSettings && "pointer-events-none opacity-65")}>
 
         <Field orientation="horizontal">
           <FieldContent>
@@ -488,12 +574,62 @@ const SettingsWorkspaces = () => {
           </Select>
         </Field>
 
+        <Field orientation="horizontal">
+          <FieldContent>
+            <FieldTitle>Expire chat messages automatically</FieldTitle>
+            <FieldDescription>
+              Delete old chat messages automatically to reduce database growth.
+            </FieldDescription>
+          </FieldContent>
+          <Switch
+            checked={governance.enableMessageExpiry}
+            onCheckedChange={(checked) =>
+              setGovernance((prev) => ({
+                ...prev,
+                enableMessageExpiry: checked,
+              }))
+            }
+          />
+        </Field>
+
+        <Field orientation="horizontal">
+          <FieldContent>
+            <FieldTitle>Message retention window</FieldTitle>
+            <FieldDescription>
+              How long messages stay before expiry runs.
+            </FieldDescription>
+          </FieldContent>
+          <Select
+            value={String(governance.messageRetentionDays)}
+            onValueChange={(value) =>
+              setGovernance((prev) => ({
+                ...prev,
+                messageRetentionDays: Number(value),
+              }))
+            }
+            disabled={!governance.enableMessageExpiry}
+          >
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Select retention" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="7">7 days</SelectItem>
+              <SelectItem value="14">14 days</SelectItem>
+              <SelectItem value="30">30 days</SelectItem>
+              <SelectItem value="60">60 days</SelectItem>
+              <SelectItem value="90">90 days</SelectItem>
+              <SelectItem value="180">180 days</SelectItem>
+              <SelectItem value="365">365 days</SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
         <div className="flex items-center gap-2">
           <Button
             className="max-w-20"
             size="sm"
             loading={isUpdatingWorkspace || activeWorkspaceQuery.isLoading}
-            disabled={!governanceChanged || !workspaceId}
+            disabled={!governanceChanged || !workspaceId || readOnlyWorkspaceSettings}
             onClick={handleSaveGovernance}
           >
             Save
@@ -502,11 +638,129 @@ const SettingsWorkspaces = () => {
             className="max-w-20"
             size="sm"
             variant="ghost"
-            disabled={!governanceChanged}
+            disabled={!governanceChanged || readOnlyWorkspaceSettings}
             onClick={handleResetGovernance}
           >
             Reset
           </Button>
+        </div>
+        </div>
+      </FieldSet>
+
+      <FieldSeparator />
+
+      <FieldSet>
+        <FieldLegend>Work Hours</FieldLegend>
+        <FieldDescription>
+          Configure business start and close time for automated pending-task email reports.
+        </FieldDescription>
+        {readOnlyWorkspaceSettings ? (
+          <FieldDescription>
+            Read-only for workspace members. Ask an owner/admin to update work hours.
+          </FieldDescription>
+        ) : null}
+
+        <div className={cn(readOnlyWorkspaceSettings && "pointer-events-none opacity-65")}>
+
+        <Field orientation="horizontal">
+          <FieldContent>
+            <FieldTitle>Enable scheduled digest emails</FieldTitle>
+            <FieldDescription>
+              Sends pending-task reports to assignees at start and close of day.
+            </FieldDescription>
+          </FieldContent>
+          <Switch
+            checked={workSchedule.enabled}
+            onCheckedChange={(checked) =>
+              setWorkSchedule((prev) => ({
+                ...prev,
+                enabled: checked,
+              }))
+            }
+          />
+        </Field>
+
+        <Field orientation="horizontal">
+          <FieldContent>
+            <FieldTitle>Timezone</FieldTitle>
+            <FieldDescription>
+              Use an IANA timezone, for example: Africa/Lagos, Europe/London, America/New_York.
+            </FieldDescription>
+          </FieldContent>
+          <Input
+            className="w-64"
+            value={workSchedule.timezone}
+            onChange={(event) =>
+              setWorkSchedule((prev) => ({
+                ...prev,
+                timezone: event.target.value,
+              }))
+            }
+          />
+        </Field>
+
+        <Field orientation="horizontal">
+          <FieldContent>
+            <FieldTitle>Business start time</FieldTitle>
+            <FieldDescription>
+              Daily start slot for pending-task summary emails.
+            </FieldDescription>
+          </FieldContent>
+          <Input
+            className="w-40"
+            type="time"
+            step={60}
+            value={workSchedule.startTime}
+            onChange={(event) =>
+              setWorkSchedule((prev) => ({
+                ...prev,
+                startTime: event.target.value,
+              }))
+            }
+          />
+        </Field>
+
+        <Field orientation="horizontal">
+          <FieldContent>
+            <FieldTitle>Business close time</FieldTitle>
+            <FieldDescription>
+              Daily close slot for pending-task summary emails.
+            </FieldDescription>
+          </FieldContent>
+          <Input
+            className="w-40"
+            type="time"
+            step={60}
+            value={workSchedule.closeTime}
+            onChange={(event) =>
+              setWorkSchedule((prev) => ({
+                ...prev,
+                closeTime: event.target.value,
+              }))
+            }
+          />
+        </Field>
+
+        <div className="flex items-center gap-2">
+          <Button
+            className="max-w-20"
+            size="sm"
+            loading={isUpdatingWorkspace || activeWorkspaceQuery.isLoading}
+            disabled={!workScheduleChanged || !workspaceId || readOnlyWorkspaceSettings}
+            onClick={handleSaveWorkSchedule}
+          >
+            Save
+          </Button>
+          <Button
+            className="max-w-20"
+            size="sm"
+            variant="ghost"
+            disabled={!workScheduleChanged || readOnlyWorkspaceSettings}
+            onClick={handleResetWorkSchedule}
+          >
+            Reset
+          </Button>
+        </div>
         </div>
       </FieldSet>
     </FieldGroup>

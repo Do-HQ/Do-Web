@@ -1,5 +1,6 @@
 import { create } from "zustand";
 
+import { useFavoritesStore } from "./favorites-store";
 import { useProjectStore } from "./project-store";
 
 interface AppStore {
@@ -21,4 +22,4 @@ export const useAppStore = create<AppStore>((set) => ({
   setActiveSetting: (activeSetting: string) => set({ activeSetting }),
 }));
 
-export { useProjectStore };
+export { useFavoritesStore, useProjectStore };
