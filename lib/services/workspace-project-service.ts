@@ -5,6 +5,7 @@ import {
   CreateWorkspaceProjectRiskRequestBody,
   CreateWorkspaceProjectRequestBody,
   InviteWorkspaceProjectCollaboratorsRequestBody,
+  RemoveWorkspaceProjectCollaboratorsRequestBody,
   CreateWorkspaceProjectSubtaskRequestBody,
   CreateWorkspaceProjectTaskRequestBody,
   CreateWorkspaceProjectWorkflowRequestBody,
@@ -34,6 +35,8 @@ const WORKSPACE_PROJECT_ENDPOINTS = {
     `/workspace/${workspaceId}/projects/${projectId}`,
   invitations: (workspaceId: string, projectId: string) =>
     `/workspace/${workspaceId}/projects/${projectId}/invitations`,
+  removeCollaborators: (workspaceId: string, projectId: string) =>
+    `/workspace/${workspaceId}/projects/${projectId}/collaborators/remove`,
   workflows: (workspaceId: string, projectId: string) =>
     `/workspace/${workspaceId}/projects/${projectId}/workflows`,
   workflow: (workspaceId: string, projectId: string, workflowId: string) =>
@@ -259,6 +262,24 @@ export const inviteWorkspaceProjectCollaborators = async (data: {
       invitedCount: number;
     };
   }>(WORKSPACE_PROJECT_ENDPOINTS.invitations(data.workspaceId, data.projectId), data.payload);
+};
+
+export const removeWorkspaceProjectCollaborators = async (data: {
+  workspaceId: string;
+  projectId: string;
+  payload: RemoveWorkspaceProjectCollaboratorsRequestBody;
+}) => {
+  return await axiosInstance.post<{
+    message: string;
+    project: WorkspaceProjectRecord;
+    removed: {
+      teamIds: string[];
+      memberIds: string[];
+    };
+  }>(
+    WORKSPACE_PROJECT_ENDPOINTS.removeCollaborators(data.workspaceId, data.projectId),
+    data.payload,
+  );
 };
 
 export const getWorkspaceProjectWorkflows = async (

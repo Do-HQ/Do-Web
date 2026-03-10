@@ -78,6 +78,12 @@ export interface InviteWorkspaceProjectCollaboratorsRequestBody {
   message?: string;
 }
 
+export interface RemoveWorkspaceProjectCollaboratorsRequestBody {
+  workflowId?: string;
+  teamIds?: string[];
+  memberIds?: string[];
+}
+
 export interface CreateWorkspaceProjectRiskRequestBody {
   kind: ProjectRiskKind;
   title: string;

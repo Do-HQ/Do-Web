@@ -1,12 +1,10 @@
 import type React from "react";
 import { Fragment } from "react";
 import {
-  AtSign,
   ImagePlus,
   MessageSquareReply,
   Pin,
   SendHorizontal,
-  SmilePlus,
 } from "lucide-react";
 import { Mention, MentionsInput } from "react-mentions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -652,24 +650,6 @@ const MainChatPanel = ({
               className="hidden"
               onChange={onUploadFromInput}
             />
-
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 px-2.5 text-[13px]"
-            >
-              <AtSign className="size-3.5" />
-              Mention
-            </Button>
-
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 px-2.5 text-[13px]"
-            >
-              <SmilePlus className="size-3.5" />
-              Emoji
-            </Button>
 
             <p className="text-muted-foreground hidden text-[11px] md:block">
               Enter to send

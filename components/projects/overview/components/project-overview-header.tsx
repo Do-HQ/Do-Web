@@ -4,11 +4,15 @@ import { useMemo, useState } from "react";
 import {
   Archive,
   CalendarDays,
+  ChevronDown,
+  ChevronRight,
   Copy,
   FolderKanban,
   MessageSquare,
   MoreHorizontal,
+  Plus,
   Share2,
+  Trash2,
   UserPlus,
   Users,
 } from "lucide-react";
@@ -75,6 +79,10 @@ type ProjectOverviewHeaderProps = {
   archivePending?: boolean;
   canInviteCollaborators?: boolean;
   canArchiveProject?: boolean;
+};
+
+type ProjectMemberWithProfile = ProjectMember & {
+  email?: string;
 };
 
 const STATUS_STYLES: Record<ProjectOverviewRecord["status"], string> = {
@@ -156,7 +164,10 @@ export function ProjectOverviewHeader({
   const workspaceId = useWorkspaceStore((state) => state.workspaceId);
   const { useWorkspacePeople } = useWorkspace();
   const { useWorkspaceTeams } = useWorkspaceTeam();
-  const { useInviteWorkspaceProjectCollaborators } = useWorkspaceProject();
+  const {
+    useInviteWorkspaceProjectCollaborators,
+    useRemoveWorkspaceProjectCollaborators,
+  } = useWorkspaceProject();
 
   const displayedMembers = visibleMembers.slice(0, 5);
   const extraMembers = Math.max(
@@ -174,8 +185,15 @@ export function ProjectOverviewHeader({
   }, [visibleMembers]);
 
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [manageTeamsOpen, setManageTeamsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [manageAddTeamId, setManageAddTeamId] = useState("");
+  const [expandedTeamIds, setExpandedTeamIds] = useState<string[]>([]);
+  const [pendingTeamRemoval, setPendingTeamRemoval] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const [inviteTargetType, setInviteTargetType] =
     useState<(typeof INVITE_TARGET_OPTIONS)[number]["value"]>("team");
   const [inviteTeamId, setInviteTeamId] = useState("");
@@ -271,6 +289,15 @@ export function ProjectOverviewHeader({
       }
     },
   });
+  const removeCollaborators = useRemoveWorkspaceProjectCollaborators({
+    onSuccess: (response) => {
+      const nextRecord = response?.data?.project?.record;
+
+      if (nextRecord?.id) {
+        updateProject(project.id, () => nextRecord);
+      }
+    },
+  });
 
   const shareUrl = useMemo(() => {
     if (typeof window === "undefined") {
@@ -282,6 +309,96 @@ export function ProjectOverviewHeader({
 
   const workspaceMembers = workspacePeopleData?.data?.members ?? [];
   const workspaceTeams = workspaceTeamsData?.data?.teams ?? [];
+  const assignedTeamIds = useMemo(
+    () => new Set(project.teams.map((team) => String(team.id))),
+    [project.teams],
+  );
+  const availableTeamsForProject = workspaceTeams.filter(
+    (team) => !assignedTeamIds.has(String(team._id)),
+  );
+  const workspaceMemberProfileById = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        name: string;
+        initials: string;
+        avatarUrl?: string;
+        email?: string;
+      }
+    >();
+
+    workspaceMembers.forEach((workspaceMember) => {
+      const user = workspaceMember?.userId;
+      const userId = String(user?._id || "").trim();
+      if (!userId) {
+        return;
+      }
+
+      const firstName = String(user?.firstName || "").trim();
+      const lastName = String(user?.lastName || "").trim();
+      const email = String(user?.email || "").trim();
+      const name = `${firstName} ${lastName}`.trim() || email || "Project member";
+      const initials =
+        name
+          .split(/\s+/)
+          .slice(0, 2)
+          .map((part) => part.charAt(0).toUpperCase())
+          .join("") || "U";
+      const avatarUrl = String(user?.profilePhoto?.url || "").trim() || undefined;
+
+      map.set(userId, {
+        name,
+        initials,
+        avatarUrl,
+        email: email || undefined,
+      });
+    });
+
+    return map;
+  }, [workspaceMembers]);
+
+  const membersById = useMemo(() => {
+    const map = new Map<string, ProjectMemberWithProfile>();
+
+    project.members.forEach((member) => {
+      const memberId = String(member.id || "").trim();
+      if (!memberId) {
+        return;
+      }
+
+      const profile = workspaceMemberProfileById.get(memberId);
+
+      map.set(memberId, {
+        ...member,
+        name: profile?.name || member.name,
+        initials: profile?.initials || member.initials,
+        avatarUrl: profile?.avatarUrl || member.avatarUrl,
+        email: profile?.email,
+      });
+    });
+
+    visibleMembers.forEach((member) => {
+      const memberId = String(member.id || "").trim();
+      if (!memberId) {
+        return;
+      }
+
+      const profile = workspaceMemberProfileById.get(memberId);
+      const existing = map.get(memberId);
+
+      map.set(memberId, {
+        ...(existing || member),
+        ...member,
+        name: member.name || existing?.name || profile?.name || "Project member",
+        initials: member.initials || existing?.initials || profile?.initials || "U",
+        avatarUrl:
+          member.avatarUrl || existing?.avatarUrl || profile?.avatarUrl,
+        email: existing?.email || profile?.email,
+      });
+    });
+
+    return map;
+  }, [project.members, visibleMembers, workspaceMemberProfileById]);
   const availableWorkflows = project.workflows.filter(
     (workflow) => !workflow.archived,
   );
@@ -364,6 +481,74 @@ export function ProjectOverviewHeader({
     setArchiveOpen(false);
   };
 
+  const toggleExpandedTeam = (teamId: string) => {
+    setExpandedTeamIds((current) =>
+      current.includes(teamId)
+        ? current.filter((value) => value !== teamId)
+        : [...current, teamId],
+    );
+  };
+
+  const handleAddTeamToProject = async () => {
+    if (!canInviteCollaborators) {
+      toast("Only workspace owners/admins can manage project teams.");
+      return;
+    }
+
+    if (!workspaceId || !manageAddTeamId) {
+      return;
+    }
+
+    await toast.promise(
+      inviteCollaborators.mutateAsync({
+        workspaceId,
+        projectId: project.id,
+        payload: {
+          teamIds: [manageAddTeamId],
+          access: "edit",
+          message: "Added from project team management.",
+        },
+      }),
+      {
+        loading: "Adding team...",
+        success: (response) =>
+          response?.data?.message || "Team added to project successfully",
+        error: "Could not add this team to the project.",
+      },
+    );
+
+    setManageAddTeamId("");
+  };
+
+  const handleRemoveTeamFromProject = async (teamId: string) => {
+    if (!canInviteCollaborators) {
+      toast("Only workspace owners/admins can manage project teams.");
+      return;
+    }
+
+    if (!workspaceId || !teamId) {
+      return;
+    }
+
+    await toast.promise(
+      removeCollaborators.mutateAsync({
+        workspaceId,
+        projectId: project.id,
+        payload: {
+          teamIds: [teamId],
+        },
+      }),
+      {
+        loading: "Removing team...",
+        success: (response) =>
+          response?.data?.message || "Team removed from project",
+        error: "Could not remove this team from the project.",
+      },
+    );
+
+    setPendingTeamRemoval(null);
+  };
+
   const handleOpenProjectChat = () => {
     const next = new URLSearchParams({
       project: project.id,
@@ -443,6 +628,13 @@ export function ProjectOverviewHeader({
                   >
                     <UserPlus className="size-4" />
                     Invite
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={!canInviteCollaborators}
+                    onClick={() => setManageTeamsOpen(true)}
+                  >
+                    <Users className="size-4" />
+                    Manage teams
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => setShareOpen(true)}>
                     <Share2 className="size-4" />
@@ -687,6 +879,230 @@ export function ProjectOverviewHeader({
               }
             >
               Send invite
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={manageTeamsOpen} onOpenChange={setManageTeamsOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Manage project teams</DialogTitle>
+            <DialogDescription>
+              Add or remove teams assigned to this project. Removing a team
+              revokes its project chat access.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <div className="rounded-lg border border-border/40 bg-muted/20 p-3">
+              <div className="mb-2 text-[12px] font-medium">Add workspace team</div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Select value={manageAddTeamId} onValueChange={setManageAddTeamId}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a workspace team" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableTeamsForProject.length ? (
+                      availableTeamsForProject.map((team) => (
+                        <SelectItem key={team._id} value={String(team._id)}>
+                          {team.name}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="__none__" disabled>
+                        All active workspace teams are already assigned
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="sm:w-auto"
+                  disabled={
+                    !canInviteCollaborators ||
+                    !manageAddTeamId ||
+                    inviteCollaborators.isPending
+                  }
+                  onClick={handleAddTeamToProject}
+                >
+                  <Plus className="size-3.5" />
+                  Add team
+                </Button>
+              </div>
+            </div>
+
+            <div className="max-h-[48vh] space-y-2 overflow-y-auto pr-1">
+              {project.teams.length ? (
+                project.teams.map((team) => {
+                  const teamId = String(team.id || "");
+                  const teamMembers = (Array.isArray(team.memberIds)
+                    ? team.memberIds
+                    : []
+                  )
+                    .map((memberId) => membersById.get(String(memberId)))
+                    .filter(
+                      (member): member is ProjectMemberWithProfile =>
+                        typeof member !== "undefined" && member !== null,
+                    );
+                  const isExpanded = expandedTeamIds.includes(teamId);
+
+                  return (
+                    <div
+                      key={teamId}
+                      className="rounded-lg border border-border/35 bg-background/60 px-3 py-2"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-[13px] font-medium">
+                            {team.name}
+                          </div>
+                          <div className="text-muted-foreground text-[11px]">
+                            {teamMembers.length} member
+                            {teamMembers.length === 1 ? "" : "s"}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleExpandedTeam(teamId)}
+                          >
+                            {isExpanded ? (
+                              <ChevronDown className="size-3.5" />
+                            ) : (
+                              <ChevronRight className="size-3.5" />
+                            )}
+                            Members
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            disabled={
+                              !canInviteCollaborators ||
+                              removeCollaborators.isPending
+                            }
+                            onClick={() =>
+                              setPendingTeamRemoval({
+                                id: teamId,
+                                name: team.name,
+                              })
+                            }
+                          >
+                            <Trash2 className="size-3.5" />
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+                      {isExpanded ? (
+                        <div className="mt-2 space-y-1 border-t border-border/30 pt-2">
+                          {teamMembers.length ? (
+                            teamMembers.map((member) => (
+                              <div
+                                key={member.id}
+                                className="text-muted-foreground flex items-center gap-2 text-[12px]"
+                              >
+                                <Avatar
+                                  size="sm"
+                                  userCard={{
+                                    name: member.name,
+                                    email: member.email,
+                                    role: member.role,
+                                    team: team.name,
+                                    status: member.active ? "Active" : "Offline",
+                                    details: [
+                                      {
+                                        label: "Score",
+                                        value: `${Number(member.score || 0)} pts`,
+                                      },
+                                    ],
+                                  }}
+                                >
+                                  <AvatarImage
+                                    src={member.avatarUrl || ""}
+                                    alt={member.name}
+                                  />
+                                  <AvatarFallback>{member.initials}</AvatarFallback>
+                                </Avatar>
+                                <span className="truncate">{member.name}</span>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-muted-foreground text-[11px]">
+                              No visible members on this team in the project
+                              record yet.
+                            </p>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-muted-foreground rounded-lg border border-border/30 bg-muted/20 px-3 py-3 text-[12px]">
+                  No teams are currently assigned to this project.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setManageTeamsOpen(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(pendingTeamRemoval)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingTeamRemoval(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Remove team from project</DialogTitle>
+            <DialogDescription>
+              {pendingTeamRemoval
+                ? `Remove "${pendingTeamRemoval.name}" from this project? Team members will immediately lose project/task chat access.`
+                : "Remove this team from the project?"}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setPendingTeamRemoval(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              disabled={
+                !pendingTeamRemoval ||
+                !canInviteCollaborators ||
+                removeCollaborators.isPending
+              }
+              onClick={() => {
+                if (!pendingTeamRemoval) {
+                  return;
+                }
+                void handleRemoveTeamFromProject(pendingTeamRemoval.id);
+              }}
+            >
+              Remove team
             </Button>
           </DialogFooter>
         </DialogContent>

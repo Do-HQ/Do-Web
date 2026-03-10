@@ -340,7 +340,12 @@ const SettingsWorkspaces = () => {
           </FieldDescription>
         ) : null}
 
-        <div className={cn(readOnlyWorkspaceSettings && "pointer-events-none opacity-65")}>
+        <div
+          className={cn(
+            "mt-3 flex flex-col gap-4",
+            readOnlyWorkspaceSettings && "pointer-events-none opacity-65",
+          )}
+        >
 
         <Field orientation="horizontal">
           <FieldContent>
@@ -450,7 +455,7 @@ const SettingsWorkspaces = () => {
           </Select>
         </Field>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 pt-1">
           <Button
             className="max-w-20"
             size="sm"
@@ -484,7 +489,12 @@ const SettingsWorkspaces = () => {
           </FieldDescription>
         ) : null}
 
-        <div className={cn(readOnlyWorkspaceSettings && "pointer-events-none opacity-65")}>
+        <div
+          className={cn(
+            "mt-3 flex flex-col gap-4",
+            readOnlyWorkspaceSettings && "pointer-events-none opacity-65",
+          )}
+        >
 
         <Field orientation="horizontal">
           <FieldContent>
@@ -624,7 +634,7 @@ const SettingsWorkspaces = () => {
           </Select>
         </Field>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 pt-1">
           <Button
             className="max-w-20"
             size="sm"
@@ -660,7 +670,12 @@ const SettingsWorkspaces = () => {
           </FieldDescription>
         ) : null}
 
-        <div className={cn(readOnlyWorkspaceSettings && "pointer-events-none opacity-65")}>
+        <div
+          className={cn(
+            "mt-3 flex flex-col gap-4",
+            readOnlyWorkspaceSettings && "pointer-events-none opacity-65",
+          )}
+        >
 
         <Field orientation="horizontal">
           <FieldContent>
@@ -741,7 +756,7 @@ const SettingsWorkspaces = () => {
           />
         </Field>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 pt-1">
           <Button
             className="max-w-20"
             size="sm"

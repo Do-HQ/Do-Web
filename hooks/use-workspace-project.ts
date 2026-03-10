@@ -6,6 +6,7 @@ import {
   createWorkspaceProjectRiskComment,
   createWorkspaceProject,
   inviteWorkspaceProjectCollaborators,
+  removeWorkspaceProjectCollaborators,
   createWorkspaceProjectSubtask,
   createWorkspaceProjectTask,
   createWorkspaceProjectWorkflow,
@@ -59,6 +60,7 @@ import {
   CreateWorkspaceProjectRiskRequestBody,
   CreateWorkspaceProjectRequestBody,
   InviteWorkspaceProjectCollaboratorsRequestBody,
+  RemoveWorkspaceProjectCollaboratorsRequestBody,
   CreateWorkspaceProjectSubtaskRequestBody,
   CreateWorkspaceProjectTaskRequestBody,
   CreateWorkspaceProjectWorkflowRequestBody,
@@ -397,6 +399,23 @@ const useWorkspaceProject = () => {
   ) => {
     return useMutation({
       mutationFn: inviteWorkspaceProjectCollaborators,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
+  const useRemoveWorkspaceProjectCollaborators = (
+    options?: UseOptions<{
+      workspaceId: string;
+      projectId: string;
+      payload: RemoveWorkspaceProjectCollaboratorsRequestBody;
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: removeWorkspaceProjectCollaborators,
       ...options,
       onError: (error, variables, onMutateResult, context) => {
         options?.onError?.(error, variables, onMutateResult, context);
@@ -903,6 +922,7 @@ const useWorkspaceProject = () => {
     useCreateWorkspaceProject,
     useUpdateWorkspaceProject,
     useInviteWorkspaceProjectCollaborators,
+    useRemoveWorkspaceProjectCollaborators,
     useCreateWorkspaceProjectWorkflow,
     useUpdateWorkspaceProjectWorkflow,
     useArchiveWorkspaceProjectWorkflow,

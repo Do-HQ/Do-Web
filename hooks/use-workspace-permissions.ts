@@ -2,6 +2,7 @@ import useWorkspace from "@/hooks/use-workspace";
 import useAuthStore from "@/stores/auth";
 import useWorkspaceStore from "@/stores/workspace";
 import { WorkspaceGovernanceSettings } from "@/types/workspace";
+import { WorkspaceRole } from "@/types/auth";
 
 const DEFAULT_GOVERNANCE: WorkspaceGovernanceSettings = {
   allowMembersCreateProjects: true,
@@ -16,15 +17,31 @@ export const useWorkspacePermissions = () => {
   const { user } = useAuthStore();
   const { workspaceId } = useWorkspaceStore();
   const workspaceHook = useWorkspace();
-  const activeWorkspaceMembership = workspaceHook.useActiveWorkspace();
-  const workspaceDetailQuery = workspaceHook.useWorkspaceById(workspaceId || "");
+  const resolvedWorkspaceId =
+    String(workspaceId || user?.currentWorkspaceId?._id || "").trim();
+  const activeWorkspaceMembership = user?.workspaces?.find(
+    (membership) =>
+      String(membership?.workspaceId?._id || "").trim() === resolvedWorkspaceId,
+  );
+  const workspaceDetailQuery = workspaceHook.useWorkspaceById(resolvedWorkspaceId);
+  const workspaceFromQuery = workspaceDetailQuery.data?.data?.workspace;
+  const workspaceFromAuth = activeWorkspaceMembership?.workspaceId || user?.currentWorkspaceId;
+  const workspace = workspaceFromQuery || workspaceFromAuth;
 
-  const currentRole = activeWorkspaceMembership?.role || "member";
+  const ownerId =
+    String(
+      workspace?.ownerId &&
+        typeof workspace.ownerId === "object" &&
+        "_id" in workspace.ownerId
+        ? workspace.ownerId._id
+        : workspace?.ownerId || "",
+    ).trim();
+  const userId = String(user?._id || "").trim();
+  const inferredRole: WorkspaceRole | null = ownerId && ownerId === userId ? "owner" : null;
+  const currentRole: WorkspaceRole = activeWorkspaceMembership?.role || inferredRole || "member";
   const isOwner = currentRole === "owner";
   const isAdmin = currentRole === "admin";
   const isAdminLike = isOwner || isAdmin;
-  const workspace =
-    workspaceDetailQuery.data?.data?.workspace || activeWorkspaceMembership?.workspaceId;
   const governance: WorkspaceGovernanceSettings = {
     ...DEFAULT_GOVERNANCE,
     ...(workspace?.governance || {}),
@@ -39,7 +56,7 @@ export const useWorkspacePermissions = () => {
 
   return {
     user,
-    workspaceId,
+    workspaceId: resolvedWorkspaceId || null,
     workspace,
     governance,
     role: currentRole,
