@@ -16,6 +16,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isImmersivePage =
     pathname === ROUTES.ASK_SQUIRCLE ||
     pathname === ROUTES.CALENDAR ||
+    pathname.startsWith(ROUTES.JAMS) ||
     pathname.startsWith(ROUTES.SPACES);
 
   return (

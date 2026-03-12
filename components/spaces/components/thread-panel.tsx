@@ -1,5 +1,6 @@
 import type React from "react";
 import {
+  Shapes,
   ImagePlus,
   PanelRightClose,
   Pin,
@@ -23,6 +24,7 @@ import type {
 import AttachmentPreview from "./attachment-preview";
 import ChatItemActionsMenu from "./chat-item-actions-menu";
 import DraftAttachmentRow from "./draft-attachment-row";
+import { parseJamShareMessage } from "../utils";
 
 type ThreadPanelProps = {
   desktop?: boolean;
@@ -53,6 +55,7 @@ type ThreadPanelProps = {
   onForwardReply: (reply: ThreadReply) => void;
   onCreateTaskFromReply: (reply: ThreadReply) => void;
   onDeleteThreadReply: (replyId: string) => void;
+  onOpenJamFromMessage: (jamId: string) => void;
   onThreadComposerChange: (value: string) => void;
   onSendThreadReply: () => void;
   onUploadFromInput: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -88,6 +91,7 @@ const ThreadPanel = ({
   onForwardReply,
   onCreateTaskFromReply,
   onDeleteThreadReply,
+  onOpenJamFromMessage,
   onThreadComposerChange,
   onSendThreadReply,
   onUploadFromInput,
@@ -289,6 +293,42 @@ const ThreadPanel = ({
     return chunks;
   };
 
+  const renderJamShareCard = (content: string) => {
+    const jamShare = parseJamShareMessage(content);
+
+    if (!jamShare) {
+      return null;
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => onOpenJamFromMessage(jamShare.jamId)}
+        className="mt-1.5 flex w-full items-start gap-2 rounded-md border border-border/70 bg-accent/30 p-2 text-left transition-colors hover:bg-accent/45"
+      >
+        <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/12 text-primary">
+          <Shapes className="size-3.5" />
+        </span>
+        <span className="min-w-0 space-y-0.5">
+          <span className="line-clamp-1 block text-[12.5px] font-medium">
+            {jamShare.title}
+          </span>
+          <span className="text-muted-foreground block text-[11px]">
+            Shared jam
+          </span>
+          {jamShare.note ? (
+            <span className="text-muted-foreground line-clamp-2 block text-[11px]">
+              {renderContentWithMentions(jamShare.note)}
+            </span>
+          ) : null}
+        </span>
+      </button>
+    );
+  };
+  const selectedThreadJamShareCard = selectedThreadMessage
+    ? renderJamShareCard(selectedThreadMessage.content)
+    : null;
+
   return (
     <div className="bg-gradient-to-b from-muted/[0.22] to-transparent flex h-full min-h-0 flex-1 flex-col overflow-hidden">
       <div className="bg-card/95 flex shrink-0 items-center gap-1.5 border-b px-2 py-2 backdrop-blur-sm sm:px-3 sm:py-2.5">
@@ -327,12 +367,19 @@ const ThreadPanel = ({
         </div>
       ) : (
         <>
+          {/*
+            Thread root can be a shared jam message.
+          */}
           <div className="shrink-0 border-b px-2 py-2 sm:px-3 sm:py-2.5">
             <div className="rounded-lg border border-border/50 bg-card/70 px-2.5 py-2.5 shadow-xs">
               <p className="text-muted-foreground text-[11px]">From main chat</p>
-              <p className="mt-1 text-[12.5px] leading-5">
-                {renderContentWithMentions(selectedThreadMessage.content)}
-              </p>
+              {selectedThreadJamShareCard ? (
+                selectedThreadJamShareCard
+              ) : (
+                <p className="mt-1 text-[12.5px] leading-5">
+                  {renderContentWithMentions(selectedThreadMessage.content)}
+                </p>
+              )}
               <AttachmentPreview attachments={selectedThreadMessage.attachments} />
             </div>
           </div>
@@ -351,6 +398,7 @@ const ThreadPanel = ({
                 const isOwnReply =
                   String(reply.author.id || "").trim() ===
                   String(currentUserId || "").trim();
+                const jamShareCard = renderJamShareCard(reply.content);
                 const authorInfo = authorInfoById[String(reply.author.id || "")];
                 const replyAvatarUrl =
                   reply.author.avatarUrl ||
@@ -455,9 +503,15 @@ const ThreadPanel = ({
                         </div>
                       </div>
                     ) : (
-                      <p className="mt-1 text-[13px] leading-5">
-                        {renderContentWithMentions(reply.content)}
-                      </p>
+                      <>
+                        {jamShareCard ? (
+                          jamShareCard
+                        ) : (
+                          <p className="mt-1 text-[13px] leading-5">
+                            {renderContentWithMentions(reply.content)}
+                          </p>
+                        )}
+                      </>
                     )}
 
                     <AttachmentPreview attachments={reply.attachments} />

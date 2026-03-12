@@ -1,6 +1,7 @@
 import type React from "react";
 import { Fragment } from "react";
 import {
+  Shapes,
   ImagePlus,
   MessageSquareReply,
   Pin,
@@ -31,6 +32,7 @@ import type {
   MentionTokenMeta,
   SpaceUserInfo,
 } from "../types";
+import { parseJamShareMessage } from "../utils";
 import LoaderComponent from "@/components/shared/loader";
 
 type MainChatPanelProps = {
@@ -66,6 +68,7 @@ type MainChatPanelProps = {
     message: Pick<SpaceMessage, "author" | "content">,
   ) => void;
   onDeleteMessage: (messageId: string) => void;
+  onOpenJamFromMessage: (jamId: string) => void;
   onComposerChange: (value: string) => void;
   onSendMessage: () => void;
   onUploadFromInput: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -175,6 +178,7 @@ const MainChatPanel = ({
   onForwardMessage,
   onCreateTaskFromMessage,
   onDeleteMessage,
+  onOpenJamFromMessage,
   onComposerChange,
   onSendMessage,
   onUploadFromInput,
@@ -387,6 +391,39 @@ const MainChatPanel = ({
     return chunks;
   };
 
+  const renderJamShareCard = (content: string) => {
+    const jamShare = parseJamShareMessage(content);
+
+    if (!jamShare) {
+      return null;
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => onOpenJamFromMessage(jamShare.jamId)}
+        className="mt-1.5 flex w-full items-start gap-2 rounded-md border border-border/70 bg-accent/30 p-2 text-left transition-colors hover:bg-accent/45"
+      >
+        <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/12 text-primary">
+          <Shapes className="size-3.5" />
+        </span>
+        <span className="min-w-0 space-y-0.5">
+          <span className="line-clamp-1 block text-[12.5px] font-medium">
+            {jamShare.title}
+          </span>
+          <span className="text-muted-foreground block text-[11px]">
+            Shared jam
+          </span>
+          {jamShare.note ? (
+            <span className="text-muted-foreground line-clamp-2 block text-[11px]">
+              {renderContentWithMentions(jamShare.note)}
+            </span>
+          ) : null}
+        </span>
+      </button>
+    );
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div
@@ -421,6 +458,7 @@ const MainChatPanel = ({
               const isOwnMessage =
                 String(message.author.id || "").trim() ===
                 String(currentUserId || "").trim();
+              const jamShareCard = renderJamShareCard(message.content);
               const authorInfo = authorInfoById[String(message.author.id || "")];
               const messageAvatarUrl =
                 message.author.avatarUrl ||
@@ -523,9 +561,15 @@ const MainChatPanel = ({
                           </div>
                         </div>
                       ) : (
-                        <p className="mt-0.5 text-[12.5px] leading-5 whitespace-pre-wrap">
-                          {renderContentWithMentions(message.content)}
-                        </p>
+                        <>
+                          {jamShareCard ? (
+                            jamShareCard
+                          ) : (
+                            <p className="mt-0.5 text-[12.5px] leading-5 whitespace-pre-wrap">
+                              {renderContentWithMentions(message.content)}
+                            </p>
+                          )}
+                        </>
                       )}
 
                       <AttachmentPreview attachments={message.attachments} />

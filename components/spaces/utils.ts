@@ -1,5 +1,14 @@
 import type { SpaceRoom, TeamCallWidgetState } from "./types";
 
+export type ParsedJamShareMessage = {
+  jamId: string;
+  route: string;
+  title: string;
+  note: string;
+};
+
+const JAM_ROUTE_PATTERN = /\/jams\?jam=([a-zA-Z0-9_-]+)/i;
+
 export const createId = () => {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
     return crypto.randomUUID();
@@ -75,4 +84,64 @@ export const parseTeamCallWidget = (
   }
 
   return null;
+};
+
+export const parseJamShareMessage = (
+  value: string,
+): ParsedJamShareMessage | null => {
+  const content = String(value || "").trim();
+  if (!content) {
+    return null;
+  }
+
+  const routeMatch = content.match(JAM_ROUTE_PATTERN);
+  if (!routeMatch?.[1]) {
+    return null;
+  }
+
+  const jamId = decodeURIComponent(String(routeMatch[1] || "").trim());
+  if (!jamId) {
+    return null;
+  }
+
+  const lines = content
+    .split(/\r?\n/)
+    .map((line) => String(line || "").trim())
+    .filter(Boolean);
+
+  const routeLineIndex = lines.findIndex((line) => JAM_ROUTE_PATTERN.test(line));
+  const headerLine = lines[0] || "";
+  const headerTitleSplit = headerLine.split("shared a jam:");
+  const hasShareHeader = headerTitleSplit.length > 1;
+  const parsedHeaderTitle = hasShareHeader
+    ? String(headerTitleSplit.slice(1).join("shared a jam:") || "").trim()
+    : "";
+  const firstMeaningfulLine =
+    routeLineIndex === 0 ? lines[1] || "" : lines[0] || "";
+  const title = parsedHeaderTitle || firstMeaningfulLine || "Shared jam";
+
+  const note = lines
+    .filter((line, index) => {
+      if (!line) {
+        return false;
+      }
+      if (JAM_ROUTE_PATTERN.test(line)) {
+        return false;
+      }
+      if (index === 0 && hasShareHeader) {
+        return false;
+      }
+      if (line === title) {
+        return false;
+      }
+      return true;
+    })
+    .join("\n");
+
+  return {
+    jamId,
+    route: `/jams?jam=${encodeURIComponent(jamId)}`,
+    title,
+    note,
+  };
 };

@@ -499,6 +499,7 @@ const WorkspaceCalendar = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilters, setTypeFilters] =
     useState<Record<CalendarEventType, boolean>>(DEFAULT_TYPE_FILTER);
+  const [expandedAllDayKeys, setExpandedAllDayKeys] = useState<string[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>("");
   const [now, setNow] = useState(() => new Date());
 
@@ -741,6 +742,22 @@ const WorkspaceCalendar = () => {
     }));
   };
 
+  const toggleAllDayExpansion = (key: string) => {
+    setExpandedAllDayKeys((current) =>
+      current.includes(key)
+        ? current.filter((value) => value !== key)
+        : [...current, key],
+    );
+  };
+
+  const focusDayView = (value: Date) => {
+    const eventDay = startOfDay(value);
+    setSelectedDate(eventDay);
+    setAnchorDate(eventDay);
+    setView("day");
+    setRightPanelTab("calendar");
+  };
+
   const renderEventChip = (event: WorkspaceCalendarEvent, compact = false) => {
     const meta = EVENT_TYPE_META[event.type];
     return (
@@ -749,10 +766,7 @@ const WorkspaceCalendar = () => {
         type="button"
         onClick={() => {
           setSelectedEventId(event.id);
-          const eventDay = startOfDay(event.start);
-          setSelectedDate(eventDay);
-          setAnchorDate(eventDay);
-          setView("day");
+          focusDayView(event.start);
         }}
         className={cn(
           "group/event flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left transition-colors hover:bg-accent/55",
@@ -811,7 +825,7 @@ const WorkspaceCalendar = () => {
                     !isCurrentMonth && "bg-muted/35",
                     isSelected && "bg-accent/65",
                   )}
-                  onClick={() => setSelectedDate(day)}
+                  onClick={() => focusDayView(day)}
                 >
                   <div className="flex items-center justify-between">
                     <span
@@ -847,7 +861,7 @@ const WorkspaceCalendar = () => {
                     {dayEvents.length > 2 ? (
                       <button
                         type="button"
-                        onClick={() => setSelectedDate(day)}
+                        onClick={() => focusDayView(day)}
                         className="text-muted-foreground hover:text-foreground inline-flex text-[10px]"
                       >
                         +{dayEvents.length - 2} more
@@ -905,7 +919,12 @@ const WorkspaceCalendar = () => {
           </div>
           {days.map((day) => {
             const key = dateKey(day);
+            const expansionKey = `${mode}-${key}`;
             const allDayEvents = allDayByDay.get(key) || [];
+            const isExpanded = expandedAllDayKeys.includes(expansionKey);
+            const visibleAllDayEvents = isExpanded
+              ? allDayEvents
+              : allDayEvents.slice(0, 2);
             const isToday = isSameDay(day, today);
             return (
               <div key={key} className="px-2 py-1.5">
@@ -920,13 +939,19 @@ const WorkspaceCalendar = () => {
                   ) : null}
                 </div>
                 <div className="space-y-1">
-                  {allDayEvents
-                    .slice(0, 2)
-                    .map((event) => renderEventChip(event, true))}
+                  {visibleAllDayEvents.map((event) =>
+                    renderEventChip(event, true),
+                  )}
                   {allDayEvents.length > 2 ? (
-                    <p className="text-muted-foreground text-[10px]">
-                      +{allDayEvents.length - 2} more all-day
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => toggleAllDayExpansion(expansionKey)}
+                      className="text-muted-foreground hover:text-foreground text-[10px] underline-offset-2 hover:underline"
+                    >
+                      {isExpanded
+                        ? "Show less"
+                        : `+${allDayEvents.length - 2} more all-day`}
+                    </button>
                   ) : null}
                 </div>
               </div>
@@ -1397,8 +1422,7 @@ const WorkspaceCalendar = () => {
             if (!nextDate) {
               return;
             }
-            setSelectedDate(startOfDay(nextDate));
-            setAnchorDate(startOfDay(nextDate));
+            focusDayView(nextDate);
           }}
           modifiers={{
             hasEvents: miniCalendarHighlightDays,
@@ -1472,7 +1496,9 @@ const WorkspaceCalendar = () => {
           >
             <SelectTrigger className="bg-background/80 h-8 w-full text-[12.5px]">
               <SelectValue
-                placeholder={isProjectsLoading ? "Loading projects..." : "All projects"}
+                placeholder={
+                  isProjectsLoading ? <LoaderComponent /> : "All projects"
+                }
               />
             </SelectTrigger>
             <SelectContent>

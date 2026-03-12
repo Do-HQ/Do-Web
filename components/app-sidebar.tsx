@@ -8,6 +8,7 @@ import {
   Home,
   Inbox,
   MessageCircleQuestion,
+  Shapes,
   Search,
   Settings2,
   Sparkles,
@@ -147,6 +148,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         icon: Inbox,
         badge: "10",
         isActive: pathname.startsWith(ROUTES.SPACES),
+      },
+      {
+        title: "Jams",
+        url: ROUTES.JAMS,
+        icon: Shapes,
+        isActive: pathname.startsWith(ROUTES.JAMS),
       },
     ],
     navSecondary: [

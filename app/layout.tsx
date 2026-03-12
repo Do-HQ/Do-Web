@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import "@excalidraw/excalidraw/index.css";
 import ReactQueryContextProvider from "@/lib/context/queryClient";
 import { ThemeProvider } from "next-themes";
 

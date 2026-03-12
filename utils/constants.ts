@@ -7,6 +7,7 @@ export const ROUTES = {
   CALENDAR: "/calendar",
   PROJECTS: "/projects",
   ASK_SQUIRCLE: "/ask-squircle",
+  JAMS: "/jams",
   SPACES: "/spaces",
   SPACES_TEAM_CALL: "/spaces/team-call",
   WORKSPACE: "/workspace",

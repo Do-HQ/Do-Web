@@ -16,6 +16,7 @@ import {
   Video,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import type { AxiosError } from "axios";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +43,7 @@ import useWorkspace from "@/hooks/use-workspace";
 import useWorkspaceSpace from "@/hooks/use-workspace-space";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
 import useFile from "@/hooks/use-file";
+import { getWorkspaceJamDetail } from "@/lib/services/workspace-jam-service";
 import { ROUTES } from "@/utils/constants";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -2361,6 +2363,34 @@ const SpacesPage = () => {
     }
   };
 
+  const openSharedJamFromMessage = useCallback(
+    async (jamId: string) => {
+      const normalizedJamId = String(jamId || "").trim();
+      if (!resolvedWorkspaceId || !normalizedJamId) {
+        return;
+      }
+
+      try {
+        await getWorkspaceJamDetail(
+          resolvedWorkspaceId,
+          normalizedJamId,
+          false,
+        );
+        router.push(`/jams?jam=${encodeURIComponent(normalizedJamId)}`);
+      } catch (error) {
+        const axiosError = error as AxiosError<{
+          message?: string;
+          description?: string;
+        }>;
+        const fallbackDescription =
+          axiosError?.response?.data?.description ||
+          "You do not have access to view this jam.";
+        toast.error(fallbackDescription);
+      }
+    },
+    [resolvedWorkspaceId, router],
+  );
+
   const handleMarkKeepUpSeen = async () => {
     if (!resolvedWorkspaceId || markKeepUpSeenMutation.isPending) {
       return;
@@ -2663,9 +2693,12 @@ const SpacesPage = () => {
               onForwardMessage={forwardToMainChat}
               onCreateTaskFromMessage={createTaskFromMessage}
               onDeleteMessage={deleteMessageFromChat}
+              onOpenJamFromMessage={openSharedJamFromMessage}
               onComposerChange={setComposer}
               onSendMessage={handleSendMessage}
-              onUploadFromInput={(event) => handleUploadFromInput(event, "main")}
+              onUploadFromInput={(event) =>
+                handleUploadFromInput(event, "main")
+              }
               onRemoveAttachment={removeDraftAttachment}
               onMessageListScroll={handleMessageListScroll}
               hasOlderMessages={hasOlderMessages}
@@ -2680,11 +2713,13 @@ const SpacesPage = () => {
                     <MessageSquareText className="size-4 text-primary/85" />
                   </EmptyMedia>
                   <EmptyDescription className="text-center text-[12px]">
-                    {roomsQuery.isLoading
-                      ? "Loading spaces..."
-                      : hasRooms
-                        ? "Select a space to start chatting."
-                        : "No spaces yet. Create a direct chat or group to begin."}
+                    {roomsQuery.isLoading ? (
+                      <LoaderComponent />
+                    ) : hasRooms ? (
+                      "Select a space to start chatting."
+                    ) : (
+                      "No spaces yet. Create a direct chat or group to begin."
+                    )}
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
@@ -2745,6 +2780,7 @@ const SpacesPage = () => {
                   onForwardReply={forwardToMainChat}
                   onCreateTaskFromReply={createTaskFromMessage}
                   onDeleteThreadReply={deleteThreadReply}
+                  onOpenJamFromMessage={openSharedJamFromMessage}
                   onThreadComposerChange={setThreadComposer}
                   onSendThreadReply={handleSendThreadReply}
                   onUploadFromInput={(event) =>
@@ -2879,6 +2915,7 @@ const SpacesPage = () => {
             onForwardReply={forwardToMainChat}
             onCreateTaskFromReply={createTaskFromMessage}
             onDeleteThreadReply={deleteThreadReply}
+            onOpenJamFromMessage={openSharedJamFromMessage}
             onThreadComposerChange={setThreadComposer}
             onSendThreadReply={handleSendThreadReply}
             onUploadFromInput={(event) =>
@@ -2970,7 +3007,10 @@ const SpacesPage = () => {
                             <p className="text-[12.5px] font-medium">
                               {item.author.name}
                             </p>
-                            <Badge variant="outline" className="h-5 px-1.5 text-[10.5px]">
+                            <Badge
+                              variant="outline"
+                              className="h-5 px-1.5 text-[10.5px]"
+                            >
                               {item.roomName}
                             </Badge>
                             <span className="text-muted-foreground inline-flex items-center gap-1 text-[11px]">

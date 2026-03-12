@@ -160,3 +160,90 @@ body {
 .ask-typing-dot:nth-of-type(3) {
   animation-delay: 0.24s;
 }
+
+.jam-excalidraw .excalidraw {
+  --ui-font: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  --color-primary: rgb(249 115 22 / 0.88);
+  --color-primary-darker: rgb(234 88 12 / 0.96);
+  --color-primary-darkest: rgb(194 65 12 / 1);
+  --color-primary-light: rgb(255 237 213 / 0.9);
+  --color-primary-light-darker: rgb(254 215 170 / 0.95);
+  --color-primary-hover: rgb(249 115 22 / 0.98);
+  --color-brand-hover: rgb(249 115 22 / 0.98);
+  --color-brand-active: rgb(234 88 12 / 1);
+  --color-on-primary-container: rgb(124 45 18 / 1);
+  --color-surface-primary-container: rgb(255 237 213 / 0.9);
+  --color-on-primary: #fff;
+  --color-surface-low: hsl(var(--background));
+  --color-surface-mid: hsl(var(--card));
+  --color-surface-high: hsl(var(--muted));
+  --color-gray-10: hsl(var(--border));
+  --color-gray-20: hsl(var(--border));
+  --color-gray-30: hsl(var(--muted-foreground) / 0.25);
+  --color-gray-40: hsl(var(--muted-foreground) / 0.35);
+  --button-bg: hsl(var(--background));
+  --button-hover-bg: hsl(var(--muted));
+  --button-active-bg: hsl(var(--muted));
+  --input-bg-color: hsl(var(--background));
+  --input-border-color: hsl(var(--border));
+  --popup-bg-color: hsl(var(--popover));
+  --popup-secondary-bg-color: hsl(var(--muted));
+  --popup-text-color: hsl(var(--popover-foreground));
+  --popup-text-inverted-color: hsl(var(--popover));
+  --default-bg-color: hsl(var(--background));
+  --default-border-color: hsl(var(--border));
+  --island-bg-color: hsl(var(--card));
+  --island-border-color: hsl(var(--border));
+}
+
+.jam-excalidraw .excalidraw .Island,
+.jam-excalidraw .excalidraw .App-menu,
+.jam-excalidraw .excalidraw .dropdown-menu {
+  box-shadow: none !important;
+  border: 1px solid hsl(var(--border)) !important;
+  background-color: hsl(var(--popover) / 1) !important;
+  opacity: 1 !important;
+  border-radius: 10px !important;
+}
+
+.jam-excalidraw .excalidraw .ToolIcon_type_button.isSelected,
+.jam-excalidraw .excalidraw .ToolIcon_type_button[aria-pressed="true"],
+.jam-excalidraw .excalidraw .ToolIcon_type_radio[aria-pressed="true"] {
+  background: rgb(249 115 22 / 0.16) !important;
+  border-color: rgb(249 115 22 / 0.34) !important;
+  color: rgb(249 115 22) !important;
+}
+
+.dark .jam-excalidraw .excalidraw {
+  --color-primary: rgb(251 146 60 / 0.9);
+  --color-primary-darker: rgb(249 115 22 / 0.98);
+  --color-primary-darkest: rgb(234 88 12 / 1);
+  --color-primary-light: rgb(67 20 7 / 0.95);
+  --color-primary-light-darker: rgb(91 33 11 / 0.95);
+  --color-primary-hover: rgb(251 146 60 / 0.98);
+  --color-brand-hover: rgb(251 146 60 / 0.98);
+  --color-brand-active: rgb(249 115 22 / 1);
+  --color-on-primary-container: rgb(254 215 170 / 1);
+  --color-surface-primary-container: rgb(67 20 7 / 0.95);
+  --color-on-primary: #111;
+  --color-surface-low: hsl(var(--background));
+  --color-surface-mid: hsl(var(--card));
+  --color-surface-high: hsl(var(--muted));
+  --button-bg: hsl(var(--card));
+  --button-hover-bg: hsl(var(--muted));
+  --input-bg-color: hsl(var(--card));
+  --popup-bg-color: hsl(var(--popover));
+  --island-bg-color: hsl(var(--card));
+}
+
+.jam-excalidraw .main-menu-trigger,
+.jam-excalidraw .help-icon,
+.jam-excalidraw .default-sidebar-trigger,
+.jam-excalidraw .library-menu-browse-button,
+.jam-excalidraw .layer-ui__library,
+.jam-excalidraw .footer-center,
+.jam-excalidraw .ToolIcon__keybinding,
+.jam-excalidraw .welcome-screen-decor,
+.jam-excalidraw .welcome-screen-menu-item__shortcut {
+  display: none !important;
+}
