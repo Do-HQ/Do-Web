@@ -12,6 +12,7 @@ import {
   getWorkspaceInvites,
   getWorkspaceJoinRequests,
   getWorkspacePeople,
+  removeWorkspaceMember,
   getWorkspaceRoles,
   PaginationBody,
   requestToJoinWorkspace,
@@ -167,6 +168,22 @@ const useWorkspace = () => {
     });
   };
 
+  const useRemoveWorkspaceMember = (
+    options?: UseOptions<{
+      workspaceId: string;
+      memberId: string;
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: removeWorkspaceMember,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
   const useWorkspaceInvites = (workspaceId: string, params: PaginationBody) => {
     return useQuery({
       queryKey: ["get-workspaces-invites", workspaceId, params],
@@ -279,6 +296,7 @@ const useWorkspace = () => {
     useUpdateWorkspace,
     useActiveWorkspace,
     useWorkspacePeople,
+    useRemoveWorkspaceMember,
     useWorkspaceRoles,
     useWorkspaceInvites,
     useCreateWorkspaceInvite,

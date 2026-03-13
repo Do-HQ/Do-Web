@@ -21,6 +21,7 @@ import {
   getWorkspaceProjectRisks,
   getWorkspaceProjectEvents,
   getWorkspaceProjectNotifications,
+  getWorkspaceNotifications,
   getWorkspaceProjectDetail,
   getWorkspaceProjectTasks,
   getWorkspaceProjectWorkflows,
@@ -33,6 +34,8 @@ import {
   updateWorkspaceProjectTask,
   updateWorkspaceProjectWorkflow,
   markAllWorkspaceProjectNotificationsRead,
+  markAllWorkspaceNotificationsRead,
+  markWorkspaceNotificationRead,
   markWorkspaceProjectNotificationRead,
   runWorkspaceProjectAgent,
   updateWorkspaceProjectAgent,
@@ -277,6 +280,25 @@ const useWorkspaceProject = () => {
             projectId,
             params,
           );
+        } catch (error) {
+          handleError(error as AxiosError);
+          throw error;
+        }
+      },
+    });
+  };
+
+  const useWorkspaceNotifications = (
+    workspaceId: string,
+    params: WorkspaceProjectNotificationsQueryParams = {},
+    options?: { enabled?: boolean },
+  ) => {
+    return useQuery({
+      queryKey: ["workspace-notifications", workspaceId, params],
+      enabled: (options?.enabled ?? true) && !!workspaceId,
+      queryFn: async () => {
+        try {
+          return await getWorkspaceNotifications(workspaceId, params);
         } catch (error) {
           handleError(error as AxiosError);
           throw error;
@@ -647,6 +669,37 @@ const useWorkspaceProject = () => {
     });
   };
 
+  const useMarkWorkspaceNotificationRead = (
+    options?: UseOptions<{
+      workspaceId: string;
+      notificationId: string;
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: markWorkspaceNotificationRead,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
+  const useMarkAllWorkspaceNotificationsRead = (
+    options?: UseOptions<{
+      workspaceId: string;
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: markAllWorkspaceNotificationsRead,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
   const useUpdateWorkspaceProjectAgent = (
     options?: UseOptions<{
       workspaceId: string;
@@ -916,6 +969,7 @@ const useWorkspaceProject = () => {
     useWorkspaceProjectAgent,
     useWorkspaceProjectAgentRuns,
     useWorkspaceProjectNotifications,
+    useWorkspaceNotifications,
     useWorkspaceProjectRisks,
     useWorkspaceProjectRiskDetail,
     useWorkspaceProjectRiskComments,
@@ -936,6 +990,8 @@ const useWorkspaceProject = () => {
     useCreateWorkspaceProjectRiskComment,
     useMarkWorkspaceProjectNotificationRead,
     useMarkAllWorkspaceProjectNotificationsRead,
+    useMarkWorkspaceNotificationRead,
+    useMarkAllWorkspaceNotificationsRead,
     useUpdateWorkspaceProjectAgent,
     useRunWorkspaceProjectAgent,
     useCreateWorkspaceProjectSecret,

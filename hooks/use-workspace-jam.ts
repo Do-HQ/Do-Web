@@ -1,17 +1,23 @@
 import useError from "./use-error";
 import {
   archiveWorkspaceJam,
+  createWorkspaceJamComment,
   createWorkspaceJam,
   getWorkspaceJamDetail,
   getWorkspaceJams,
   getWorkspaceJamShareTargets,
+  requestWorkspaceJamEditAccess,
+  reviewWorkspaceJamEditAccessRequest,
   shareWorkspaceJam,
   unarchiveWorkspaceJam,
   updateWorkspaceJam,
   updateWorkspaceJamContent,
 } from "@/lib/services/workspace-jam-service";
 import {
+  CreateWorkspaceJamCommentRequestBody,
   CreateWorkspaceJamRequestBody,
+  RequestWorkspaceJamEditAccessRequestBody,
+  ReviewWorkspaceJamEditAccessRequestBody,
   ShareWorkspaceJamRequestBody,
   UpdateWorkspaceJamContentRequestBody,
   UpdateWorkspaceJamRequestBody,
@@ -141,6 +147,23 @@ const useWorkspaceJam = () => {
     });
   };
 
+  const useCreateWorkspaceJamComment = (
+    options?: UseOptions<{
+      workspaceId: string;
+      jamId: string;
+      payload: CreateWorkspaceJamCommentRequestBody;
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: createWorkspaceJamComment,
+      ...options,
+      onError: (error, variables, context, mutation) => {
+        handleError(error as AxiosError);
+        options?.onError?.(error, variables, context, mutation);
+      },
+    });
+  };
+
   const useShareWorkspaceJam = (
     options?: UseOptions<{
       workspaceId: string;
@@ -190,6 +213,41 @@ const useWorkspaceJam = () => {
     });
   };
 
+  const useRequestWorkspaceJamEditAccess = (
+    options?: UseOptions<{
+      workspaceId: string;
+      jamId: string;
+      payload: RequestWorkspaceJamEditAccessRequestBody;
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: requestWorkspaceJamEditAccess,
+      ...options,
+      onError: (error, variables, context, mutation) => {
+        handleError(error as AxiosError);
+        options?.onError?.(error, variables, context, mutation);
+      },
+    });
+  };
+
+  const useReviewWorkspaceJamEditAccessRequest = (
+    options?: UseOptions<{
+      workspaceId: string;
+      jamId: string;
+      requestId: string;
+      payload: ReviewWorkspaceJamEditAccessRequestBody;
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: reviewWorkspaceJamEditAccessRequest,
+      ...options,
+      onError: (error, variables, context, mutation) => {
+        handleError(error as AxiosError);
+        options?.onError?.(error, variables, context, mutation);
+      },
+    });
+  };
+
   return {
     useWorkspaceJams,
     useWorkspaceJamDetail,
@@ -197,9 +255,12 @@ const useWorkspaceJam = () => {
     useCreateWorkspaceJam,
     useUpdateWorkspaceJam,
     useUpdateWorkspaceJamContent,
+    useCreateWorkspaceJamComment,
     useShareWorkspaceJam,
     useArchiveWorkspaceJam,
     useUnarchiveWorkspaceJam,
+    useRequestWorkspaceJamEditAccess,
+    useReviewWorkspaceJamEditAccessRequest,
   };
 };
 

@@ -61,6 +61,12 @@ const WORKSPACE_PROJECT_ENDPOINTS = {
     `/workspace/${workspaceId}/projects/${projectId}/notifications/${notificationId}/read`,
   notificationReadAll: (workspaceId: string, projectId: string) =>
     `/workspace/${workspaceId}/projects/${projectId}/notifications/read-all`,
+  workspaceNotifications: (workspaceId: string) =>
+    `/workspace/${workspaceId}/notifications`,
+  workspaceNotificationRead: (workspaceId: string, notificationId: string) =>
+    `/workspace/${workspaceId}/notifications/${notificationId}/read`,
+  workspaceNotificationReadAll: (workspaceId: string) =>
+    `/workspace/${workspaceId}/notifications/read-all`,
   workflowTasks: (workspaceId: string, projectId: string, workflowId: string) =>
     `/workspace/${workspaceId}/projects/${projectId}/workflows/${workflowId}/tasks`,
   workflowTask: (workspaceId: string, projectId: string, workflowId: string, taskId: string) =>
@@ -582,6 +588,26 @@ export const getWorkspaceProjectNotifications = async (
   });
 };
 
+export const getWorkspaceNotifications = async (
+  workspaceId: string,
+  params: WorkspaceProjectNotificationsQueryParams = {},
+) => {
+  const { page = 1, limit = 20, state = "all", type = "" } = params;
+
+  return await axiosInstance.get<{
+    message: string;
+    notifications: WorkspaceProjectNotificationRecord[];
+    pagination: Pagination;
+  }>(WORKSPACE_PROJECT_ENDPOINTS.workspaceNotifications(workspaceId), {
+    params: {
+      page,
+      limit,
+      state,
+      type,
+    },
+  });
+};
+
 export const getWorkspaceProjectAgent = async (
   workspaceId: string,
   projectId: string,
@@ -673,6 +699,30 @@ export const markAllWorkspaceProjectNotificationsRead = async (data: {
       data.projectId,
     ),
   );
+};
+
+export const markWorkspaceNotificationRead = async (data: {
+  workspaceId: string;
+  notificationId: string;
+}) => {
+  return await axiosInstance.patch<{
+    message: string;
+    notification: WorkspaceProjectNotificationRecord;
+  }>(
+    WORKSPACE_PROJECT_ENDPOINTS.workspaceNotificationRead(
+      data.workspaceId,
+      data.notificationId,
+    ),
+  );
+};
+
+export const markAllWorkspaceNotificationsRead = async (data: {
+  workspaceId: string;
+}) => {
+  return await axiosInstance.patch<{
+    message: string;
+    updatedCount: number;
+  }>(WORKSPACE_PROJECT_ENDPOINTS.workspaceNotificationReadAll(data.workspaceId));
 };
 
 export const createWorkspaceProjectTask = async (data: {

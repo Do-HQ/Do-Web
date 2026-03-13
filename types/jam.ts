@@ -2,6 +2,11 @@ import { Pagination } from "@/types";
 
 export type WorkspaceJamVisibility = "private" | "workspace";
 export type WorkspaceJamScopeFilter = "all" | "mine" | "shared";
+export type WorkspaceJamEditAccessRequestStatus =
+  | "pending"
+  | "approved"
+  | "rejected";
+export type WorkspaceJamMentionKind = "user" | "team";
 
 export interface WorkspaceJamUserSummary {
   id: string;
@@ -9,6 +14,55 @@ export interface WorkspaceJamUserSummary {
   initials: string;
   email: string;
   avatarUrl: string;
+}
+
+export interface WorkspaceJamEditAccessRequestRecord {
+  id: string;
+  userId: string;
+  requester: WorkspaceJamUserSummary | null;
+  message: string;
+  status: WorkspaceJamEditAccessRequestStatus;
+  createdAt: string | null;
+  resolvedAt: string | null;
+  resolvedByUserId: string;
+}
+
+export interface WorkspaceJamMentionRecord {
+  kind: WorkspaceJamMentionKind;
+  id: string;
+  label: string;
+}
+
+export interface WorkspaceJamReplyRecord {
+  id: string;
+  userId: string;
+  user: WorkspaceJamUserSummary | null;
+  message: string;
+  mentions: WorkspaceJamMentionRecord[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceJamCommentRecord {
+  id: string;
+  userId: string;
+  user: WorkspaceJamUserSummary | null;
+  message: string;
+  mentions: WorkspaceJamMentionRecord[];
+  replies: WorkspaceJamReplyRecord[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WorkspaceJamActivityRecord {
+  id: string;
+  type: string;
+  summary: string;
+  actorUserId: string;
+  actorName: string;
+  actorInitials: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
 }
 
 export interface WorkspaceJamRecord {
@@ -27,7 +81,15 @@ export interface WorkspaceJamRecord {
   sharedUserIds: string[];
   sharedTeamIds: string[];
   sharedRoomIds: string[];
+  editorUserIds: string[];
+  hasPendingEditAccessRequest: boolean;
+  pendingEditAccessRequestCount: number;
+  pendingEditAccessRequests: WorkspaceJamEditAccessRequestRecord[];
+  commentCount: number;
+  comments: WorkspaceJamCommentRecord[];
+  activity: WorkspaceJamActivityRecord[];
   canEdit: boolean;
+  canManage: boolean;
   canView: boolean;
   snapshot?: Record<string, unknown> | null;
   createdAt: string;
@@ -101,6 +163,20 @@ export interface ShareWorkspaceJamRequestBody {
   visibility?: WorkspaceJamVisibility;
   announceInRooms?: boolean;
   note?: string;
+}
+
+export interface RequestWorkspaceJamEditAccessRequestBody {
+  message?: string;
+}
+
+export interface ReviewWorkspaceJamEditAccessRequestBody {
+  action: "approve" | "reject";
+}
+
+export interface CreateWorkspaceJamCommentRequestBody {
+  message: string;
+  parentCommentId?: string;
+  mentions?: WorkspaceJamMentionRecord[];
 }
 
 export interface WorkspaceJamsResponse {

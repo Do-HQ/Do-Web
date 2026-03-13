@@ -118,6 +118,15 @@ export const getWorkspacePeople = async (
   });
 };
 
+export const removeWorkspaceMember = async (data: {
+  workspaceId: string;
+  memberId: string;
+}) => {
+  return await axiosInstance.delete<ResponseObject>(
+    `${WORKSPACE_ENDPOINTS.GET_PUBLIC_WORKSPACE}/${data.workspaceId}/members/${data.memberId}`,
+  );
+};
+
 export const getWorkspaceInvites = async (
   workspaceId: string,
   params: PaginationBody,

@@ -402,7 +402,7 @@ const MainChatPanel = ({
       <button
         type="button"
         onClick={() => onOpenJamFromMessage(jamShare.jamId)}
-        className="mt-1.5 flex w-full items-start gap-2 rounded-md border border-border/70 bg-accent/30 p-2 text-left transition-colors hover:bg-accent/45"
+        className="mt-1.5 flex w-full items-start gap-2 rounded-md border border-border/35 bg-accent/22 p-2 text-left transition-colors hover:bg-accent/35"
       >
         <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/12 text-primary">
           <Shapes className="size-3.5" />
@@ -433,7 +433,7 @@ const MainChatPanel = ({
       >
         {(hasOlderMessages || isLoadingOlderMessages) && (
           <div className="mb-1 flex justify-center">
-            <span className="text-muted-foreground rounded-full border px-2 py-0.5 text-[11px]">
+            <span className="text-muted-foreground rounded-full border border-border/35 px-2 py-0.5 text-[11px]">
               {isLoadingOlderMessages ? (
                 <LoaderComponent />
               ) : (
@@ -643,8 +643,8 @@ const MainChatPanel = ({
         </div>
       </div>
 
-      <div className="bg-card/95 shrink-0 border-t px-1.5 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:p-1.5">
-        <div className="bg-background/88 border-border flex flex-col gap-2 rounded-none border border-x-0 border-b-0 p-1.5 backdrop-blur-sm sm:rounded-md sm:border sm:p-1.5">
+      <div className="bg-card/95 shrink-0 border-t border-border/35 px-1.5 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:p-1.5">
+        <div className="bg-background/88 border-border/35 flex flex-col gap-2 rounded-none border border-x-0 border-b-0 p-1.5 backdrop-blur-sm sm:rounded-md sm:border sm:p-1.5">
           <MentionsInput
             value={composer}
             onChange={(event) => onComposerChange(event.target.value)}

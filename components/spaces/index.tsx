@@ -49,7 +49,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   SpaceMessageDeletedEventPayload,
   SpaceMessageEventPayload,
-  SpaceMentionEventPayload,
   getSpacesSocket,
   subscribeSpaceRoom,
   unsubscribeSpaceRoom,
@@ -273,12 +272,7 @@ const SpacesPage = () => {
   const isLoadingOlderMessagesRef = useRef(false);
   const beforeOlderLoadScrollHeightRef = useRef(0);
   const beforeOlderLoadScrollTopRef = useRef(0);
-  const seenMentionToastIdsRef = useRef(new Set<string>());
   const missingProjectRoomToastRef = useRef<string | null>(null);
-  const notificationServiceWorkerRef = useRef<ServiceWorkerRegistration | null>(
-    null,
-  );
-  const hasRequestedNotificationPermissionRef = useRef(false);
   const lastMarkedReadRef = useRef<{
     workspaceId: string;
     roomId: string;
@@ -1129,137 +1123,6 @@ const SpacesPage = () => {
     urlRoomId,
     urlThreadId,
   ]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
-      return;
-    }
-
-    let mounted = true;
-
-    navigator.serviceWorker
-      .register("/spaces-notifications-sw.js")
-      .then((registration) => {
-        if (!mounted) {
-          return;
-        }
-        notificationServiceWorkerRef.current = registration;
-      })
-      .catch(() => {
-        // browser notification service worker is optional
-      });
-
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  const showBrowserMentionNotification = useCallback(
-    async (payload: {
-      id: string;
-      title?: string;
-      summary?: string;
-      route?: string;
-    }) => {
-      if (typeof window === "undefined" || !("Notification" in window)) {
-        return;
-      }
-
-      let permission = Notification.permission;
-
-      if (
-        permission === "default" &&
-        !hasRequestedNotificationPermissionRef.current
-      ) {
-        hasRequestedNotificationPermissionRef.current = true;
-        try {
-          permission = await Notification.requestPermission();
-        } catch {
-          permission = Notification.permission;
-        }
-      }
-
-      if (permission !== "granted") {
-        return;
-      }
-
-      const title = String(payload.title || "You were mentioned").trim();
-      const body = String(payload.summary || "").trim();
-      const route =
-        String(payload.route || ROUTES.SPACES).trim() || ROUTES.SPACES;
-
-      const registration =
-        notificationServiceWorkerRef.current ||
-        (await navigator.serviceWorker.getRegistration().catch(() => null));
-
-      if (registration?.showNotification) {
-        await registration.showNotification(title, {
-          body,
-          tag: `spaces-mention-${payload.id}`,
-          data: {
-            route,
-          },
-        });
-        return;
-      }
-
-      const notification = new Notification(title, {
-        body,
-        tag: `spaces-mention-${payload.id}`,
-        data: { route },
-      });
-
-      notification.onclick = () => {
-        window.focus();
-        router.push(route);
-        notification.close();
-      };
-    },
-    [router],
-  );
-
-  useEffect(() => {
-    const socket = getSpacesSocket();
-
-    if (!socket.connected) {
-      socket.connect();
-    }
-
-    const handleMentionCreated = ({ mention }: SpaceMentionEventPayload) => {
-      if (!mention?.id) {
-        return;
-      }
-
-      if (seenMentionToastIdsRef.current.has(mention.id)) {
-        return;
-      }
-
-      seenMentionToastIdsRef.current.add(mention.id);
-
-      toast(mention.title || "You were mentioned", {
-        description: mention.summary || "",
-        action: {
-          label: "Open",
-          onClick: () => {
-            router.push(mention.route || ROUTES.SPACES);
-          },
-        },
-      });
-
-      void showBrowserMentionNotification({
-        id: String(mention.id),
-        title: mention.title,
-        summary: mention.summary,
-        route: mention.route,
-      });
-    };
-
-    socket.on("spaces:mention:created", handleMentionCreated);
-
-    return () => {
-      socket.off("spaces:mention:created", handleMentionCreated);
-    };
-  }, [router, showBrowserMentionNotification]);
 
   useEffect(() => {
     if (!resolvedWorkspaceId || !activeRoom?.id) {
@@ -2426,9 +2289,9 @@ const SpacesPage = () => {
       >
         <aside
           style={{ width: leftPanelWidth }}
-          className="hidden min-h-0 flex-col overflow-hidden rounded-md border bg-card lg:flex"
+          className="hidden min-h-0 flex-col overflow-hidden rounded-md border border-border/35 bg-card/70 lg:flex"
         >
-          <div className="border-b px-3 py-2.5">
+          <div className="border-b border-border/35 px-3 py-2.5">
             <div className="flex items-center justify-between gap-2">
               <div>
                 <p className="text-sm font-semibold">Spaces</p>
@@ -2510,8 +2373,8 @@ const SpacesPage = () => {
           <span className="bg-border/70 hover:bg-primary/60 absolute top-1/2 left-1/2 h-12 w-px -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors" />
         </button>
 
-        <section className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-none border border-x-0 border-b-0 bg-card sm:rounded-md sm:border-x sm:border-b">
-          <div className="border-b px-3 py-2.5">
+        <section className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-none border border-border/35 border-x-0 border-b-0 bg-card/70 sm:rounded-md sm:border-x sm:border-b">
+          <div className="border-b border-border/35 px-3 py-2.5">
             <div className="flex flex-wrap items-center gap-1.5">
               <Button
                 size="sm"
@@ -2623,7 +2486,7 @@ const SpacesPage = () => {
 
             {activeRoom && (
               <div className="mt-2 flex flex-wrap items-start gap-2">
-                <div className="bg-muted text-muted-foreground mt-0.5 inline-flex size-6 items-center justify-center rounded-sm border">
+                <div className="bg-muted/45 text-muted-foreground mt-0.5 inline-flex size-6 items-center justify-center rounded-sm">
                   <ActiveScopeIcon className="size-4" />
                 </div>
                 <div className="min-w-0">
@@ -2749,7 +2612,7 @@ const SpacesPage = () => {
 
               <aside
                 style={{ width: threadPanelWidth }}
-                className="animate-in slide-in-from-right-2 fade-in duration-300 flex min-h-0 flex-col overflow-hidden rounded-md border bg-card"
+                className="animate-in slide-in-from-right-2 fade-in duration-300 flex min-h-0 flex-col overflow-hidden rounded-md border border-border/35 bg-card/70"
               >
                 <ThreadPanel
                   desktop
@@ -2796,14 +2659,14 @@ const SpacesPage = () => {
 
       <Sheet open={isRoomsSheetOpen} onOpenChange={setIsRoomsSheetOpen}>
         <SheetContent side="left" className="w-full max-w-none p-0 sm:max-w-sm">
-          <SheetHeader className="border-b pb-2">
+          <SheetHeader className="border-b border-border/35 pb-2">
             <SheetTitle>Spaces</SheetTitle>
             <SheetDescription>
               Select a personal, project, workflow, or task chat room.
             </SheetDescription>
           </SheetHeader>
 
-          <div className="border-b px-3 py-2.5">
+          <div className="border-b border-border/35 px-3 py-2.5">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-medium">Chats</p>
               <Button
@@ -2938,7 +2801,7 @@ const SpacesPage = () => {
             </SheetDescription>
           </SheetHeader>
 
-          <div className="flex items-center gap-2 border-b px-4 py-2.5">
+          <div className="flex items-center gap-2 border-b border-border/35 px-4 py-2.5">
             <div className="relative flex-1 min-w-0">
               <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
               <Input
@@ -3048,7 +2911,7 @@ const SpacesPage = () => {
             )}
           </div>
 
-          <div className="flex items-center justify-between border-t px-4 py-2.5">
+          <div className="flex items-center justify-between border-t border-border/35 px-4 py-2.5">
             <p className="text-muted-foreground text-[11px]">
               Page {keepUpPagination?.page || keepUpPage} of{" "}
               {keepUpPagination?.totalPages || 1}

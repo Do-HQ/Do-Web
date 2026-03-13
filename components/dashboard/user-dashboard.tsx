@@ -31,7 +31,10 @@ import useAuthStore from "@/stores/auth";
 import useWorkspaceStore from "@/stores/workspace";
 import type { WorkspaceJamRecord } from "@/types/jam";
 import type { WorkspaceProjectRecord } from "@/types/project";
-import type { WorkspaceSpaceKeepUpItem, WorkspaceSpaceRoomRecord } from "@/types/space";
+import type {
+  WorkspaceSpaceKeepUpItem,
+  WorkspaceSpaceRoomRecord,
+} from "@/types/space";
 import { ROUTES, getProjectRoute } from "@/utils/constants";
 import {
   getTaskStatusLabel,
@@ -89,7 +92,10 @@ type DashboardUpcomingItem = {
   context: string;
 };
 
-const formatDate = (value?: string | null, options?: Intl.DateTimeFormatOptions) => {
+const formatDate = (
+  value?: string | null,
+  options?: Intl.DateTimeFormatOptions,
+) => {
   if (!value) {
     return "—";
   }
@@ -136,7 +142,9 @@ const getRelativeLabel = (value?: string | null) => {
   }
 
   const diffDays = Math.round(diffHours / 24);
-  return diffDays >= 0 ? `in ${Math.abs(diffDays)}d` : `${Math.abs(diffDays)}d ago`;
+  return diffDays >= 0
+    ? `in ${Math.abs(diffDays)}d`
+    : `${Math.abs(diffDays)}d ago`;
 };
 
 const toDateValue = (value?: string) => {
@@ -168,7 +176,9 @@ const getTaskProgress = (task: ProjectWorkflowTask) => {
   }
 
   if (task.subtasks?.length) {
-    const doneCount = task.subtasks.filter((item) => item.status === "done").length;
+    const doneCount = task.subtasks.filter(
+      (item) => item.status === "done",
+    ).length;
     return Math.round((doneCount / Math.max(task.subtasks.length, 1)) * 100);
   }
 
@@ -268,7 +278,9 @@ const DashboardSection = ({
 const UserDashboard = () => {
   const { user } = useAuthStore();
   const { workspaceId } = useWorkspaceStore();
-  const setProjectCreateOpen = useProjectStore((state) => state.setProjectCreateOpen);
+  const setProjectCreateOpen = useProjectStore(
+    (state) => state.setProjectCreateOpen,
+  );
   const favorites = useFavoritesStore((state) => state.favorites);
   const permissions = useWorkspacePermissions();
 
@@ -277,8 +289,7 @@ const UserDashboard = () => {
   const jamHook = useWorkspaceJam();
 
   const resolvedWorkspaceId = React.useMemo(
-    () =>
-      String(workspaceId || user?.currentWorkspaceId?._id || "").trim(),
+    () => String(workspaceId || user?.currentWorkspaceId?._id || "").trim(),
     [workspaceId, user?.currentWorkspaceId?._id],
   );
 
@@ -366,8 +377,10 @@ const UserDashboard = () => {
     });
 
     return items.sort((left, right) => {
-      const leftDate = toDateValue(left.dueDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
-      const rightDate = toDateValue(right.dueDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      const leftDate =
+        toDateValue(left.dueDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+      const rightDate =
+        toDateValue(right.dueDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
       if (leftDate !== rightDate) {
         return leftDate - rightDate;
       }
@@ -455,7 +468,11 @@ const UserDashboard = () => {
         const workflowDue = toDateValue(workflow.targetEndDate);
         if (workflowDue) {
           const timestamp = workflowDue.getTime();
-          if (timestamp >= now && timestamp <= nextWindow && workflow.status !== "complete") {
+          if (
+            timestamp >= now &&
+            timestamp <= nextWindow &&
+            workflow.status !== "complete"
+          ) {
             rows.push({
               key: `workflow:${record.id}:${workflow.id}`,
               type: "workflow",
@@ -500,8 +517,10 @@ const UserDashboard = () => {
 
     return rows
       .sort((left, right) => {
-        const leftDate = toDateValue(left.date)?.getTime() ?? Number.MAX_SAFE_INTEGER;
-        const rightDate = toDateValue(right.date)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        const leftDate =
+          toDateValue(left.date)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        const rightDate =
+          toDateValue(right.date)?.getTime() ?? Number.MAX_SAFE_INTEGER;
         if (leftDate !== rightDate) {
           return leftDate - rightDate;
         }
@@ -637,23 +656,73 @@ const UserDashboard = () => {
     projectQuery.isLoading || spacesQuery.isLoading || jamsQuery.isLoading;
   const recentVisitedCarouselRef = React.useRef<HTMLDivElement | null>(null);
 
-  const scrollRecentVisited = React.useCallback((direction: "left" | "right") => {
-    const container = recentVisitedCarouselRef.current;
-    if (!container) {
-      return;
-    }
+  const getRecentVisitedGridMetrics = React.useCallback(
+    (container: HTMLDivElement) => {
+      const firstCard =
+        container.querySelector<HTMLElement>("[data-recent-card]");
+      if (!firstCard) {
+        return null;
+      }
 
-    const amount = Math.max(220, Math.round(container.clientWidth * 0.72));
-    const nextLeft =
-      direction === "left"
-        ? container.scrollLeft - amount
-        : container.scrollLeft + amount;
+      const cardWidth = firstCard.getBoundingClientRect().width;
+      const style = window.getComputedStyle(container);
+      const gap = Number.parseFloat(style.columnGap || style.gap || "0") || 0;
+      const span = cardWidth + gap;
+      if (span <= 0) {
+        return null;
+      }
 
-    container.scrollTo({
-      left: nextLeft,
-      behavior: "smooth",
-    });
-  }, []);
+      const maxIndex = Math.max(
+        0,
+        Math.ceil((container.scrollWidth - container.clientWidth) / span),
+      );
+
+      return { span, maxIndex };
+    },
+    [],
+  );
+
+  const scrollRecentVisited = React.useCallback(
+    (direction: "left" | "right") => {
+      const container = recentVisitedCarouselRef.current;
+      if (!container) {
+        return;
+      }
+
+      const metrics = getRecentVisitedGridMetrics(container);
+      if (!metrics) {
+        const amount = Math.max(220, Math.round(container.clientWidth * 0.72));
+        const nextLeft =
+          direction === "left"
+            ? container.scrollLeft - amount
+            : container.scrollLeft + amount;
+
+        container.scrollTo({
+          left: nextLeft,
+          behavior: "smooth",
+        });
+        return;
+      }
+
+      const { span, maxIndex } = metrics;
+      const currentIndex = Math.round(container.scrollLeft / span);
+      const visibleCount = Math.max(
+        1,
+        Math.floor(container.clientWidth / span),
+      );
+      const rawNextIndex =
+        direction === "left"
+          ? currentIndex - visibleCount
+          : currentIndex + visibleCount;
+      const nextIndex = Math.min(maxIndex, Math.max(0, rawNextIndex));
+
+      container.scrollTo({
+        left: nextIndex * span,
+        behavior: "smooth",
+      });
+    },
+    [getRecentVisitedGridMetrics],
+  );
 
   if (!resolvedWorkspaceId) {
     return (
@@ -665,7 +734,8 @@ const UserDashboard = () => {
             </EmptyMedia>
             <EmptyTitle>Select a workspace to continue</EmptyTitle>
             <EmptyDescription>
-              Switch to a workspace to load your projects, spaces, and execution queue.
+              Switch to a workspace to load your projects, spaces, and execution
+              queue.
             </EmptyDescription>
           </EmptyHeader>
           <Link
@@ -692,7 +762,8 @@ const UserDashboard = () => {
                 {getGreeting(user?.firstName)}
               </h1>
               <p className="text-muted-foreground text-[12px]">
-                Here is your live workspace pulse across projects, chats, and delivery.
+                Here is your live workspace pulse across projects, chats, and
+                delivery.
               </p>
             </div>
 
@@ -724,20 +795,36 @@ const UserDashboard = () => {
 
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
             <div className="bg-background/70 border-border/40 rounded-lg border px-2.5 py-2">
-              <p className="text-muted-foreground text-[10px] uppercase">Projects</p>
-              <p className="mt-1 text-[14px] font-semibold">{projects.length}</p>
+              <p className="text-muted-foreground text-[10px] uppercase">
+                Projects
+              </p>
+              <p className="mt-1 text-[14px] font-semibold">
+                {projects.length}
+              </p>
             </div>
             <div className="bg-background/70 border-border/40 rounded-lg border px-2.5 py-2">
-              <p className="text-muted-foreground text-[10px] uppercase">My open tasks</p>
-              <p className="mt-1 text-[14px] font-semibold">{myOpenTasks.length}</p>
+              <p className="text-muted-foreground text-[10px] uppercase">
+                My open tasks
+              </p>
+              <p className="mt-1 text-[14px] font-semibold">
+                {myOpenTasks.length}
+              </p>
             </div>
             <div className="bg-background/70 border-border/40 rounded-lg border px-2.5 py-2">
-              <p className="text-muted-foreground text-[10px] uppercase">Workflows active</p>
-              <p className="mt-1 text-[14px] font-semibold">{activeWorkflowCount}</p>
+              <p className="text-muted-foreground text-[10px] uppercase">
+                Workflows active
+              </p>
+              <p className="mt-1 text-[14px] font-semibold">
+                {activeWorkflowCount}
+              </p>
             </div>
             <div className="bg-background/70 border-border/40 rounded-lg border px-2.5 py-2">
-              <p className="text-muted-foreground text-[10px] uppercase">Unread spaces</p>
-              <p className="mt-1 text-[14px] font-semibold">{unreadSpacesCount}</p>
+              <p className="text-muted-foreground text-[10px] uppercase">
+                Unread spaces
+              </p>
+              <p className="mt-1 text-[14px] font-semibold">
+                {unreadSpacesCount}
+              </p>
             </div>
           </div>
         </div>
@@ -789,7 +876,8 @@ const UserDashboard = () => {
               <Link
                 key={item.key}
                 href={item.href}
-                className="bg-card border-border/45 hover:border-border group w-[15.75rem] shrink-0 snap-start rounded-lg border px-3 py-2.5 transition-colors"
+                data-recent-card
+                className="bg-card border-border/45 hover:border-border group w-[15.75rem] shrink-0 snap-start snap-always rounded-lg border px-3 py-2.5 transition-colors"
               >
                 <div className="space-y-1.5">
                   <div className="text-muted-foreground inline-flex items-center gap-1.5 text-[10.5px] uppercase">
@@ -813,9 +901,12 @@ const UserDashboard = () => {
         ) : (
           <Empty className="border-border/45 bg-background/35 rounded-lg border px-4 py-8">
             <EmptyHeader>
-              <EmptyTitle className="text-[14px]">No recent activity yet</EmptyTitle>
+              <EmptyTitle className="text-[14px]">
+                No recent activity yet
+              </EmptyTitle>
               <EmptyDescription className="text-[12px]">
-                Create a project or open a space to populate your home dashboard.
+                Create a project or open a space to populate your home
+                dashboard.
               </EmptyDescription>
             </EmptyHeader>
           </Empty>
@@ -846,28 +937,40 @@ const UserDashboard = () => {
                     className="bg-background/45 border-border/45 hover:bg-background/65 flex items-start justify-between gap-3 rounded-lg border px-2.5 py-2"
                   >
                     <div className="min-w-0 space-y-1">
-                      <p className="line-clamp-1 text-[12.5px] font-medium">{task.title}</p>
+                      <p className="line-clamp-1 text-[12.5px] font-medium">
+                        {task.title}
+                      </p>
                       <p className="text-muted-foreground line-clamp-1 text-[11px]">
                         {task.projectName} · {task.workflowName}
                       </p>
                       <div className="mt-1 flex items-center gap-1.5">
-                        <Badge variant="secondary" className="h-5 px-1.5 text-[10.5px]">
+                        <Badge
+                          variant="secondary"
+                          className="h-5 px-1.5 text-[10.5px]"
+                        >
                           {getTaskStatusLabel(task.status)}
                         </Badge>
-                        <Badge variant="outline" className="h-5 px-1.5 text-[10.5px]">
+                        <Badge
+                          variant="outline"
+                          className="h-5 px-1.5 text-[10.5px]"
+                        >
                           {task.priority}
                         </Badge>
                       </div>
                     </div>
                     <div className="w-20 shrink-0 space-y-1 text-right">
-                      <div className="text-[11px] font-medium">{formatDate(task.dueDate)}</div>
+                      <div className="text-[11px] font-medium">
+                        {formatDate(task.dueDate)}
+                      </div>
                       <div className="bg-muted h-1.5 overflow-hidden rounded-full">
                         <div
                           className="bg-primary h-full rounded-full"
                           style={{ width: `${task.progress}%` }}
                         />
                       </div>
-                      <div className="text-muted-foreground text-[10px]">{task.progress}%</div>
+                      <div className="text-muted-foreground text-[10px]">
+                        {task.progress}%
+                      </div>
                     </div>
                   </Link>
                 ))}
@@ -875,7 +978,9 @@ const UserDashboard = () => {
             ) : (
               <Empty className="border-border/45 bg-background/35 rounded-lg border px-4 py-8">
                 <EmptyHeader>
-                  <EmptyTitle className="text-[14px]">No assigned open tasks</EmptyTitle>
+                  <EmptyTitle className="text-[14px]">
+                    No assigned open tasks
+                  </EmptyTitle>
                   <EmptyDescription className="text-[12px]">
                     Once tasks are assigned to you, they will appear here.
                   </EmptyDescription>
@@ -902,7 +1007,11 @@ const UserDashboard = () => {
                       )}
                     >
                       <p className="text-muted-foreground text-[11px]">
-                        {formatDate(item.date, { month: "short", day: "numeric", weekday: "short" })}
+                        {formatDate(item.date, {
+                          month: "short",
+                          day: "numeric",
+                          weekday: "short",
+                        })}
                       </p>
                       <div className="min-w-0">
                         <p className="line-clamp-1 inline-flex items-center gap-1.5 text-[12.5px] font-medium">
@@ -933,7 +1042,9 @@ const UserDashboard = () => {
             ) : (
               <Empty className="border-border/45 bg-background/35 rounded-lg border px-4 py-8">
                 <EmptyHeader>
-                  <EmptyTitle className="text-[14px]">No upcoming items</EmptyTitle>
+                  <EmptyTitle className="text-[14px]">
+                    No upcoming items
+                  </EmptyTitle>
                   <EmptyDescription className="text-[12px]">
                     Upcoming deadlines and milestones will appear here.
                   </EmptyDescription>
@@ -957,13 +1068,17 @@ const UserDashboard = () => {
             >
               {keepUpItems.length ? (
                 <div className="space-y-1.5">
-                  {keepUpItems.slice(0, 6).map((item) => (
+                  {keepUpItems.slice(0, 4).map((item) => (
                     <Link
                       key={item.id}
-                      href={item.route || `${ROUTES.SPACES}?room=${item.roomId}`}
+                      href={
+                        item.route || `${ROUTES.SPACES}?room=${item.roomId}`
+                      }
                       className="hover:bg-background/60 block rounded-md px-2 py-1.5"
                     >
-                      <p className="line-clamp-1 text-[12px] font-medium">{item.roomName}</p>
+                      <p className="line-clamp-1 text-[12px] font-medium">
+                        {item.roomName}
+                      </p>
                       <p className="text-muted-foreground line-clamp-2 text-[10.5px]">
                         {item.content}
                       </p>
@@ -980,7 +1095,10 @@ const UserDashboard = () => {
               )}
             </DashboardSection>
 
-            <DashboardSection title="Projects at risk" description="High-attention projects right now.">
+            <DashboardSection
+              title="Projects at risk"
+              description="High-attention projects right now."
+            >
               {atRiskProjects.length ? (
                 <div className="space-y-2">
                   {atRiskProjects.slice(0, 5).map((project) => (
@@ -990,7 +1108,9 @@ const UserDashboard = () => {
                       className="bg-background/45 border-border/45 hover:bg-background/65 block rounded-lg border px-2.5 py-2"
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <p className="line-clamp-1 text-[12.5px] font-medium">{project.name}</p>
+                        <p className="line-clamp-1 text-[12.5px] font-medium">
+                          {project.name}
+                        </p>
                         <Badge
                           variant="outline"
                           className="border-amber-500/40 bg-amber-500/10 px-1.5 text-[10px] text-amber-700 dark:text-amber-300"
@@ -1005,7 +1125,9 @@ const UserDashboard = () => {
                       <div className="bg-muted h-1.5 overflow-hidden rounded-full">
                         <div
                           className="bg-primary h-full rounded-full"
-                          style={{ width: `${Math.max(0, Math.min(100, project.progress))}%` }}
+                          style={{
+                            width: `${Math.max(0, Math.min(100, project.progress))}%`,
+                          }}
                         />
                       </div>
                     </Link>
@@ -1031,7 +1153,9 @@ const UserDashboard = () => {
                           className="hover:bg-background/65 block rounded-md px-2 py-1.5"
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <p className="line-clamp-1 text-[12px] font-medium">{project.name}</p>
+                            <p className="line-clamp-1 text-[12px] font-medium">
+                              {project.name}
+                            </p>
                             <span className="text-muted-foreground text-[10.5px]">
                               {project.progress}%
                             </span>
@@ -1058,16 +1182,28 @@ const UserDashboard = () => {
 
                   <div className="grid grid-cols-3 gap-2">
                     <div className="bg-background/45 border-border/45 rounded-md border px-2 py-1.5">
-                      <p className="text-muted-foreground text-[9.5px] uppercase">Due 72h</p>
-                      <p className="mt-0.5 text-[12.5px] font-semibold">{dueSoonCount}</p>
+                      <p className="text-muted-foreground text-[9.5px] uppercase">
+                        Due 72h
+                      </p>
+                      <p className="mt-0.5 text-[12.5px] font-semibold">
+                        {dueSoonCount}
+                      </p>
                     </div>
                     <div className="bg-background/45 border-border/45 rounded-md border px-2 py-1.5">
-                      <p className="text-muted-foreground text-[9.5px] uppercase">Blocked</p>
-                      <p className="mt-0.5 text-[12.5px] font-semibold">{blockedTaskCount}</p>
+                      <p className="text-muted-foreground text-[9.5px] uppercase">
+                        Blocked
+                      </p>
+                      <p className="mt-0.5 text-[12.5px] font-semibold">
+                        {blockedTaskCount}
+                      </p>
                     </div>
                     <div className="bg-background/45 border-border/45 rounded-md border px-2 py-1.5">
-                      <p className="text-muted-foreground text-[9.5px] uppercase">Issues</p>
-                      <p className="mt-0.5 text-[12.5px] font-semibold">{openIssueCount}</p>
+                      <p className="text-muted-foreground text-[9.5px] uppercase">
+                        Issues
+                      </p>
+                      <p className="mt-0.5 text-[12.5px] font-semibold">
+                        {openIssueCount}
+                      </p>
                     </div>
                   </div>
 
@@ -1079,7 +1215,8 @@ const UserDashboard = () => {
                           className={buttonVariants({
                             size: "sm",
                             variant: "outline",
-                            className: "h-7 w-full justify-center px-2 text-[10.5px]",
+                            className:
+                              "h-7 w-full justify-center px-2 text-[10.5px]",
                           })}
                         >
                           <TriangleAlert className="size-3.5" />
@@ -1090,7 +1227,8 @@ const UserDashboard = () => {
                           className={buttonVariants({
                             size: "sm",
                             variant: "outline",
-                            className: "h-7 w-full justify-center px-2 text-[10.5px]",
+                            className:
+                              "h-7 w-full justify-center px-2 text-[10.5px]",
                           })}
                         >
                           <GitBranch className="size-3.5" />
@@ -1103,7 +1241,8 @@ const UserDashboard = () => {
                       className={buttonVariants({
                         size: "sm",
                         variant: "outline",
-                        className: "h-7 w-full justify-center px-2 text-[10.5px]",
+                        className:
+                          "h-7 w-full justify-center px-2 text-[10.5px]",
                       })}
                     >
                       <CalendarDays className="size-3.5" />
@@ -1117,35 +1256,46 @@ const UserDashboard = () => {
         </div>
 
         <div className="space-y-4 xl:sticky xl:top-[4.25rem] xl:self-start">
-          <DashboardSection title="Today" description="Fast glance on what needs attention.">
+          <DashboardSection
+            title="Today"
+            description="Fast glance on what needs attention."
+          >
             <div className="space-y-2">
               <div className="bg-background/55 border-border/40 flex items-center justify-between rounded-lg border px-2.5 py-2">
                 <div className="inline-flex items-center gap-1.5 text-[11.5px]">
                   <AlarmClockCheck className="text-primary size-3.5" />
                   Due today
                 </div>
-                <span className="text-[13px] font-semibold">{dueTodayCount}</span>
+                <span className="text-[13px] font-semibold">
+                  {dueTodayCount}
+                </span>
               </div>
               <div className="bg-background/55 border-border/40 flex items-center justify-between rounded-lg border px-2.5 py-2">
                 <div className="inline-flex items-center gap-1.5 text-[11.5px]">
                   <TriangleAlert className="size-3.5 text-amber-500" />
                   Overdue
                 </div>
-                <span className="text-[13px] font-semibold">{overdueCount}</span>
+                <span className="text-[13px] font-semibold">
+                  {overdueCount}
+                </span>
               </div>
               <div className="bg-background/55 border-border/40 flex items-center justify-between rounded-lg border px-2.5 py-2">
                 <div className="inline-flex items-center gap-1.5 text-[11.5px]">
                   <CircleDotDashed className="size-3.5 text-sky-500" />
                   Keep-up items
                 </div>
-                <span className="text-[13px] font-semibold">{keepUpItems.length}</span>
+                <span className="text-[13px] font-semibold">
+                  {keepUpItems.length}
+                </span>
               </div>
               <div className="bg-background/55 border-border/40 flex items-center justify-between rounded-lg border px-2.5 py-2">
                 <div className="inline-flex items-center gap-1.5 text-[11.5px]">
                   <CircleDot className="size-3.5 text-violet-500" />
                   At-risk projects
                 </div>
-                <span className="text-[13px] font-semibold">{atRiskProjects.length}</span>
+                <span className="text-[13px] font-semibold">
+                  {atRiskProjects.length}
+                </span>
               </div>
             </div>
           </DashboardSection>

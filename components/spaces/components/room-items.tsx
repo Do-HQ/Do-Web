@@ -41,10 +41,10 @@ const RoomItems = ({ roomEntries, activeRoomId, onPick }: RoomItemsProps) => {
           }
         }}
         className={cn(
-          "w-full cursor-pointer rounded-md border px-2.5 py-2 text-left transition-colors outline-none",
+          "w-full cursor-pointer rounded-md px-2.5 py-2 text-left transition-colors outline-none",
           isActive
-            ? "bg-accent/55 border-border"
-            : "border-transparent hover:bg-accent/35",
+            ? "bg-accent/45 ring-1 ring-border/35"
+            : "hover:bg-accent/25",
         )}
       >
         <div className="flex items-center gap-1.5">

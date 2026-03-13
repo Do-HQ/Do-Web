@@ -330,8 +330,8 @@ const ThreadPanel = ({
     : null;
 
   return (
-    <div className="bg-gradient-to-b from-muted/[0.22] to-transparent flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="bg-card/95 flex shrink-0 items-center gap-1.5 border-b px-2 py-2 backdrop-blur-sm sm:px-3 sm:py-2.5">
+    <div className="bg-card/70 flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="bg-card/95 flex shrink-0 items-center gap-1.5 border-b border-border/35 px-2 py-2 backdrop-blur-sm sm:px-3 sm:py-2.5">
         <p className="text-[14px] font-semibold tracking-tight">Thread</p>
         <Badge variant="secondary" className="text-[11px]">
           {activeThreadReplies.length} replies
@@ -370,8 +370,8 @@ const ThreadPanel = ({
           {/*
             Thread root can be a shared jam message.
           */}
-          <div className="shrink-0 border-b px-2 py-2 sm:px-3 sm:py-2.5">
-            <div className="rounded-lg border border-border/50 bg-card/70 px-2.5 py-2.5 shadow-xs">
+          <div className="shrink-0 border-b border-border/35 px-2 py-2 sm:px-3 sm:py-2.5">
+            <div className="rounded-lg border border-border/35 bg-card/70 px-2.5 py-2.5">
               <p className="text-muted-foreground text-[11px]">From main chat</p>
               {selectedThreadJamShareCard ? (
                 selectedThreadJamShareCard
@@ -408,7 +408,7 @@ const ThreadPanel = ({
                 return (
                   <article
                     key={reply.id}
-                    className="group rounded-lg border border-border/45 bg-card/70 px-2.5 py-2 shadow-xs transition-colors hover:border-border hover:bg-card"
+                    className="group rounded-lg border border-border/35 bg-card/70 px-2.5 py-2 transition-colors hover:bg-card"
                   >
                     <div className="flex items-center gap-1.5">
                       <Avatar
@@ -521,8 +521,8 @@ const ThreadPanel = ({
             )}
           </div>
 
-          <div className="bg-card/95 shrink-0 border-t px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:p-2.5">
-            <div className="bg-background/88 border-border rounded-none border border-x-0 border-b-0 p-2 shadow-xs backdrop-blur-sm sm:rounded-md sm:border sm:p-2.5">
+          <div className="bg-card/95 shrink-0 border-t border-border/35 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:p-2.5">
+            <div className="bg-background/88 border-border/35 rounded-none border border-x-0 border-b-0 p-2 backdrop-blur-sm sm:rounded-md sm:border sm:p-2.5">
               <MentionsInput
                 value={threadComposer}
                 onChange={(event) => onThreadComposerChange(event.target.value)}

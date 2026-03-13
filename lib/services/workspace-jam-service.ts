@@ -1,5 +1,8 @@
 import {
+  CreateWorkspaceJamCommentRequestBody,
   CreateWorkspaceJamRequestBody,
+  RequestWorkspaceJamEditAccessRequestBody,
+  ReviewWorkspaceJamEditAccessRequestBody,
   ShareWorkspaceJamRequestBody,
   UpdateWorkspaceJamContentRequestBody,
   UpdateWorkspaceJamRequestBody,
@@ -16,8 +19,17 @@ const WORKSPACE_JAM_ENDPOINTS = {
     `/workspace/${workspaceId}/jams/${jamId}`,
   jamContent: (workspaceId: string, jamId: string) =>
     `/workspace/${workspaceId}/jams/${jamId}/content`,
+  jamComments: (workspaceId: string, jamId: string) =>
+    `/workspace/${workspaceId}/jams/${jamId}/comments`,
   jamShare: (workspaceId: string, jamId: string) =>
     `/workspace/${workspaceId}/jams/${jamId}/share`,
+  jamEditAccessRequests: (workspaceId: string, jamId: string) =>
+    `/workspace/${workspaceId}/jams/${jamId}/access-requests`,
+  jamEditAccessRequest: (
+    workspaceId: string,
+    jamId: string,
+    requestId: string,
+  ) => `/workspace/${workspaceId}/jams/${jamId}/access-requests/${requestId}`,
   jamArchive: (workspaceId: string, jamId: string) =>
     `/workspace/${workspaceId}/jams/${jamId}/archive`,
   jamUnarchive: (workspaceId: string, jamId: string) =>
@@ -102,6 +114,22 @@ export const updateWorkspaceJamContent = async (data: {
   );
 };
 
+export const createWorkspaceJamComment = async (data: {
+  workspaceId: string;
+  jamId: string;
+  payload: CreateWorkspaceJamCommentRequestBody;
+}) => {
+  return await axiosInstance.post<{
+    message: string;
+    jam: WorkspaceJamRecord;
+    commentId: string;
+    replyId: string;
+  }>(
+    WORKSPACE_JAM_ENDPOINTS.jamComments(data.workspaceId, data.jamId),
+    data.payload,
+  );
+};
+
 export const shareWorkspaceJam = async (data: {
   workspaceId: string;
   jamId: string;
@@ -113,6 +141,39 @@ export const shareWorkspaceJam = async (data: {
     announcementsCount: number;
   }>(
     WORKSPACE_JAM_ENDPOINTS.jamShare(data.workspaceId, data.jamId),
+    data.payload,
+  );
+};
+
+export const requestWorkspaceJamEditAccess = async (data: {
+  workspaceId: string;
+  jamId: string;
+  payload: RequestWorkspaceJamEditAccessRequestBody;
+}) => {
+  return await axiosInstance.post<{
+    message: string;
+    jam: WorkspaceJamRecord;
+  }>(
+    WORKSPACE_JAM_ENDPOINTS.jamEditAccessRequests(data.workspaceId, data.jamId),
+    data.payload,
+  );
+};
+
+export const reviewWorkspaceJamEditAccessRequest = async (data: {
+  workspaceId: string;
+  jamId: string;
+  requestId: string;
+  payload: ReviewWorkspaceJamEditAccessRequestBody;
+}) => {
+  return await axiosInstance.patch<{
+    message: string;
+    jam: WorkspaceJamRecord;
+  }>(
+    WORKSPACE_JAM_ENDPOINTS.jamEditAccessRequest(
+      data.workspaceId,
+      data.jamId,
+      data.requestId,
+    ),
     data.payload,
   );
 };

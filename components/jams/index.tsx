@@ -7,13 +7,18 @@ import {
   ArchiveRestore,
   Brush,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Eye,
+  History,
   Minimize2,
   MoreHorizontal,
   Pencil,
   Plus,
+  Reply,
   Search,
+  Send,
   Share2,
   Shapes,
   Hash,
@@ -24,12 +29,17 @@ import {
   Magnet,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Mention, MentionItem, MentionsInput, OnChangeHandlerFunc } from "react-mentions";
+import { useTheme } from "next-themes";
 import { toast } from "sonner";
 
 import useWorkspaceJam from "@/hooks/use-workspace-jam";
 import { useDebounce } from "@/hooks/use-debounce";
+import useAuthStore from "@/stores/auth";
 import useWorkspaceStore from "@/stores/workspace";
 import {
+  WorkspaceJamActivityRecord,
+  WorkspaceJamMentionRecord,
   WorkspaceJamRecord,
   WorkspaceJamScopeFilter,
   WorkspaceJamVisibility,
@@ -50,6 +60,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Select,
   SelectContent,
@@ -188,6 +207,82 @@ const formatDateTime = (value?: string | null) => {
   }).format(date);
 };
 
+const formatRelativeTime = (value?: string | null) => {
+  if (!value) {
+    return "just now";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "just now";
+  }
+
+  const deltaMs = Date.now() - date.getTime();
+  const minutes = Math.round(deltaMs / (60 * 1000));
+
+  if (minutes < 1) {
+    return "just now";
+  }
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  const days = Math.round(hours / 24);
+  if (days < 7) {
+    return `${days}d ago`;
+  }
+
+  return formatDateTime(value);
+};
+
+const formatMentionLabel = (label?: string, fallbackId?: string) => {
+  const normalized = String(label || fallbackId || "")
+    .replace(/^@+/, "")
+    .trim();
+
+  return normalized || String(fallbackId || "").trim();
+};
+
+const toJamMentionPayload = (
+  mentions: MentionItem[],
+): WorkspaceJamMentionRecord[] => {
+  const byKey = new Map<string, WorkspaceJamMentionRecord>();
+
+  mentions.forEach((mention) => {
+    const rawId = String(mention?.id || "").trim();
+    const [kind, id] = rawId.split(":");
+
+    if ((kind !== "user" && kind !== "team") || !id) {
+      return;
+    }
+
+    byKey.set(`${kind}:${id}`, {
+      kind,
+      id,
+      label: formatMentionLabel(mention?.display, id),
+    });
+  });
+
+  return Array.from(byKey.values());
+};
+
+const buildJamMentionChipLabel = (mention: WorkspaceJamMentionRecord) => {
+  const baseLabel = formatMentionLabel(mention.label, mention.id);
+  if (mention.kind === "team") {
+    const teamLabel = baseLabel.startsWith("team:")
+      ? baseLabel
+      : `team:${baseLabel}`;
+    return `@${teamLabel}`;
+  }
+
+  return `@${baseLabel}`;
+};
+
 const JAMS_SCOPE_OPTIONS: Array<{
   value: WorkspaceJamScopeFilter;
   label: string;
@@ -248,6 +343,8 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  const { resolvedTheme } = useTheme();
+  const { user } = useAuthStore();
   const { workspaceId } = useWorkspaceStore();
   const {
     useWorkspaceJams,
@@ -256,9 +353,12 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
     useCreateWorkspaceJam,
     useUpdateWorkspaceJam,
     useUpdateWorkspaceJamContent,
+    useCreateWorkspaceJamComment,
     useShareWorkspaceJam,
     useArchiveWorkspaceJam,
     useUnarchiveWorkspaceJam,
+    useRequestWorkspaceJamEditAccess,
+    useReviewWorkspaceJamEditAccessRequest,
   } = useWorkspaceJam();
 
   const [listSearch, setListSearch] = React.useState("");
@@ -271,12 +371,26 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   const [isCanvasFocusMode, setIsCanvasFocusMode] =
     React.useState(isRoutedCanvasMode);
   const [isSnapEnabled, setIsSnapEnabled] = React.useState(true);
+  const [isCanvasSidePanelOpen, setIsCanvasSidePanelOpen] =
+    React.useState(false);
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false);
   const [createTitle, setCreateTitle] = React.useState("");
   const [createDescription, setCreateDescription] = React.useState("");
   const [createVisibility, setCreateVisibility] =
     React.useState<WorkspaceJamVisibility>("private");
+  const [canvasPanelTab, setCanvasPanelTab] = React.useState<
+    "discussion" | "history"
+  >("discussion");
+  const [commentDraftMarkup, setCommentDraftMarkup] = React.useState("");
+  const [commentDraftPlain, setCommentDraftPlain] = React.useState("");
+  const [commentMentions, setCommentMentions] = React.useState<MentionItem[]>(
+    [],
+  );
+  const [activeReplyCommentId, setActiveReplyCommentId] = React.useState("");
+  const [replyDraftMarkup, setReplyDraftMarkup] = React.useState("");
+  const [replyDraftPlain, setReplyDraftPlain] = React.useState("");
+  const [replyMentions, setReplyMentions] = React.useState<MentionItem[]>([]);
 
   const [renameJamState, setRenameJamState] =
     React.useState<RenameJamState>(defaultRenameState);
@@ -286,6 +400,12 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
     defaultShareSelection,
   );
   const [shareSearch, setShareSearch] = React.useState("");
+  const [isEditAccessRequestDialogOpen, setIsEditAccessRequestDialogOpen] =
+    React.useState(false);
+  const [requestEditAccessJamId, setRequestEditAccessJamId] =
+    React.useState("");
+  const [editAccessRequestMessage, setEditAccessRequestMessage] =
+    React.useState("");
   const lastCanvasRefetchKeyRef = React.useRef("");
 
   const debouncedListSearch = useDebounce(listSearch, 300);
@@ -356,6 +476,14 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
       document.body.style.overflow = previousOverflow;
     };
   }, [isCanvasFocusMode]);
+
+  React.useEffect(() => {
+    if (!isCanvasFocusMode) {
+      return;
+    }
+
+    setIsCanvasSidePanelOpen(false);
+  }, [activeJamId, isCanvasFocusMode]);
 
   React.useEffect(() => {
     if (!shouldAutoOpenCreateDialog || isRoutedCanvasMode || !workspaceKey) {
@@ -478,6 +606,97 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
     () => shareTargetsData?.rooms || [],
     [shareTargetsData?.rooms],
   );
+  const mentionTargetsQuery = useWorkspaceJamShareTargets(
+    workspaceKey,
+    { search: "", limit: 250 },
+    {
+      enabled: !!workspaceKey && !!activeJamId && isCanvasFocusMode,
+    },
+  );
+  const mentionTargetsData = mentionTargetsQuery.data?.data;
+  const mentionTargetUsers = React.useMemo(
+    () => mentionTargetsData?.users || [],
+    [mentionTargetsData?.users],
+  );
+  const mentionTargetTeams = React.useMemo(
+    () => mentionTargetsData?.teams || [],
+    [mentionTargetsData?.teams],
+  );
+  const currentUserId = String(user?._id || "").trim();
+  const mentionSuggestions = React.useMemo(
+    () => [
+      ...mentionTargetUsers
+        .filter((entry) => String(entry?.id || "") !== currentUserId)
+        .map((entry) => ({
+          id: `user:${entry.id}`,
+          display: entry.name,
+        })),
+      ...mentionTargetTeams.map((entry) => ({
+        id: `team:${entry.id}`,
+        display: `team:${entry.name}`,
+      })),
+    ],
+    [currentUserId, mentionTargetTeams, mentionTargetUsers],
+  );
+
+  const mentionListBg =
+    resolvedTheme === "dark" ? "#000000" : "hsl(var(--popover))";
+  const mentionListText =
+    resolvedTheme === "dark" ? "#ffffff" : "hsl(var(--popover-foreground))";
+  const mentionFocusedBg =
+    resolvedTheme === "dark" ? "hsl(var(--accent) / 0.35)" : "hsl(var(--muted))";
+  const mentionFocusedText =
+    resolvedTheme === "dark" ? "#ffffff" : "hsl(var(--foreground))";
+  const mentionComposerStyle = React.useMemo(
+    () => ({
+      control: {
+        width: "100%",
+        minHeight: 34,
+        borderRadius: 8,
+        border: "1px solid hsl(var(--border) / 0.45)",
+        background: "hsl(var(--background))",
+        color: "hsl(var(--foreground))",
+        fontSize: 12,
+        lineHeight: 1.4,
+      },
+      highlighter: {
+        padding: "8px 10px",
+        overflow: "hidden",
+        color: "transparent",
+      },
+      input: {
+        margin: 0,
+        padding: "8px 10px",
+        outline: 0,
+        border: 0,
+        backgroundColor: "transparent",
+        color: "hsl(var(--foreground))",
+      },
+      suggestions: {
+        list: {
+          backgroundColor: mentionListBg,
+          color: mentionListText,
+          border: "1px solid hsl(var(--border) / 0.45)",
+          boxShadow: "0 8px 24px rgba(0,0,0,.22)",
+          fontSize: 12,
+          overflow: "hidden",
+          zIndex: 120,
+        },
+        item: {
+          display: "block",
+          padding: "6px 8px",
+          backgroundColor: mentionListBg,
+          color: mentionListText,
+          borderBottom: "1px solid hsl(var(--border) / 0.2)",
+          "&focused": {
+            backgroundColor: mentionFocusedBg,
+            color: mentionFocusedText,
+          },
+        },
+      },
+    }),
+    [mentionFocusedBg, mentionFocusedText, mentionListBg, mentionListText],
+  );
 
   const shareRecipientOptions = React.useMemo<ShareRecipientOption[]>(() => {
     const people = shareTargetUsers.map((user) => ({
@@ -555,9 +774,13 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   const createJamMutation = useCreateWorkspaceJam();
   const updateJamMutation = useUpdateWorkspaceJam();
   const updateJamContentMutation = useUpdateWorkspaceJamContent();
+  const createJamCommentMutation = useCreateWorkspaceJamComment();
   const shareJamMutation = useShareWorkspaceJam();
   const archiveJamMutation = useArchiveWorkspaceJam();
   const unarchiveJamMutation = useUnarchiveWorkspaceJam();
+  const requestWorkspaceJamEditAccessMutation = useRequestWorkspaceJamEditAccess();
+  const reviewWorkspaceJamEditAccessRequestMutation =
+    useReviewWorkspaceJamEditAccessRequest();
 
   const invalidateJamQueries = React.useCallback(async () => {
     await Promise.all([
@@ -646,7 +869,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
 
   const handleArchiveToggle = React.useCallback(
     async (jam: WorkspaceJamRecord) => {
-      if (!workspaceKey || !jam.canEdit) {
+      if (!workspaceKey || !jam.canManage) {
         return;
       }
 
@@ -974,7 +1197,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   );
 
   const handleShareJam = async () => {
-    if (!workspaceKey || !activeJam) {
+    if (!workspaceKey || !activeJam || !activeJam.canManage) {
       return;
     }
 
@@ -1002,6 +1225,211 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
       // handled by hook
     }
   };
+
+  const handleRequestEditAccess = async () => {
+    const targetJamId =
+      requestEditAccessJamId || String(activeJam?.jamId || "").trim();
+    if (!workspaceKey || !targetJamId) {
+      return;
+    }
+
+    try {
+      await requestWorkspaceJamEditAccessMutation.mutateAsync({
+        workspaceId: workspaceKey,
+        jamId: targetJamId,
+        payload: {
+          message: editAccessRequestMessage.trim(),
+        },
+      });
+      await invalidateJamQueries();
+      setIsEditAccessRequestDialogOpen(false);
+      setEditAccessRequestMessage("");
+      setRequestEditAccessJamId("");
+      toast.success("Edit access request sent");
+    } catch {
+      // handled by hook
+    }
+  };
+
+  const handleReviewEditAccessRequest = React.useCallback(
+    async (requestId: string, action: "approve" | "reject") => {
+      if (!workspaceKey || !activeJam) {
+        return;
+      }
+
+      try {
+        await reviewWorkspaceJamEditAccessRequestMutation.mutateAsync({
+          workspaceId: workspaceKey,
+          jamId: activeJam.jamId,
+          requestId,
+          payload: { action },
+        });
+        await invalidateJamQueries();
+        toast.success(
+          action === "approve"
+            ? "Edit request approved"
+            : "Edit request declined",
+        );
+      } catch {
+        // handled by hook
+      }
+    },
+    [
+      activeJam,
+      invalidateJamQueries,
+      reviewWorkspaceJamEditAccessRequestMutation,
+      workspaceKey,
+    ],
+  );
+
+  const syncJamDetailCache = React.useCallback(
+    (jam: WorkspaceJamRecord | undefined) => {
+      if (!jam || !workspaceKey || !jam.jamId) {
+        return;
+      }
+
+      queryClient.setQueryData(
+        ["workspace-jam-detail", workspaceKey, jam.jamId, true],
+        (previous: unknown) => {
+          if (!previous || typeof previous !== "object") {
+            return previous;
+          }
+
+          const previousResponse = previous as {
+            data?: {
+              message?: string;
+              jam?: WorkspaceJamRecord;
+            };
+          };
+
+          return {
+            ...previousResponse,
+            data: {
+              ...(previousResponse.data || {
+                message: "Retrieved successfully",
+              }),
+              jam,
+            },
+          };
+        },
+      );
+    },
+    [queryClient, workspaceKey],
+  );
+
+  const handleCommentInputChange: OnChangeHandlerFunc = (
+    _event,
+    newValue,
+    newPlainTextValue,
+    mentions,
+  ) => {
+    setCommentDraftMarkup(newValue);
+    setCommentDraftPlain(newPlainTextValue);
+    setCommentMentions(mentions);
+  };
+
+  const handleReplyInputChange: OnChangeHandlerFunc = (
+    _event,
+    newValue,
+    newPlainTextValue,
+    mentions,
+  ) => {
+    setReplyDraftMarkup(newValue);
+    setReplyDraftPlain(newPlainTextValue);
+    setReplyMentions(mentions);
+  };
+
+  const resetReplyDraft = React.useCallback(() => {
+    setActiveReplyCommentId("");
+    setReplyDraftMarkup("");
+    setReplyDraftPlain("");
+    setReplyMentions([]);
+  }, []);
+
+  React.useEffect(() => {
+    setCanvasPanelTab("discussion");
+    setCommentDraftMarkup("");
+    setCommentDraftPlain("");
+    setCommentMentions([]);
+    resetReplyDraft();
+  }, [activeJam?.jamId, resetReplyDraft]);
+
+  const handlePostComment = async () => {
+    if (!workspaceKey || !activeJam?.jamId || !commentDraftPlain.trim()) {
+      return;
+    }
+
+    try {
+      const response = await createJamCommentMutation.mutateAsync({
+        workspaceId: workspaceKey,
+        jamId: activeJam.jamId,
+        payload: {
+          message: commentDraftPlain.trim(),
+          mentions: toJamMentionPayload(commentMentions),
+        },
+      });
+
+      syncJamDetailCache(response.data?.jam);
+      setCommentDraftMarkup("");
+      setCommentDraftPlain("");
+      setCommentMentions([]);
+      toast.success("Comment posted");
+    } catch {
+      // handled by hook
+    }
+  };
+
+  const handlePostReply = async () => {
+    if (
+      !workspaceKey ||
+      !activeJam?.jamId ||
+      !activeReplyCommentId ||
+      !replyDraftPlain.trim()
+    ) {
+      return;
+    }
+
+    try {
+      const response = await createJamCommentMutation.mutateAsync({
+        workspaceId: workspaceKey,
+        jamId: activeJam.jamId,
+        payload: {
+          parentCommentId: activeReplyCommentId,
+          message: replyDraftPlain.trim(),
+          mentions: toJamMentionPayload(replyMentions),
+        },
+      });
+
+      syncJamDetailCache(response.data?.jam);
+      resetReplyDraft();
+      toast.success("Reply posted");
+    } catch {
+      // handled by hook
+    }
+  };
+
+  const renderMentionBadges = React.useCallback(
+    (mentions: WorkspaceJamMentionRecord[]) => {
+      if (!Array.isArray(mentions) || !mentions.length) {
+        return null;
+      }
+
+      return (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {mentions.map((mention, index) => (
+            <Badge
+              key={`${mention.kind}:${mention.id}:${index}`}
+              variant="secondary"
+              className="h-5 px-1.5 text-[10px]"
+            >
+              {buildJamMentionChipLabel(mention)}
+            </Badge>
+          ))}
+        </div>
+      );
+    },
+    [],
+  );
 
   const jamListLoading =
     !isRoutedCanvasMode && jamsQuery.isLoading && !jamRows.length;
@@ -1100,6 +1528,12 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                           onRename={() => openRenameDialog(jam)}
                           onShare={() => openShareDialog(jam.jamId)}
                           onToggleArchive={() => handleArchiveToggle(jam)}
+                          onRequestEditAccess={() => {
+                            setActiveJamId(jam.jamId);
+                            setRequestEditAccessJamId(jam.jamId);
+                            setEditAccessRequestMessage("");
+                            setIsEditAccessRequestDialogOpen(true);
+                          }}
                         />
                       ))}
                     </div>
@@ -1152,10 +1586,46 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                   {isSnapEnabled ? "Snap on" : "Snap off"}
                 </Button>
               ) : null}
+              {activeJam?.canManage &&
+              Number(activeJam?.pendingEditAccessRequestCount || 0) > 0 ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 px-2.5"
+                  onClick={() => setIsShareDialogOpen(true)}
+                >
+                  {activeJam.pendingEditAccessRequestCount} request
+                  {activeJam.pendingEditAccessRequestCount === 1 ? "" : "s"}
+                </Button>
+              ) : null}
               {activeJam && !activeJam.canEdit ? (
                 <Badge variant="secondary" className="text-[10px]">
                   Read only
                 </Badge>
+              ) : null}
+              {activeJam && !activeJam.canEdit ? (
+                <Button
+                  size="sm"
+                  variant={
+                    activeJam.hasPendingEditAccessRequest
+                      ? "secondary"
+                      : "outline"
+                  }
+                  className="h-8 px-2.5"
+                  disabled={
+                    activeJam.hasPendingEditAccessRequest ||
+                    requestWorkspaceJamEditAccessMutation.isPending
+                  }
+                  loading={requestWorkspaceJamEditAccessMutation.isPending}
+                  onClick={() => {
+                    setRequestEditAccessJamId(activeJam.jamId);
+                    setIsEditAccessRequestDialogOpen(true);
+                  }}
+                >
+                  {activeJam.hasPendingEditAccessRequest
+                    ? "Request pending"
+                    : "Request edit"}
+                </Button>
               ) : null}
               <Button
                 size="sm"
@@ -1174,29 +1644,303 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                 <Minimize2 className="size-3.5" />
                 Exit
               </Button>
+              <Button
+                size="icon"
+                variant={isCanvasSidePanelOpen ? "secondary" : "outline"}
+                className="size-8"
+                onClick={() => setIsCanvasSidePanelOpen((value) => !value)}
+                aria-label={
+                  isCanvasSidePanelOpen ? "Close jam panel" : "Open jam panel"
+                }
+                title={
+                  isCanvasSidePanelOpen ? "Close jam panel" : "Open jam panel"
+                }
+              >
+                {isCanvasSidePanelOpen ? (
+                  <ChevronRight className="size-3.5" />
+                ) : (
+                  <ChevronLeft className="size-3.5" />
+                )}
+              </Button>
             </div>
           </div>
-          <div className="relative min-h-0 flex-1">
+          <div className="min-h-0 flex-1">
             {jamDetailQuery.isLoading || !activeJam ? (
               <LoaderComponent />
             ) : (
-              <JamCanvas
-                jamId={activeJam.jamId}
-                snapshot={resolvedCanvasSnapshot}
-                canEdit={Boolean(activeJam.canEdit)}
-                gridModeEnabled={Boolean(activeJam.canEdit) && isSnapEnabled}
-                onSnapshotChange={handleCanvasSnapshotChange}
-                onRegisterSnapshotGetter={(getter) => {
-                  latestCanvasSnapshotGetterRef.current = getter;
-                }}
-              />
-            )}
-            {updateJamContentMutation.isPending ? (
-              <div className="bg-background/80 text-muted-foreground absolute right-3 bottom-3 z-30 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px]">
-                <Loader className="size-3 animate-spin" />
-                Saving...
+              <div className="flex h-full min-h-0">
+                <div className="relative min-h-0 flex-1">
+                  <JamCanvas
+                    jamId={activeJam.jamId}
+                    snapshot={resolvedCanvasSnapshot}
+                    canEdit={Boolean(activeJam.canEdit)}
+                    gridModeEnabled={Boolean(activeJam.canEdit) && isSnapEnabled}
+                    onSnapshotChange={handleCanvasSnapshotChange}
+                    onRegisterSnapshotGetter={(getter) => {
+                      latestCanvasSnapshotGetterRef.current = getter;
+                    }}
+                  />
+                  {updateJamContentMutation.isPending ? (
+                    <div className="bg-background/80 text-muted-foreground absolute right-3 bottom-3 z-30 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px]">
+                      <Loader className="size-3 animate-spin" />
+                      Saving...
+                    </div>
+                  ) : null}
+                </div>
+                <Sheet
+                  open={isCanvasSidePanelOpen}
+                  onOpenChange={setIsCanvasSidePanelOpen}
+                >
+                  <SheetContent
+                    side="right"
+                    showCloseButton={false}
+                    className="w-[92vw] max-w-none p-0 sm:max-w-[22rem]"
+                  >
+                    <SheetHeader className="sr-only">
+                      <SheetTitle>Jam panel</SheetTitle>
+                      <SheetDescription>
+                        Discussion and history for this jam.
+                      </SheetDescription>
+                    </SheetHeader>
+                    <Tabs
+                      value={canvasPanelTab}
+                      onValueChange={(value) =>
+                        setCanvasPanelTab(value as "discussion" | "history")
+                      }
+                      className="flex h-full min-h-0 flex-col"
+                    >
+                      <div className="border-b border-border/40 px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <TabsList className="grid h-8 min-w-0 flex-1 grid-cols-2">
+                            <TabsTrigger
+                              value="discussion"
+                              className="h-7 text-[11px]"
+                            >
+                              Discussion
+                            </TabsTrigger>
+                            <TabsTrigger
+                              value="history"
+                              className="h-7 text-[11px]"
+                            >
+                              History
+                            </TabsTrigger>
+                          </TabsList>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="size-7 shrink-0"
+                            onClick={() => setIsCanvasSidePanelOpen(false)}
+                            aria-label="Close jam panel"
+                            title="Close jam panel"
+                          >
+                            <X className="size-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <TabsContent
+                        value="discussion"
+                        className="mt-0 flex min-h-0 flex-1 flex-col"
+                      >
+                        <ScrollArea className="min-h-0 flex-1 px-3 py-2">
+                          {Array.isArray(activeJam.comments) &&
+                          activeJam.comments.length ? (
+                            <div className="space-y-2.5 pb-3">
+                              {activeJam.comments.map((comment) => (
+                                <div
+                                  key={comment.id}
+                                  className="bg-muted/20 border-border/35 rounded-md border p-2"
+                                >
+                                  <div className="flex items-start gap-2">
+                                    <Avatar className="size-6">
+                                      <AvatarImage
+                                        src={comment.user?.avatarUrl || ""}
+                                        alt={comment.user?.name || "User"}
+                                      />
+                                      <AvatarFallback className="text-[10px]">
+                                        {comment.user?.initials || "U"}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <p className="truncate text-[11px] font-medium">
+                                          {comment.user?.name || "Workspace member"}
+                                        </p>
+                                        <p className="text-muted-foreground shrink-0 text-[10px]">
+                                          {formatRelativeTime(comment.createdAt)}
+                                        </p>
+                                      </div>
+                                      <p className="mt-1 whitespace-pre-wrap text-[12px]">
+                                        {comment.message}
+                                      </p>
+                                      {renderMentionBadges(comment.mentions || [])}
+                                      <button
+                                        type="button"
+                                        className="text-muted-foreground hover:text-foreground mt-1 inline-flex items-center gap-1 text-[10.5px]"
+                                        onClick={() => {
+                                          if (
+                                            activeReplyCommentId === comment.id
+                                          ) {
+                                            resetReplyDraft();
+                                          } else {
+                                            setActiveReplyCommentId(comment.id);
+                                            setReplyDraftMarkup("");
+                                            setReplyDraftPlain("");
+                                            setReplyMentions([]);
+                                          }
+                                        }}
+                                      >
+                                        <Reply className="size-3" />
+                                        Reply
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {Array.isArray(comment.replies) &&
+                                  comment.replies.length ? (
+                                    <div className="mt-2 space-y-1.5 border-l border-border/35 pl-3">
+                                      {comment.replies.map((reply) => (
+                                        <div key={reply.id} className="space-y-0.5">
+                                          <div className="flex items-center gap-1.5">
+                                            <p className="text-[10.5px] font-medium">
+                                              {reply.user?.name || "Workspace member"}
+                                            </p>
+                                            <p className="text-muted-foreground text-[10px]">
+                                              {formatRelativeTime(reply.createdAt)}
+                                            </p>
+                                          </div>
+                                          <p className="text-[11px]">
+                                            {reply.message}
+                                          </p>
+                                          {renderMentionBadges(
+                                            reply.mentions || [],
+                                          )}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                  {activeReplyCommentId === comment.id ? (
+                                    <div className="mt-2 space-y-1.5 border-t border-border/30 pt-2">
+                                      <MentionsInput
+                                        value={replyDraftMarkup}
+                                        onChange={handleReplyInputChange}
+                                        placeholder="Reply with @mentions"
+                                        allowSuggestionsAboveCursor
+                                        className="w-full"
+                                        style={mentionComposerStyle}
+                                        disabled={createJamCommentMutation.isPending}
+                                      >
+                                        <Mention
+                                          trigger="@"
+                                          data={mentionSuggestions}
+                                          markup="@[__display__](__id__)"
+                                          displayTransform={(_id, display) =>
+                                            `@${display}`
+                                          }
+                                          appendSpaceOnAdd
+                                        />
+                                      </MentionsInput>
+                                      <div className="flex items-center justify-end gap-1.5">
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="ghost"
+                                          className="h-7 px-2 text-[11px]"
+                                          onClick={resetReplyDraft}
+                                        >
+                                          Cancel
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          className="h-7 px-2 text-[11px]"
+                                          onClick={() => void handlePostReply()}
+                                          disabled={
+                                            createJamCommentMutation.isPending ||
+                                            !replyDraftPlain.trim()
+                                          }
+                                          loading={createJamCommentMutation.isPending}
+                                        >
+                                          <Send className="size-3.5" />
+                                          Reply
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-muted-foreground py-8 text-center text-[11px]">
+                              No comments yet. Start the discussion.
+                            </div>
+                          )}
+                        </ScrollArea>
+                        <div className="border-t border-border/35 p-2">
+                          <MentionsInput
+                            value={commentDraftMarkup}
+                            onChange={handleCommentInputChange}
+                            placeholder="Comment with @mentions"
+                            allowSuggestionsAboveCursor
+                            className="w-full"
+                            style={mentionComposerStyle}
+                            disabled={createJamCommentMutation.isPending}
+                          >
+                            <Mention
+                              trigger="@"
+                              data={mentionSuggestions}
+                              markup="@[__display__](__id__)"
+                              displayTransform={(_id, display) => `@${display}`}
+                              appendSpaceOnAdd
+                            />
+                          </MentionsInput>
+                          <div className="mt-1.5 flex items-center justify-between gap-1.5">
+                            <p className="text-muted-foreground text-[10px]">
+                              Tag teammates or teams to request feedback.
+                            </p>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-7 px-2 text-[11px]"
+                              onClick={() => void handlePostComment()}
+                              disabled={
+                                createJamCommentMutation.isPending ||
+                                !commentDraftPlain.trim()
+                              }
+                              loading={createJamCommentMutation.isPending}
+                            >
+                              <Send className="size-3.5" />
+                              Send
+                            </Button>
+                          </div>
+                        </div>
+                      </TabsContent>
+                      <TabsContent
+                        value="history"
+                        className="mt-0 min-h-0 flex-1 overflow-hidden"
+                      >
+                        <ScrollArea className="h-full px-3 py-2">
+                          {Array.isArray(activeJam.activity) &&
+                          activeJam.activity.length ? (
+                            <div className="space-y-2 pb-3">
+                              {activeJam.activity.map((activity) => (
+                                <JamActivityRow
+                                  key={activity.id}
+                                  activity={activity}
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-muted-foreground py-8 text-center text-[11px]">
+                              No activity yet.
+                            </div>
+                          )}
+                        </ScrollArea>
+                      </TabsContent>
+                    </Tabs>
+                  </SheetContent>
+                </Sheet>
               </div>
-            ) : null}
+            )}
           </div>
         </div>
       ) : null}
@@ -1320,6 +2064,49 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={isEditAccessRequestDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditAccessRequestDialogOpen(open);
+          if (!open) {
+            setRequestEditAccessJamId("");
+            setEditAccessRequestMessage("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Request edit access</DialogTitle>
+            <DialogDescription>
+              Send a request to the jam owner so you can continue from this
+              point.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-1.5">
+            <Label htmlFor="jam-edit-request-message">
+              Optional message to owner
+            </Label>
+            <Textarea
+              id="jam-edit-request-message"
+              value={editAccessRequestMessage}
+              onChange={(event) => setEditAccessRequestMessage(event.target.value)}
+              maxLength={400}
+              placeholder="I need edit access to continue this board."
+              className="min-h-[90px] text-[12px]"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              onClick={handleRequestEditAccess}
+              disabled={requestWorkspaceJamEditAccessMutation.isPending}
+              loading={requestWorkspaceJamEditAccessMutation.isPending}
+            >
+              Send request
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
@@ -1417,6 +2204,71 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                 </p>
               )}
             </div>
+            {activeJam?.canManage &&
+            Array.isArray(activeJam.pendingEditAccessRequests) &&
+            activeJam.pendingEditAccessRequests.length ? (
+              <div className="bg-muted/20 border-border/45 space-y-2 rounded-md border p-2">
+                <p className="text-[11px] font-medium">
+                  Edit access requests
+                </p>
+                <div className="space-y-1.5">
+                  {activeJam.pendingEditAccessRequests.map((request) => (
+                    <div
+                      key={request.id}
+                      className="bg-background/60 border-border/40 flex items-start justify-between gap-2 rounded-md border px-2 py-1.5"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-[12px] font-medium">
+                          {request.requester?.name || "Workspace member"}
+                        </p>
+                        <p className="text-muted-foreground truncate text-[11px]">
+                          {request.requester?.email || "No email"}
+                        </p>
+                        {request.message ? (
+                          <p className="text-muted-foreground mt-0.5 line-clamp-2 text-[11px]">
+                            {request.message}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="size-7"
+                          disabled={
+                            reviewWorkspaceJamEditAccessRequestMutation.isPending
+                          }
+                          onClick={() =>
+                            void handleReviewEditAccessRequest(
+                              request.id,
+                              "approve",
+                            )
+                          }
+                        >
+                          <Check className="size-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="outline"
+                          className="size-7"
+                          disabled={
+                            reviewWorkspaceJamEditAccessRequestMutation.isPending
+                          }
+                          onClick={() =>
+                            void handleReviewEditAccessRequest(
+                              request.id,
+                              "reject",
+                            )
+                          }
+                        >
+                          <X className="size-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
           <Separator />
           <div className="grid gap-2">
@@ -1470,296 +2322,7 @@ type JamListCardProps = {
   onRename: () => void;
   onShare: () => void;
   onToggleArchive: () => void;
-};
-
-type JamPreviewPoint = { x: number; y: number };
-type JamPreviewElement = {
-  id: string;
-  type: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  strokeColor: string;
-  backgroundColor: string;
-  strokeWidth: number;
-  points: JamPreviewPoint[];
-  text: string;
-  fontSize: number;
-};
-
-const toFinite = (value: unknown, fallback = 0) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-};
-
-const toPreviewPoints = (value: unknown): JamPreviewPoint[] => {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .map((point) => {
-      if (!Array.isArray(point) || point.length < 2) {
-        return null;
-      }
-
-      const x = toFinite(point[0], 0);
-      const y = toFinite(point[1], 0);
-      return { x, y };
-    })
-    .filter((entry): entry is JamPreviewPoint => !!entry);
-};
-
-const getJamPreviewElements = (
-  snapshot: Record<string, unknown> | null | undefined,
-) => {
-  const elements = Array.isArray(snapshot?.elements)
-    ? (snapshot.elements as Array<Record<string, unknown>>)
-    : [];
-
-  return elements
-    .filter((element) => !Boolean(element?.isDeleted))
-    .map((element) => ({
-      id: String(element?.id || Math.random().toString(36).slice(2)),
-      type: String(element?.type || "rectangle"),
-      x: toFinite(element?.x, 0),
-      y: toFinite(element?.y, 0),
-      width: toFinite(element?.width, 0),
-      height: toFinite(element?.height, 0),
-      strokeColor:
-        typeof element?.strokeColor === "string"
-          ? element.strokeColor
-          : "#8f8f8f",
-      backgroundColor:
-        typeof element?.backgroundColor === "string"
-          ? element.backgroundColor
-          : "transparent",
-      strokeWidth: Math.max(1, toFinite(element?.strokeWidth, 1)),
-      points: toPreviewPoints(element?.points),
-      text: typeof element?.text === "string" ? element.text : "",
-      fontSize: Math.max(10, toFinite(element?.fontSize, 16)),
-    }))
-    .slice(0, 120);
-};
-
-const getPreviewElementBounds = (element: JamPreviewElement) => {
-  const isPathLike =
-    element.type === "line" ||
-    element.type === "arrow" ||
-    element.type === "draw" ||
-    element.type === "freedraw";
-
-  if (isPathLike && element.points.length > 0) {
-    const first = element.points[0];
-    const initial = {
-      minX: element.x + first.x,
-      minY: element.y + first.y,
-      maxX: element.x + first.x,
-      maxY: element.y + first.y,
-    };
-
-    return element.points.slice(1).reduce((acc, point) => {
-      const absoluteX = element.x + point.x;
-      const absoluteY = element.y + point.y;
-      return {
-        minX: Math.min(acc.minX, absoluteX),
-        minY: Math.min(acc.minY, absoluteY),
-        maxX: Math.max(acc.maxX, absoluteX),
-        maxY: Math.max(acc.maxY, absoluteY),
-      };
-    }, initial);
-  }
-
-  const computedWidth =
-    Math.abs(element.width) > 0
-      ? element.width
-      : element.type === "text"
-        ? Math.max(12, element.text.length * (element.fontSize * 0.55))
-        : 6;
-  const computedHeight =
-    Math.abs(element.height) > 0
-      ? element.height
-      : element.type === "text"
-        ? Math.max(12, element.fontSize * 1.4)
-        : 6;
-
-  const x2 = element.x + computedWidth;
-  const y2 = element.y + computedHeight;
-  return {
-    minX: Math.min(element.x, x2),
-    minY: Math.min(element.y, y2),
-    maxX: Math.max(element.x, x2),
-    maxY: Math.max(element.y, y2),
-  };
-};
-
-const JamCardPreview = ({
-  snapshot,
-}: {
-  snapshot: Record<string, unknown> | null | undefined;
-}) => {
-  const elements = React.useMemo(
-    () => getJamPreviewElements(snapshot),
-    [snapshot],
-  );
-
-  if (!elements.length) {
-    return (
-      <>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_1px_1px,hsl(var(--border))_1px,transparent_0)] bg-[size:10px_10px] opacity-35" />
-      </>
-    );
-  }
-
-  const bounds = elements.reduce(
-    (acc, element) => {
-      const elementBounds = getPreviewElementBounds(element);
-      return {
-        minX: Math.min(acc.minX, elementBounds.minX),
-        minY: Math.min(acc.minY, elementBounds.minY),
-        maxX: Math.max(acc.maxX, elementBounds.maxX),
-        maxY: Math.max(acc.maxY, elementBounds.maxY),
-      };
-    },
-    {
-      minX: Number.POSITIVE_INFINITY,
-      minY: Number.POSITIVE_INFINITY,
-      maxX: Number.NEGATIVE_INFINITY,
-      maxY: Number.NEGATIVE_INFINITY,
-    },
-  );
-
-  const widthSpan = Math.max(1, bounds.maxX - bounds.minX);
-  const heightSpan = Math.max(1, bounds.maxY - bounds.minY);
-
-  return (
-    <svg
-      viewBox="0 0 100 60"
-      className="absolute inset-0 h-full w-full opacity-85"
-      preserveAspectRatio="xMidYMid meet"
-    >
-      {elements.map((element) => {
-        const mapX = (value: number) =>
-          ((value - bounds.minX) / widthSpan) * 88 + 6;
-        const mapY = (value: number) =>
-          ((value - bounds.minY) / heightSpan) * 48 + 6;
-        const strokeWidth = Math.max(0.5, element.strokeWidth * 0.35);
-        const fill =
-          element.backgroundColor && element.backgroundColor !== "transparent"
-            ? element.backgroundColor
-            : "none";
-
-        const rectBounds = getPreviewElementBounds(element);
-        const x = mapX(rectBounds.minX);
-        const y = mapY(rectBounds.minY);
-        const width = Math.max(1.8, mapX(rectBounds.maxX) - x);
-        const height = Math.max(1.8, mapY(rectBounds.maxY) - y);
-
-        if (element.type === "text") {
-          const previewText = element.text.replace(/\n+/g, " ").trim();
-          if (!previewText) {
-            return null;
-          }
-
-          return (
-            <text
-              key={element.id}
-              x={x}
-              y={
-                y +
-                Math.max(3, Math.min(8, (element.fontSize / heightSpan) * 48))
-              }
-              fill={element.strokeColor || "#e5e7eb"}
-              fontSize={Math.max(2.8, (element.fontSize / heightSpan) * 48)}
-              fontWeight={500}
-              className="select-none"
-            >
-              {previewText.slice(0, 120)}
-            </text>
-          );
-        }
-
-        if (
-          element.type === "line" ||
-          element.type === "arrow" ||
-          element.type === "draw" ||
-          element.type === "freedraw"
-        ) {
-          if (!element.points.length) {
-            return null;
-          }
-
-          const points = element.points
-            .map(
-              (point) =>
-                `${mapX(element.x + point.x)},${mapY(element.y + point.y)}`,
-            )
-            .join(" ");
-
-          return (
-            <polyline
-              key={element.id}
-              points={points}
-              fill="none"
-              stroke={element.strokeColor || "#a1a1aa"}
-              strokeWidth={strokeWidth}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              opacity={0.92}
-            />
-          );
-        }
-
-        if (element.type === "ellipse") {
-          return (
-            <ellipse
-              key={element.id}
-              cx={x + width / 2}
-              cy={y + height / 2}
-              rx={Math.max(1.2, width / 2)}
-              ry={Math.max(1.2, height / 2)}
-              fill={fill}
-              stroke={element.strokeColor || "#a1a1aa"}
-              strokeWidth={strokeWidth}
-              opacity={0.92}
-            />
-          );
-        }
-
-        if (element.type === "diamond") {
-          const cx = x + width / 2;
-          const cy = y + height / 2;
-          return (
-            <polygon
-              key={element.id}
-              points={`${cx},${y} ${x + width},${cy} ${cx},${y + height} ${x},${cy}`}
-              fill={fill}
-              stroke={element.strokeColor || "#a1a1aa"}
-              strokeWidth={strokeWidth}
-              opacity={0.92}
-            />
-          );
-        }
-
-        return (
-          <rect
-            key={element.id}
-            x={x}
-            y={y}
-            width={width}
-            height={height}
-            rx={2}
-            ry={2}
-            fill={fill}
-            stroke={element.strokeColor || "#a1a1aa"}
-            strokeWidth={strokeWidth}
-            opacity={0.92}
-          />
-        );
-      })}
-    </svg>
-  );
+  onRequestEditAccess: () => void;
 };
 
 const JamListCard = ({
@@ -1769,52 +2332,65 @@ const JamListCard = ({
   onRename,
   onShare,
   onToggleArchive,
+  onRequestEditAccess,
 }: JamListCardProps) => {
   return (
     <article
       className={cn(
-        "group relative overflow-hidden rounded-lg transition-colors",
-        isActive ? "ring-primary/25 ring-1" : undefined,
+        "group relative overflow-hidden rounded-lg border border-border/45 bg-card transition-colors",
+        isActive ? "bg-accent/10" : undefined,
       )}
     >
       <button
         type="button"
         onClick={onOpen}
-        className="relative h-46 w-full text-left"
+        className={cn(
+          "flex h-46 w-full flex-col justify-between p-2 text-left transition-colors",
+          isActive
+            ? "bg-accent/15 hover:bg-accent/20"
+            : "bg-muted/25 hover:bg-muted/35",
+        )}
       >
-        <div className="from-muted/95 via-muted/65 to-background/80 absolute inset-0 bg-gradient-to-br" />
-        <JamCardPreview snapshot={jam.snapshot || null} />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/5 dark:from-black/80 dark:via-black/35 dark:to-black/10" />
-
-        <div className="relative z-10 flex h-full flex-col justify-between p-2">
+        <div className="flex h-full flex-col justify-between">
           <div className="flex items-start justify-between gap-2">
-            <Badge
-              variant="outline"
-              className="h-5 border-white/30 bg-black/35 px-1.5 text-[8.5px] text-white uppercase backdrop-blur-sm"
-            >
-              {jam.visibility}
-            </Badge>
-            {jam.archived ? (
+            <div className="flex flex-wrap items-center gap-1">
               <Badge
-                variant="secondary"
-                className="h-5 bg-black/45 px-1.5 text-[8.5px] text-white"
+                variant="outline"
+                className="h-5 border-border/40 bg-background/70 px-1.5 text-[8.5px] uppercase"
               >
-                Archived
+                {jam.visibility}
               </Badge>
-            ) : null}
+              {jam.canManage && jam.pendingEditAccessRequestCount > 0 ? (
+                <Badge
+                  variant="secondary"
+                  className="h-5 bg-primary/10 px-1.5 text-[8.5px] text-primary"
+                >
+                  {jam.pendingEditAccessRequestCount} request
+                  {jam.pendingEditAccessRequestCount === 1 ? "" : "s"}
+                </Badge>
+              ) : null}
+              {jam.archived ? (
+                <Badge
+                  variant="secondary"
+                  className="h-5 bg-muted/70 px-1.5 text-[8.5px]"
+                >
+                  Archived
+                </Badge>
+              ) : null}
+            </div>
           </div>
 
           <div className="space-y-1">
-            <div className="inline-flex size-6 items-center justify-center rounded-md bg-black/30 text-white/85 backdrop-blur-sm">
+            <div className="inline-flex size-6 items-center justify-center rounded-md bg-primary/12 text-primary">
               <Shapes className="size-3" />
             </div>
-            <p className="line-clamp-1 text-[12px] font-semibold text-white">
+            <p className="line-clamp-1 text-[12px] font-semibold text-foreground">
               {jam.title}
             </p>
-            <p className="line-clamp-1 text-[10.5px] text-white/85">
+            <p className="text-muted-foreground line-clamp-1 text-[10.5px]">
               {jam.description || "No description"}
             </p>
-            <div className="flex items-center gap-1 text-[10px] text-white/80">
+            <div className="text-muted-foreground flex items-center gap-1 text-[10px]">
               <Clock3 className="size-3" />
               <span className="truncate">
                 {formatDateTime(jam.lastEditedAt || jam.updatedAt)}
@@ -1830,7 +2406,7 @@ const JamListCard = ({
             <Button
               size="icon"
               variant="ghost"
-              className="h-6 w-6 shrink-0 border border-white/20 bg-black/30 text-white hover:bg-black/45 hover:text-white"
+              className="bg-background/75 border-border/35 text-muted-foreground hover:text-foreground hover:bg-muted/70 h-6 w-6 shrink-0 border"
             >
               <MoreHorizontal className="size-3" />
             </Button>
@@ -1840,17 +2416,29 @@ const JamListCard = ({
               <Eye className="size-3.5" />
               Open canvas
             </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={onShare}
-              disabled={!jam.canEdit}
-              className="text-[12px]"
-            >
+              <DropdownMenuItem
+                onClick={onShare}
+                disabled={!jam.canManage}
+                className="text-[12px]"
+              >
               <Share2 className="size-3.5" />
               Share
             </DropdownMenuItem>
+            {!jam.canEdit ? (
+              <DropdownMenuItem
+                onClick={onRequestEditAccess}
+                disabled={jam.hasPendingEditAccessRequest}
+                className="text-[12px]"
+              >
+                <Pencil className="size-3.5" />
+                {jam.hasPendingEditAccessRequest
+                  ? "Request pending"
+                  : "Request edit access"}
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuItem
               onClick={onRename}
-              disabled={!jam.canEdit}
+              disabled={!jam.canManage}
               className="text-[12px]"
             >
               <Pencil className="size-3.5" />
@@ -1859,7 +2447,7 @@ const JamListCard = ({
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={onToggleArchive}
-              disabled={!jam.canEdit}
+              disabled={!jam.canManage}
               className="text-[12px]"
             >
               {jam.archived ? (
@@ -1878,6 +2466,37 @@ const JamListCard = ({
         </DropdownMenu>
       </div>
     </article>
+  );
+};
+
+const JamActivityRow = ({
+  activity,
+}: {
+  activity: WorkspaceJamActivityRecord;
+}) => {
+  return (
+    <div className="bg-muted/20 border-border/35 rounded-md border p-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="inline-flex items-center gap-1.5">
+          <span className="inline-flex size-5 items-center justify-center rounded-full bg-primary/10 text-[10px] font-medium text-primary">
+            {activity.actorInitials || "U"}
+          </span>
+          <p className="text-[11px] font-medium">
+            {activity.actorName || "Workspace member"}
+          </p>
+        </div>
+        <p className="text-muted-foreground text-[10px]">
+          {formatRelativeTime(activity.createdAt)}
+        </p>
+      </div>
+      <div className="mt-1 inline-flex items-center gap-1.5 text-[11px]">
+        <History className="text-muted-foreground size-3.5" />
+        <span>{activity.summary}</span>
+      </div>
+      <p className="text-muted-foreground mt-1 text-[10px] uppercase tracking-wide">
+        {activity.type}
+      </p>
+    </div>
   );
 };
 
