@@ -346,7 +346,9 @@ const SettingsWorkspacePeopleTable = () => {
         .map((team) => ({
           id: String(team?._id || ""),
           name: String(team?.name || ""),
-          status: team?.status === "archived" ? "archived" : "active",
+          status: (team?.status === "archived" ? "archived" : "active") as
+            | "active"
+            | "archived",
         }))
         .filter((team) => Boolean(team.id && team.name));
 
