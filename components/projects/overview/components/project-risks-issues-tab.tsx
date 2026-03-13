@@ -69,6 +69,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { MentionSuggestionRow } from "@/components/shared/mention-suggestion-row";
 
 import {
   ProjectMember,
@@ -124,6 +125,15 @@ type RiskCommentMentionPayload = {
   label: string;
 };
 
+type RiskMentionSuggestion = {
+  id: string | number;
+  display?: string;
+  kind?: MentionKind;
+  avatarUrl?: string;
+  avatarFallback?: string;
+  subtitle?: string;
+};
+
 const SEVERITY_OPTIONS: Array<{
   value: ProjectRiskSeverity | "all";
   label: string;
@@ -174,6 +184,25 @@ function formatMentionLabel(label?: string, id?: string) {
   const source = String(label || fallback).trim();
 
   return source.replace(/^@+/, "") || fallback;
+}
+
+function getMentionInitials(value: string, fallback = "U") {
+  const normalized = String(value || "")
+    .replace(/^(team|project)\s*:/i, "")
+    .trim();
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  const letters = normalized
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+
+  return letters || fallback;
 }
 
 function toRiskDraft(item: ProjectRisk): RiskDraft {
@@ -312,6 +341,10 @@ export function ProjectRisksIssuesTab({
     () => new Map(members.map((member) => [String(member.id), member])),
     [members],
   );
+  const teamById = useMemo(
+    () => new Map(teams.map((team) => [String(team.id), team])),
+    [teams],
+  );
   const mentionListBg =
     resolvedTheme === "dark" ? "#000000" : "hsl(var(--popover))";
   const mentionListText =
@@ -322,17 +355,24 @@ export function ProjectRisksIssuesTab({
       : "hsl(var(--muted) / 0.75)";
   const mentionFocusedText =
     resolvedTheme === "dark" ? "#ffffff" : "hsl(var(--foreground))";
-  const mentionSuggestions = useMemo(
+  const mentionSuggestions = useMemo<RiskMentionSuggestion[]>(
     () => [
       ...members
         .filter((member) => String(member.id) !== currentUserId)
         .map((member) => ({
           id: `user:${member.id}`,
           display: member.name,
+          kind: "user" as const,
+          avatarUrl: member.avatarUrl,
+          avatarFallback: member.initials || getMentionInitials(member.name, "U"),
+          subtitle: member.role || "Member",
         })),
       ...teams.map((team) => ({
         id: `team:${team.id}`,
         display: `team:${team.name}`,
+        kind: "team" as const,
+        avatarFallback: getMentionInitials(team.name, "T"),
+        subtitle: "Team",
       })),
     ],
     [currentUserId, members, teams],
@@ -1430,15 +1470,49 @@ export function ProjectRisksIssuesTab({
                           {Array.isArray(comment.mentions) &&
                           comment.mentions.length ? (
                             <div className="mt-1.5 flex flex-wrap gap-1">
-                              {comment.mentions.map((mention) => (
-                                <Badge
-                                  key={`${comment.id}-${mention.kind}-${mention.id}`}
-                                  variant="outline"
-                                  className="h-5 rounded-md px-1.5 text-[10px]"
-                                >
-                                  @{formatMentionLabel(mention.label, mention.id)}
-                                </Badge>
-                              ))}
+                              {comment.mentions.map((mention) => {
+                                const mentionLabel = formatMentionLabel(
+                                  mention.label,
+                                  mention.id,
+                                );
+                                const mentionMember =
+                                  mention.kind === "user"
+                                    ? memberById.get(String(mention.id))
+                                    : undefined;
+                                const mentionTeam =
+                                  mention.kind === "team"
+                                    ? teamById.get(String(mention.id))
+                                    : undefined;
+                                const mentionFallback =
+                                  mention.kind === "team"
+                                    ? getMentionInitials(
+                                        mentionTeam?.name || mentionLabel,
+                                        "T",
+                                      )
+                                    : getMentionInitials(
+                                        mentionMember?.name || mentionLabel,
+                                        "U",
+                                      );
+
+                                return (
+                                  <Badge
+                                    key={`${comment.id}-${mention.kind}-${mention.id}`}
+                                    variant="outline"
+                                    className="h-5 rounded-md px-1.5 text-[10px]"
+                                  >
+                                    <Avatar className="mr-1 size-3.5">
+                                      <AvatarImage
+                                        src={mentionMember?.avatarUrl}
+                                        alt={mentionLabel}
+                                      />
+                                      <AvatarFallback className="text-[9px] font-medium">
+                                        {mentionFallback}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    @{mentionLabel}
+                                  </Badge>
+                                );
+                              })}
                             </div>
                           ) : null}
                         </div>
@@ -1524,6 +1598,23 @@ export function ProjectRisksIssuesTab({
                         data={mentionSuggestions}
                         markup="@[__display__](__id__)"
                         displayTransform={(_id, display) => `@${display}`}
+                        renderSuggestion={(
+                          suggestion: RiskMentionSuggestion,
+                          _search: string,
+                          highlightedDisplay: React.ReactNode,
+                          _index: number,
+                          focused: boolean,
+                        ) => (
+                          <MentionSuggestionRow
+                            label={String(suggestion.display || "")}
+                            highlightedLabel={highlightedDisplay}
+                            kind={suggestion.kind || "user"}
+                            avatarUrl={suggestion.avatarUrl}
+                            avatarFallback={suggestion.avatarFallback}
+                            subtitle={suggestion.subtitle}
+                            focused={focused}
+                          />
+                        )}
                         appendSpaceOnAdd
                       />
                     </MentionsInput>

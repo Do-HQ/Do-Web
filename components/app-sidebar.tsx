@@ -135,7 +135,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         title: "Ask Squircle",
         url: ROUTES.ASK_SQUIRCLE,
         icon: Sparkles,
-        isActive: pathname === ROUTES.ASK_SQUIRCLE,
+        disabled: true,
       },
       {
         title: "Home",
@@ -180,7 +180,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         title: "Archive",
         url: "#",
         icon: Archive,
-        onClick: () => {},
+        disabled: true,
       },
       {
         title: "Help & Support",

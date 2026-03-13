@@ -44,6 +44,7 @@
     "crypto-js": "^4.2.0",
     "date-fns": "^4.1.0",
     "dayjs": "^1.11.19",
+    "driver.js": "^1.4.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.562.0",
     "next": "16.1.4",

@@ -15,10 +15,10 @@ const Logo = ({ isFull }: Props) => {
             : "https://res.cloudinary.com/dgiropjpp/image/upload/v1769577491/Logo_maker_project-2_jz4e09.png"
         }
         alt="Squircle Logo"
-        width={isFull ? 150 : 60}
-        height={isFull ? 70 : 60}
+        width={isFull ? 120 : 60}
+        height={isFull ? 40 : 60}
         className={
-          isFull ? "md:w-37.5 md:h-17.5 w-30 h-15" : "md:w-16 md:h-16 w-10 h-10"
+          isFull ? "md:w-31.5 md:h-14.5 w-30 h-15" : "md:w-16 md:h-16 w-10 h-10"
         }
       />
     </Link>

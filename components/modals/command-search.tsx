@@ -12,6 +12,7 @@ import {
   ListChecks,
   ListTodo,
   PlusIcon,
+  RefreshCcw,
   Sparkles,
   Star,
   StickyNote,
@@ -44,6 +45,7 @@ import { useAppStore, useFavoritesStore, useProjectStore } from "@/stores";
 import useWorkspaceStore from "@/stores/workspace";
 import { FavoriteItemType } from "@/types/favorite";
 import { getProjectRoute, ROUTES } from "@/utils/constants";
+import { resetWalkthroughForUser } from "@/components/walkthrough/storage";
 import LoaderComponent from "../shared/loader";
 
 type QuickActionItem = {
@@ -201,6 +203,8 @@ const CommandSearch = () => {
         id: "nav-ask",
         label: "Ask Squircle",
         icon: Sparkles,
+        hint: "Coming soon",
+        disabled: true,
         shortcut: "⌘A",
         onSelect: () => closeAndRoute(ROUTES.ASK_SQUIRCLE),
       },
@@ -268,6 +272,17 @@ const CommandSearch = () => {
             router.push(`${getProjectRoute(currentProjectId)}?tab=dos`);
           }),
       },
+      {
+        id: "action-restart-walkthrough",
+        label: "Restart walkthrough",
+        icon: RefreshCcw,
+        hint: "Replay guided tours",
+        onSelect: () =>
+          runAction(() => {
+            resetWalkthroughForUser(String(user?._id || ""));
+            window.location.reload();
+          }),
+      },
     ],
     [
       closeAndRoute,
@@ -278,6 +293,7 @@ const CommandSearch = () => {
       router,
       runAction,
       setProjectCreateOpen,
+      user?._id,
     ],
   );
 
@@ -484,10 +500,18 @@ const CommandSearch = () => {
                 {navigationItems.map((item) => {
                   const Icon = item.icon;
                   return (
-                    <CommandItem key={item.id} onSelect={item.onSelect}>
+                    <CommandItem
+                      key={item.id}
+                      onSelect={item.onSelect}
+                      disabled={item.disabled}
+                    >
                       <Icon />
                       <span>{item.label}</span>
-                      {item.shortcut ? (
+                      {item.hint ? (
+                        <span className="text-muted-foreground ml-auto text-[11px]">
+                          {item.hint}
+                        </span>
+                      ) : item.shortcut ? (
                         <CommandShortcut>{item.shortcut}</CommandShortcut>
                       ) : null}
                     </CommandItem>

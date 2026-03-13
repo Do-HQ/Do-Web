@@ -249,14 +249,17 @@ const DashboardSection = ({
   action,
   children,
   className,
+  tourId,
 }: {
   title: string;
   description?: string;
   action?: React.ReactNode;
   children: React.ReactNode;
   className?: string;
+  tourId?: string;
 }) => (
   <section
+    data-tour={tourId}
     className={cn(
       "bg-card/75 border-border/55 rounded-xl border p-3 backdrop-blur-sm",
       className,
@@ -750,8 +753,14 @@ const UserDashboard = () => {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 pb-2">
-      <section className="bg-card/70 border-border/55 rounded-xl border p-4">
+    <div
+      data-tour="dashboard-shell"
+      className="mx-auto flex w-full max-w-6xl flex-col gap-4 pb-2"
+    >
+      <section
+        data-tour="dashboard-hero"
+        className="bg-card/70 border-border/55 rounded-xl border p-4"
+      >
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="space-y-1">
@@ -831,6 +840,7 @@ const UserDashboard = () => {
       </section>
 
       <DashboardSection
+        tourId="dashboard-recents"
         title="Recently visited"
         description="Projects, spaces, jams, and favorites you touched most recently."
         action={
@@ -916,6 +926,7 @@ const UserDashboard = () => {
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_18.75rem]">
         <div className="space-y-4">
           <DashboardSection
+            tourId="dashboard-focus"
             title="My focus queue"
             description="Open tasks assigned to you, sorted by due date."
             action={
@@ -990,6 +1001,7 @@ const UserDashboard = () => {
           </DashboardSection>
 
           <DashboardSection
+            tourId="dashboard-upcoming"
             title="Upcoming schedule"
             description="Task deadlines, milestones, and workflow targets over the next 10 days."
           >
@@ -1055,6 +1067,7 @@ const UserDashboard = () => {
 
           <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
             <DashboardSection
+              tourId="dashboard-keepup"
               title="Keep up"
               description="Unread thread highlights and mentions."
               action={
@@ -1096,6 +1109,7 @@ const UserDashboard = () => {
             </DashboardSection>
 
             <DashboardSection
+              tourId="dashboard-risks"
               title="Projects at risk"
               description="High-attention projects right now."
             >

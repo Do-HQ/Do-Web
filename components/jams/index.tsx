@@ -92,6 +92,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { MentionSuggestionRow } from "@/components/shared/mention-suggestion-row";
 import LoaderComponent from "../shared/loader";
 
 const getSnapshotSignature = (
@@ -281,6 +282,34 @@ const buildJamMentionChipLabel = (mention: WorkspaceJamMentionRecord) => {
   }
 
   return `@${baseLabel}`;
+};
+
+const getMentionInitials = (value: string, fallback = "U") => {
+  const normalized = String(value || "")
+    .replace(/^(team|project)\s*:/i, "")
+    .trim();
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  const letters = normalized
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+
+  return letters || fallback;
+};
+
+type JamMentionSuggestion = {
+  id: string | number;
+  display?: string;
+  kind?: "user" | "team";
+  avatarUrl?: string;
+  avatarFallback?: string;
+  subtitle?: string;
 };
 
 const JAMS_SCOPE_OPTIONS: Array<{
@@ -622,21 +651,77 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
     () => mentionTargetsData?.teams || [],
     [mentionTargetsData?.teams],
   );
+  const mentionUserById = React.useMemo(
+    () =>
+      new Map(
+        mentionTargetUsers.map((entry) => [
+          String(entry.id),
+          {
+            name: String(entry.name || ""),
+            avatarUrl: entry.avatarUrl || undefined,
+            initials:
+              entry.initials || getMentionInitials(String(entry.name || ""), "U"),
+          },
+        ]),
+      ),
+    [mentionTargetUsers],
+  );
+  const mentionTeamById = React.useMemo(
+    () =>
+      new Map(
+        mentionTargetTeams.map((entry) => [
+          String(entry.id),
+          {
+            name: String(entry.name || ""),
+            initials: getMentionInitials(String(entry.name || ""), "T"),
+          },
+        ]),
+      ),
+    [mentionTargetTeams],
+  );
   const currentUserId = String(user?._id || "").trim();
-  const mentionSuggestions = React.useMemo(
+  const mentionSuggestions = React.useMemo<JamMentionSuggestion[]>(
     () => [
       ...mentionTargetUsers
         .filter((entry) => String(entry?.id || "") !== currentUserId)
         .map((entry) => ({
           id: `user:${entry.id}`,
           display: entry.name,
+          kind: "user" as const,
+          avatarUrl: entry.avatarUrl || undefined,
+          avatarFallback: entry.initials || getMentionInitials(entry.name, "U"),
+          subtitle: entry.email || "Member",
         })),
       ...mentionTargetTeams.map((entry) => ({
         id: `team:${entry.id}`,
         display: `team:${entry.name}`,
+        kind: "team" as const,
+        avatarFallback: getMentionInitials(entry.name, "T"),
+        subtitle: "Team",
       })),
     ],
     [currentUserId, mentionTargetTeams, mentionTargetUsers],
+  );
+
+  const renderMentionSuggestion = React.useCallback(
+    (
+      suggestion: JamMentionSuggestion,
+      _search: string,
+      highlightedDisplay: React.ReactNode,
+      _index: number,
+      focused: boolean,
+    ) => (
+      <MentionSuggestionRow
+        label={String(suggestion.display || "")}
+        highlightedLabel={highlightedDisplay}
+        kind={suggestion.kind || "user"}
+        avatarUrl={suggestion.avatarUrl}
+        avatarFallback={suggestion.avatarFallback}
+        subtitle={suggestion.subtitle}
+        focused={focused}
+      />
+    ),
+    [],
   );
 
   const mentionListBg =
@@ -1416,29 +1501,57 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
 
       return (
         <div className="mt-1.5 flex flex-wrap gap-1">
-          {mentions.map((mention, index) => (
-            <Badge
-              key={`${mention.kind}:${mention.id}:${index}`}
-              variant="secondary"
-              className="h-5 px-1.5 text-[10px]"
-            >
-              {buildJamMentionChipLabel(mention)}
-            </Badge>
-          ))}
+          {mentions.map((mention, index) => {
+            const mentionLabel = formatMentionLabel(mention.label, mention.id);
+            const mentionUser =
+              mention.kind === "user"
+                ? mentionUserById.get(String(mention.id))
+                : undefined;
+            const mentionTeam =
+              mention.kind === "team"
+                ? mentionTeamById.get(String(mention.id))
+                : undefined;
+            const fallbackInitials =
+              mention.kind === "team"
+                ? mentionTeam?.initials || getMentionInitials(mentionLabel, "T")
+                : mentionUser?.initials || getMentionInitials(mentionLabel, "U");
+
+            return (
+              <Badge
+                key={`${mention.kind}:${mention.id}:${index}`}
+                variant="secondary"
+                className="h-5 px-1.5 text-[10px]"
+              >
+                <Avatar className="mr-1 size-3.5">
+                  <AvatarImage src={mentionUser?.avatarUrl} alt={mentionLabel} />
+                  <AvatarFallback className="text-[9px] font-medium">
+                    {fallbackInitials}
+                  </AvatarFallback>
+                </Avatar>
+                {buildJamMentionChipLabel(mention)}
+              </Badge>
+            );
+          })}
         </div>
       );
     },
-    [],
+    [mentionTeamById, mentionUserById],
   );
 
   const jamListLoading =
     !isRoutedCanvasMode && jamsQuery.isLoading && !jamRows.length;
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
+    <div
+      data-tour="jams-shell"
+      className="flex h-full min-h-0 w-full flex-col overflow-hidden"
+    >
       {!isRoutedCanvasMode ? (
         <>
-          <div className="bg-background/90 border-border/45 shrink-0 border-b px-4 py-3 backdrop-blur-sm">
+          <div
+            data-tour="jams-header"
+            className="bg-background/90 border-border/45 shrink-0 border-b px-4 py-3 backdrop-blur-sm"
+          >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <p className="text-[13px] font-semibold">Jams</p>
@@ -1447,6 +1560,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                 </p>
               </div>
               <Button
+                data-tour="jams-new"
                 size="sm"
                 className="h-8 px-2.5"
                 onClick={() => setIsCreateDialogOpen(true)}
@@ -1518,7 +1632,10 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                   <LoaderComponent />
                 ) : jamRows.length ? (
                   <ScrollArea className="h-full pr-1">
-                    <div className="grid gap-2.5 pb-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                    <div
+                      data-tour="jams-grid"
+                      className="grid gap-2.5 pb-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
+                    >
                       {jamRows.map((jam) => (
                         <JamListCard
                           key={jam.jamId}
@@ -1577,6 +1694,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
             <div className="ml-auto flex items-center gap-2">
               {activeJam?.canEdit ? (
                 <Button
+                  data-tour="jam-canvas-snap"
                   size="sm"
                   variant={isSnapEnabled ? "secondary" : "outline"}
                   className="h-8 px-2.5"
@@ -1645,6 +1763,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                 Exit
               </Button>
               <Button
+                data-tour="jam-canvas-panel-toggle"
                 size="icon"
                 variant={isCanvasSidePanelOpen ? "secondary" : "outline"}
                 className="size-8"
@@ -1669,7 +1788,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
               <LoaderComponent />
             ) : (
               <div className="flex h-full min-h-0">
-                <div className="relative min-h-0 flex-1">
+                <div data-tour="jam-canvas-surface" className="relative min-h-0 flex-1">
                   <JamCanvas
                     jamId={activeJam.jamId}
                     snapshot={resolvedCanvasSnapshot}
@@ -1836,6 +1955,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                                           displayTransform={(_id, display) =>
                                             `@${display}`
                                           }
+                                          renderSuggestion={renderMentionSuggestion}
                                           appendSpaceOnAdd
                                         />
                                       </MentionsInput>
@@ -1890,6 +2010,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                               data={mentionSuggestions}
                               markup="@[__display__](__id__)"
                               displayTransform={(_id, display) => `@${display}`}
+                              renderSuggestion={renderMentionSuggestion}
                               appendSpaceOnAdd
                             />
                           </MentionsInput>

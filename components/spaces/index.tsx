@@ -128,6 +128,25 @@ const mentionSlug = (value = "") =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
 
+const mentionInitials = (value: string, fallback = "U") => {
+  const normalized = String(value || "")
+    .replace(/^(team|project)\s*:/i, "")
+    .trim();
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  const letters = normalized
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
+
+  return letters || fallback;
+};
+
 const normalizeAuthor = (
   author: WorkspaceSpaceMessageRecord["author"],
 ): ChatAuthor => ({
@@ -791,10 +810,18 @@ const SpacesPage = () => {
         token: id,
         label: display,
         kind: "user",
+        avatarUrl: String(entry?.userId?.profilePhoto?.url || "") || undefined,
+        avatarFallback: getInitials(
+          String(entry?.userId?.firstName || ""),
+          String(entry?.userId?.lastName || ""),
+          String(entry?.userId?.email || ""),
+        ),
+        subtitle: "Member",
         user: {
           id: String(entry?.userId?._id || ""),
           name: display,
           email: String(entry?.userId?.email || ""),
+          avatarUrl: String(entry?.userId?.profilePhoto?.url || "") || undefined,
           role:
             Array.isArray(entry?.roles) && entry.roles.length
               ? entry.roles
@@ -821,9 +848,17 @@ const SpacesPage = () => {
       }
 
       seenIds.add(id);
+      const firstName = String(entry?.userId?.firstName || "");
+      const lastName = String(entry?.userId?.lastName || "");
+      const email = String(entry?.userId?.email || "");
+
       entries.push({
         id,
         display,
+        kind: "user",
+        avatarUrl: String(entry?.userId?.profilePhoto?.url || "") || undefined,
+        avatarFallback: getInitials(firstName, lastName, email),
+        subtitle: "Member",
       });
     });
 
@@ -839,11 +874,16 @@ const SpacesPage = () => {
       entries.push({
         id: `project-${projectId}`,
         display: `project:${projectName || "current-project"}`,
+        kind: "project",
+        avatarFallback: mentionInitials(projectName || "project", "PR"),
+        subtitle: "Project",
       });
       byToken[`project-${projectId}`] = {
         token: `project-${projectId}`,
         label: `project:${projectName || "current-project"}`,
         kind: "project",
+        avatarFallback: mentionInitials(projectName || "project", "PR"),
+        subtitle: "Project",
       };
     }
 
@@ -863,11 +903,16 @@ const SpacesPage = () => {
       entries.push({
         id,
         display: `team:${teamName}`,
+        kind: "team",
+        avatarFallback: mentionInitials(teamName, "T"),
+        subtitle: "Team",
       });
       byToken[id] = {
         token: id,
         label: `team:${teamName}`,
         kind: "team",
+        avatarFallback: mentionInitials(teamName, "T"),
+        subtitle: "Team",
       };
     });
 
@@ -880,11 +925,16 @@ const SpacesPage = () => {
         entries.push({
           id,
           display: `team:${activeRoom.name}`,
+          kind: "team",
+          avatarFallback: mentionInitials(activeRoom.name, "T"),
+          subtitle: "Team",
         });
         byToken[id] = {
           token: id,
           label: `team:${activeRoom.name}`,
           kind: "team",
+          avatarFallback: mentionInitials(activeRoom.name, "T"),
+          subtitle: "Team",
         };
       }
     }
@@ -1089,6 +1139,26 @@ const SpacesPage = () => {
       return;
     }
 
+    const hasLocalPendingRoomSync =
+      pendingRoomSyncRef.current === activeRoom.id;
+    const projectTargetRoom =
+      !urlRoomId && urlProjectId
+        ? findProjectRootRoom(rooms, urlProjectId)
+        : null;
+    const urlRoomNotResolved =
+      Boolean(urlRoomId) &&
+      urlRoomId !== activeRoom.id &&
+      !hasLocalPendingRoomSync;
+    const urlProjectNotResolved =
+      !urlRoomId &&
+      Boolean(urlProjectId) &&
+      (!projectTargetRoom || projectTargetRoom.id !== activeRoom.id) &&
+      !hasLocalPendingRoomSync;
+
+    if (urlRoomNotResolved || urlProjectNotResolved) {
+      return;
+    }
+
     const currentRoomParam = urlRoomId;
     const currentThreadParam = urlThreadId;
     const nextThreadParam = selectedThreadMessageId || "";
@@ -1117,9 +1187,11 @@ const SpacesPage = () => {
     router.replace(nextRoute, { scroll: false });
   }, [
     activeRoom?.id,
+    rooms,
     router,
     searchParamsString,
     selectedThreadMessageId,
+    urlProjectId,
     urlRoomId,
     urlThreadId,
   ]);
@@ -2285,9 +2357,11 @@ const SpacesPage = () => {
     <>
       <div
         ref={layoutRef}
+        data-tour="spaces-shell"
         className="flex h-full min-h-0 w-full flex-1 overflow-hidden"
       >
         <aside
+          data-tour="spaces-list"
           style={{ width: leftPanelWidth }}
           className="hidden min-h-0 flex-col overflow-hidden rounded-md border border-border/35 bg-card/70 lg:flex"
         >
@@ -2300,6 +2374,7 @@ const SpacesPage = () => {
                 </p>
               </div>
               <Button
+                data-tour="spaces-create"
                 size="icon-sm"
                 variant="outline"
                 className="size-7"
@@ -2373,7 +2448,10 @@ const SpacesPage = () => {
           <span className="bg-border/70 hover:bg-primary/60 absolute top-1/2 left-1/2 h-12 w-px -translate-x-1/2 -translate-y-1/2 rounded-full transition-colors" />
         </button>
 
-        <section className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-none border border-border/35 border-x-0 border-b-0 bg-card/70 sm:rounded-md sm:border-x sm:border-b">
+        <section
+          data-tour="spaces-chat"
+          className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-none border border-border/35 border-x-0 border-b-0 bg-card/70 sm:rounded-md sm:border-x sm:border-b"
+        >
           <div className="border-b border-border/35 px-3 py-2.5">
             <div className="flex flex-wrap items-center gap-1.5">
               <Button
@@ -2412,6 +2490,7 @@ const SpacesPage = () => {
 
               <div className="ml-auto flex items-center gap-1">
                 <Button
+                  data-tour="spaces-keepup"
                   size="sm"
                   variant="ghost"
                   className="h-8 px-2.5 text-[13px]"

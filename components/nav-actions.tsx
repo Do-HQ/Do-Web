@@ -81,14 +81,16 @@ export function NavActions() {
           type="button"
           size="sm"
           variant="outline"
-          className="h-9 w-[15.75rem] justify-between px-2.5 text-[12px] font-normal"
+          className="h-9 w-9 justify-center px-0 text-[12px] font-normal sm:w-[15.75rem] sm:justify-between sm:px-2.5"
           onClick={() => setShowSpotlightSearch(true)}
+          aria-label="Open search"
         >
-          <span className="inline-flex items-center gap-2 text-muted-foreground">
+          <span className="hidden items-center gap-2 text-muted-foreground sm:inline-flex">
             <Search className="size-3.5" />
             Search for anything...
           </span>
-          <InputGroupAddon align="inline-end">
+          <Search className="size-4 text-muted-foreground sm:hidden" />
+          <InputGroupAddon align="inline-end" className="hidden sm:flex">
             <Kbd>⌘</Kbd>
             <Kbd>K</Kbd>
           </InputGroupAddon>

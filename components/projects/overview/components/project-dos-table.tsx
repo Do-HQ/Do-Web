@@ -125,7 +125,8 @@ export function ProjectDosTable({
   return (
     <section className="overflow-hidden rounded-xl border border-border/35 bg-card/70 shadow-xs">
       {tasks.length ? (
-        <Table>
+        <div className="w-full overflow-x-auto">
+        <Table className="min-w-[1120px]">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className="w-[28%]">Name</TableHead>
@@ -380,6 +381,7 @@ export function ProjectDosTable({
             })}
           </TableBody>
         </Table>
+        </div>
       ) : (
         <div className="px-4 py-4">
           <Empty className="border-0 p-0 md:p-0">

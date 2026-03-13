@@ -10,6 +10,7 @@ import { ROUTES } from "@/utils/constants";
 import { cn } from "@/lib/utils";
 import ProjectNotificationListener from "@/components/projects/project-notification-listener";
 import TeamCallNotificationListener from "@/components/spaces/team-call-notification-listener";
+import RouteWalkthrough from "@/components/walkthrough/route-walkthrough";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -29,6 +30,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <Toaster position="top-right" />
           <ProjectNotificationListener />
           <TeamCallNotificationListener />
+          <RouteWalkthrough />
           <CommandSearch />
         </div>
       </RequireAuth>
@@ -53,6 +55,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <Toaster position="top-right" />
             <ProjectNotificationListener />
             <TeamCallNotificationListener />
+            <RouteWalkthrough />
           </div>
           <CommandSearch />
         </SidebarInset>

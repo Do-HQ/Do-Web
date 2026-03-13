@@ -529,7 +529,8 @@ export function ProjectWorkflowsTable({
 
       {displayedWorkflows.length ? (
         <>
-          <Table>
+          <div className="w-full overflow-x-auto">
+          <Table className="min-w-[1060px]">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
                 <TableHead className="w-[34%]">Name</TableHead>
@@ -924,6 +925,7 @@ export function ProjectWorkflowsTable({
               })}
             </TableBody>
           </Table>
+          </div>
 
           {pagination ? (
             <div className="flex flex-col gap-2 border-t border-border/25 px-3 py-2 sm:flex-row sm:items-center sm:justify-between md:px-4">

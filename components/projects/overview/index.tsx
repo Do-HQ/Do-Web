@@ -1786,7 +1786,10 @@ export default function ProjectOverview({
 
   return (
     <>
-      <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-3 pb-6 md:gap-4">
+      <div
+        data-tour="project-shell"
+        className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-3 pb-6 md:gap-4"
+      >
         <div className="flex items-center justify-between gap-3">
           <div className="text-muted-foreground text-[12px] font-medium uppercase tracking-[0.08em]">
             Project summary
@@ -1808,7 +1811,7 @@ export default function ProjectOverview({
         </div>
 
         {summaryExpanded ? (
-          <>
+          <div data-tour="project-summary" className="space-y-3">
             <ProjectOverviewHeader
               project={project}
               selectedPipeline={selectedPipeline}
@@ -1842,50 +1845,60 @@ export default function ProjectOverview({
               workflowCount={visibleWorkflows.length}
               workloadSummary={workloadSummary}
             />
-          </>
+          </div>
         ) : null}
 
-        <div className="sticky top-0 z-20 -mx-1 border-b border-border/20 bg-background/85 px-1 py-2 backdrop-blur-sm">
+        <div
+          data-tour="project-tabs"
+          className="sticky top-0 z-20 -mx-1 border-b border-border/20 bg-background/85 px-1 py-2 backdrop-blur-sm"
+        >
           <ProjectOverviewTabs value={activeTab} onValueChange={setActiveTab} />
         </div>
 
         {activeTab === "overview" ? (
           <>
-            <ProjectOverviewWorkflowTable
-              projectId={projectId}
-              workflows={overviewWorkflows}
-              members={resolvedMembers}
-              teams={project.teams}
-              selectedPipeline={selectedPipeline}
-              selectedTeamId={teamFilter}
-              onTeamChange={setTeamFilter}
-              startDate={startDate}
-              onStartDateChange={setStartDate}
-              view={workflowView}
-              onViewChange={setWorkflowView}
-              sortMode={workflowSortMode}
-              onSortModeChange={setWorkflowSortMode}
-              pagination={overviewWorkflowPagination}
-              loading={workflowListQuery.isLoading || workflowListQuery.isFetching}
-              onPreviousPage={() => setWorkflowPage((current) => Math.max(1, current - 1))}
-              onNextPage={() =>
-                setWorkflowPage((current) =>
-                  overviewWorkflowPagination?.hasNextPage ? current + 1 : current,
-                )
-              }
-              expandedWorkflowIds={expandedWorkflowIds}
-              onToggleWorkflow={handleToggleWorkflow}
-              onCreateWorkflow={openCreateWorkflow}
-              onEditWorkflow={openEditWorkflow}
-              onCreateTask={openCreateTask}
-              onEditTask={openEditTask}
-              onCreateSubtask={openCreateSubtask}
-              onWorkflowAction={handleWorkflowAction}
-              onTaskAction={handleTaskAction}
-              canManageWorkflowActions={canCreateWorkflows}
-            />
+            <div data-tour="project-overview-workflows">
+              <ProjectOverviewWorkflowTable
+                projectId={projectId}
+                workflows={overviewWorkflows}
+                members={resolvedMembers}
+                teams={project.teams}
+                selectedPipeline={selectedPipeline}
+                selectedTeamId={teamFilter}
+                onTeamChange={setTeamFilter}
+                startDate={startDate}
+                onStartDateChange={setStartDate}
+                view={workflowView}
+                onViewChange={setWorkflowView}
+                sortMode={workflowSortMode}
+                onSortModeChange={setWorkflowSortMode}
+                pagination={overviewWorkflowPagination}
+                loading={workflowListQuery.isLoading || workflowListQuery.isFetching}
+                onPreviousPage={() =>
+                  setWorkflowPage((current) => Math.max(1, current - 1))
+                }
+                onNextPage={() =>
+                  setWorkflowPage((current) =>
+                    overviewWorkflowPagination?.hasNextPage ? current + 1 : current,
+                  )
+                }
+                expandedWorkflowIds={expandedWorkflowIds}
+                onToggleWorkflow={handleToggleWorkflow}
+                onCreateWorkflow={openCreateWorkflow}
+                onEditWorkflow={openEditWorkflow}
+                onCreateTask={openCreateTask}
+                onEditTask={openEditTask}
+                onCreateSubtask={openCreateSubtask}
+                onWorkflowAction={handleWorkflowAction}
+                onTaskAction={handleTaskAction}
+                canManageWorkflowActions={canCreateWorkflows}
+              />
+            </div>
 
-            <div className="grid gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+            <div
+              data-tour="project-overview-risks"
+              className="grid gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]"
+            >
               <ProjectOverviewRisks
                 view={riskView}
                 onViewChange={setRiskView}

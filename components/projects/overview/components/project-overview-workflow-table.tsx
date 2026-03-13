@@ -425,7 +425,8 @@ export function ProjectOverviewWorkflowTable({
       </div>
 
       {displayedWorkflows.length ? (
-        <Table>
+        <div className="w-full overflow-x-auto">
+        <Table className="min-w-[920px]">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className="w-[34%]">Name</TableHead>
@@ -755,6 +756,7 @@ export function ProjectOverviewWorkflowTable({
             })}
           </TableBody>
         </Table>
+        </div>
       ) : (
         <div className="px-4 py-5 text-[12px] text-muted-foreground">
           {loading ? (

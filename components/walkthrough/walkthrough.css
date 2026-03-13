@@ -1,0 +1,77 @@
+.driver-popover.sq-walkthrough-popover {
+  border: 1px solid var(--border) !important;
+  border-radius: calc(var(--radius) + 2px) !important;
+  background: var(--popover) !important;
+  color: var(--popover-foreground) !important;
+  box-shadow: 0 16px 40px color-mix(in oklab, var(--foreground) 18%, transparent) !important;
+  opacity: 1 !important;
+  max-width: 22rem !important;
+}
+
+.driver-popover.sq-walkthrough-popover,
+.driver-popover.sq-walkthrough-popover * {
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif !important;
+}
+
+.driver-popover.sq-walkthrough-popover .driver-popover-title {
+  font-size: 0.86rem !important;
+  font-weight: 600 !important;
+  color: var(--foreground) !important;
+}
+
+.driver-popover.sq-walkthrough-popover .driver-popover-description {
+  font-size: 0.76rem !important;
+  line-height: 1.35 !important;
+  color: var(--muted-foreground) !important;
+}
+
+.driver-popover.sq-walkthrough-popover .driver-popover-progress-text {
+  font-size: 0.7rem !important;
+  color: var(--muted-foreground) !important;
+}
+
+.driver-popover.sq-walkthrough-popover .driver-popover-footer button {
+  border-radius: calc(var(--radius) - 2px) !important;
+  height: 1.9rem !important;
+  padding: 0 0.65rem !important;
+  font-size: 0.74rem !important;
+  font-weight: 500 !important;
+  line-height: 1 !important;
+  text-shadow: none !important;
+}
+
+.driver-popover.sq-walkthrough-popover .driver-popover-next-btn {
+  border: 1px solid color-mix(in oklab, var(--primary) 55%, transparent) !important;
+  background: color-mix(in oklab, var(--primary) 20%, transparent) !important;
+  color: var(--foreground) !important;
+}
+
+.driver-popover.sq-walkthrough-popover .driver-popover-prev-btn,
+.driver-popover.sq-walkthrough-popover .driver-popover-close-btn,
+.driver-popover.sq-walkthrough-popover .driver-popover-close-btn:hover {
+  border: 1px solid var(--border) !important;
+  background: transparent !important;
+  color: var(--muted-foreground) !important;
+}
+
+.driver-popover.sq-walkthrough-popover .driver-popover-prev-btn:hover {
+  background: color-mix(in oklab, var(--accent) 50%, transparent) !important;
+  color: var(--accent-foreground) !important;
+}
+
+.driver-popover.sq-walkthrough-popover .driver-popover-next-btn:hover {
+  background: color-mix(in oklab, var(--primary) 30%, transparent) !important;
+}
+
+.driver-popover.sq-walkthrough-popover .driver-popover-arrow {
+  border-color: var(--popover) !important;
+}
+
+.driver-popover.sq-walkthrough-popover .driver-popover-navigation-btns {
+  display: flex !important;
+  gap: 0.35rem !important;
+}
+
+.dark .driver-popover.sq-walkthrough-popover {
+  box-shadow: 0 20px 48px color-mix(in oklab, var(--foreground) 24%, transparent) !important;
+}

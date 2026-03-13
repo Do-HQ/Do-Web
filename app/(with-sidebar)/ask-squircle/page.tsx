@@ -1,7 +1,9 @@
-import AskSquircle from "@/components/ask-squircle";
+import { redirect } from "next/navigation";
+
+import { ROUTES } from "@/utils/constants";
 
 const AskSquirclePage = () => {
-  return <AskSquircle />;
+  redirect(ROUTES.DASHBOARD);
 };
 
 export default AskSquirclePage;

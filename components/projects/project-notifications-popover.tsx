@@ -240,7 +240,7 @@ export function ProjectNotificationsPopover({
         )}
       </PopoverTrigger>
 
-      <PopoverContent align="end" className="w-[23rem] p-0">
+      <PopoverContent align="end" className="w-[min(23rem,calc(100vw-1rem))] p-0">
         <div className="flex items-center justify-between border-b border-border/35 px-3 py-2.5">
           <div className="text-[12px] font-semibold">Project notifications</div>
           <Button

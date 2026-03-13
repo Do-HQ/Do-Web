@@ -28,20 +28,28 @@ export type ChatAttachment = {
 };
 
 export type MentionSuggestion = {
-  id: string;
-  display: string;
+  id: string | number;
+  display?: string;
+  kind?: "user" | "team" | "project";
+  avatarUrl?: string;
+  avatarFallback?: string;
+  subtitle?: string;
 };
 
 export type MentionTokenMeta = {
   token: string;
   label: string;
   kind: "user" | "team" | "project";
+  avatarUrl?: string;
+  avatarFallback?: string;
+  subtitle?: string;
   user?: {
     id: string;
     name: string;
     email?: string;
     role?: string;
     team?: string;
+    avatarUrl?: string;
   };
 };
 

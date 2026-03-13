@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { MentionSuggestionRow } from "@/components/shared/mention-suggestion-row";
 import type {
   ChatAttachment,
   MentionTokenMeta,
@@ -143,6 +144,26 @@ const ThreadPanel = ({
     },
   } as const;
 
+  const renderMentionSuggestion = (
+    suggestion: MentionSuggestion,
+    _search: string,
+    highlightedDisplay: React.ReactNode,
+    _index: number,
+    focused: boolean,
+  ) => {
+    return (
+      <MentionSuggestionRow
+        label={String(suggestion.display || "")}
+        highlightedLabel={highlightedDisplay}
+        kind={suggestion.kind}
+        avatarUrl={suggestion.avatarUrl}
+        avatarFallback={suggestion.avatarFallback}
+        subtitle={suggestion.subtitle}
+        focused={focused}
+      />
+    );
+  };
+
   const toTitleCase = (value: string) =>
     value
       .split(" ")
@@ -165,6 +186,36 @@ const ThreadPanel = ({
     return toTitleCase(base);
   };
 
+  const getMentionAvatarFallback = (
+    label: string,
+    kind?: MentionTokenMeta["kind"],
+  ) => {
+    const normalized = String(label || "")
+      .replace(/^(team|project)\s*:/i, "")
+      .trim();
+
+    const letters = normalized
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase() || "")
+      .join("");
+
+    if (letters) {
+      return letters;
+    }
+
+    if (kind === "project") {
+      return "PR";
+    }
+
+    if (kind === "team") {
+      return "TM";
+    }
+
+    return "U";
+  };
+
   const renderContentWithMentions = (content: string) => {
     const input = String(content || "");
     const mentionPattern = /@([a-zA-Z0-9][a-zA-Z0-9._-]*)/g;
@@ -183,26 +234,45 @@ const ThreadPanel = ({
       }
 
       if (!mentionMeta) {
+        const fallbackLabel = formatMentionFallbackLabel(token);
         chunks.push(
           <span
             key={`mention-fallback-${token}-${mentionStart}`}
-            className="inline-flex rounded-md bg-orange-500/12 px-1 py-0.5 text-orange-300"
+            className="inline-flex items-center gap-1 rounded-md bg-orange-500/12 px-1 py-0.5 text-orange-300"
           >
-            @{formatMentionFallbackLabel(token)}
+            <Avatar className="size-4">
+              <AvatarFallback className="text-[9px] font-medium">
+                {getMentionAvatarFallback(fallbackLabel)}
+              </AvatarFallback>
+            </Avatar>
+            @{fallbackLabel}
           </span>,
         );
       } else {
         const mentionLabel = `@${mentionMeta.label}`;
 
         if (mentionMeta.kind === "user" && mentionMeta.user) {
+          const mentionAvatarFallback = getMentionAvatarFallback(
+            mentionMeta.user.name,
+            mentionMeta.kind,
+          );
           chunks.push(
             <Tooltip key={`mention-${token}-${mentionStart}`} delayDuration={100}>
               <TooltipTrigger asChild>
                 <button
                   type="button"
-                  className="inline-flex cursor-pointer items-center rounded-md bg-orange-500/12 px-1 py-0.5 text-orange-300 transition-colors hover:bg-orange-500/20"
+                  className="inline-flex cursor-pointer items-center gap-1 rounded-md bg-orange-500/12 px-1 py-0.5 text-orange-300 transition-colors hover:bg-orange-500/20"
                   onClick={() => onOpenMentionUser(mentionMeta.user?.id || "")}
                 >
+                  <Avatar className="size-4">
+                    <AvatarImage
+                      src={mentionMeta.user.avatarUrl}
+                      alt={mentionMeta.user.name}
+                    />
+                    <AvatarFallback className="text-[9px] font-medium">
+                      {mentionAvatarFallback}
+                    </AvatarFallback>
+                  </Avatar>
                   {mentionLabel}
                 </button>
               </TooltipTrigger>
@@ -214,15 +284,26 @@ const ThreadPanel = ({
                 className="w-72 rounded-xl border border-border/60 bg-popover p-3 text-popover-foreground shadow-lg"
               >
                 <div className="space-y-2">
-                  <div className="space-y-0.5">
-                    <div className="truncate text-[13px] font-semibold">
-                      {mentionMeta.user.name}
-                    </div>
-                    {mentionMeta.user.email ? (
-                      <div className="truncate text-[11px] text-muted-foreground">
-                        {mentionMeta.user.email}
+                  <div className="flex items-center gap-2">
+                    <Avatar className="size-9">
+                      <AvatarImage
+                        src={mentionMeta.user.avatarUrl}
+                        alt={mentionMeta.user.name}
+                      />
+                      <AvatarFallback className="text-[11px] font-medium">
+                        {mentionAvatarFallback}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 space-y-0.5">
+                      <div className="truncate text-[13px] font-semibold">
+                        {mentionMeta.user.name}
                       </div>
-                    ) : null}
+                      {mentionMeta.user.email ? (
+                        <div className="truncate text-[11px] text-muted-foreground">
+                          {mentionMeta.user.email}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                   <div className="space-y-1.5 pt-1 text-[11px]">
                     {mentionMeta.user.role ? (
@@ -271,11 +352,24 @@ const ThreadPanel = ({
             </Tooltip>,
           );
         } else {
+          const mentionFallback = getMentionAvatarFallback(
+            mentionMeta.label,
+            mentionMeta.kind,
+          );
           chunks.push(
             <span
               key={`mention-${token}-${mentionStart}`}
-              className="inline-flex rounded-md bg-orange-500/12 px-1 py-0.5 text-orange-300"
+              className="inline-flex items-center gap-1 rounded-md bg-orange-500/12 px-1 py-0.5 text-orange-300"
             >
+              <Avatar className="size-4">
+                <AvatarImage
+                  src={mentionMeta.avatarUrl}
+                  alt={mentionMeta.label}
+                />
+                <AvatarFallback className="text-[9px] font-medium">
+                  {mentionMeta.avatarFallback || mentionFallback}
+                </AvatarFallback>
+              </Avatar>
               {mentionLabel}
             </span>,
           );
@@ -544,6 +638,7 @@ const ThreadPanel = ({
                   data={mentionSuggestions}
                   markup="@__id__"
                   displayTransform={(_id, display) => display || _id}
+                  renderSuggestion={renderMentionSuggestion}
                   appendSpaceOnAdd
                 />
               </MentionsInput>

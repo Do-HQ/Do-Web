@@ -22,6 +22,7 @@ export function NavSecondary({
     badge?: React.ReactNode;
     onClick?: () => void;
     isActive?: boolean;
+    disabled?: boolean;
   }[];
 } & React.ComponentPropsWithoutRef<typeof SidebarGroup>) {
   return (
@@ -31,8 +32,20 @@ export function NavSecondary({
           {items.map((item) => {
             if (item?.onClick) {
               return (
-                <SidebarMenuItem key={item.title} onClick={item?.onClick}>
-                  <SidebarMenuButton asChild isActive={item.isActive}>
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={item.isActive}
+                    aria-disabled={item.disabled || undefined}
+                    className={item.disabled ? "cursor-not-allowed opacity-50" : undefined}
+                    onClick={() => {
+                      if (item.disabled) {
+                        return;
+                      }
+
+                      item.onClick?.();
+                    }}
+                  >
                     <div>
                       <item.icon />
                       <span>{item.title}</span>
@@ -46,8 +59,22 @@ export function NavSecondary({
             } else {
               return (
                 <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton asChild isActive={item.isActive}>
-                    <Link href={item?.url}>
+                  <SidebarMenuButton
+                    asChild
+                    isActive={item.isActive}
+                    aria-disabled={item.disabled || undefined}
+                    className={item.disabled ? "cursor-not-allowed opacity-50" : undefined}
+                  >
+                    <Link
+                      href={item?.url}
+                      onClick={(event) => {
+                        if (item.disabled) {
+                          event.preventDefault();
+                        }
+                      }}
+                      tabIndex={item.disabled ? -1 : undefined}
+                      aria-disabled={item.disabled || undefined}
+                    >
                       <item.icon />
                       <span>{item.title}</span>
                     </Link>

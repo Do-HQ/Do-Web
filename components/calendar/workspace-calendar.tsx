@@ -1351,7 +1351,7 @@ const WorkspaceCalendar = () => {
                 <button
                   key={`timeline-row-${event.id}`}
                   type="button"
-                  className="bg-background/70 hover:bg-accent/40 ring-border/25 grid w-full grid-cols-[minmax(0,18rem)_minmax(0,1fr)] items-center gap-2 rounded-md px-2.5 py-2 text-left ring-1 transition-colors"
+                  className="bg-background/70 hover:bg-accent/40 ring-border/25 grid w-full grid-cols-1 items-center gap-2 rounded-md px-2.5 py-2 text-left ring-1 transition-colors md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]"
                   onClick={() => {
                     setSelectedEventId(event.id);
                     const eventDay = startOfDay(event.start);
@@ -1399,8 +1399,14 @@ const WorkspaceCalendar = () => {
   };
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-1 gap-3">
-      <aside className="bg-muted/20 ring-border/35 flex w-[19rem] shrink-0 flex-col gap-2.5 rounded-xl p-2.5 ring-1">
+    <div
+      data-tour="calendar-shell"
+      className="flex h-full min-h-0 w-full flex-1 gap-3 max-lg:flex-col"
+    >
+      <aside
+        data-tour="calendar-sidebar"
+        className="bg-muted/20 ring-border/35 flex w-full shrink-0 flex-col gap-2.5 rounded-xl p-2.5 ring-1 lg:w-[19rem] max-lg:max-h-[44dvh] max-lg:overflow-y-auto"
+      >
         <div className="space-y-1">
           <p className="text-[15px] font-semibold">Calendar</p>
           <p className="text-muted-foreground text-[12px]">
@@ -1514,7 +1520,10 @@ const WorkspaceCalendar = () => {
 
         <Separator className="bg-border/35" />
 
-        <div className="min-h-0 flex flex-1 flex-col space-y-2">
+        <div
+          data-tour="calendar-upcoming"
+          className="min-h-0 flex flex-1 flex-col space-y-2"
+        >
           <p className="text-[11.5px] font-semibold uppercase tracking-wide">
             Upcoming
           </p>
@@ -1628,7 +1637,7 @@ const WorkspaceCalendar = () => {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
               <Button
                 type="button"
                 size="sm"
@@ -1656,8 +1665,11 @@ const WorkspaceCalendar = () => {
         ) : null}
       </aside>
 
-      <section className="bg-muted/15 ring-border/35 flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl ring-1">
-        <header className="bg-background/65 flex flex-wrap items-center gap-2 px-2.5 py-2">
+      <section
+        data-tour="calendar-surface"
+        className="bg-muted/15 ring-border/35 flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl ring-1 max-lg:min-h-[56dvh]"
+      >
+        <header className="bg-background/65 flex flex-wrap items-center gap-2 px-2.5 py-2 max-md:items-start">
           {rightPanelTab === "calendar" ? (
             <div className="mr-2 flex items-center gap-1">
               <Button
@@ -1709,11 +1721,12 @@ const WorkspaceCalendar = () => {
             </p>
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
             {rightPanelTab === "calendar" ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
+                    data-tour="calendar-view-switch"
                     type="button"
                     variant="outline"
                     size="sm"
