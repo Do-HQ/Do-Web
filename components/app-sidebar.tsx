@@ -40,7 +40,7 @@ import { getProjectRoute, ROUTES } from "@/utils/constants";
 import SettingsModal from "./modals/settings-modal";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { setShowSettings } = useAppStore();
+  const { setShowSettings, setShowSpotlightSearch } = useAppStore();
   const { user } = useAuthStore();
   const pathname = usePathname();
   const router = useRouter();
@@ -129,6 +129,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         title: "Search",
         url: "#",
         icon: Search,
+        onClick: () => setShowSpotlightSearch(true),
       },
       {
         title: "Ask Squircle",

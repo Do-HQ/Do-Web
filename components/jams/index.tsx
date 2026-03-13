@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Archive,
   ArchiveRestore,
@@ -16,9 +16,12 @@ import {
   Search,
   Share2,
   Shapes,
+  Hash,
   Users,
   UsersRound,
+  X,
   Loader,
+  Magnet,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -31,6 +34,7 @@ import {
   WorkspaceJamScopeFilter,
   WorkspaceJamVisibility,
 } from "@/types/jam";
+import { ROUTES } from "@/utils/constants";
 import { cn } from "@/lib/utils";
 import JamCanvas from "@/components/jams/jam-canvas";
 import {
@@ -53,7 +57,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import {
   DropdownMenu,
@@ -218,6 +221,13 @@ const defaultShareSelection: ShareSelection = {
   note: "",
 };
 
+type ShareRecipientOption = {
+  id: string;
+  type: "users" | "teams" | "rooms";
+  label: string;
+  meta: string;
+};
+
 type RenameJamState = {
   open: boolean;
   jamId: string;
@@ -230,9 +240,12 @@ const defaultRenameState: RenameJamState = {
   title: "",
 };
 
-const JamsPage = () => {
+type JamsPageProps = {
+  routeJamId?: string | null;
+};
+
+const JamsPage = ({ routeJamId }: JamsPageProps) => {
   const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
   const { workspaceId } = useWorkspaceStore();
@@ -251,8 +264,13 @@ const JamsPage = () => {
   const [listSearch, setListSearch] = React.useState("");
   const [scope, setScope] = React.useState<WorkspaceJamScopeFilter>("all");
   const [showArchived, setShowArchived] = React.useState(false);
-  const [activeJamId, setActiveJamId] = React.useState("");
-  const [isCanvasFocusMode, setIsCanvasFocusMode] = React.useState(false);
+  const isRoutedCanvasMode = Boolean(routeJamId && routeJamId.trim());
+  const [activeJamId, setActiveJamId] = React.useState(
+    routeJamId?.trim() || "",
+  );
+  const [isCanvasFocusMode, setIsCanvasFocusMode] =
+    React.useState(isRoutedCanvasMode);
+  const [isSnapEnabled, setIsSnapEnabled] = React.useState(true);
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = React.useState(false);
   const [createTitle, setCreateTitle] = React.useState("");
@@ -272,7 +290,8 @@ const JamsPage = () => {
 
   const debouncedListSearch = useDebounce(listSearch, 300);
   const debouncedShareSearch = useDebounce(shareSearch, 250);
-  const activeJamFromUrl = String(searchParams.get("jam") || "").trim();
+  const activeJamFromRoute = routeJamId?.trim() || "";
+  const shouldAutoOpenCreateDialog = searchParams?.get("create") === "1";
 
   const workspaceKey = workspaceId ?? "";
   const listParams = React.useMemo(
@@ -288,7 +307,7 @@ const JamsPage = () => {
   );
 
   const jamsQuery = useWorkspaceJams(workspaceKey, listParams, {
-    enabled: !!workspaceKey,
+    enabled: !!workspaceKey && !isRoutedCanvasMode,
   });
 
   const jamRows = React.useMemo<WorkspaceJamRecord[]>(
@@ -297,15 +316,19 @@ const JamsPage = () => {
   );
 
   React.useEffect(() => {
-    if (!activeJamFromUrl || activeJamFromUrl === activeJamId) {
+    if (!activeJamFromRoute || activeJamFromRoute === activeJamId) {
       return;
     }
 
-    setActiveJamId(activeJamFromUrl);
+    setActiveJamId(activeJamFromRoute);
     setIsCanvasFocusMode(true);
-  }, [activeJamFromUrl, activeJamId]);
+  }, [activeJamFromRoute, activeJamId]);
 
   React.useEffect(() => {
+    if (isRoutedCanvasMode) {
+      return;
+    }
+
     if (!jamRows.length) {
       setActiveJamId("");
       setIsCanvasFocusMode(false);
@@ -317,9 +340,9 @@ const JamsPage = () => {
       return;
     }
 
-    const nextJamId = activeJamFromUrl || jamRows[0]?.jamId || "";
+    const nextJamId = jamRows[0]?.jamId || "";
     setActiveJamId(nextJamId);
-  }, [activeJamFromUrl, activeJamId, jamRows]);
+  }, [activeJamId, isRoutedCanvasMode, jamRows]);
 
   React.useEffect(() => {
     if (!isCanvasFocusMode) {
@@ -334,32 +357,13 @@ const JamsPage = () => {
     };
   }, [isCanvasFocusMode]);
 
-  const syncUrlWithJam = React.useCallback(
-    (jamId: string) => {
-      const currentJam = String(searchParams.get("jam") || "").trim();
-      if (currentJam === jamId) {
-        return;
-      }
-
-      const params = new URLSearchParams(searchParams.toString());
-
-      if (jamId) {
-        params.set("jam", jamId);
-      } else {
-        params.delete("jam");
-      }
-
-      const query = params.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname, {
-        scroll: false,
-      });
-    },
-    [pathname, router, searchParams],
-  );
-
   React.useEffect(() => {
-    syncUrlWithJam(activeJamId);
-  }, [activeJamId, syncUrlWithJam]);
+    if (!shouldAutoOpenCreateDialog || isRoutedCanvasMode || !workspaceKey) {
+      return;
+    }
+
+    setIsCreateDialogOpen(true);
+  }, [isRoutedCanvasMode, shouldAutoOpenCreateDialog, workspaceKey]);
 
   const jamDetailQuery = useWorkspaceJamDetail(workspaceKey, activeJamId, {
     enabled: !!workspaceKey && !!activeJamId,
@@ -409,8 +413,22 @@ const JamsPage = () => {
       return;
     }
 
+    const serverUpdatedAtMs = Number(new Date(activeJamUpdatedAt).getTime());
+    if (
+      Number.isFinite(serverUpdatedAtMs) &&
+      serverUpdatedAtMs > 0 &&
+      serverUpdatedAtMs < lastLocalDraftWriteAtRef.current
+    ) {
+      return;
+    }
+
     setLocalDraftSnapshot(activeJamSnapshot);
     writeJamLocalDraft(workspaceKey, activeJamKey, activeJamSnapshot);
+    if (Number.isFinite(serverUpdatedAtMs) && serverUpdatedAtMs > 0) {
+      lastLocalDraftWriteAtRef.current = serverUpdatedAtMs;
+    } else {
+      lastLocalDraftWriteAtRef.current = Date.now();
+    }
   }, [
     activeJamKey,
     activeJamSnapshot,
@@ -446,6 +464,59 @@ const JamsPage = () => {
       enabled: !!workspaceKey && isShareDialogOpen,
     },
   );
+
+  const shareTargetsData = shareTargetsQuery.data?.data;
+  const shareTargetUsers = React.useMemo(
+    () => shareTargetsData?.users || [],
+    [shareTargetsData?.users],
+  );
+  const shareTargetTeams = React.useMemo(
+    () => shareTargetsData?.teams || [],
+    [shareTargetsData?.teams],
+  );
+  const shareTargetRooms = React.useMemo(
+    () => shareTargetsData?.rooms || [],
+    [shareTargetsData?.rooms],
+  );
+
+  const shareRecipientOptions = React.useMemo<ShareRecipientOption[]>(() => {
+    const people = shareTargetUsers.map((user) => ({
+      id: user.id,
+      type: "users" as const,
+      label: user.name,
+      meta: user.email,
+    }));
+
+    const teams = shareTargetTeams.map((team) => ({
+      id: team.id,
+      type: "teams" as const,
+      label: team.name,
+      meta: `${team.memberCount} members`,
+    }));
+
+    const rooms = shareTargetRooms.map((room) => ({
+      id: room.id,
+      type: "rooms" as const,
+      label: room.name,
+      meta: `${room.kind} • ${room.members} members`,
+    }));
+
+    return [...people, ...teams, ...rooms];
+  }, [shareTargetRooms, shareTargetTeams, shareTargetUsers]);
+
+  const shareRecipientLabelByType = React.useMemo(() => {
+    const users = new Map(
+      shareTargetUsers.map((entry) => [entry.id, entry.name]),
+    );
+    const teams = new Map(
+      shareTargetTeams.map((entry) => [entry.id, entry.name]),
+    );
+    const rooms = new Map(
+      shareTargetRooms.map((entry) => [entry.id, entry.name]),
+    );
+
+    return { users, teams, rooms };
+  }, [shareTargetRooms, shareTargetTeams, shareTargetUsers]);
 
   React.useEffect(() => {
     if (!isShareDialogOpen || !activeJam) {
@@ -518,8 +589,11 @@ const JamsPage = () => {
       await invalidateJamQueries();
 
       if (nextJamId) {
-        setActiveJamId(nextJamId);
-        setIsCanvasFocusMode(true);
+        if (isRoutedCanvasMode) {
+          setActiveJamId(nextJamId);
+          setIsCanvasFocusMode(true);
+        }
+        router.push(`${ROUTES.JAMS}/${nextJamId}`);
       }
 
       setIsCreateDialogOpen(false);
@@ -613,12 +687,14 @@ const JamsPage = () => {
   const latestCanvasSnapshotGetterRef = React.useRef<
     (() => Record<string, unknown> | null) | null
   >(null);
+  const lastLocalDraftWriteAtRef = React.useRef(0);
 
   React.useEffect(() => {
     if (!activeJamKey) {
       savedSnapshotHashRef.current = "";
       setPendingSnapshot(null);
       pendingSnapshotRef.current = null;
+      lastLocalDraftWriteAtRef.current = 0;
       return;
     }
 
@@ -674,6 +750,7 @@ const JamsPage = () => {
       setLocalDraftSnapshot(snapshot);
       if (workspaceKey && activeJam?.jamId) {
         writeJamLocalDraft(workspaceKey, activeJam.jamId, snapshot);
+        lastLocalDraftWriteAtRef.current = Date.now();
       }
     },
     [activeJam?.canEdit, activeJam?.jamId, workspaceKey],
@@ -721,15 +798,43 @@ const JamsPage = () => {
         pendingSnapshotRef.current = null;
 
         try {
-          await updateJamContentMutation.mutateAsync({
+          const response = await updateJamContentMutation.mutateAsync({
             workspaceId: workspaceKey,
             jamId: activeJam.jamId,
             payload: {
               snapshot: snapshotToSave,
             },
           });
+          const persistedJam = response.data?.jam;
+
           savedSnapshotHashRef.current = nextHash;
           writeJamLocalDraft(workspaceKey, activeJam.jamId, snapshotToSave);
+          lastLocalDraftWriteAtRef.current = Date.now();
+
+          if (persistedJam) {
+            queryClient.setQueryData(
+              ["workspace-jam-detail", workspaceKey, activeJam.jamId, true],
+              (previous: unknown) => {
+                if (!previous || typeof previous !== "object") {
+                  return previous;
+                }
+
+                const previousResponse = previous as {
+                  data?: { message?: string; jam?: WorkspaceJamRecord };
+                };
+
+                return {
+                  ...previousResponse,
+                  data: {
+                    ...(previousResponse.data || {
+                      message: "Retrieved successfully",
+                    }),
+                    jam: persistedJam,
+                  },
+                };
+              },
+            );
+          }
         } catch {
           // handled by hook
           // put it back so next flush can retry.
@@ -749,7 +854,7 @@ const JamsPage = () => {
 
     flushPromiseRef.current = promise;
     await promise;
-  }, [activeJam, updateJamContentMutation, workspaceKey]);
+  }, [activeJam, queryClient, updateJamContentMutation, workspaceKey]);
 
   React.useEffect(() => {
     if (!workspaceKey || !activeJam || !activeJam.canEdit || !pendingSnapshot) {
@@ -787,10 +892,18 @@ const JamsPage = () => {
     async (jamId: string) => {
       captureLatestCanvasSnapshot();
       await flushPendingSnapshot();
-      setActiveJamId(jamId);
-      setIsCanvasFocusMode(true);
+      if (isRoutedCanvasMode) {
+        setActiveJamId(jamId);
+        setIsCanvasFocusMode(true);
+      }
+      router.push(`${ROUTES.JAMS}/${jamId}`);
     },
-    [captureLatestCanvasSnapshot, flushPendingSnapshot],
+    [
+      captureLatestCanvasSnapshot,
+      flushPendingSnapshot,
+      isRoutedCanvasMode,
+      router,
+    ],
   );
 
   const toggleSelection = React.useCallback(
@@ -808,6 +921,56 @@ const JamsPage = () => {
       });
     },
     [],
+  );
+
+  const addSelection = React.useCallback(
+    (type: "users" | "teams" | "rooms", value: string) => {
+      setShareSelection((current) => {
+        if (current[type].includes(value)) {
+          return current;
+        }
+
+        return {
+          ...current,
+          [type]: [...current[type], value],
+        };
+      });
+    },
+    [],
+  );
+
+  const selectedRecipients = React.useMemo(
+    () => [
+      ...shareSelection.users.map((id) => ({
+        id,
+        type: "users" as const,
+        label: shareRecipientLabelByType.users.get(id) || id,
+      })),
+      ...shareSelection.teams.map((id) => ({
+        id,
+        type: "teams" as const,
+        label: shareRecipientLabelByType.teams.get(id) || id,
+      })),
+      ...shareSelection.rooms.map((id) => ({
+        id,
+        type: "rooms" as const,
+        label: shareRecipientLabelByType.rooms.get(id) || id,
+      })),
+    ],
+    [
+      shareRecipientLabelByType,
+      shareSelection.rooms,
+      shareSelection.teams,
+      shareSelection.users,
+    ],
+  );
+
+  const availableShareRecipientOptions = React.useMemo(
+    () =>
+      shareRecipientOptions.filter((option) => {
+        return !shareSelection[option.type].includes(option.id);
+      }),
+    [shareRecipientOptions, shareSelection],
   );
 
   const handleShareJam = async () => {
@@ -840,135 +1003,156 @@ const JamsPage = () => {
     }
   };
 
-  const jamListLoading = jamsQuery.isLoading && !jamRows.length;
+  const jamListLoading =
+    !isRoutedCanvasMode && jamsQuery.isLoading && !jamRows.length;
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden">
-      <div className="bg-background/90 border-border/45 shrink-0 border-b px-4 py-3 backdrop-blur-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="text-[13px] font-semibold">Jams</p>
-            <p className="text-muted-foreground text-[11px]">
-              Compact boards with instant canvas mode
-            </p>
-          </div>
-          <Button
-            size="sm"
-            className="h-8 px-2.5"
-            onClick={() => setIsCreateDialogOpen(true)}
-          >
-            <Plus className="size-3.5" />
-            New
-          </Button>
-        </div>
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          <div className="relative w-full min-w-[16rem] flex-1">
-            <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-2.5 size-3.5" />
-            <Input
-              value={listSearch}
-              onChange={(event) => setListSearch(event.target.value)}
-              placeholder="Search jams"
-              className="h-8 pl-8 text-[12px]"
-            />
-          </div>
-          <div className="bg-muted/40 border-border/50 inline-flex h-8 items-center rounded-lg border p-0.5">
-            {JAMS_SCOPE_OPTIONS.map((option) => {
-              const isActive = scope === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setScope(option.value)}
-                  className={cn(
-                    "h-6 rounded-md px-2.5 text-[11px] transition-colors",
-                    isActive
-                      ? "bg-background text-foreground"
-                      : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
-          <Button
-            type="button"
-            variant={showArchived ? "secondary" : "outline"}
-            size="sm"
-            className="h-8 px-2.5 text-[11px]"
-            onClick={() => setShowArchived((value) => !value)}
-          >
-            {showArchived ? "Archived view" : "Active view"}
-          </Button>
-        </div>
-      </div>
-
-      {!workspaceKey ? (
-        <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-          <Empty className="border-border/40 max-w-xl border border-dashed">
-            <EmptyHeader>
-              <EmptyTitle>Select a workspace first</EmptyTitle>
-              <EmptyDescription>
-                Switch to a workspace to create and collaborate on jams.
-              </EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-        </div>
-      ) : (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <section className="min-h-0 flex-1 overflow-hidden px-4 py-3">
-            <div className="text-muted-foreground mb-2 text-[11px]">
-              {jamRows.length} result{jamRows.length === 1 ? "" : "s"}
+      {!isRoutedCanvasMode ? (
+        <>
+          <div className="bg-background/90 border-border/45 shrink-0 border-b px-4 py-3 backdrop-blur-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-[13px] font-semibold">Jams</p>
+                <p className="text-muted-foreground text-[11px]">
+                  Compact boards with instant canvas mode
+                </p>
+              </div>
+              <Button
+                size="sm"
+                className="h-8 px-2.5"
+                onClick={() => setIsCreateDialogOpen(true)}
+              >
+                <Plus className="size-3.5" />
+                New
+              </Button>
             </div>
-            {jamListLoading ? (
-              <LoaderComponent />
-            ) : jamRows.length ? (
-              <ScrollArea className="h-full pr-1">
-                <div className="grid gap-2.5 pb-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-                  {jamRows.map((jam) => (
-                    <JamListCard
-                      key={jam.jamId}
-                      jam={jam}
-                      isActive={activeJamId === jam.jamId}
-                      onOpen={() => handleOpenJamCanvas(jam.jamId)}
-                      onRename={() => openRenameDialog(jam)}
-                      onShare={() => openShareDialog(jam.jamId)}
-                      onToggleArchive={() => handleArchiveToggle(jam)}
-                    />
-                  ))}
-                </div>
-              </ScrollArea>
-            ) : (
-              <Empty className="border-border/40 h-full rounded-lg border border-dashed p-4">
-                <EmptyHeader className="gap-1">
-                  <Brush className="text-muted-foreground size-5" />
-                  <EmptyTitle className="text-sm">No jams yet</EmptyTitle>
-                  <EmptyDescription className="text-[12px]">
-                    Create your first jamboard to sketch ideas, flows, and
-                    plans.
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <div className="relative w-full min-w-[16rem] flex-1">
+                <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-2.5 size-3.5" />
+                <Input
+                  value={listSearch}
+                  onChange={(event) => setListSearch(event.target.value)}
+                  placeholder="Search jams"
+                  className="h-8 pl-8 text-[12px]"
+                />
+              </div>
+              <div className="bg-muted/40 border-border/50 inline-flex h-8 items-center rounded-lg border p-0.5">
+                {JAMS_SCOPE_OPTIONS.map((option) => {
+                  const isActive = scope === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setScope(option.value)}
+                      className={cn(
+                        "h-6 rounded-md px-2.5 text-[11px] transition-colors",
+                        isActive
+                          ? "bg-background text-foreground"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <Button
+                type="button"
+                variant={showArchived ? "secondary" : "outline"}
+                size="sm"
+                className="h-8 px-2.5 text-[11px]"
+                onClick={() => setShowArchived((value) => !value)}
+              >
+                {showArchived ? "Archived view" : "Active view"}
+              </Button>
+            </div>
+          </div>
+
+          {!workspaceKey ? (
+            <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+              <Empty className="border-border/40 max-w-xl border border-dashed">
+                <EmptyHeader>
+                  <EmptyTitle>Select a workspace first</EmptyTitle>
+                  <EmptyDescription>
+                    Switch to a workspace to create and collaborate on jams.
                   </EmptyDescription>
                 </EmptyHeader>
-                <Button size="sm" onClick={() => setIsCreateDialogOpen(true)}>
-                  <Plus className="size-3.5" />
-                  Create Jam
-                </Button>
               </Empty>
-            )}
-          </section>
-        </div>
-      )}
+            </div>
+          ) : (
+            <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+              <section className="min-h-0 flex-1 overflow-hidden px-4 py-3">
+                <div className="text-muted-foreground mb-2 text-[11px]">
+                  {jamRows.length} result{jamRows.length === 1 ? "" : "s"}
+                </div>
+                {jamListLoading ? (
+                  <LoaderComponent />
+                ) : jamRows.length ? (
+                  <ScrollArea className="h-full pr-1">
+                    <div className="grid gap-2.5 pb-4 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+                      {jamRows.map((jam) => (
+                        <JamListCard
+                          key={jam.jamId}
+                          jam={jam}
+                          isActive={activeJamId === jam.jamId}
+                          onOpen={() => handleOpenJamCanvas(jam.jamId)}
+                          onRename={() => openRenameDialog(jam)}
+                          onShare={() => openShareDialog(jam.jamId)}
+                          onToggleArchive={() => handleArchiveToggle(jam)}
+                        />
+                      ))}
+                    </div>
+                  </ScrollArea>
+                ) : (
+                  <Empty className="border-border/40 h-full rounded-lg border border-dashed p-4">
+                    <EmptyHeader className="gap-1">
+                      <Brush className="text-muted-foreground size-5" />
+                      <EmptyTitle className="text-sm">No jams yet</EmptyTitle>
+                      <EmptyDescription className="text-[12px]">
+                        Create your first jamboard to sketch ideas, flows, and
+                        plans.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                    <Button
+                      size="sm"
+                      onClick={() => setIsCreateDialogOpen(true)}
+                    >
+                      <Plus className="size-3.5" />
+                      Create Jam
+                    </Button>
+                  </Empty>
+                )}
+              </section>
+            </div>
+          )}
+        </>
+      ) : null}
 
-      {isCanvasFocusMode && activeJam ? (
-        <div className="bg-background fixed inset-0 z-[120] flex min-h-0 flex-col">
+      {isCanvasFocusMode ? (
+        <div
+          className={cn(
+            "bg-background flex min-h-0 flex-col",
+            isRoutedCanvasMode ? "h-full" : "fixed inset-0 z-[120]",
+          )}
+        >
           <div className="bg-background/90 border-border/40 flex shrink-0 items-center gap-2 border-b px-3 py-2 backdrop-blur-sm">
-            <Badge variant="outline" className="text-[10px] uppercase">
-              Canvas mode
-            </Badge>
             <p className="line-clamp-1 text-[12px] font-medium">
-              {activeJam.title}
+              {activeJam?.title || "Loading jam..."}
             </p>
             <div className="ml-auto flex items-center gap-2">
-              {!activeJam.canEdit ? (
+              {activeJam?.canEdit ? (
+                <Button
+                  size="sm"
+                  variant={isSnapEnabled ? "secondary" : "outline"}
+                  className="h-8 px-2.5"
+                  onClick={() => setIsSnapEnabled((value) => !value)}
+                >
+                  <Magnet className="size-3.5" />
+                  {isSnapEnabled ? "Snap on" : "Snap off"}
+                </Button>
+              ) : null}
+              {activeJam && !activeJam.canEdit ? (
                 <Badge variant="secondary" className="text-[10px]">
                   Read only
                 </Badge>
@@ -980,7 +1164,11 @@ const JamsPage = () => {
                 onClick={async () => {
                   captureLatestCanvasSnapshot();
                   await flushPendingSnapshot();
-                  setIsCanvasFocusMode(false);
+                  if (isRoutedCanvasMode) {
+                    router.push(ROUTES.JAMS);
+                  } else {
+                    setIsCanvasFocusMode(false);
+                  }
                 }}
               >
                 <Minimize2 className="size-3.5" />
@@ -989,13 +1177,14 @@ const JamsPage = () => {
             </div>
           </div>
           <div className="relative min-h-0 flex-1">
-            {jamDetailQuery.isLoading ? (
+            {jamDetailQuery.isLoading || !activeJam ? (
               <LoaderComponent />
             ) : (
               <JamCanvas
                 jamId={activeJam.jamId}
                 snapshot={resolvedCanvasSnapshot}
                 canEdit={Boolean(activeJam.canEdit)}
+                gridModeEnabled={Boolean(activeJam.canEdit) && isSnapEnabled}
                 onSnapshotChange={handleCanvasSnapshotChange}
                 onRegisterSnapshotGetter={(getter) => {
                   latestCanvasSnapshotGetterRef.current = getter;
@@ -1012,7 +1201,15 @@ const JamsPage = () => {
         </div>
       ) : null}
 
-      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+      <Dialog
+        open={isCreateDialogOpen}
+        onOpenChange={(open) => {
+          setIsCreateDialogOpen(open);
+          if (!open && shouldAutoOpenCreateDialog) {
+            router.replace(ROUTES.JAMS);
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Create Jam</DialogTitle>
@@ -1124,53 +1321,102 @@ const JamsPage = () => {
       </Dialog>
 
       <Dialog open={isShareDialogOpen} onOpenChange={setIsShareDialogOpen}>
-        <DialogContent className="sm:max-w-3xl">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Share Jam</DialogTitle>
             <DialogDescription>
               Share this board with people, teams, and Spaces rooms.
             </DialogDescription>
           </DialogHeader>
-          <div className="grid max-h-[62vh] gap-3 overflow-hidden md:grid-cols-3">
+          <div className="grid gap-2">
+            <Label className="text-[12px]">Add access by name</Label>
             <Input
               value={shareSearch}
               onChange={(event) => setShareSearch(event.target.value)}
-              placeholder="Search people, teams, or rooms"
-              className="md:col-span-3 h-8 text-[12px]"
+              placeholder="Type a person, team, or room name"
+              className="h-9 text-[12px]"
             />
-            <ShareListSection
-              title="People"
-              icon={Users}
-              items={shareTargetsQuery.data?.data?.users || []}
-              selected={shareSelection.users}
-              emptyLabel="No people found"
-              getKey={(item) => item.id}
-              getLabel={(item) => item.name}
-              getMeta={(item) => item.email}
-              onToggle={(value) => toggleSelection("users", value)}
-            />
-            <ShareListSection
-              title="Teams"
-              icon={UsersRound}
-              items={shareTargetsQuery.data?.data?.teams || []}
-              selected={shareSelection.teams}
-              emptyLabel="No teams found"
-              getKey={(item) => item.id}
-              getLabel={(item) => item.name}
-              getMeta={(item) => `${item.memberCount} members`}
-              onToggle={(value) => toggleSelection("teams", value)}
-            />
-            <ShareListSection
-              title="Spaces Rooms"
-              icon={Share2}
-              items={shareTargetsQuery.data?.data?.rooms || []}
-              selected={shareSelection.rooms}
-              emptyLabel="No rooms found"
-              getKey={(item) => item.id}
-              getLabel={(item) => item.name}
-              getMeta={(item) => `${item.kind} • ${item.members} members`}
-              onToggle={(value) => toggleSelection("rooms", value)}
-            />
+            <div className="bg-muted/20 border-border/45 min-h-0 rounded-md border">
+              <ScrollArea className="h-[13.5rem]">
+                <div className="space-y-0.5 p-1.5">
+                  {shareTargetsQuery.isLoading ? (
+                    <div className="text-muted-foreground flex items-center gap-1.5 px-2 py-2 text-[11px]">
+                      <Loader className="size-3.5 animate-spin" />
+                      Searching...
+                    </div>
+                  ) : availableShareRecipientOptions.length ? (
+                    availableShareRecipientOptions.map((option) => {
+                      const OptionIcon =
+                        option.type === "users"
+                          ? Users
+                          : option.type === "teams"
+                            ? UsersRound
+                            : Hash;
+
+                      return (
+                        <button
+                          key={`${option.type}:${option.id}`}
+                          type="button"
+                          onClick={() => addSelection(option.type, option.id)}
+                          className="hover:bg-muted/55 flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left"
+                        >
+                          <OptionIcon className="text-muted-foreground mt-0.5 size-3.5 shrink-0" />
+                          <span className="min-w-0">
+                            <span className="block truncate text-[12px] leading-none">
+                              {option.label}
+                            </span>
+                            <span className="text-muted-foreground mt-1 block truncate text-[11px]">
+                              {option.meta}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    <p className="text-muted-foreground px-2 py-2 text-[11px]">
+                      No matching recipients found.
+                    </p>
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {selectedRecipients.length ? (
+                selectedRecipients.map((entry) => {
+                  const EntryIcon =
+                    entry.type === "users"
+                      ? Users
+                      : entry.type === "teams"
+                        ? UsersRound
+                        : Hash;
+
+                  return (
+                    <Badge
+                      key={`${entry.type}:${entry.id}`}
+                      variant="secondary"
+                      className="h-6 gap-1 px-2 text-[11px]"
+                    >
+                      <EntryIcon className="size-3" />
+                      <span className="max-w-[14rem] truncate">
+                        {entry.label}
+                      </span>
+                      <button
+                        type="button"
+                        className="hover:text-foreground text-muted-foreground"
+                        onClick={() => toggleSelection(entry.type, entry.id)}
+                        aria-label={`Remove ${entry.label}`}
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </Badge>
+                  );
+                })
+              ) : (
+                <p className="text-muted-foreground text-[11px]">
+                  No recipients selected yet.
+                </p>
+              )}
+            </div>
           </div>
           <Separator />
           <div className="grid gap-2">
@@ -1226,6 +1472,45 @@ type JamListCardProps = {
   onToggleArchive: () => void;
 };
 
+type JamPreviewPoint = { x: number; y: number };
+type JamPreviewElement = {
+  id: string;
+  type: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  strokeColor: string;
+  backgroundColor: string;
+  strokeWidth: number;
+  points: JamPreviewPoint[];
+  text: string;
+  fontSize: number;
+};
+
+const toFinite = (value: unknown, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const toPreviewPoints = (value: unknown): JamPreviewPoint[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map((point) => {
+      if (!Array.isArray(point) || point.length < 2) {
+        return null;
+      }
+
+      const x = toFinite(point[0], 0);
+      const y = toFinite(point[1], 0);
+      return { x, y };
+    })
+    .filter((entry): entry is JamPreviewPoint => !!entry);
+};
+
 const getJamPreviewElements = (
   snapshot: Record<string, unknown> | null | undefined,
 ) => {
@@ -1237,20 +1522,76 @@ const getJamPreviewElements = (
     .filter((element) => !Boolean(element?.isDeleted))
     .map((element) => ({
       id: String(element?.id || Math.random().toString(36).slice(2)),
-      x: Number(element?.x ?? 0),
-      y: Number(element?.y ?? 0),
-      width: Math.max(2, Math.abs(Number(element?.width ?? 4))),
-      height: Math.max(2, Math.abs(Number(element?.height ?? 4))),
+      type: String(element?.type || "rectangle"),
+      x: toFinite(element?.x, 0),
+      y: toFinite(element?.y, 0),
+      width: toFinite(element?.width, 0),
+      height: toFinite(element?.height, 0),
       strokeColor:
         typeof element?.strokeColor === "string"
           ? element.strokeColor
-          : "#a1a1aa",
+          : "#8f8f8f",
       backgroundColor:
         typeof element?.backgroundColor === "string"
           ? element.backgroundColor
           : "transparent",
+      strokeWidth: Math.max(1, toFinite(element?.strokeWidth, 1)),
+      points: toPreviewPoints(element?.points),
+      text: typeof element?.text === "string" ? element.text : "",
+      fontSize: Math.max(10, toFinite(element?.fontSize, 16)),
     }))
-    .slice(0, 40);
+    .slice(0, 120);
+};
+
+const getPreviewElementBounds = (element: JamPreviewElement) => {
+  const isPathLike =
+    element.type === "line" ||
+    element.type === "arrow" ||
+    element.type === "draw" ||
+    element.type === "freedraw";
+
+  if (isPathLike && element.points.length > 0) {
+    const first = element.points[0];
+    const initial = {
+      minX: element.x + first.x,
+      minY: element.y + first.y,
+      maxX: element.x + first.x,
+      maxY: element.y + first.y,
+    };
+
+    return element.points.slice(1).reduce((acc, point) => {
+      const absoluteX = element.x + point.x;
+      const absoluteY = element.y + point.y;
+      return {
+        minX: Math.min(acc.minX, absoluteX),
+        minY: Math.min(acc.minY, absoluteY),
+        maxX: Math.max(acc.maxX, absoluteX),
+        maxY: Math.max(acc.maxY, absoluteY),
+      };
+    }, initial);
+  }
+
+  const computedWidth =
+    Math.abs(element.width) > 0
+      ? element.width
+      : element.type === "text"
+        ? Math.max(12, element.text.length * (element.fontSize * 0.55))
+        : 6;
+  const computedHeight =
+    Math.abs(element.height) > 0
+      ? element.height
+      : element.type === "text"
+        ? Math.max(12, element.fontSize * 1.4)
+        : 6;
+
+  const x2 = element.x + computedWidth;
+  const y2 = element.y + computedHeight;
+  return {
+    minX: Math.min(element.x, x2),
+    minY: Math.min(element.y, y2),
+    maxX: Math.max(element.x, x2),
+    maxY: Math.max(element.y, y2),
+  };
 };
 
 const JamCardPreview = ({
@@ -1272,12 +1613,15 @@ const JamCardPreview = ({
   }
 
   const bounds = elements.reduce(
-    (acc, element) => ({
-      minX: Math.min(acc.minX, element.x),
-      minY: Math.min(acc.minY, element.y),
-      maxX: Math.max(acc.maxX, element.x + element.width),
-      maxY: Math.max(acc.maxY, element.y + element.height),
-    }),
+    (acc, element) => {
+      const elementBounds = getPreviewElementBounds(element);
+      return {
+        minX: Math.min(acc.minX, elementBounds.minX),
+        minY: Math.min(acc.minY, elementBounds.minY),
+        maxX: Math.max(acc.maxX, elementBounds.maxX),
+        maxY: Math.max(acc.maxY, elementBounds.maxY),
+      };
+    },
     {
       minX: Number.POSITIVE_INFINITY,
       minY: Number.POSITIVE_INFINITY,
@@ -1292,18 +1636,111 @@ const JamCardPreview = ({
   return (
     <svg
       viewBox="0 0 100 60"
-      className="absolute inset-0 h-full w-full opacity-60"
+      className="absolute inset-0 h-full w-full opacity-85"
       preserveAspectRatio="xMidYMid meet"
     >
       {elements.map((element) => {
-        const x = ((element.x - bounds.minX) / widthSpan) * 88 + 6;
-        const y = ((element.y - bounds.minY) / heightSpan) * 48 + 6;
-        const width = Math.max(2.2, (element.width / widthSpan) * 88);
-        const height = Math.max(2.2, (element.height / heightSpan) * 48);
+        const mapX = (value: number) =>
+          ((value - bounds.minX) / widthSpan) * 88 + 6;
+        const mapY = (value: number) =>
+          ((value - bounds.minY) / heightSpan) * 48 + 6;
+        const strokeWidth = Math.max(0.5, element.strokeWidth * 0.35);
         const fill =
           element.backgroundColor && element.backgroundColor !== "transparent"
             ? element.backgroundColor
-            : "transparent";
+            : "none";
+
+        const rectBounds = getPreviewElementBounds(element);
+        const x = mapX(rectBounds.minX);
+        const y = mapY(rectBounds.minY);
+        const width = Math.max(1.8, mapX(rectBounds.maxX) - x);
+        const height = Math.max(1.8, mapY(rectBounds.maxY) - y);
+
+        if (element.type === "text") {
+          const previewText = element.text.replace(/\n+/g, " ").trim();
+          if (!previewText) {
+            return null;
+          }
+
+          return (
+            <text
+              key={element.id}
+              x={x}
+              y={
+                y +
+                Math.max(3, Math.min(8, (element.fontSize / heightSpan) * 48))
+              }
+              fill={element.strokeColor || "#e5e7eb"}
+              fontSize={Math.max(2.8, (element.fontSize / heightSpan) * 48)}
+              fontWeight={500}
+              className="select-none"
+            >
+              {previewText.slice(0, 120)}
+            </text>
+          );
+        }
+
+        if (
+          element.type === "line" ||
+          element.type === "arrow" ||
+          element.type === "draw" ||
+          element.type === "freedraw"
+        ) {
+          if (!element.points.length) {
+            return null;
+          }
+
+          const points = element.points
+            .map(
+              (point) =>
+                `${mapX(element.x + point.x)},${mapY(element.y + point.y)}`,
+            )
+            .join(" ");
+
+          return (
+            <polyline
+              key={element.id}
+              points={points}
+              fill="none"
+              stroke={element.strokeColor || "#a1a1aa"}
+              strokeWidth={strokeWidth}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              opacity={0.92}
+            />
+          );
+        }
+
+        if (element.type === "ellipse") {
+          return (
+            <ellipse
+              key={element.id}
+              cx={x + width / 2}
+              cy={y + height / 2}
+              rx={Math.max(1.2, width / 2)}
+              ry={Math.max(1.2, height / 2)}
+              fill={fill}
+              stroke={element.strokeColor || "#a1a1aa"}
+              strokeWidth={strokeWidth}
+              opacity={0.92}
+            />
+          );
+        }
+
+        if (element.type === "diamond") {
+          const cx = x + width / 2;
+          const cy = y + height / 2;
+          return (
+            <polygon
+              key={element.id}
+              points={`${cx},${y} ${x + width},${cy} ${cx},${y + height} ${x},${cy}`}
+              fill={fill}
+              stroke={element.strokeColor || "#a1a1aa"}
+              strokeWidth={strokeWidth}
+              opacity={0.92}
+            />
+          );
+        }
 
         return (
           <rect
@@ -1316,8 +1753,8 @@ const JamCardPreview = ({
             ry={2}
             fill={fill}
             stroke={element.strokeColor || "#a1a1aa"}
-            strokeWidth={0.8}
-            opacity={0.9}
+            strokeWidth={strokeWidth}
+            opacity={0.92}
           />
         );
       })}
@@ -1343,7 +1780,7 @@ const JamListCard = ({
       <button
         type="button"
         onClick={onOpen}
-        className="relative h-36 w-full text-left"
+        className="relative h-46 w-full text-left"
       >
         <div className="from-muted/95 via-muted/65 to-background/80 absolute inset-0 bg-gradient-to-br" />
         <JamCardPreview snapshot={jam.snapshot || null} />
@@ -1441,76 +1878,6 @@ const JamListCard = ({
         </DropdownMenu>
       </div>
     </article>
-  );
-};
-
-type ShareListSectionProps<TItem extends { id: string }> = {
-  title: string;
-  icon: React.ComponentType<{ className?: string }>;
-  items: TItem[];
-  selected: string[];
-  emptyLabel: string;
-  getKey: (item: TItem) => string;
-  getLabel: (item: TItem) => string;
-  getMeta?: (item: TItem) => string;
-  onToggle: (value: string) => void;
-};
-
-const ShareListSection = <TItem extends { id: string }>({
-  title,
-  icon: Icon,
-  items,
-  selected,
-  emptyLabel,
-  getKey,
-  getLabel,
-  getMeta,
-  onToggle,
-}: ShareListSectionProps<TItem>) => {
-  return (
-    <div className="bg-muted/20 border-border/45 min-h-0 rounded-md border p-2">
-      <div className="mb-2 flex items-center gap-1.5">
-        <Icon className="text-muted-foreground size-3.5" />
-        <p className="text-[12px] font-medium">{title}</p>
-      </div>
-      <ScrollArea className="h-[16rem]">
-        <div className="space-y-1">
-          {items.length ? (
-            items.map((item) => {
-              const key = getKey(item);
-              const isChecked = selected.includes(key);
-
-              return (
-                <label
-                  key={key}
-                  className="hover:bg-muted/45 flex cursor-pointer items-start gap-2 rounded-md px-1.5 py-1.5"
-                >
-                  <Checkbox
-                    checked={isChecked}
-                    onCheckedChange={() => onToggle(key)}
-                    className="mt-0.5"
-                  />
-                  <span className="min-w-0">
-                    <span className="block truncate text-[12px] leading-none">
-                      {getLabel(item)}
-                    </span>
-                    {getMeta ? (
-                      <span className="text-muted-foreground mt-1 block truncate text-[11px]">
-                        {getMeta(item)}
-                      </span>
-                    ) : null}
-                  </span>
-                </label>
-              );
-            })
-          ) : (
-            <p className="text-muted-foreground px-1.5 py-2 text-[11px]">
-              {emptyLabel}
-            </p>
-          )}
-        </div>
-      </ScrollArea>
-    </div>
   );
 };
 

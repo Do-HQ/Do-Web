@@ -8,6 +8,7 @@ export type ParsedJamShareMessage = {
 };
 
 const JAM_ROUTE_PATTERN = /\/jams\?jam=([a-zA-Z0-9_-]+)/i;
+const JAM_CANVAS_ROUTE_PATTERN = /\/jams\/([a-zA-Z0-9_-]+)/i;
 
 export const createId = () => {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -95,11 +96,14 @@ export const parseJamShareMessage = (
   }
 
   const routeMatch = content.match(JAM_ROUTE_PATTERN);
-  if (!routeMatch?.[1]) {
+  const canvasRouteMatch = content.match(JAM_CANVAS_ROUTE_PATTERN);
+  const jamIdCandidate = routeMatch?.[1] || canvasRouteMatch?.[1] || "";
+
+  if (!jamIdCandidate) {
     return null;
   }
 
-  const jamId = decodeURIComponent(String(routeMatch[1] || "").trim());
+  const jamId = decodeURIComponent(String(jamIdCandidate || "").trim());
   if (!jamId) {
     return null;
   }
@@ -109,7 +113,10 @@ export const parseJamShareMessage = (
     .map((line) => String(line || "").trim())
     .filter(Boolean);
 
-  const routeLineIndex = lines.findIndex((line) => JAM_ROUTE_PATTERN.test(line));
+  const routeLineIndex = lines.findIndex(
+    (line) =>
+      JAM_ROUTE_PATTERN.test(line) || JAM_CANVAS_ROUTE_PATTERN.test(line),
+  );
   const headerLine = lines[0] || "";
   const headerTitleSplit = headerLine.split("shared a jam:");
   const hasShareHeader = headerTitleSplit.length > 1;
@@ -125,7 +132,10 @@ export const parseJamShareMessage = (
       if (!line) {
         return false;
       }
-      if (JAM_ROUTE_PATTERN.test(line)) {
+      if (
+        JAM_ROUTE_PATTERN.test(line) ||
+        JAM_CANVAS_ROUTE_PATTERN.test(line)
+      ) {
         return false;
       }
       if (index === 0 && hasShareHeader) {
@@ -140,7 +150,7 @@ export const parseJamShareMessage = (
 
   return {
     jamId,
-    route: `/jams?jam=${encodeURIComponent(jamId)}`,
+    route: `/jams/${encodeURIComponent(jamId)}`,
     title,
     note,
   };

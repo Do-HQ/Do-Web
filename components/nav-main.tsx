@@ -21,9 +21,19 @@ export function NavMain({
   return (
     <SidebarMenu>
       {items.map((item) => (
-        <SidebarMenuItem key={item.title} onClick={item?.onClick}>
+        <SidebarMenuItem key={item.title}>
           <SidebarMenuButton asChild isActive={item.isActive}>
-            <Link href={item.url}>
+            <Link
+              href={item.url}
+              onClick={(event) => {
+                if (!item.onClick) {
+                  return;
+                }
+
+                event.preventDefault();
+                item.onClick();
+              }}
+            >
               <item.icon />
               <span>{item.title}</span>
             </Link>

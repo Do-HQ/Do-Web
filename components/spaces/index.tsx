@@ -2376,7 +2376,7 @@ const SpacesPage = () => {
           normalizedJamId,
           false,
         );
-        router.push(`/jams?jam=${encodeURIComponent(normalizedJamId)}`);
+        router.push(`/jams/${encodeURIComponent(normalizedJamId)}`);
       } catch (error) {
         const axiosError = error as AxiosError<{
           message?: string;

@@ -17,6 +17,7 @@ type JamCanvasProps = {
   jamId: string;
   snapshot: Record<string, unknown> | null;
   canEdit: boolean;
+  gridModeEnabled?: boolean;
   className?: string;
   onSnapshotChange?: (snapshot: Record<string, unknown>) => void;
   onRegisterSnapshotGetter?: (
@@ -79,6 +80,7 @@ const JamCanvas = ({
   jamId,
   snapshot,
   canEdit,
+  gridModeEnabled = false,
   className,
   onSnapshotChange,
   onRegisterSnapshotGetter,
@@ -256,14 +258,13 @@ const JamCanvas = ({
         onChange={handleChange}
         viewModeEnabled={!canEdit}
         zenModeEnabled
+        gridModeEnabled={gridModeEnabled}
         UIOptions={uiOptions}
         theme={resolvedTheme === "dark" ? "dark" : "light"}
       />
       {!canEdit ? (
-        <div className="bg-background/45 pointer-events-none absolute inset-0 z-20 backdrop-blur-[1px]">
-          <div className="bg-background/90 text-muted-foreground absolute top-3 right-3 rounded-md border px-2 py-1 text-[11px]">
-            Read-only jam
-          </div>
+        <div className="bg-background/90 text-muted-foreground pointer-events-none absolute top-3 right-3 z-20 rounded-md border px-2 py-1 text-[11px]">
+          Read-only jam
         </div>
       ) : null}
     </div>

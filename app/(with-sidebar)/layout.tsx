@@ -13,11 +13,27 @@ import TeamCallNotificationListener from "@/components/spaces/team-call-notifica
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const isJamCanvasRoute =
+    pathname.startsWith(`${ROUTES.JAMS}/`) && pathname !== ROUTES.JAMS;
   const isImmersivePage =
     pathname === ROUTES.ASK_SQUIRCLE ||
     pathname === ROUTES.CALENDAR ||
     pathname.startsWith(ROUTES.JAMS) ||
     pathname.startsWith(ROUTES.SPACES);
+
+  if (isJamCanvasRoute) {
+    return (
+      <RequireAuth>
+        <div className="bg-background h-[100dvh] overflow-hidden">
+          {children}
+          <Toaster position="top-right" />
+          <ProjectNotificationListener />
+          <TeamCallNotificationListener />
+          <CommandSearch />
+        </div>
+      </RequireAuth>
+    );
+  }
 
   return (
     <RequireAuth>

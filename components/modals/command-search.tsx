@@ -11,10 +11,10 @@ import {
   InboxIcon,
   ListChecks,
   ListTodo,
-  Loader2,
   PlusIcon,
   Sparkles,
   Star,
+  StickyNote,
   Workflow,
   type LucideIcon,
 } from "lucide-react";
@@ -36,6 +36,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useDebounce } from "@/hooks/use-debounce";
 import { getWorkspaceProjects } from "@/lib/services/workspace-project-service";
+import { getWorkspaceJams } from "@/lib/services/workspace-jam-service";
 import { getWorkspaceSpaceRooms } from "@/lib/services/workspace-space-service";
 import { cn } from "@/lib/utils";
 import useAuthStore from "@/stores/auth";
@@ -149,6 +150,19 @@ const CommandSearch = () => {
       }),
   });
 
+  const jamsSearchQuery = useQuery({
+    queryKey: ["command-search-jams", resolvedWorkspaceId, normalizedQuery],
+    enabled: showSpotlightSearch && queryActive && Boolean(resolvedWorkspaceId),
+    queryFn: () =>
+      getWorkspaceJams(resolvedWorkspaceId, {
+        page: 1,
+        limit: 25,
+        search: normalizedQuery,
+        archived: false,
+        includeSnapshot: false,
+      }),
+  });
+
   const closeAndRoute = React.useCallback(
     (href: string) => {
       setShowSpotlightSearch(false);
@@ -212,6 +226,13 @@ const CommandSearch = () => {
         icon: Hash,
         shortcut: "⇧⌘N",
         onSelect: () => closeAndRoute(ROUTES.SPACES),
+      },
+      {
+        id: "action-new-jam",
+        label: "New jam",
+        icon: StickyNote,
+        shortcut: "⌥⌘N",
+        onSelect: () => closeAndRoute(`${ROUTES.JAMS}?create=1`),
       },
       {
         id: "action-new-workflow",
@@ -297,6 +318,21 @@ const CommandSearch = () => {
       badge: room.unread > 0 ? `${room.unread} new` : undefined,
     }));
   }, [chatsSearchQuery.data, queryActive]);
+
+  const jamResults = React.useMemo<SearchResultItem[]>(() => {
+    if (!queryActive) {
+      return [];
+    }
+
+    const jams = jamsSearchQuery.data?.data?.jams ?? [];
+    return jams.map((jam) => ({
+      id: `jam:${jam.id}`,
+      label: jam.title,
+      href: `${ROUTES.JAMS}/${jam.id}`,
+      icon: StickyNote,
+      hint: jam.visibility === "workspace" ? "Workspace jam" : "Private jam",
+    }));
+  }, [jamsSearchQuery.data, queryActive]);
 
   const localWorkflowTaskRiskResults = React.useMemo<SearchResultItem[]>(() => {
     if (!queryActive) {
@@ -410,7 +446,9 @@ const CommandSearch = () => {
 
   const loadingSearchResults =
     queryActive &&
-    (projectsSearchQuery.isFetching || chatsSearchQuery.isFetching);
+    (projectsSearchQuery.isFetching ||
+      chatsSearchQuery.isFetching ||
+      jamsSearchQuery.isFetching);
 
   React.useEffect(() => {
     if (!showSpotlightSearch) {
@@ -523,6 +561,21 @@ const CommandSearch = () => {
                   </CommandItem>
                 ))}
 
+                {jamResults.map((item) => (
+                  <CommandItem
+                    key={item.id}
+                    onSelect={() => closeAndRoute(item.href)}
+                  >
+                    <item.icon />
+                    <span>{item.label}</span>
+                    {item.hint ? (
+                      <span className="text-muted-foreground ml-auto text-[11px] capitalize">
+                        {item.hint}
+                      </span>
+                    ) : null}
+                  </CommandItem>
+                ))}
+
                 {localWorkflowTaskRiskResults.map((item) => (
                   <CommandItem
                     key={item.id}
@@ -562,6 +615,7 @@ const CommandSearch = () => {
               {!loadingSearchResults &&
               !projectResults.length &&
               !chatResults.length &&
+              !jamResults.length &&
               !localWorkflowTaskRiskResults.length &&
               !favoriteResults.length ? (
                 <CommandEmpty>
