@@ -65,6 +65,24 @@
 
 .driver-popover.sq-walkthrough-popover .driver-popover-arrow {
   border-color: var(--popover) !important;
+  border-width: 6px !important;
+  filter: drop-shadow(0 0 0.5px var(--border));
+}
+
+.driver-popover.sq-walkthrough-popover .driver-popover-arrow-side-left {
+  border-left-color: var(--popover) !important;
+}
+
+.driver-popover.sq-walkthrough-popover .driver-popover-arrow-side-right {
+  border-right-color: var(--popover) !important;
+}
+
+.driver-popover.sq-walkthrough-popover .driver-popover-arrow-side-top {
+  border-top-color: var(--popover) !important;
+}
+
+.driver-popover.sq-walkthrough-popover .driver-popover-arrow-side-bottom {
+  border-bottom-color: var(--popover) !important;
 }
 
 .driver-popover.sq-walkthrough-popover .driver-popover-navigation-btns {

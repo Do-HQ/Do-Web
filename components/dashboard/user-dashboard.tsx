@@ -25,8 +25,13 @@ import useWorkspaceJam from "@/hooks/use-workspace-jam";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
 import useWorkspaceSpace from "@/hooks/use-workspace-space";
 import { useWorkspacePermissions } from "@/hooks/use-workspace-permissions";
+import {
+  getRecentVisits,
+  subscribeRecentVisits,
+  type RecentVisitEntry,
+} from "@/lib/helpers/recent-visits";
 import { cn } from "@/lib/utils";
-import { useFavoritesStore, useProjectStore } from "@/stores";
+import { useProjectStore } from "@/stores";
 import useAuthStore from "@/stores/auth";
 import useWorkspaceStore from "@/stores/workspace";
 import type { WorkspaceJamRecord } from "@/types/jam";
@@ -58,7 +63,7 @@ import { Separator } from "@/components/ui/separator";
 
 type DashboardVisitItem = {
   key: string;
-  kind: "project" | "space" | "jam" | "favorite";
+  kind: "project" | "space" | "jam";
   title: string;
   subtitle: string;
   href: string;
@@ -284,8 +289,10 @@ const UserDashboard = () => {
   const setProjectCreateOpen = useProjectStore(
     (state) => state.setProjectCreateOpen,
   );
-  const favorites = useFavoritesStore((state) => state.favorites);
   const permissions = useWorkspacePermissions();
+  const [recentVisitHistory, setRecentVisitHistory] = React.useState<
+    RecentVisitEntry[]
+  >([]);
 
   const projectHook = useWorkspaceProject();
   const spaceHook = useWorkspaceSpace();
@@ -349,6 +356,21 @@ const UserDashboard = () => {
     () => jamsQuery.data?.data?.jams ?? [],
     [jamsQuery.data?.data?.jams],
   );
+
+  React.useEffect(() => {
+    if (!resolvedWorkspaceId) {
+      setRecentVisitHistory([]);
+      return;
+    }
+
+    const syncRecentVisits = () => {
+      setRecentVisitHistory(getRecentVisits(resolvedWorkspaceId, 20));
+    };
+
+    syncRecentVisits();
+
+    return subscribeRecentVisits(syncRecentVisits);
+  }, [resolvedWorkspaceId]);
 
   const taskItems = React.useMemo<DashboardTaskItem[]>(() => {
     const items: DashboardTaskItem[] = [];
@@ -610,50 +632,66 @@ const UserDashboard = () => {
   );
 
   const recentVisitItems = React.useMemo<DashboardVisitItem[]>(() => {
-    const projectItems: DashboardVisitItem[] = projects.map((project) => ({
-      key: `project:${project.projectId}`,
-      kind: "project",
-      title: project.name,
-      subtitle: project.record?.summary || "Project workspace",
-      href: getProjectRoute(project.projectId),
-      updatedAt: project.updatedAt,
-    }));
+    const projectsById = new Map(
+      projects.map((project) => [String(project.projectId), project]),
+    );
+    const roomsById = new Map(rooms.map((room) => [String(room.id), room]));
+    const jamsById = new Map(jams.map((jam) => [String(jam.id), jam]));
 
-    const roomItems: DashboardVisitItem[] = rooms.map((room) => ({
-      key: `space:${room.id}`,
-      kind: "space",
-      title: room.name,
-      subtitle: room.topic || `${room.kind} room`,
-      href: `${ROUTES.SPACES}?room=${room.id}`,
-      updatedAt: room.updatedAt,
-    }));
+    const entries = recentVisitHistory
+      .map((entry) => {
+        const entryId = String(entry.key.split(":").slice(1).join(":")).trim();
 
-    const jamItems: DashboardVisitItem[] = jams.map((jam) => ({
-      key: `jam:${jam.id}`,
-      kind: "jam",
-      title: jam.title,
-      subtitle: jam.description || "Collaborative canvas",
-      href: `${ROUTES.JAMS}/${jam.id}`,
-      updatedAt: jam.updatedAt,
-    }));
+        if (entry.kind === "project") {
+          const project = projectsById.get(entryId);
+          if (!project) {
+            return null;
+          }
 
-    const favoriteItems: DashboardVisitItem[] = favorites.map((favorite) => ({
-      key: `favorite:${favorite.key}`,
-      kind: "favorite",
-      title: favorite.label,
-      subtitle: favorite.subtitle || "Saved favorite",
-      href: favorite.href,
-      updatedAt: new Date(favorite.createdAt).toISOString(),
-    }));
+          return {
+            key: entry.key,
+            kind: "project" as const,
+            title: project.name,
+            subtitle: project.record?.summary || "Project workspace",
+            href: getProjectRoute(project.projectId),
+            updatedAt: entry.visitedAt,
+          };
+        }
 
-    return [...projectItems, ...roomItems, ...jamItems, ...favoriteItems]
-      .sort((left, right) => {
-        const leftTime = toDateValue(left.updatedAt)?.getTime() ?? 0;
-        const rightTime = toDateValue(right.updatedAt)?.getTime() ?? 0;
-        return rightTime - leftTime;
+        if (entry.kind === "space") {
+          const room = roomsById.get(entryId);
+          if (!room) {
+            return null;
+          }
+
+          return {
+            key: entry.key,
+            kind: "space" as const,
+            title: room.name,
+            subtitle: room.topic || `${room.kind} room`,
+            href: `${ROUTES.SPACES}?room=${room.id}`,
+            updatedAt: entry.visitedAt,
+          };
+        }
+
+        const jam = jamsById.get(entryId);
+        if (!jam) {
+          return null;
+        }
+
+        return {
+          key: entry.key,
+          kind: "jam" as const,
+          title: jam.title,
+          subtitle: jam.description || "Collaborative canvas",
+          href: `${ROUTES.JAMS}/${jam.id}`,
+          updatedAt: entry.visitedAt,
+        };
       })
-      .slice(0, 10);
-  }, [favorites, jams, projects, rooms]);
+      .filter((entry): entry is DashboardVisitItem => Boolean(entry));
+
+    return entries.slice(0, 10);
+  }, [jams, projects, recentVisitHistory, rooms]);
 
   const isInitialLoading =
     projectQuery.isLoading || spacesQuery.isLoading || jamsQuery.isLoading;
@@ -842,7 +880,7 @@ const UserDashboard = () => {
       <DashboardSection
         tourId="dashboard-recents"
         title="Recently visited"
-        description="Projects, spaces, jams, and favorites you touched most recently."
+        description="Projects, spaces, and jams you opened most recently."
         action={
           <div className="flex items-center gap-1">
             <Button

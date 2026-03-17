@@ -667,6 +667,30 @@ export function getSubtaskProgressLabel(task: Pick<FlattenedProjectTask, "subtas
   return `${task.subtaskDoneCount}/${task.subtaskCount} subtasks`;
 }
 
+export function getDerivedTaskStatusFromSubtasks(
+  subtasks: Array<{ status: ProjectTaskStatus }> = [],
+): ProjectTaskStatus | null {
+  if (!subtasks.length) {
+    return null;
+  }
+
+  const statuses = subtasks.map((subtask) => subtask.status);
+
+  if (statuses.every((status) => status === "done")) {
+    return "done";
+  }
+
+  if (statuses.some((status) => status === "in-progress" || status === "review")) {
+    return "in-progress";
+  }
+
+  if (statuses.some((status) => status === "blocked")) {
+    return "blocked";
+  }
+
+  return "todo";
+}
+
 function isValidProjectDate(value?: string) {
   if (!value) {
     return false;
@@ -692,21 +716,25 @@ function getStatusFallbackProgress(status: ProjectTaskStatus) {
   }
 }
 
-function getTimedProgress({
-  startDate,
-  dueDate,
-  status,
-}: {
-  startDate?: string;
-  dueDate?: string;
-  status: ProjectTaskStatus;
-}) {
-  if (status === "done") {
-    return 100;
+function getStatusProgressBand(status: ProjectTaskStatus) {
+  switch (status) {
+    case "done":
+      return { min: 100, max: 100 };
+    case "review":
+      return { min: 70, max: 98 };
+    case "in-progress":
+      return { min: 25, max: 92 };
+    case "blocked":
+      return { min: 8, max: 60 };
+    case "todo":
+    default:
+      return { min: 0, max: 45 };
   }
+}
 
+function getTimelineProgress(startDate?: string, dueDate?: string) {
   if (!isValidProjectDate(startDate) || !isValidProjectDate(dueDate)) {
-    return getStatusFallbackProgress(status);
+    return null;
   }
 
   const start = new Date(startDate!).getTime();
@@ -726,6 +754,91 @@ function getTimedProgress({
   }
 
   return Math.max(0, Math.min(100, Math.round(((now - start) / (end - start)) * 100)));
+}
+
+function getTimedProgress({
+  startDate,
+  dueDate,
+  status,
+}: {
+  startDate?: string;
+  dueDate?: string;
+  status: ProjectTaskStatus;
+}) {
+  if (status === "done") {
+    return 100;
+  }
+
+  const statusProgress = getStatusFallbackProgress(status);
+  const elapsedProgress = getTimelineProgress(startDate, dueDate) ?? statusProgress;
+  const blended = Math.round(statusProgress * 0.6 + elapsedProgress * 0.4);
+  const band = getStatusProgressBand(status);
+
+  return Math.max(band.min, Math.min(band.max, blended));
+}
+
+export function getProgressBarTone({
+  progress,
+  status,
+  startDate,
+  dueDate,
+  executionState,
+}: {
+  progress: number;
+  status?: ProjectTaskStatus | ProjectWorkflowStatus;
+  startDate?: string;
+  dueDate?: string;
+  executionState?: ProjectExecutionState;
+}) {
+  const normalizedProgress = Math.max(0, Math.min(100, Number(progress) || 0));
+  const normalizedStatus = String(status || "").trim();
+  const timelineProgress = getTimelineProgress(startDate, dueDate);
+  const delta =
+    typeof timelineProgress === "number"
+      ? timelineProgress - normalizedProgress
+      : 0;
+
+  const isComplete =
+    normalizedStatus === "done" ||
+    normalizedStatus === "complete" ||
+    executionState === "complete";
+  const isBlocked =
+    normalizedStatus === "blocked" ||
+    (executionState === "elapsed" && normalizedProgress < 100);
+
+  if (isComplete) {
+    return {
+      trackClass: "bg-emerald-500/15",
+      fillClass: "bg-emerald-500",
+      textClass: "text-emerald-600 dark:text-emerald-300",
+      tone: "good" as const,
+    };
+  }
+
+  if (isBlocked || delta >= 25) {
+    return {
+      trackClass: "bg-destructive/15",
+      fillClass: "bg-destructive",
+      textClass: "text-destructive",
+      tone: "danger" as const,
+    };
+  }
+
+  if (delta >= 10 || normalizedStatus === "at-risk") {
+    return {
+      trackClass: "bg-amber-500/15",
+      fillClass: "bg-amber-500",
+      textClass: "text-amber-600 dark:text-amber-300",
+      tone: "warning" as const,
+    };
+  }
+
+  return {
+    trackClass: "bg-primary/15",
+    fillClass: "bg-primary",
+    textClass: "text-muted-foreground",
+    tone: "info" as const,
+  };
 }
 
 export function getTaskExecutionState(task: {

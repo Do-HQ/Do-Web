@@ -44,6 +44,7 @@ export interface AuthUser {
   state: string;
   postalCode: string;
   country: string;
+  isInternal?: boolean;
   workspaces: UserWorkspace[];
   createdAt: string;
   updatedAt: string;

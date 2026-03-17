@@ -16,6 +16,7 @@ import { ROUTES } from "@/utils/constants";
 const routeTitleMap: Record<string, string> = {
   [ROUTES.DASHBOARD]: "Dashboard",
   [ROUTES.CALENDAR]: "Calendar",
+  [ROUTES.ARCHIVE]: "Archive",
   [ROUTES.ASK_SQUIRCLE]: "Ask Squircle",
   [ROUTES.SPACES]: "Spaces",
   [ROUTES.SPACES_TEAM_CALL]: "Team Call",

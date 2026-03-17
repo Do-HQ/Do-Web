@@ -5,6 +5,14 @@ import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { WorkspaceProjectTaskRecord } from "@/types/project";
 import { useQueryClient } from "@tanstack/react-query";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
@@ -71,6 +79,11 @@ type TaskSheetState = {
   expandSubtasks?: boolean;
   seedBlankSubtask?: boolean;
   defaults?: Partial<ProjectTaskEditorValues>;
+} | null;
+
+type WorkflowArchiveDialogState = {
+  workflowId: string;
+  workflowName?: string;
 } | null;
 
 function buildDueWindow(startDate: string, targetEndDate: string) {
@@ -151,6 +164,116 @@ function syncWorkflowDerivedFields(workflow: ProjectWorkflow): ProjectWorkflow {
     progress: progressFromTasks,
     taskCounts: nextTaskCounts,
   };
+}
+
+function deriveStatusFromSubtasks(subtasks: Array<{ status: ProjectTaskStatus }>) {
+  if (!subtasks.length) {
+    return null;
+  }
+
+  if (subtasks.every((subtask) => subtask.status === "done")) {
+    return "done";
+  }
+
+  if (
+    subtasks.some(
+      (subtask) =>
+        subtask.status === "in-progress" || subtask.status === "review",
+    )
+  ) {
+    return "in-progress";
+  }
+
+  if (subtasks.some((subtask) => subtask.status === "blocked")) {
+    return "blocked";
+  }
+
+  return "todo";
+}
+
+function alignTaskSubtasksForLaneMove(
+  task: ProjectWorkflow["tasks"][number] | undefined,
+  nextStatus: ProjectTaskStatus,
+) {
+  const subtasks = Array.isArray(task?.subtasks) ? task.subtasks : [];
+
+  if (!subtasks.length) {
+    return subtasks;
+  }
+
+  const nextSubtasks = subtasks.map((subtask) => ({
+    ...subtask,
+    updatedAt: "Just now",
+  }));
+
+  const currentDerivedStatus = deriveStatusFromSubtasks(nextSubtasks);
+
+  if (currentDerivedStatus === nextStatus) {
+    return nextSubtasks;
+  }
+
+  if (nextStatus === "done") {
+    return nextSubtasks.map((subtask) => ({
+      ...subtask,
+      status: "done" as const,
+      updatedAt: "Just now",
+    }));
+  }
+
+  if (nextStatus === "blocked") {
+    const candidateIndex = nextSubtasks.findIndex(
+      (subtask) => subtask.status !== "done",
+    );
+    const targetIndex = candidateIndex >= 0 ? candidateIndex : 0;
+    nextSubtasks[targetIndex] = {
+      ...nextSubtasks[targetIndex],
+      status: "blocked",
+      updatedAt: "Just now",
+    };
+    return nextSubtasks;
+  }
+
+  if (nextStatus === "in-progress" || nextStatus === "review") {
+    const activeStatus: ProjectTaskStatus =
+      nextStatus === "review" ? "review" : "in-progress";
+    const candidateIndex = nextSubtasks.findIndex(
+      (subtask) => subtask.status !== "done",
+    );
+    const targetIndex = candidateIndex >= 0 ? candidateIndex : 0;
+    nextSubtasks[targetIndex] = {
+      ...nextSubtasks[targetIndex],
+      status: activeStatus,
+      updatedAt: "Just now",
+    };
+    return nextSubtasks;
+  }
+
+  if (nextStatus === "todo") {
+    if (nextSubtasks.every((subtask) => subtask.status === "done")) {
+      nextSubtasks[0] = {
+        ...nextSubtasks[0],
+        status: "todo",
+        updatedAt: "Just now",
+      };
+      return nextSubtasks;
+    }
+
+    const hasTodo = nextSubtasks.some((subtask) => subtask.status === "todo");
+    if (!hasTodo) {
+      const candidateIndex = nextSubtasks.findIndex(
+        (subtask) => subtask.status !== "done",
+      );
+      if (candidateIndex >= 0) {
+        nextSubtasks[candidateIndex] = {
+          ...nextSubtasks[candidateIndex],
+          status: "todo",
+          updatedAt: "Just now",
+        };
+      }
+    }
+  }
+
+  return nextSubtasks;
 }
 
 function syncProjectRecord<
@@ -383,6 +506,8 @@ export default function ProjectOverview({
   const [workflowSheetState, setWorkflowSheetState] =
     useState<WorkflowSheetState>(null);
   const [taskSheetState, setTaskSheetState] = useState<TaskSheetState>(null);
+  const [workflowArchiveDialogState, setWorkflowArchiveDialogState] =
+    useState<WorkflowArchiveDialogState>(null);
   const canManageProjectInvites = workspacePermissions.canManageProjectInvites;
   const canArchiveProjects = workspacePermissions.canArchiveProjects;
   const canCreateWorkflows = workspacePermissions.canCreateWorkflows;
@@ -1327,6 +1452,11 @@ export default function ProjectOverview({
     sectionId?: string,
   ) => {
     const previousProject = project;
+    const existingWorkflow = project?.workflows?.find(
+      (workflow) => workflow.id === workflowId,
+    );
+    const existingTask = existingWorkflow?.tasks?.find((task) => task.id === taskId);
+    const nextSubtasks = alignTaskSubtasksForLaneMove(existingTask, nextStatus);
 
     updateProject(projectId, (currentProject) => {
       const nextWorkflows = currentProject.workflows.map((workflow) => {
@@ -1341,6 +1471,7 @@ export default function ProjectOverview({
                 status: nextStatus,
                 sectionId,
                 updatedAt: "Just now",
+                subtasks: nextSubtasks,
               }
             : task,
         );
@@ -1363,6 +1494,7 @@ export default function ProjectOverview({
               status: nextStatus,
               sectionId,
               updatedAt: "Just now",
+              subtasks: nextSubtasks,
             }
           : task,
       ),
@@ -1381,6 +1513,13 @@ export default function ProjectOverview({
         updates: {
           status: nextStatus,
           sectionId: sectionId ?? "",
+          subtasks: nextSubtasks.map((subtask) => ({
+            title: subtask.title,
+            status: subtask.status,
+            assigneeId: subtask.assigneeId,
+            startDate: subtask.startDate || "",
+            dueDate: subtask.dueDate,
+          })),
         },
       },
       {
@@ -1541,22 +1680,10 @@ export default function ProjectOverview({
     }
 
     if (label === "Archive workflow") {
-      if (!window.confirm(`Archive ${workflowName ?? "this workflow"}?`)) {
-        return;
-      }
-
-      archiveWorkspaceProjectWorkflowMutation.mutate(
-        {
-          workspaceId,
-          projectId,
-          workflowId,
-        },
-        {
-          onSuccess: () => {
-            toast(`Workflow archived: ${workflowName ?? "Workflow"}`);
-          },
-        },
-      );
+      setWorkflowArchiveDialogState({
+        workflowId,
+        workflowName,
+      });
       return;
     }
 
@@ -1601,6 +1728,29 @@ export default function ProjectOverview({
     }
 
     handlePlaceholderAction(label, workflowName);
+  };
+
+  const handleConfirmArchiveWorkflow = () => {
+    if (!workspaceId || !workflowArchiveDialogState?.workflowId) {
+      setWorkflowArchiveDialogState(null);
+      return;
+    }
+
+    const workflowName = workflowArchiveDialogState.workflowName;
+
+    archiveWorkspaceProjectWorkflowMutation.mutate(
+      {
+        workspaceId,
+        projectId,
+        workflowId: workflowArchiveDialogState.workflowId,
+      },
+      {
+        onSuccess: () => {
+          toast(`Workflow archived: ${workflowName ?? "Workflow"}`);
+          setWorkflowArchiveDialogState(null);
+        },
+      },
+    );
   };
 
   const handleTaskAction = (
@@ -2086,6 +2236,45 @@ export default function ProjectOverview({
           }
         />
       ) : null}
+
+      <Dialog
+        open={Boolean(workflowArchiveDialogState)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setWorkflowArchiveDialogState(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Archive workflow</DialogTitle>
+            <DialogDescription>
+              Archive{" "}
+              <span className="font-medium text-foreground">
+                {workflowArchiveDialogState?.workflowName ?? "this workflow"}
+              </span>
+              ? You can restore it later from archived workflows.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setWorkflowArchiveDialogState(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              loading={archiveWorkspaceProjectWorkflowMutation.isPending}
+              onClick={handleConfirmArchiveWorkflow}
+            >
+              Archive workflow
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

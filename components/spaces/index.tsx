@@ -43,6 +43,7 @@ import useWorkspace from "@/hooks/use-workspace";
 import useWorkspaceSpace from "@/hooks/use-workspace-space";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
 import useFile from "@/hooks/use-file";
+import { recordRecentVisit } from "@/lib/helpers/recent-visits";
 import { getWorkspaceJamDetail } from "@/lib/services/workspace-jam-service";
 import { ROUTES } from "@/utils/constants";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -423,6 +424,22 @@ const SpacesPage = () => {
   const activeRoom = useMemo(() => {
     return rooms.find((room) => room.id === activeRoomId) ?? null;
   }, [activeRoomId, rooms]);
+
+  useEffect(() => {
+    const scopedWorkspaceId = String(resolvedWorkspaceId || "").trim();
+    const roomId = String(activeRoom?.id || "").trim();
+
+    if (!scopedWorkspaceId || !roomId) {
+      return;
+    }
+
+    recordRecentVisit({
+      workspaceId: scopedWorkspaceId,
+      key: `space:${roomId}`,
+      kind: "space",
+      href: `${ROUTES.SPACES}?room=${encodeURIComponent(roomId)}`,
+    });
+  }, [activeRoom?.id, resolvedWorkspaceId]);
 
   const activeProjectId = String(activeRoom?.meta?.projectId || "").trim();
   const activeProjectDetailQuery =
@@ -1851,7 +1868,7 @@ const SpacesPage = () => {
       parentMessageId: null,
       author: currentUser,
       content,
-      sentAt: "Sending...",
+      sentAt: "Just now",
       sentAtRaw: new Date().toISOString(),
       edited: false,
       attachments: draftAttachments,
@@ -1915,7 +1932,7 @@ const SpacesPage = () => {
       messageId,
       author: currentUser,
       content,
-      sentAt: "Sending...",
+      sentAt: "Just now",
       sentAtRaw: new Date().toISOString(),
       edited: false,
       attachments: draftAttachments,

@@ -36,6 +36,7 @@ import {
 } from "../types";
 import {
   formatShortDate,
+  getProgressBarTone,
   getSubtaskProgressLabel,
   getTaskRowProgress,
   getTaskStatusLabel,
@@ -147,6 +148,13 @@ export function ProjectDosTable({
               const team = teams.find((item) => item.id === task.teamId);
               const hasSubtasks = task.subtasks.length > 0;
               const isExpanded = expandedTaskIds.includes(task.id);
+              const taskTone = getProgressBarTone({
+                progress: task.progress,
+                status: task.status,
+                startDate: task.startDate,
+                dueDate: task.dueDate,
+                executionState: task.executionState,
+              });
 
               return (
                 <Fragment key={task.id}>
@@ -202,13 +210,18 @@ export function ProjectDosTable({
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
-                        <div className="bg-muted h-1.5 overflow-hidden rounded-full">
+                        <div
+                          className={cn(
+                            "h-1.5 overflow-hidden rounded-full",
+                            taskTone.trackClass,
+                          )}
+                        >
                           <div
-                            className="bg-primary h-full rounded-full"
+                            className={cn("h-full rounded-full", taskTone.fillClass)}
                             style={{ width: `${task.progress}%` }}
                           />
                         </div>
-                        <div className="text-muted-foreground text-[11px]">
+                        <div className={cn("text-[11px]", taskTone.textClass)}>
                           {getSubtaskProgressLabel(task)}
                         </div>
                       </div>
@@ -269,6 +282,13 @@ export function ProjectDosTable({
                     ? task.subtasks.map((subtask) => {
                         const subtaskAssignee = resolveMemberById(members, subtask.assigneeId);
                         const subtaskProgress = getTaskRowProgress({ status: subtask.status });
+                        const subtaskTone = getProgressBarTone({
+                          progress: subtaskProgress,
+                          status: subtask.status,
+                          startDate: subtask.startDate,
+                          dueDate: subtask.dueDate,
+                          executionState: subtask.executionState,
+                        });
 
                         return (
                           <TableRow key={subtask.id} className="bg-muted/8 h-8 [&>td]:py-1.5">
@@ -297,13 +317,23 @@ export function ProjectDosTable({
                             </TableCell>
                             <TableCell>
                               <div className="space-y-1">
-                                <div className="bg-muted h-1.5 overflow-hidden rounded-full">
+                                <div
+                                  className={cn(
+                                    "h-1.5 overflow-hidden rounded-full",
+                                    subtaskTone.trackClass,
+                                  )}
+                                >
                                   <div
-                                    className="bg-primary h-full rounded-full"
+                                    className={cn(
+                                      "h-full rounded-full",
+                                      subtaskTone.fillClass,
+                                    )}
                                     style={{ width: `${subtaskProgress}%` }}
                                   />
                                 </div>
-                                <div className="text-muted-foreground text-[11px]">
+                                <div
+                                  className={cn("text-[11px]", subtaskTone.textClass)}
+                                >
                                   {subtaskProgress}%
                                 </div>
                               </div>

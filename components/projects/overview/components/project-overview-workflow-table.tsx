@@ -60,6 +60,7 @@ import {
 } from "../types";
 import {
   formatShortDate,
+  getProgressBarTone,
   getTaskRowProgress,
   getTaskStatusLabel,
   getViewChipClass,
@@ -444,6 +445,12 @@ export function ProjectOverviewWorkflowTable({
               const isExpanded = expandedWorkflowIds.includes(workflow.id);
               const owner = resolveMemberById(members, workflow.ownerId);
               const team = teams.find((item) => item.id === workflow.teamId);
+              const workflowTone = getProgressBarTone({
+                progress: workflow.progress,
+                status: workflow.status,
+                startDate: workflow.startedAt,
+                dueDate: workflow.targetEndDate,
+              });
 
               return (
                 <Fragment key={workflow.id}>
@@ -510,13 +517,21 @@ export function ProjectOverviewWorkflowTable({
                     </TableCell>
                     <TableCell>
                       <div className="space-y-1">
-                        <div className="bg-muted h-1.5 overflow-hidden rounded-full">
+                        <div
+                          className={cn(
+                            "h-1.5 overflow-hidden rounded-full",
+                            workflowTone.trackClass,
+                          )}
+                        >
                           <div
-                            className="bg-primary h-full rounded-full"
+                            className={cn(
+                              "h-full rounded-full",
+                              workflowTone.fillClass,
+                            )}
                             style={{ width: `${workflow.progress}%` }}
                           />
                         </div>
-                        <div className="text-muted-foreground text-[11px]">
+                        <div className={cn("text-[11px]", workflowTone.textClass)}>
                           {workflow.progress}%
                         </div>
                       </div>
@@ -611,6 +626,13 @@ export function ProjectOverviewWorkflowTable({
                           (item) => item.id === task.teamId,
                         );
                         const taskProgress = getTaskRowProgress(task);
+                        const taskTone = getProgressBarTone({
+                          progress: taskProgress,
+                          status: task.status,
+                          startDate: task.startDate,
+                          dueDate: task.dueDate,
+                          executionState: task.executionState,
+                        });
 
                         return (
                           <TableRow
@@ -662,13 +684,21 @@ export function ProjectOverviewWorkflowTable({
                             </TableCell>
                             <TableCell>
                               <div className="space-y-1">
-                                <div className="bg-muted h-1.5 overflow-hidden rounded-full">
+                                <div
+                                  className={cn(
+                                    "h-1.5 overflow-hidden rounded-full",
+                                    taskTone.trackClass,
+                                  )}
+                                >
                                   <div
-                                    className="bg-primary h-full rounded-full"
+                                    className={cn(
+                                      "h-full rounded-full",
+                                      taskTone.fillClass,
+                                    )}
                                     style={{ width: `${taskProgress}%` }}
                                   />
                                 </div>
-                                <div className="text-muted-foreground text-[11px]">
+                                <div className={cn("text-[11px]", taskTone.textClass)}>
                                   {taskProgress}%
                                 </div>
                               </div>

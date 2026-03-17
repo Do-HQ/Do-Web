@@ -15,6 +15,7 @@ import {
   RefreshCcw,
   Sparkles,
   Star,
+  Store,
   StickyNote,
   Workflow,
   type LucideIcon,
@@ -39,6 +40,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { getWorkspaceProjects } from "@/lib/services/workspace-project-service";
 import { getWorkspaceJams } from "@/lib/services/workspace-jam-service";
 import { getWorkspaceSpaceRooms } from "@/lib/services/workspace-space-service";
+import { getWorkspaceTemplates } from "@/lib/services/workspace-template-service";
 import { cn } from "@/lib/utils";
 import useAuthStore from "@/stores/auth";
 import { useAppStore, useFavoritesStore, useProjectStore } from "@/stores";
@@ -165,6 +167,18 @@ const CommandSearch = () => {
       }),
   });
 
+  const templatesSearchQuery = useQuery({
+    queryKey: ["command-search-templates", resolvedWorkspaceId, normalizedQuery],
+    enabled: showSpotlightSearch && queryActive && Boolean(resolvedWorkspaceId),
+    queryFn: () =>
+      getWorkspaceTemplates(resolvedWorkspaceId, {
+        page: 1,
+        limit: 25,
+        search: normalizedQuery,
+        archived: false,
+      }),
+  });
+
   const closeAndRoute = React.useCallback(
     (href: string) => {
       setShowSpotlightSearch(false);
@@ -208,6 +222,13 @@ const CommandSearch = () => {
         shortcut: "⌘A",
         onSelect: () => closeAndRoute(ROUTES.ASK_SQUIRCLE),
       },
+      {
+        id: "nav-templates",
+        label: "Templates",
+        icon: Store,
+        shortcut: "⌘T",
+        onSelect: () => closeAndRoute(ROUTES.TEMPLATES),
+      },
     ],
     [closeAndRoute],
   );
@@ -237,6 +258,20 @@ const CommandSearch = () => {
         icon: StickyNote,
         shortcut: "⌥⌘N",
         onSelect: () => closeAndRoute(`${ROUTES.JAMS}?create=1`),
+      },
+      {
+        id: "action-new-template",
+        label: "New template",
+        icon: Store,
+        shortcut: "⇧⌘T",
+        onSelect: () => closeAndRoute(ROUTES.TEMPLATES),
+      },
+      {
+        id: "action-new-template",
+        label: "New template",
+        icon: Store,
+        shortcut: "⇧⌘T",
+        onSelect: () => closeAndRoute(ROUTES.TEMPLATES),
       },
       {
         id: "action-new-workflow",
@@ -349,6 +384,21 @@ const CommandSearch = () => {
       hint: jam.visibility === "workspace" ? "Workspace jam" : "Private jam",
     }));
   }, [jamsSearchQuery.data, queryActive]);
+
+  const templateResults = React.useMemo<SearchResultItem[]>(() => {
+    if (!queryActive) {
+      return [];
+    }
+
+    const templates = templatesSearchQuery.data?.data?.templates ?? [];
+    return templates.map((template) => ({
+      id: `template:${template.id}`,
+      label: template.name,
+      href: ROUTES.TEMPLATES,
+      icon: Store,
+      hint: `${template.kind} template`,
+    }));
+  }, [queryActive, templatesSearchQuery.data]);
 
   const localWorkflowTaskRiskResults = React.useMemo<SearchResultItem[]>(() => {
     if (!queryActive) {
@@ -464,7 +514,8 @@ const CommandSearch = () => {
     queryActive &&
     (projectsSearchQuery.isFetching ||
       chatsSearchQuery.isFetching ||
-      jamsSearchQuery.isFetching);
+      jamsSearchQuery.isFetching ||
+      templatesSearchQuery.isFetching);
 
   React.useEffect(() => {
     if (!showSpotlightSearch) {
@@ -600,6 +651,21 @@ const CommandSearch = () => {
                   </CommandItem>
                 ))}
 
+                {templateResults.map((item) => (
+                  <CommandItem
+                    key={item.id}
+                    onSelect={() => closeAndRoute(item.href)}
+                  >
+                    <item.icon />
+                    <span>{item.label}</span>
+                    {item.hint ? (
+                      <span className="text-muted-foreground ml-auto text-[11px] capitalize">
+                        {item.hint}
+                      </span>
+                    ) : null}
+                  </CommandItem>
+                ))}
+
                 {localWorkflowTaskRiskResults.map((item) => (
                   <CommandItem
                     key={item.id}
@@ -640,6 +706,7 @@ const CommandSearch = () => {
               !projectResults.length &&
               !chatResults.length &&
               !jamResults.length &&
+              !templateResults.length &&
               !localWorkflowTaskRiskResults.length &&
               !favoriteResults.length ? (
                 <CommandEmpty>

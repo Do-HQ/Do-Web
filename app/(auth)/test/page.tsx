@@ -3,6 +3,7 @@
 import { Dropdown } from "@/components/shared/drop-down";
 import { Input } from "@/components/shared/input";
 import { DateTimeInput } from "@/components/shared/input/date-time";
+import LoaderComponent from "@/components/shared/loader";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -158,7 +159,7 @@ const page = () => {
                   setTimeout(() => resolve({ name: "Event" }), 2000),
                 ),
               {
-                loading: "Loading...",
+                loading: <LoaderComponent />,
                 success: (data) => `${data.name} has been created`,
                 error: "Error",
               },

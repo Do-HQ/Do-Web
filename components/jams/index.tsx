@@ -1689,7 +1689,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
         >
           <div className="bg-background/90 border-border/40 flex shrink-0 items-center gap-2 border-b px-3 py-2 backdrop-blur-sm">
             <p className="line-clamp-1 text-[12px] font-medium">
-              {activeJam?.title || "Loading jam..."}
+              {activeJam?.title || "Jam"}
             </p>
             <div className="ml-auto flex items-center gap-2">
               {activeJam?.canEdit ? (
@@ -1802,7 +1802,6 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                   {updateJamContentMutation.isPending ? (
                     <div className="bg-background/80 text-muted-foreground absolute right-3 bottom-3 z-30 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px]">
                       <Loader className="size-3 animate-spin" />
-                      Saving...
                     </div>
                   ) : null}
                 </div>

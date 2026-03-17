@@ -8,9 +8,11 @@ import {
   Home,
   Inbox,
   MessageCircleQuestion,
+  Shield,
   Shapes,
   Search,
   Settings2,
+  Store,
   Sparkles,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
@@ -156,6 +158,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         icon: Shapes,
         isActive: pathname.startsWith(ROUTES.JAMS),
       },
+      {
+        title: "Templates",
+        url: ROUTES.TEMPLATES,
+        icon: Store,
+        isActive: pathname.startsWith(ROUTES.TEMPLATES),
+      },
     ],
     navSecondary: [
       {
@@ -178,16 +186,27 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       },
       {
         title: "Archive",
-        url: "#",
+        url: ROUTES.ARCHIVE,
         icon: Archive,
-        disabled: true,
+        isActive: pathname === ROUTES.ARCHIVE,
       },
-      {
-        title: "Help & Support",
-        url: "#",
-        icon: MessageCircleQuestion,
-        onClick: () => {},
-      },
+      ...(user?.isInternal
+        ? [
+            {
+              title: "Support Admin",
+              url: ROUTES.SUPPORT_ADMIN,
+              icon: Shield,
+              isActive: pathname.startsWith(ROUTES.SUPPORT_ADMIN),
+            },
+          ]
+        : [
+            {
+              title: "Help & Support",
+              url: ROUTES.SUPPORT,
+              icon: MessageCircleQuestion,
+              isActive: pathname === ROUTES.SUPPORT,
+            },
+          ]),
     ],
   };
 

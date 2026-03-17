@@ -62,6 +62,7 @@ import {
 } from "../types";
 import {
   formatShortDate,
+  getProgressBarTone,
   getTaskRowProgress,
   getTaskStatusLabel,
   getViewChipClass,
@@ -203,6 +204,13 @@ function renderSubtaskRow(
 ) {
   const assignee = resolveMemberById(members, subtask.assigneeId);
   const progress = getTaskRowProgress({ status: subtask.status });
+  const tone = getProgressBarTone({
+    progress,
+    status: subtask.status,
+    startDate: subtask.startDate,
+    dueDate: subtask.dueDate,
+    executionState: subtask.executionState,
+  });
 
   return (
     <TableRow
@@ -233,13 +241,15 @@ function renderSubtaskRow(
       </TableCell>
       <TableCell>
         <div className="space-y-1">
-          <div className="bg-muted h-1.5 overflow-hidden rounded-full">
+          <div
+            className={cn("h-1.5 overflow-hidden rounded-full", tone.trackClass)}
+          >
             <div
-              className="bg-primary h-full rounded-full"
+              className={cn("h-full rounded-full", tone.fillClass)}
               style={{ width: `${progress}%` }}
             />
           </div>
-          <div className="text-muted-foreground text-[11px]">{progress}%</div>
+          <div className={cn("text-[11px]", tone.textClass)}>{progress}%</div>
         </div>
       </TableCell>
       <TableCell>{formatShortDate(subtask.dueDate)}</TableCell>
@@ -556,6 +566,12 @@ export function ProjectWorkflowsTable({
                   workflow.id,
                 );
                 const workflowSelected = selectedWorkflowId === workflow.id;
+                const workflowTone = getProgressBarTone({
+                  progress: workflow.progress,
+                  status: workflow.status,
+                  startDate: workflow.startedAt,
+                  dueDate: workflow.targetEndDate,
+                });
 
                 return (
                   <Fragment key={workflow.id}>
@@ -630,13 +646,23 @@ export function ProjectWorkflowsTable({
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">
-                          <div className="bg-muted h-1.5 overflow-hidden rounded-full">
+                          <div
+                            className={cn(
+                              "h-1.5 overflow-hidden rounded-full",
+                              workflowTone.trackClass,
+                            )}
+                          >
                             <div
-                              className="bg-primary h-full rounded-full"
+                              className={cn(
+                                "h-full rounded-full",
+                                workflowTone.fillClass,
+                              )}
                               style={{ width: `${workflow.progress}%` }}
                             />
                           </div>
-                          <div className="text-muted-foreground text-[11px]">
+                          <div
+                            className={cn("text-[11px]", workflowTone.textClass)}
+                          >
                             {workflow.progress}%
                           </div>
                         </div>
@@ -742,6 +768,13 @@ export function ProjectWorkflowsTable({
                             task.id,
                           );
                           const taskProgress = getTaskRowProgress(task);
+                          const taskTone = getProgressBarTone({
+                            progress: taskProgress,
+                            status: task.status,
+                            startDate: task.startDate,
+                            dueDate: task.dueDate,
+                            executionState: task.executionState,
+                          });
 
                           return (
                             <Fragment key={task.id}>
@@ -811,13 +844,26 @@ export function ProjectWorkflowsTable({
                                 </TableCell>
                                 <TableCell>
                                   <div className="space-y-1">
-                                    <div className="bg-muted h-1.5 overflow-hidden rounded-full">
+                                    <div
+                                      className={cn(
+                                        "h-1.5 overflow-hidden rounded-full",
+                                        taskTone.trackClass,
+                                      )}
+                                    >
                                       <div
-                                        className="bg-primary h-full rounded-full"
+                                        className={cn(
+                                          "h-full rounded-full",
+                                          taskTone.fillClass,
+                                        )}
                                         style={{ width: `${taskProgress}%` }}
                                       />
                                     </div>
-                                    <div className="text-muted-foreground text-[11px]">
+                                    <div
+                                      className={cn(
+                                        "text-[11px]",
+                                        taskTone.textClass,
+                                      )}
+                                    >
                                       {taskProgress}%
                                     </div>
                                   </div>

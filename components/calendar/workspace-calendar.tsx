@@ -792,85 +792,88 @@ const WorkspaceCalendar = () => {
               key={label}
               className="text-muted-foreground px-2 py-1.5 text-[11px] font-medium"
             >
-              {label}
+              <span className="sm:hidden">{label.slice(0, 2)}</span>
+              <span className="hidden sm:inline">{label}</span>
             </div>
           ))}
         </div>
-        <div className="min-h-0 flex-1 overflow-hidden">
-          <div className="bg-muted/20 grid h-full grid-cols-7 grid-rows-6 gap-px">
-            {monthGridDays.map((day) => {
-              const key = dateKey(day);
-              const dayEvents = monthDayEventsMap.get(key) || [];
-              const isCurrentMonth =
-                day.getMonth() === anchorMonth &&
-                day.getFullYear() === anchorYear;
-              const isToday = isSameDay(day, today);
-              const isSelected = isSameDay(day, selectedDate);
-              const eventCounts = dayEvents.reduce(
-                (counts, event) => {
-                  counts[event.type] += 1;
-                  return counts;
-                },
-                { task: 0, milestone: 0, workflow: 0, risk: 0 } as Record<
-                  CalendarEventType,
-                  number
-                >,
-              );
+        <div className="min-h-0 flex-1 overflow-auto">
+          <div className="min-h-full min-w-[42rem]">
+            <div className="bg-muted/20 grid h-full min-h-[30rem] grid-cols-7 grid-rows-6 gap-px">
+              {monthGridDays.map((day) => {
+                const key = dateKey(day);
+                const dayEvents = monthDayEventsMap.get(key) || [];
+                const isCurrentMonth =
+                  day.getMonth() === anchorMonth &&
+                  day.getFullYear() === anchorYear;
+                const isToday = isSameDay(day, today);
+                const isSelected = isSameDay(day, selectedDate);
+                const eventCounts = dayEvents.reduce(
+                  (counts, event) => {
+                    counts[event.type] += 1;
+                    return counts;
+                  },
+                  { task: 0, milestone: 0, workflow: 0, risk: 0 } as Record<
+                    CalendarEventType,
+                    number
+                  >,
+                );
 
-              return (
-                <div
-                  key={key}
-                  className={cn(
-                    "bg-background/75 flex min-h-0 flex-col gap-1.5 p-1.5 transition-colors",
-                    !isCurrentMonth && "bg-muted/35",
-                    isSelected && "bg-accent/65",
-                  )}
-                  onClick={() => focusDayView(day)}
-                >
-                  <div className="flex items-center justify-between">
-                    <span
-                      className={cn(
-                        "inline-flex size-6 items-center justify-center rounded-md text-[11px] font-medium",
-                        isToday && "bg-primary text-primary-foreground",
-                        !isToday && isCurrentMonth && "text-foreground",
-                        !isCurrentMonth && "text-muted-foreground",
-                      )}
-                    >
-                      {day.getDate()}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      {(Object.keys(eventCounts) as CalendarEventType[]).map(
-                        (type) =>
-                          eventCounts[type] > 0 ? (
-                            <span
-                              key={`${key}-${type}`}
-                              className={cn(
-                                "size-1.5 rounded-full",
-                                EVENT_TYPE_META[type].dotClassName,
-                              )}
-                            />
-                          ) : null,
-                      )}
+                return (
+                  <div
+                    key={key}
+                    className={cn(
+                      "bg-background/75 flex min-h-0 flex-col gap-1.5 p-1.5 transition-colors",
+                      !isCurrentMonth && "bg-muted/35",
+                      isSelected && "bg-accent/65",
+                    )}
+                    onClick={() => focusDayView(day)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={cn(
+                          "inline-flex size-6 items-center justify-center rounded-md text-[11px] font-medium",
+                          isToday && "bg-primary text-primary-foreground",
+                          !isToday && isCurrentMonth && "text-foreground",
+                          !isCurrentMonth && "text-muted-foreground",
+                        )}
+                      >
+                        {day.getDate()}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {(Object.keys(eventCounts) as CalendarEventType[]).map(
+                          (type) =>
+                            eventCounts[type] > 0 ? (
+                              <span
+                                key={`${key}-${type}`}
+                                className={cn(
+                                  "size-1.5 rounded-full",
+                                  EVENT_TYPE_META[type].dotClassName,
+                                )}
+                              />
+                            ) : null,
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-0.5 min-h-0 flex-1 space-y-1 overflow-hidden">
+                      {dayEvents
+                        .slice(0, 2)
+                        .map((event) => renderEventChip(event, true))}
+                      {dayEvents.length > 2 ? (
+                        <button
+                          type="button"
+                          onClick={() => focusDayView(day)}
+                          className="text-muted-foreground hover:text-foreground inline-flex text-[10px]"
+                        >
+                          +{dayEvents.length - 2} more
+                        </button>
+                      ) : null}
                     </div>
                   </div>
-
-                  <div className="mt-0.5 min-h-0 flex-1 space-y-1 overflow-hidden">
-                    {dayEvents
-                      .slice(0, 2)
-                      .map((event) => renderEventChip(event, true))}
-                    {dayEvents.length > 2 ? (
-                      <button
-                        type="button"
-                        onClick={() => focusDayView(day)}
-                        className="text-muted-foreground hover:text-foreground inline-flex text-[10px]"
-                      >
-                        +{dayEvents.length - 2} more
-                      </button>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -879,6 +882,7 @@ const WorkspaceCalendar = () => {
 
   const renderWeekOrDayView = (mode: "week" | "day") => {
     const days = mode === "day" ? [startOfDay(anchorDate)] : weekDays;
+    const minCalendarWidth = mode === "week" ? 980 : 420;
     const slotCount = END_HOUR - START_HOUR;
     const dayStartMinutes = START_HOUR * 60;
     const dayEndMinutes = END_HOUR * 60;
@@ -908,175 +912,178 @@ const WorkspaceCalendar = () => {
 
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div
-          className="bg-muted/35 grid rounded-t-lg px-1"
-          style={{
-            gridTemplateColumns: `56px repeat(${days.length}, minmax(0, 1fr))`,
-          }}
-        >
-          <div className="text-muted-foreground px-2 py-1.5 text-[11px]">
-            All day
-          </div>
-          {days.map((day) => {
-            const key = dateKey(day);
-            const expansionKey = `${mode}-${key}`;
-            const allDayEvents = allDayByDay.get(key) || [];
-            const isExpanded = expandedAllDayKeys.includes(expansionKey);
-            const visibleAllDayEvents = isExpanded
-              ? allDayEvents
-              : allDayEvents.slice(0, 2);
-            const isToday = isSameDay(day, today);
-            return (
-              <div key={key} className="px-2 py-1.5">
-                <div className="mb-1.5 flex items-center justify-between">
-                  <p className="text-[11px] font-medium">
-                    {mode === "day"
-                      ? formatDayHeading(day)
-                      : `${WEEKDAY_LABELS[day.getDay() === 0 ? 6 : day.getDay() - 1]} ${day.getDate()}`}
-                  </p>
-                  {isToday ? (
-                    <Badge className="h-5 text-[10px]">Today</Badge>
-                  ) : null}
-                </div>
-                <div className="space-y-1">
-                  {visibleAllDayEvents.map((event) =>
-                    renderEventChip(event, true),
-                  )}
-                  {allDayEvents.length > 2 ? (
-                    <button
-                      type="button"
-                      onClick={() => toggleAllDayExpansion(expansionKey)}
-                      className="text-muted-foreground hover:text-foreground text-[10px] underline-offset-2 hover:underline"
-                    >
-                      {isExpanded
-                        ? "Show less"
-                        : `+${allDayEvents.length - 2} more all-day`}
-                    </button>
-                  ) : null}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
         <div className="min-h-0 flex-1 overflow-auto">
-          <div
-            className="bg-muted/20 grid h-full min-h-full gap-px"
-            style={{
-              gridTemplateColumns: `56px repeat(${days.length}, minmax(0, 1fr))`,
-            }}
-          >
+          <div style={{ minWidth: `${minCalendarWidth}px` }}>
             <div
-              className="bg-background/80 grid min-h-0"
+              className="bg-muted/35 grid rounded-t-lg px-1"
               style={{
-                gridTemplateRows: `repeat(${slotCount}, minmax(0, 1fr))`,
+                gridTemplateColumns: `56px repeat(${days.length}, minmax(0, 1fr))`,
               }}
             >
-              {Array.from({ length: slotCount }, (_, index) => {
-                const hour = START_HOUR + index;
+              <div className="text-muted-foreground px-2 py-1.5 text-[11px]">
+                All day
+              </div>
+              {days.map((day) => {
+                const key = dateKey(day);
+                const expansionKey = `${mode}-${key}`;
+                const allDayEvents = allDayByDay.get(key) || [];
+                const isExpanded = expandedAllDayKeys.includes(expansionKey);
+                const visibleAllDayEvents = isExpanded
+                  ? allDayEvents
+                  : allDayEvents.slice(0, 2);
+                const isToday = isSameDay(day, today);
                 return (
-                  <div
-                    key={`hour-${hour}`}
-                    className="text-muted-foreground border-muted/50 border-b px-2 pt-1 text-[10px]"
-                  >
-                    {new Intl.DateTimeFormat("en-US", {
-                      hour: "numeric",
-                    }).format(withHour(today, hour))}
+                  <div key={key} className="px-2 py-1.5">
+                    <div className="mb-1.5 flex items-center justify-between">
+                      <p className="text-[11px] font-medium">
+                        {mode === "day"
+                          ? formatDayHeading(day)
+                          : `${WEEKDAY_LABELS[day.getDay() === 0 ? 6 : day.getDay() - 1]} ${day.getDate()}`}
+                      </p>
+                      {isToday ? (
+                        <Badge className="h-5 text-[10px]">Today</Badge>
+                      ) : null}
+                    </div>
+                    <div className="space-y-1">
+                      {visibleAllDayEvents.map((event) =>
+                        renderEventChip(event, true),
+                      )}
+                      {allDayEvents.length > 2 ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleAllDayExpansion(expansionKey)}
+                          className="text-muted-foreground hover:text-foreground text-[10px] underline-offset-2 hover:underline"
+                        >
+                          {isExpanded
+                            ? "Show less"
+                            : `+${allDayEvents.length - 2} more all-day`}
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 );
               })}
             </div>
 
-            {days.map((day) => {
-              const key = dateKey(day);
-              const timedEvents = timedByDay.get(key) || [];
-
-              return (
-                <div
-                  key={`timeline-${key}`}
-                  className="bg-background/80 relative grid min-h-0 overflow-hidden"
-                  style={{
-                    gridTemplateRows: `repeat(${slotCount}, minmax(0, 1fr))`,
-                  }}
-                >
-                  {Array.from({ length: slotCount }, (_, index) => (
+            <div
+              className="bg-muted/20 grid min-h-[42rem] gap-px"
+              style={{
+                gridTemplateColumns: `56px repeat(${days.length}, minmax(0, 1fr))`,
+              }}
+            >
+              <div
+                className="bg-background/80 grid min-h-0"
+                style={{
+                  gridTemplateRows: `repeat(${slotCount}, minmax(3.25rem, 1fr))`,
+                }}
+              >
+                {Array.from({ length: slotCount }, (_, index) => {
+                  const hour = START_HOUR + index;
+                  return (
                     <div
-                      key={`${key}-slot-${index}`}
-                      className="border-muted/45 border-b"
-                    />
-                  ))}
+                      key={`hour-${hour}`}
+                      className="text-muted-foreground border-muted/50 border-b px-2 pt-1 text-[10px]"
+                    >
+                      {new Intl.DateTimeFormat("en-US", {
+                        hour: "numeric",
+                      }).format(withHour(today, hour))}
+                    </div>
+                  );
+                })}
+              </div>
 
-                  {timedEvents.map((event) => {
-                    const startMinutes =
-                      event.start.getHours() * 60 + event.start.getMinutes();
-                    const endMinutes =
-                      event.end.getHours() * 60 + event.end.getMinutes();
-                    const clampedStart = Math.max(
-                      dayStartMinutes,
-                      startMinutes,
-                    );
-                    const clampedEnd = Math.min(
-                      dayEndMinutes,
-                      Math.max(clampedStart + 30, endMinutes),
-                    );
-                    const topPercent =
-                      ((clampedStart - dayStartMinutes) / totalMinutes) * 100;
-                    const heightPercent = Math.max(
-                      (30 / totalMinutes) * 100,
-                      ((clampedEnd - clampedStart) / totalMinutes) * 100,
-                    );
-                    const meta = EVENT_TYPE_META[event.type];
+              {days.map((day) => {
+                const key = dateKey(day);
+                const timedEvents = timedByDay.get(key) || [];
 
-                    return (
-                      <button
-                        key={event.id}
-                        type="button"
-                        className={cn(
-                          "absolute right-1 left-1 rounded-md px-2 py-1 text-left shadow-[inset_0_0_0_1px_hsl(var(--border)/0.28)]",
-                          meta.chipClassName,
-                        )}
-                        style={{
-                          top: `${topPercent}%`,
-                          height: `${heightPercent}%`,
-                        }}
-                        onClick={() => {
-                          setSelectedEventId(event.id);
-                          setSelectedDate(day);
-                        }}
-                      >
-                        <p className="truncate text-[11px] font-medium">
-                          {event.title}
-                        </p>
-                        <p className="truncate text-[10px] opacity-80">
-                          {formatTime(event.start)} - {formatTime(event.end)}
-                        </p>
-                      </button>
-                    );
-                  })}
-
-                  {(() => {
-                    const nowMinutes = now.getHours() * 60 + now.getMinutes();
-                    const nowTopPercent =
-                      ((nowMinutes - dayStartMinutes) / totalMinutes) * 100;
-                    const showNowIndicator =
-                      nowTopPercent >= 0 && nowTopPercent <= 100;
-
-                    if (!showNowIndicator) {
-                      return null;
-                    }
-
-                    return (
+                return (
+                  <div
+                    key={`timeline-${key}`}
+                    className="bg-background/80 relative grid min-h-0 overflow-hidden"
+                    style={{
+                      gridTemplateRows: `repeat(${slotCount}, minmax(3.25rem, 1fr))`,
+                    }}
+                  >
+                    {Array.from({ length: slotCount }, (_, index) => (
                       <div
-                        className="pointer-events-none absolute right-1 left-1 rounded-md border border-dashed border-primary/45"
-                        style={{
-                          top: `${nowTopPercent}%`,
-                        }}
+                        key={`${key}-slot-${index}`}
+                        className="border-muted/45 border-b"
                       />
-                    );
-                  })()}
-                </div>
-              );
-            })}
+                    ))}
+
+                    {timedEvents.map((event) => {
+                      const startMinutes =
+                        event.start.getHours() * 60 + event.start.getMinutes();
+                      const endMinutes =
+                        event.end.getHours() * 60 + event.end.getMinutes();
+                      const clampedStart = Math.max(
+                        dayStartMinutes,
+                        startMinutes,
+                      );
+                      const clampedEnd = Math.min(
+                        dayEndMinutes,
+                        Math.max(clampedStart + 30, endMinutes),
+                      );
+                      const topPercent =
+                        ((clampedStart - dayStartMinutes) / totalMinutes) * 100;
+                      const heightPercent = Math.max(
+                        (30 / totalMinutes) * 100,
+                        ((clampedEnd - clampedStart) / totalMinutes) * 100,
+                      );
+                      const meta = EVENT_TYPE_META[event.type];
+
+                      return (
+                        <button
+                          key={event.id}
+                          type="button"
+                          className={cn(
+                            "absolute right-1 left-1 rounded-md px-2 py-1 text-left shadow-[inset_0_0_0_1px_hsl(var(--border)/0.28)]",
+                            meta.chipClassName,
+                          )}
+                          style={{
+                            top: `${topPercent}%`,
+                            height: `${heightPercent}%`,
+                          }}
+                          onClick={() => {
+                            setSelectedEventId(event.id);
+                            setSelectedDate(day);
+                          }}
+                        >
+                          <p className="truncate text-[11px] font-medium">
+                            {event.title}
+                          </p>
+                          <p className="truncate text-[10px] opacity-80">
+                            {formatTime(event.start)} - {formatTime(event.end)}
+                          </p>
+                        </button>
+                      );
+                    })}
+
+                    {(() => {
+                      const nowMinutes =
+                        now.getHours() * 60 + now.getMinutes();
+                      const nowTopPercent =
+                        ((nowMinutes - dayStartMinutes) / totalMinutes) * 100;
+                      const showNowIndicator =
+                        nowTopPercent >= 0 && nowTopPercent <= 100;
+
+                      if (!showNowIndicator) {
+                        return null;
+                      }
+
+                      return (
+                        <div
+                          className="pointer-events-none absolute right-1 left-1 rounded-md border border-dashed border-primary/45"
+                          style={{
+                            top: `${nowTopPercent}%`,
+                          }}
+                        />
+                      );
+                    })()}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
@@ -1401,11 +1408,11 @@ const WorkspaceCalendar = () => {
   return (
     <div
       data-tour="calendar-shell"
-      className="flex h-full min-h-0 w-full flex-1 gap-3 max-lg:flex-col"
+      className="flex h-full min-h-0 w-full flex-1 gap-3 max-lg:flex-col max-lg:overflow-auto"
     >
       <aside
         data-tour="calendar-sidebar"
-        className="bg-muted/20 ring-border/35 flex w-full shrink-0 flex-col gap-2.5 rounded-xl p-2.5 ring-1 lg:w-[19rem] max-lg:max-h-[44dvh] max-lg:overflow-y-auto"
+        className="bg-muted/20 ring-border/35 flex w-full shrink-0 flex-col gap-2.5 rounded-xl p-2.5 ring-1 lg:w-[19rem] max-lg:order-2 max-lg:max-h-[44dvh] max-lg:overflow-y-auto"
       >
         <div className="space-y-1">
           <p className="text-[15px] font-semibold">Calendar</p>
@@ -1667,7 +1674,7 @@ const WorkspaceCalendar = () => {
 
       <section
         data-tour="calendar-surface"
-        className="bg-muted/15 ring-border/35 flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl ring-1 max-lg:min-h-[56dvh]"
+        className="bg-muted/15 ring-border/35 flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl ring-1 max-lg:order-1 max-lg:min-h-[56dvh]"
       >
         <header className="bg-background/65 flex flex-wrap items-center gap-2 px-2.5 py-2 max-md:items-start">
           {rightPanelTab === "calendar" ? (

@@ -180,7 +180,11 @@ export type WorkspaceProjectNotificationType =
   | "agent.manager.digest"
   | "task.deadline.reminder"
   | "subtask.deadline.reminder"
-  | "meeting.reminder";
+  | "meeting.reminder"
+  | "support.ticket.created"
+  | "support.ticket.updated"
+  | "support.ticket.message"
+  | "support.ticket.assigned";
 
 export type WorkspaceProjectAgentRunType =
   | "standup"

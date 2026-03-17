@@ -1,11 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { ChevronDown } from "lucide-react";
 
 import { AiCreateMode, AiCreateSheetShell } from "@/components/shared/ai-create-sheet";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -17,6 +23,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
+import useWorkspaceTemplate from "@/hooks/use-workspace-template";
 import { useProjectStore } from "@/stores";
 import useWorkspaceStore from "@/stores/workspace";
 import { getProjectRoute } from "@/utils/constants";
@@ -33,7 +40,7 @@ const STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
   { value: "paused", label: "Paused" },
 ];
 
-const TEMPLATE_OPTIONS: { value: ProjectPipelineTemplateKey; label: string }[] = [
+const PIPELINE_OPTIONS: { value: ProjectPipelineTemplateKey; label: string }[] = [
   { value: "product", label: "Product" },
   { value: "marketing", label: "Marketing" },
   { value: "operations", label: "Operations" },
@@ -42,6 +49,7 @@ const TEMPLATE_OPTIONS: { value: ProjectPipelineTemplateKey; label: string }[] =
 type CreateProjectSheetProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialTemplateId?: string;
 };
 
 function addDays(baseDate: string, days: number) {
@@ -67,12 +75,18 @@ function extractProjectName(prompt: string) {
   return stripped || normalized;
 }
 
-export function CreateProjectSheet({ open, onOpenChange }: CreateProjectSheetProps) {
+export function CreateProjectSheet({
+  open,
+  onOpenChange,
+  initialTemplateId,
+}: CreateProjectSheetProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { workspaceId } = useWorkspaceStore();
   const upsertProjectRecord = useProjectStore((state) => state.upsertProjectRecord);
   const { useCreateWorkspaceProject } = useWorkspaceProject();
+  const { useWorkspaceTemplates, useApplyWorkspaceTemplate } = useWorkspaceTemplate();
+
   const [mode, setMode] = useState<AiCreateMode>("ai");
   const [prompt, setPrompt] = useState("");
   const [draftReady, setDraftReady] = useState(false);
@@ -85,6 +99,33 @@ export function CreateProjectSheet({ open, onOpenChange }: CreateProjectSheetPro
   );
   const [initialPipelineTemplate, setInitialPipelineTemplate] =
     useState<ProjectPipelineTemplateKey>("product");
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({});
+  const [autoAppliedTemplateId, setAutoAppliedTemplateId] = useState("");
+  const [templatePanelOpen, setTemplatePanelOpen] = useState(true);
+
+  const templatesQuery = useWorkspaceTemplates(
+    workspaceId ?? "",
+    {
+      page: 1,
+      limit: 100,
+      kind: "project",
+      search: "",
+      archived: false,
+    },
+    {
+      enabled: Boolean(workspaceId) && open,
+    },
+  );
+
+  const projectTemplates = templatesQuery.data?.data?.templates ?? [];
+  const selectedTemplate = projectTemplates.find(
+    (template) => template.id === selectedTemplateId,
+  );
+  const selectedTemplatePlaceholders = useMemo(
+    () => selectedTemplate?.placeholders ?? [],
+    [selectedTemplate?.placeholders],
+  );
 
   const createWorkspaceProjectMutation = useCreateWorkspaceProject({
     onSuccess: (response, variables) => {
@@ -103,6 +144,52 @@ export function CreateProjectSheet({ open, onOpenChange }: CreateProjectSheetPro
     },
   });
 
+  const applyTemplateMutation = useApplyWorkspaceTemplate({
+    onSuccess: (response) => {
+      const resolved = response.data.resolvedTemplate as {
+        nameTemplate?: string;
+        summaryTemplate?: string;
+        status?: ProjectStatus;
+        initialPipelineTemplate?: ProjectPipelineTemplateKey;
+        startOffsetDays?: number;
+        durationDays?: number;
+      };
+
+      const today = new Date().toISOString().slice(0, 10);
+      const nextStartDate = addDays(
+        today,
+        Number.isFinite(Number(resolved?.startOffsetDays))
+          ? Number(resolved.startOffsetDays)
+          : 0,
+      );
+      const nextDuration = Math.max(
+        1,
+        Number.isFinite(Number(resolved?.durationDays))
+          ? Number(resolved.durationDays)
+          : 21,
+      );
+
+      setName(String(resolved?.nameTemplate || "").trim());
+      setSummary(String(resolved?.summaryTemplate || "").trim());
+      setStatus(
+        STATUS_OPTIONS.some((option) => option.value === resolved?.status)
+          ? (resolved.status as ProjectStatus)
+          : "on-track",
+      );
+      setInitialPipelineTemplate(
+        PIPELINE_OPTIONS.some(
+          (option) => option.value === resolved?.initialPipelineTemplate,
+        )
+          ? (resolved.initialPipelineTemplate as ProjectPipelineTemplateKey)
+          : "product",
+      );
+      setStartDate(nextStartDate);
+      setTargetEndDate(addDays(nextStartDate, nextDuration));
+      setMode("manual");
+      setDraftReady(true);
+    },
+  });
+
   const helperExamples = useMemo(
     () => [
       "Create a mobile banking app project for Q2 launch",
@@ -111,6 +198,66 @@ export function CreateProjectSheet({ open, onOpenChange }: CreateProjectSheetPro
     ],
     [],
   );
+
+  useEffect(() => {
+    if (!open) {
+      setAutoAppliedTemplateId("");
+      return;
+    }
+
+    if (!initialTemplateId) {
+      return;
+    }
+
+    setSelectedTemplateId(initialTemplateId);
+
+    if (!workspaceId || autoAppliedTemplateId === initialTemplateId) {
+      return;
+    }
+
+    setAutoAppliedTemplateId(initialTemplateId);
+    applyTemplateMutation.mutate({
+      workspaceId,
+      templateId: initialTemplateId,
+      payload: {
+        variables: {},
+      },
+    });
+  }, [
+    applyTemplateMutation,
+    autoAppliedTemplateId,
+    initialTemplateId,
+    open,
+    workspaceId,
+  ]);
+
+  useEffect(() => {
+    if (!selectedTemplatePlaceholders.length) {
+      setTemplateVariables({});
+      return;
+    }
+
+    setTemplateVariables((current) => {
+      const next: Record<string, string> = {};
+
+      selectedTemplatePlaceholders.forEach((placeholder) => {
+        next[placeholder] = current[placeholder] ?? "";
+      });
+
+      return next;
+    });
+  }, [selectedTemplatePlaceholders]);
+
+  useEffect(() => {
+    if (!open) {
+      setTemplatePanelOpen(true);
+      return;
+    }
+
+    if (selectedTemplateId) {
+      setTemplatePanelOpen(true);
+    }
+  }, [open, selectedTemplateId]);
 
   const handleGenerateDraft = () => {
     const nextName = extractProjectName(prompt) || "New Project";
@@ -138,6 +285,20 @@ export function CreateProjectSheet({ open, onOpenChange }: CreateProjectSheetPro
     setDraftReady(true);
   };
 
+  const handleApplySelectedTemplate = () => {
+    if (!workspaceId || !selectedTemplateId) {
+      return;
+    }
+
+    applyTemplateMutation.mutate({
+      workspaceId,
+      templateId: selectedTemplateId,
+      payload: {
+        variables: templateVariables,
+      },
+    });
+  };
+
   const handleSubmit = () => {
     const values: ProjectEditorValues = {
       name: name.trim(),
@@ -162,7 +323,7 @@ export function CreateProjectSheet({ open, onOpenChange }: CreateProjectSheetPro
         startDate: values.startDate,
         targetEndDate: values.targetEndDate,
         initialPipelineTemplate: values.initialPipelineTemplate,
-        },
+      },
     });
   };
 
@@ -171,7 +332,7 @@ export function CreateProjectSheet({ open, onOpenChange }: CreateProjectSheetPro
       open={open}
       onOpenChange={onOpenChange}
       title="Create project"
-      description="Draft the project from a prompt, then review and submit. Manual mode is always available."
+      description="Draft the project from a prompt, apply a template, then review and submit."
       mode={mode}
       onModeChange={setMode}
       prompt={prompt}
@@ -188,6 +349,7 @@ export function CreateProjectSheet({ open, onOpenChange }: CreateProjectSheetPro
           <Button
             type="button"
             onClick={handleSubmit}
+            loading={createWorkspaceProjectMutation.isPending}
             disabled={
               !name.trim() ||
               !startDate ||
@@ -196,12 +358,101 @@ export function CreateProjectSheet({ open, onOpenChange }: CreateProjectSheetPro
               createWorkspaceProjectMutation.isPending
             }
           >
-            {createWorkspaceProjectMutation.isPending ? "Creating..." : "Create project"}
+            Create project
           </Button>
         </div>
       }
     >
       <div className="space-y-4">
+        <Collapsible
+          open={templatePanelOpen}
+          onOpenChange={setTemplatePanelOpen}
+          className="px-0 py-0"
+        >
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="flex min-w-0 flex-1 items-start justify-between gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-muted/45"
+              >
+                <div>
+                  <div className="text-[12px] font-semibold">Use template</div>
+                  <p className="text-muted-foreground mt-1 text-[11px] leading-5">
+                    Select a saved project template and apply placeholder values.
+                  </p>
+                </div>
+                <ChevronDown
+                  className={`mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform ${templatePanelOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+              </CollapsibleTrigger>
+          </div>
+
+          <CollapsibleContent className="mt-2.5 space-y-3">
+            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <div className="grid gap-2">
+                <Label>Project template</Label>
+                <Select
+                  value={selectedTemplateId || "none"}
+                  onValueChange={(value) => setSelectedTemplateId(value === "none" ? "" : value)}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No template</SelectItem>
+                    {projectTemplates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="sm:min-w-[7.5rem]"
+                loading={applyTemplateMutation.isPending}
+                disabled={!selectedTemplateId || applyTemplateMutation.isPending}
+                onClick={handleApplySelectedTemplate}
+              >
+                Apply
+              </Button>
+            </div>
+
+            {selectedTemplatePlaceholders.length ? (
+              <div className="rounded-lg border border-border/30 bg-background/60 p-2.5">
+                <div className="mb-2 text-[11px] font-medium">Template variables</div>
+                <div className="grid gap-2">
+                  {selectedTemplatePlaceholders.map((placeholder) => (
+                    <div
+                      key={placeholder}
+                      className="grid gap-1.5 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:items-center"
+                    >
+                      <Label className="text-[11px] font-medium text-sky-600 dark:text-sky-400">
+                        {`{{${placeholder}}}`}
+                      </Label>
+                      <Input
+                        value={templateVariables[placeholder] ?? ""}
+                        onChange={(event) =>
+                          setTemplateVariables((current) => ({
+                            ...current,
+                            [placeholder]: event.target.value,
+                          }))
+                        }
+                        placeholder={`Value for ${placeholder}`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </CollapsibleContent>
+        </Collapsible>
+
         <div className="grid gap-2">
           <Label htmlFor="project-name">Project name</Label>
           <Input
@@ -253,7 +504,7 @@ export function CreateProjectSheet({ open, onOpenChange }: CreateProjectSheetPro
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {TEMPLATE_OPTIONS.map((option) => (
+                  {PIPELINE_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
@@ -284,7 +535,6 @@ export function CreateProjectSheet({ open, onOpenChange }: CreateProjectSheetPro
             />
           </div>
         </div>
-
       </div>
     </AiCreateSheetShell>
   );

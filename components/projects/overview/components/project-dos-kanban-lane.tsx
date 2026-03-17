@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { Plus, Trash2 } from "lucide-react";
@@ -66,6 +67,7 @@ export function ProjectDosKanbanLane({
   onCreateTask,
   onDeleteSection,
 }: ProjectDosKanbanLaneProps) {
+  const [expandedTaskIds, setExpandedTaskIds] = useState<string[]>([]);
   const { setNodeRef } = useDroppable({
     id: `lane:${laneId}`,
     data: {
@@ -178,6 +180,14 @@ export function ProjectDosKanbanLane({
                 members={members}
                 selectedPipeline={selectedPipeline}
                 onEditTask={onEditTask}
+                isExpanded={expandedTaskIds.includes(task.id)}
+                onToggleExpand={(taskId) =>
+                  setExpandedTaskIds((current) =>
+                    current.includes(taskId)
+                      ? current.filter((item) => item !== taskId)
+                      : [...current, taskId],
+                  )
+                }
               />
             ))
           ) : (

@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import useWorkspaceStore from "@/stores/workspace";
 import useWorkspace from "@/hooks/use-workspace";
 import useWorkspaceTeam from "@/hooks/use-workspace-team";
+import useWorkspaceTemplate from "@/hooks/use-workspace-template";
 
 import {
   ProjectKanbanSection,
@@ -50,6 +51,7 @@ import {
   ProjectTaskStatus,
   ProjectTeamSummary,
 } from "../types";
+import { getDerivedTaskStatusFromSubtasks, getTaskStatusLabel } from "../utils";
 
 type ProjectTaskSheetProps = {
   open: boolean;
@@ -126,6 +128,8 @@ export function ProjectTaskSheet({
   const { workspaceId } = useWorkspaceStore();
   const { useWorkspacePeople } = useWorkspace();
   const { useWorkspaceTeamDetail } = useWorkspaceTeam();
+  const { useWorkspaceTemplates, useApplyWorkspaceTemplate } =
+    useWorkspaceTemplate();
   const getProjectScopedAssignableMembers = useCallback(
     (nextTeamId: string) => {
       const team = teams.find((item) => item.id === nextTeamId);
@@ -202,12 +206,25 @@ export function ProjectTaskSheet({
   const [subtasksOpen, setSubtasksOpen] = useState(
     Boolean(initiallyExpandSubtasks || seededSubtasks.length),
   );
+  const [templatePanelOpen, setTemplatePanelOpen] = useState(true);
   const [subtasks, setSubtasks] =
     useState<ProjectTaskDraftSubtask[]>(seededSubtasks);
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
+  const [templateVariables, setTemplateVariables] = useState<
+    Record<string, string>
+  >({});
+  const derivedStatusFromSubtasks = useMemo(
+    () => getDerivedTaskStatusFromSubtasks(subtasks),
+    [subtasks],
+  );
+  const effectiveStatus = derivedStatusFromSubtasks ?? status;
   const statusSelectValue = useMemo(() => {
-    const hasSection = Boolean(sectionId) && sections.some((item) => item.id === sectionId);
-    return hasSection ? `${SECTION_STATUS_PREFIX}${sectionId}` : status;
-  }, [sectionId, sections, status]);
+    const hasSection =
+      Boolean(sectionId) && sections.some((item) => item.id === sectionId);
+    return hasSection
+      ? `${SECTION_STATUS_PREFIX}${sectionId}`
+      : effectiveStatus;
+  }, [effectiveStatus, sectionId, sections]);
   const canQueryWorkspaceTeam =
     Boolean(workspaceId) && /^[a-fA-F0-9]{24}$/.test(teamId);
   const workspacePeopleQuery = useWorkspacePeople(workspaceId!, {
@@ -296,6 +313,99 @@ export function ProjectTaskSheet({
     workspaceMembers,
     workspaceTeamMembers,
   ]);
+  const taskTemplatesQuery = useWorkspaceTemplates(
+    workspaceId ?? "",
+    {
+      page: 1,
+      limit: 100,
+      kind: "task",
+      search: "",
+      archived: false,
+    },
+    {
+      enabled: Boolean(workspaceId) && open,
+    },
+  );
+  const taskTemplates = taskTemplatesQuery.data?.data?.templates ?? [];
+  const selectedTaskTemplate = taskTemplates.find(
+    (template) => template.id === selectedTemplateId,
+  );
+  const selectedTaskTemplatePlaceholders = useMemo(
+    () => selectedTaskTemplate?.placeholders ?? [],
+    [selectedTaskTemplate?.placeholders],
+  );
+  const applyTaskTemplateMutation = useApplyWorkspaceTemplate({
+    onSuccess: (response) => {
+      const resolved = response.data.resolvedTemplate as {
+        titleTemplate?: string;
+        status?: ProjectTaskStatus;
+        priority?: ProjectTaskPriority;
+        startInDays?: number;
+        dueInDays?: number;
+        sectionId?: string;
+        subtasks?: Array<{
+          titleTemplate?: string;
+          status?: ProjectTaskStatus;
+        }>;
+      };
+
+      const today = new Date().toISOString().slice(0, 10);
+      const nextStartDate = addDays(
+        today,
+        Number.isFinite(Number(resolved?.startInDays))
+          ? Number(resolved.startInDays)
+          : 0,
+      );
+      const nextDueDate = addDays(
+        nextStartDate,
+        Math.max(
+          0,
+          Number.isFinite(Number(resolved?.dueInDays))
+            ? Number(resolved.dueInDays)
+            : 7,
+        ),
+      );
+
+      setTitle(String(resolved?.titleTemplate || "").trim());
+      setStatus(
+        STATUS_OPTIONS.some((option) => option.value === resolved?.status)
+          ? (resolved.status as ProjectTaskStatus)
+          : "todo",
+      );
+      setPriority(
+        PRIORITY_OPTIONS.some((option) => option.value === resolved?.priority)
+          ? (resolved.priority as ProjectTaskPriority)
+          : "medium",
+      );
+      setStartDate(nextStartDate);
+      setDueDate(nextDueDate);
+      setSectionId(String(resolved?.sectionId || "").trim());
+
+      const nextSubtasks = Array.isArray(resolved?.subtasks)
+        ? resolved.subtasks
+            .map((subtask) => ({
+              title: String(subtask?.titleTemplate || "").trim(),
+              status: STATUS_OPTIONS.some(
+                (option) => option.value === subtask?.status,
+              )
+                ? (subtask?.status as ProjectTaskStatus)
+                : "todo",
+              assigneeId: assigneeId || undefined,
+              startDate: nextStartDate,
+              dueDate: nextDueDate,
+            }))
+            .filter((subtask) => subtask.title)
+        : [];
+
+      if (nextSubtasks.length) {
+        setSubtasks(nextSubtasks);
+        setSubtasksOpen(true);
+      }
+
+      setCreateMode("manual");
+      setDraftReady(true);
+    },
+  });
 
   useEffect(() => {
     if (!availableAssignees.length) {
@@ -324,6 +434,34 @@ export function ProjectTaskSheet({
       setSectionId("");
     }
   }, [sectionId, sections]);
+
+  useEffect(() => {
+    if (!selectedTaskTemplatePlaceholders.length) {
+      setTemplateVariables({});
+      return;
+    }
+
+    setTemplateVariables((current) => {
+      const next: Record<string, string> = {};
+
+      selectedTaskTemplatePlaceholders.forEach((placeholder) => {
+        next[placeholder] = current[placeholder] ?? "";
+      });
+
+      return next;
+    });
+  }, [selectedTaskTemplatePlaceholders]);
+
+  useEffect(() => {
+    if (!open) {
+      setTemplatePanelOpen(true);
+      return;
+    }
+
+    if (selectedTemplateId) {
+      setTemplatePanelOpen(true);
+    }
+  }, [open, selectedTemplateId]);
 
   const handleTeamChange = (nextTeamId: string) => {
     setTeamId(nextTeamId);
@@ -384,6 +522,20 @@ export function ProjectTaskSheet({
     }
   };
 
+  const handleApplyTaskTemplate = () => {
+    if (!workspaceId || !selectedTemplateId) {
+      return;
+    }
+
+    applyTaskTemplateMutation.mutate({
+      workspaceId,
+      templateId: selectedTemplateId,
+      payload: {
+        variables: templateVariables,
+      },
+    });
+  };
+
   const handleSubtaskChange = (
     index: number,
     key: keyof ProjectTaskDraftSubtask,
@@ -402,6 +554,10 @@ export function ProjectTaskSheet({
       return;
     }
 
+    if (subtasks.length) {
+      return;
+    }
+
     setStatus(value as ProjectTaskStatus);
     setSectionId("");
   };
@@ -409,7 +565,7 @@ export function ProjectTaskSheet({
   const handleSubmit = () => {
     onSubmit({
       title: title.trim(),
-      status,
+      status: effectiveStatus,
       priority,
       assigneeId: assigneeId || undefined,
       teamId,
@@ -468,6 +624,98 @@ export function ProjectTaskSheet({
       }
     >
       <div className="space-y-4">
+        {isCreateMode ? (
+          <Collapsible
+            open={templatePanelOpen}
+            onOpenChange={setTemplatePanelOpen}
+            className="px-0 py-0"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 items-start justify-between gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-muted/45"
+                >
+                  <div>
+                    <div className="text-[12px] font-semibold">Use template</div>
+                    <p className="text-muted-foreground mt-1 text-[11px] leading-5">
+                      Start from a task template and apply variables before editing details.
+                    </p>
+                  </div>
+                  <ChevronDown
+                    className={`mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform ${templatePanelOpen ? "rotate-180" : ""}`}
+                  />
+                </button>
+              </CollapsibleTrigger>
+            </div>
+
+            <CollapsibleContent className="mt-2.5 space-y-3">
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <div className="grid gap-2">
+                  <Label>Task template</Label>
+                  <Select
+                    value={selectedTemplateId || "none"}
+                    onValueChange={(value) =>
+                      setSelectedTemplateId(value === "none" ? "" : value)
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a task template" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No template</SelectItem>
+                      {taskTemplates.map((template) => (
+                        <SelectItem key={template.id} value={template.id}>
+                          {template.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  className="sm:min-w-[7.5rem]"
+                  loading={applyTaskTemplateMutation.isPending}
+                  disabled={!selectedTemplateId || applyTaskTemplateMutation.isPending}
+                  onClick={handleApplyTaskTemplate}
+                >
+                  Apply
+                </Button>
+              </div>
+
+              {selectedTaskTemplatePlaceholders.length ? (
+                <div className="rounded-lg border border-border/30 bg-background/60 p-2.5">
+                  <div className="mb-2 text-[11px] font-medium">Template variables</div>
+                  <div className="grid gap-2">
+                    {selectedTaskTemplatePlaceholders.map((placeholder) => (
+                      <div
+                        key={placeholder}
+                        className="grid gap-1.5 sm:grid-cols-[8.5rem_minmax(0,1fr)] sm:items-center"
+                      >
+                        <Label className="text-[11px] font-medium text-sky-600 dark:text-sky-400">
+                          {`{{${placeholder}}}`}
+                        </Label>
+                        <Input
+                          value={templateVariables[placeholder] ?? ""}
+                          onChange={(event) =>
+                            setTemplateVariables((current) => ({
+                              ...current,
+                              [placeholder]: event.target.value,
+                            }))
+                          }
+                          placeholder={`Value for ${placeholder}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </CollapsibleContent>
+          </Collapsible>
+        ) : null}
+
         <div className="grid gap-2">
           <Label htmlFor="task-title">Task title</Label>
           <Input
@@ -478,8 +726,8 @@ export function ProjectTaskSheet({
           />
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="grid min-w-0 gap-2">
+        <div className="grid gap-3 sm:grid-cols-2 items-start">
+          <div className="grid min-w-0 gap-2 ">
             <Label>Status</Label>
             <Select
               value={statusSelectValue}
@@ -494,7 +742,11 @@ export function ProjectTaskSheet({
                   {STATUS_OPTIONS.map((option) => {
                     const Icon = option.icon;
                     return (
-                      <SelectItem key={option.value} value={option.value}>
+                      <SelectItem
+                        key={option.value}
+                        value={option.value}
+                        disabled={subtasks.length > 0}
+                      >
                         <Icon size={20} />
                         {option.label}
                       </SelectItem>
@@ -519,6 +771,15 @@ export function ProjectTaskSheet({
                 ) : null}
               </SelectContent>
             </Select>
+            {subtasks.length ? (
+              <div className="text-muted-foreground text-[11px] leading-5">
+                Task status is derived from subtasks and currently resolves to{" "}
+                <span className="text-foreground font-medium">
+                  {getTaskStatusLabel(effectiveStatus)}
+                </span>
+                .
+              </div>
+            ) : null}
           </div>
           <div className="grid min-w-0 gap-2">
             <Label>Priority</Label>

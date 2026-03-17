@@ -1,4 +1,5 @@
 "use client";
+import { useEffect } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import Header from "./_components/header";
@@ -11,9 +12,12 @@ import { cn } from "@/lib/utils";
 import ProjectNotificationListener from "@/components/projects/project-notification-listener";
 import TeamCallNotificationListener from "@/components/spaces/team-call-notification-listener";
 import RouteWalkthrough from "@/components/walkthrough/route-walkthrough";
+import useWorkspaceStore from "@/stores/workspace";
+import { recordRecentVisit } from "@/lib/helpers/recent-visits";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { workspaceId } = useWorkspaceStore();
   const isJamCanvasRoute =
     pathname.startsWith(`${ROUTES.JAMS}/`) && pathname !== ROUTES.JAMS;
   const isImmersivePage =
@@ -21,6 +25,48 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     pathname === ROUTES.CALENDAR ||
     pathname.startsWith(ROUTES.JAMS) ||
     pathname.startsWith(ROUTES.SPACES);
+
+  useEffect(() => {
+    const scopedWorkspaceId = String(workspaceId || "").trim();
+    if (!scopedWorkspaceId || !pathname) {
+      return;
+    }
+
+    if (pathname.startsWith(`${ROUTES.PROJECTS}/`)) {
+      const projectId = decodeURIComponent(
+        pathname.slice(`${ROUTES.PROJECTS}/`.length).split("/")[0] || "",
+      ).trim();
+
+      if (!projectId) {
+        return;
+      }
+
+      recordRecentVisit({
+        workspaceId: scopedWorkspaceId,
+        key: `project:${projectId}`,
+        kind: "project",
+        href: `${ROUTES.PROJECTS}/${encodeURIComponent(projectId)}`,
+      });
+      return;
+    }
+
+    if (pathname.startsWith(`${ROUTES.JAMS}/`)) {
+      const jamId = decodeURIComponent(
+        pathname.slice(`${ROUTES.JAMS}/`.length).split("/")[0] || "",
+      ).trim();
+
+      if (!jamId) {
+        return;
+      }
+
+      recordRecentVisit({
+        workspaceId: scopedWorkspaceId,
+        key: `jam:${jamId}`,
+        kind: "jam",
+        href: `${ROUTES.JAMS}/${encodeURIComponent(jamId)}`,
+      });
+    }
+  }, [pathname, workspaceId]);
 
   if (isJamCanvasRoute) {
     return (

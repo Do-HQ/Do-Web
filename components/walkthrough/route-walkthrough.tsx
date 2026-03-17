@@ -112,6 +112,7 @@ const RouteWalkthrough = () => {
         overlayOpacity: 0.5,
         stagePadding: 6,
         stageRadius: 10,
+        popoverOffset: 12,
         showProgress: true,
         nextBtnText: "Next",
         prevBtnText: "Back",

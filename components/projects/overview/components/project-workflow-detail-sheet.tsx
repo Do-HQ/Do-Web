@@ -11,6 +11,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { cn } from "@/lib/utils";
 
 import {
   ProjectMember,
@@ -20,6 +21,7 @@ import {
 } from "../types";
 import {
   formatShortDate,
+  getProgressBarTone,
   getSubtaskCompletionSummary,
   getTaskCompletionSummary,
   getTaskRowProgress,
@@ -85,6 +87,14 @@ export function ProjectWorkflowDetailSheet({
   const subtaskSummary = workflow
     ? getSubtaskCompletionSummary(workflow.tasks.flatMap((task) => task.subtasks ?? []))
     : null;
+  const workflowTone = workflow
+    ? getProgressBarTone({
+        progress: workflow.progress,
+        status: workflow.status,
+        startDate: workflow.startedAt,
+        dueDate: workflow.targetEndDate,
+      })
+    : null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -134,8 +144,19 @@ export function ProjectWorkflowDetailSheet({
                   <div className="text-[13px] font-medium">Progress</div>
                   <div className="text-[13px] font-semibold">{workflow.progress}%</div>
                 </div>
-                <div className="bg-muted h-1.5 overflow-hidden rounded-full">
-                  <div className="bg-primary h-full rounded-full" style={{ width: `${workflow.progress}%` }} />
+                <div
+                  className={cn(
+                    "h-1.5 overflow-hidden rounded-full",
+                    workflowTone?.trackClass || "bg-muted",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "h-full rounded-full",
+                      workflowTone?.fillClass || "bg-primary",
+                    )}
+                    style={{ width: `${workflow.progress}%` }}
+                  />
                 </div>
                 <div className="grid gap-2 text-[12px] text-muted-foreground sm:grid-cols-2">
                   <div>
@@ -188,6 +209,13 @@ export function ProjectWorkflowDetailSheet({
                 <div className="space-y-2">
                   {workflow.tasks.slice(0, 4).map((task) => {
                     const progress = getTaskRowProgress(task);
+                    const taskTone = getProgressBarTone({
+                      progress,
+                      status: task.status,
+                      startDate: task.startDate,
+                      dueDate: task.dueDate,
+                      executionState: task.executionState,
+                    });
 
                     return (
                       <div key={task.id} className="rounded-lg bg-muted/20 px-3 py-2">
@@ -199,8 +227,16 @@ export function ProjectWorkflowDetailSheet({
                           <span>{task.subtasks?.length ?? 0} subtasks</span>
                           <span>{formatShortDate(task.dueDate)}</span>
                         </div>
-                        <div className="bg-muted mt-2 h-1.5 overflow-hidden rounded-full">
-                          <div className="bg-primary h-full rounded-full" style={{ width: `${progress}%` }} />
+                        <div
+                          className={cn(
+                            "mt-2 h-1.5 overflow-hidden rounded-full",
+                            taskTone.trackClass,
+                          )}
+                        >
+                          <div
+                            className={cn("h-full rounded-full", taskTone.fillClass)}
+                            style={{ width: `${progress}%` }}
+                          />
                         </div>
                       </div>
                     );

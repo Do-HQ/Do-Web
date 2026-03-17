@@ -143,6 +143,8 @@ export default function ProjectNotificationListener() {
         activeWorkspaceId &&
         String(notification?.workspaceId || "") === activeWorkspaceId
       ) {
+        const notificationType = String(notification?.type || "").trim();
+
         queryClient.invalidateQueries({
           predicate: (query) =>
             Array.isArray(query.queryKey) &&
@@ -156,6 +158,51 @@ export default function ProjectNotificationListener() {
             query.queryKey[0] === "workspace-notifications" &&
             query.queryKey[1] === activeWorkspaceId,
         });
+
+        if (notificationType.startsWith("support.ticket")) {
+          queryClient.invalidateQueries({
+            predicate: (query) =>
+              Array.isArray(query.queryKey) &&
+              query.queryKey[0] === "workspace-support-tickets" &&
+              query.queryKey[1] === activeWorkspaceId,
+          });
+          queryClient.invalidateQueries({
+            predicate: (query) =>
+              Array.isArray(query.queryKey) &&
+              query.queryKey[0] === "workspace-support-ticket-detail" &&
+              query.queryKey[1] === activeWorkspaceId,
+          });
+          queryClient.invalidateQueries({
+            predicate: (query) =>
+              Array.isArray(query.queryKey) &&
+              query.queryKey[0] === "workspace-support-ticket-messages" &&
+              query.queryKey[1] === activeWorkspaceId,
+          });
+          queryClient.invalidateQueries({
+            predicate: (query) =>
+              Array.isArray(query.queryKey) &&
+              query.queryKey[0] === "workspace-support-ticket-internal-notes" &&
+              query.queryKey[1] === activeWorkspaceId,
+          });
+          queryClient.invalidateQueries({
+            predicate: (query) =>
+              Array.isArray(query.queryKey) &&
+              query.queryKey[0] === "workspace-support-queue" &&
+              query.queryKey[1] === activeWorkspaceId,
+          });
+          queryClient.invalidateQueries({
+            predicate: (query) =>
+              Array.isArray(query.queryKey) &&
+              query.queryKey[0] === "workspace-support-status" &&
+              query.queryKey[1] === activeWorkspaceId,
+          });
+          queryClient.invalidateQueries({
+            predicate: (query) =>
+              Array.isArray(query.queryKey) &&
+              query.queryKey[0] === "workspace-support-sla-board" &&
+              query.queryKey[1] === activeWorkspaceId,
+          });
+        }
       }
     };
 
