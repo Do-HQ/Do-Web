@@ -1,5 +1,7 @@
 import AuthFlow from "@/components/auth/AuthFlow";
+import LoaderComponent from "@/components/shared/loader";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "Create your Squircle account",
@@ -7,7 +9,11 @@ export const metadata: Metadata = {
 };
 
 const SignUpPage = () => {
-  return <AuthFlow mode="signup" step="email" />;
+  return (
+    <Suspense fallback={<LoaderComponent />}>
+      <AuthFlow mode="signup" step="email" />
+    </Suspense>
+  );
 };
 
 export default SignUpPage;
