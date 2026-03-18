@@ -542,10 +542,14 @@ const MainChatPanel = ({
             activeMessages.map((message, index) => {
               const currentMessageDate = parseMessageTimestamp(message);
               const previousMessageDate =
-                index > 0 ? parseMessageTimestamp(activeMessages[index - 1]) : null;
+                index > 0
+                  ? parseMessageTimestamp(activeMessages[index - 1])
+                  : null;
               const showDateDivider =
-                index === 0 || !isSameCalendarDay(currentMessageDate, previousMessageDate);
-              const dateDividerLabel = formatMessageDayLabel(currentMessageDate);
+                index === 0 ||
+                !isSameCalendarDay(currentMessageDate, previousMessageDate);
+              const dateDividerLabel =
+                formatMessageDayLabel(currentMessageDate);
               const threadCount = onGetThreadCount(message.id);
               const isThreadActive = selectedThreadMessageId === message.id;
               const isPinned = pinnedMessageIds.includes(message.id);
@@ -553,7 +557,8 @@ const MainChatPanel = ({
                 String(message.author.id || "").trim() ===
                 String(currentUserId || "").trim();
               const jamShareCard = renderJamShareCard(message.content);
-              const authorInfo = authorInfoById[String(message.author.id || "")];
+              const authorInfo =
+                authorInfoById[String(message.author.id || "")];
               const messageAvatarUrl =
                 message.author.avatarUrl ||
                 authorInfo?.avatarUrl ||
@@ -572,145 +577,151 @@ const MainChatPanel = ({
                   ) : null}
                   <article className="group rounded-md px-2 py-1.5 transition-colors hover:bg-accent/35">
                     <div className="flex items-start gap-2">
-                    <Avatar
-                      size="sm"
-                      className="shrink-0"
-                      userCard={{
-                        name: authorInfo?.name || message.author.name,
-                        email: authorInfo?.email,
-                        role:
-                          authorInfo?.role ||
-                          (message.author.role === "agent" ? "Agent" : "Member"),
-                        team: authorInfo?.team,
-                        status: message.sentAt,
-                      }}
-                    >
-                      <AvatarImage
-                        src={messageAvatarUrl}
-                        alt={message.author.name}
-                      />
-                      <AvatarFallback className="text-[11px]">
-                        {message.author.initials}
-                      </AvatarFallback>
-                    </Avatar>
+                      <Avatar
+                        size="sm"
+                        className="shrink-0"
+                        userCard={{
+                          name: authorInfo?.name || message.author.name,
+                          email: authorInfo?.email,
+                          role:
+                            authorInfo?.role ||
+                            (message.author.role === "agent"
+                              ? "Agent"
+                              : "Member"),
+                          team: authorInfo?.team,
+                          status: message.sentAt,
+                        }}
+                      >
+                        <AvatarImage
+                          src={messageAvatarUrl}
+                          alt={message.author.name}
+                        />
+                        <AvatarFallback className="text-[11px]">
+                          {message.author.initials}
+                        </AvatarFallback>
+                      </Avatar>
 
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <p className="text-[13px] font-medium">
-                          {message.author.name}
-                        </p>
-                        {message.author.role === "agent" && (
-                          <Badge variant="outline" className="text-[11px]">
-                            Agent
-                          </Badge>
-                        )}
-                        {isPinned && (
-                          <Badge variant="secondary" className="text-[11px]">
-                            <Pin className="size-3.5" />
-                            Pinned
-                          </Badge>
-                        )}
-                        <span className="text-muted-foreground text-[11px]">
-                          {message.sentAt}
-                        </span>
-                        {message.edited && (
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="text-[13px] font-medium">
+                            {message.author.name}
+                          </p>
+                          {message.author.role === "agent" && (
+                            <Badge variant="outline" className="text-[11px]">
+                              Agent
+                            </Badge>
+                          )}
+                          {isPinned && (
+                            <Badge variant="secondary" className="text-[11px]">
+                              <Pin className="size-3.5" />
+                              Pinned
+                            </Badge>
+                          )}
                           <span className="text-muted-foreground text-[11px]">
-                            edited
+                            {message.sentAt}
                           </span>
-                        )}
-                      </div>
+                          {message.edited && (
+                            <span className="text-muted-foreground text-[11px]">
+                              edited
+                            </span>
+                          )}
+                        </div>
 
-                      {editingMessageId === message.id ? (
-                        <div className="mt-1.5 space-y-1.5">
-                          <Textarea
-                            value={editingMessageValue}
-                            onChange={(event) =>
-                              onEditingMessageValueChange(event.target.value)
-                            }
-                            onKeyDown={(event) => {
-                              if (event.key === "Enter" && !event.shiftKey) {
-                                event.preventDefault();
-                                onSaveEditedMessage(message.id);
+                        {editingMessageId === message.id ? (
+                          <div className="mt-1.5 space-y-1.5">
+                            <Textarea
+                              value={editingMessageValue}
+                              onChange={(event) =>
+                                onEditingMessageValueChange(event.target.value)
                               }
-                            }}
-                            className="min-h-16 max-h-36 resize-none px-2 py-1.5 text-[13px]"
-                          />
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="sm"
-                              className="h-8 px-2.5 text-[13px]"
-                              onClick={() => onSaveEditedMessage(message.id)}
-                              disabled={editingMessageValue.trim().length < 1}
-                            >
-                              Save
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-8 px-2.5 text-[13px]"
-                              onClick={onCancelEditingMessage}
-                            >
-                              Cancel
-                            </Button>
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter" && !event.shiftKey) {
+                                  event.preventDefault();
+                                  onSaveEditedMessage(message.id);
+                                }
+                              }}
+                              className="min-h-16 max-h-36 resize-none px-2 py-1.5 text-[13px]"
+                            />
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="sm"
+                                className="h-8 px-2.5 text-[13px]"
+                                onClick={() => onSaveEditedMessage(message.id)}
+                                disabled={editingMessageValue.trim().length < 1}
+                              >
+                                Save
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-8 px-2.5 text-[13px]"
+                                onClick={onCancelEditingMessage}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            {jamShareCard ? (
+                              jamShareCard
+                            ) : (
+                              <p className="mt-0.5 text-[12.5px] leading-5 whitespace-pre-wrap">
+                                {renderContentWithMentions(message.content)}
+                              </p>
+                            )}
+                          </>
+                        )}
+
+                        <AttachmentPreview attachments={message.attachments} />
+
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant={isThreadActive ? "secondary" : "ghost"}
+                            className="h-7 px-2.5 text-[13px]"
+                            onClick={() => onOpenThread(message.id)}
+                          >
+                            <MessageSquareReply className="size-3.5" />
+                            <span className="hidden sm:inline">
+                              {threadCount > 0
+                                ? `${threadCount} repl${threadCount > 1 ? "ies" : "y"}`
+                                : "Reply in thread"}
+                            </span>
+                            <span className="sm:hidden">
+                              {threadCount > 0
+                                ? `${threadCount} ${threadCount > 1 ? "replies" : "reply"}`
+                                : "Reply"}
+                            </span>
+                          </Button>
+
+                          <div className="ml-auto opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
+                            <ChatItemActionsMenu
+                              isPinned={isPinned}
+                              onReplyInThread={() => onOpenThread(message.id)}
+                              onEdit={
+                                isOwnMessage
+                                  ? () => onStartEditingMessage(message)
+                                  : undefined
+                              }
+                              onCopy={() => onCopyText(message.content)}
+                              onTogglePin={() =>
+                                onTogglePinnedMessage(message.id)
+                              }
+                              onForward={() => onForwardMessage(message)}
+                              onCreateTask={() =>
+                                onCreateTaskFromMessage(message)
+                              }
+                              showCreateTask={canCreateTaskFromChat}
+                              onDelete={
+                                isOwnMessage
+                                  ? () => onDeleteMessage(message.id)
+                                  : undefined
+                              }
+                            />
                           </div>
                         </div>
-                      ) : (
-                        <>
-                          {jamShareCard ? (
-                            jamShareCard
-                          ) : (
-                            <p className="mt-0.5 text-[12.5px] leading-5 whitespace-pre-wrap">
-                              {renderContentWithMentions(message.content)}
-                            </p>
-                          )}
-                        </>
-                      )}
-
-                      <AttachmentPreview attachments={message.attachments} />
-
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                        <Button
-                          size="sm"
-                          variant={isThreadActive ? "secondary" : "ghost"}
-                          className="h-7 px-2.5 text-[13px]"
-                          onClick={() => onOpenThread(message.id)}
-                        >
-                          <MessageSquareReply className="size-3.5" />
-                          <span className="hidden sm:inline">
-                            {threadCount > 0
-                              ? `${threadCount} repl${threadCount > 1 ? "ies" : "y"}`
-                              : "Reply in thread"}
-                          </span>
-                          <span className="sm:hidden">
-                            {threadCount > 0
-                              ? `${threadCount} ${threadCount > 1 ? "replies" : "reply"}`
-                              : "Reply"}
-                          </span>
-                        </Button>
-
-                        <div className="ml-auto opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
-                          <ChatItemActionsMenu
-                            isPinned={isPinned}
-                            onReplyInThread={() => onOpenThread(message.id)}
-                            onEdit={
-                              isOwnMessage
-                                ? () => onStartEditingMessage(message)
-                                : undefined
-                            }
-                            onCopy={() => onCopyText(message.content)}
-                            onTogglePin={() => onTogglePinnedMessage(message.id)}
-                            onForward={() => onForwardMessage(message)}
-                            onCreateTask={() => onCreateTaskFromMessage(message)}
-                            showCreateTask={canCreateTaskFromChat}
-                            onDelete={
-                              isOwnMessage
-                                ? () => onDeleteMessage(message.id)
-                                : undefined
-                            }
-                          />
-                        </div>
                       </div>
-                    </div>
                     </div>
                   </article>
                 </Fragment>
@@ -728,7 +739,8 @@ const MainChatPanel = ({
                     <MessageSquareReply className="size-4 text-primary/85" />
                   </EmptyMedia>
                   <EmptyDescription className="text-[12px]">
-                    No messages yet. Send the first message to start this conversation.
+                    No messages yet. Send the first message to start this
+                    conversation.
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
@@ -741,7 +753,7 @@ const MainChatPanel = ({
         data-tour="spaces-composer"
         className="bg-card/95 shrink-0 border-t border-border/35 px-1.5 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:p-1.5"
       >
-        <div className="bg-background/88 border-border/35 flex flex-col gap-2 rounded-none border border-x-0 border-b-0 p-1.5 backdrop-blur-sm sm:rounded-md sm:border sm:p-1.5">
+        <div className="bg-background/88 border-border/35 focus-within:border-ring focus-within:ring-ring/50 flex flex-col gap-2 rounded-none border border-x-0 border-b-0 p-1.5 backdrop-blur-sm transition-[border-color,box-shadow] focus-within:ring-2 sm:rounded-md sm:border sm:p-1.5">
           <MentionsInput
             value={composer}
             onChange={(event) => onComposerChange(event.target.value)}
@@ -753,7 +765,7 @@ const MainChatPanel = ({
             }}
             placeholder="Message this space... Use @ to mention"
             style={mentionInputStyle}
-            className="min-h-16 max-h-52 rounded-md border-0 bg-transparent shadow-none focus-within:ring-0"
+            className="min-h-16 max-h-52 rounded-md border border-transparent bg-transparent shadow-none"
             a11ySuggestionsListLabel="Chat mentions"
             suggestionsPortalHost={suggestionsPortalHost}
             forceSuggestionsAboveCursor

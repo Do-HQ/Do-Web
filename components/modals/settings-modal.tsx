@@ -38,6 +38,7 @@ import SettingsWorkspaceAutomation from "../settings/settings-workspace-automati
 import SettingsWorkspaceSecurity from "../settings/settings-workspace-security";
 import SettingsWorkspaceKnowledgeBase from "../settings/settings-workspace-knowledge-base";
 import SettingsWorkspaceImport from "../settings/settings-workspace-import";
+import SettingsIntegrations from "../settings/settings-integrations";
 
 const workspace = {
   nav: [
@@ -88,6 +89,8 @@ const SettingsModal = () => {
       return <SettingsProfileReferences />;
     } else if (id === "people") {
       return <SettingsWorkspacePeople />;
+    } else if (id === "integrations") {
+      return <SettingsIntegrations />;
     } else {
       return null;
     }

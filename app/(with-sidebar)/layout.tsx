@@ -91,7 +91,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <Header />
           <div
             className={cn(
-              "flex min-h-0 flex-1 flex-col",
+              "flex h-full min-h-0 flex-1 flex-col",
               isImmersivePage
                 ? "overflow-hidden p-0 md:px-4 md:pt-3 md:pb-0"
                 : "gap-4 overflow-y-auto px-4 py-6 md:py-10",

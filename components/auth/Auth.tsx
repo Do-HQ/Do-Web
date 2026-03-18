@@ -11,13 +11,27 @@ import { AuthData } from "@/types/auth";
 import { authSchema } from "@/lib/schemas/auth";
 import { H1, P } from "../ui/typography";
 import useAuth from "@/hooks/use-auth";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ChevronDown } from "lucide-react";
+import config from "@/config";
+import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "../ui/collapsible";
+import { FaGoogle } from "react-icons/fa";
 
 interface Props {
   mode?: "signup" | "login";
 }
 
 const Auth = ({ mode }: Props) => {
+  const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false);
+  const [googleOptionsOpen, setGoogleOptionsOpen] = useState(true);
+  const hasShownGoogleErrorRef = useRef(false);
+  const searchParams = useSearchParams();
+
   // Validation
   const {
     register,
@@ -52,6 +66,39 @@ const Auth = ({ mode }: Props) => {
       intent: mode!,
     });
   };
+
+  const handleGoogleContinue = () => {
+    const baseApiUrl = String(config.BASE_API_URL || "")
+      .trim()
+      .replace(/\/+$/, "");
+
+    if (!baseApiUrl) {
+      toast.error("Google sign-in is not configured yet", {
+        description:
+          "Set NEXT_PUBLIC_API_BASE_URL and backend Google OAuth envs.",
+      });
+      return;
+    }
+
+    setIsGoogleRedirecting(true);
+    const intent = mode === "signup" ? "signup" : "login";
+    window.location.assign(
+      `${baseApiUrl}/auth/google/start?intent=${encodeURIComponent(intent)}`,
+    );
+  };
+
+  useEffect(() => {
+    const googleError = String(searchParams.get("googleError") || "").trim();
+
+    if (!googleError || hasShownGoogleErrorRef.current) {
+      return;
+    }
+
+    hasShownGoogleErrorRef.current = true;
+    toast.error("Google sign-in failed", {
+      description: googleError,
+    });
+  }, [searchParams]);
 
   return (
     <>
@@ -104,6 +151,42 @@ const Auth = ({ mode }: Props) => {
             </p>
           </div>
         </div>
+
+        <Collapsible
+          open={googleOptionsOpen}
+          onOpenChange={setGoogleOptionsOpen}
+          className="space-y-2"
+        >
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground flex w-full items-center justify-center gap-1.5 text-[11px] transition-colors"
+            >
+              Other sign-in options
+              <ChevronDown
+                size={14}
+                className={`transition-transform duration-200 ${
+                  googleOptionsOpen ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+          </CollapsibleTrigger>
+
+          <CollapsibleContent className="space-y-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              loading={isGoogleRedirecting}
+              onClick={handleGoogleContinue}
+            >
+              <FaGoogle size={16} />
+              {mode === "signup"
+                ? "Sign up with Google"
+                : "Sign in with Google"}
+            </Button>
+          </CollapsibleContent>
+        </Collapsible>
       </form>
     </>
   );

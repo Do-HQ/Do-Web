@@ -29,7 +29,12 @@ import {
   Magnet,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Mention, MentionItem, MentionsInput, OnChangeHandlerFunc } from "react-mentions";
+import {
+  Mention,
+  MentionItem,
+  MentionsInput,
+  OnChangeHandlerFunc,
+} from "react-mentions";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 
@@ -660,7 +665,8 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
             name: String(entry.name || ""),
             avatarUrl: entry.avatarUrl || undefined,
             initials:
-              entry.initials || getMentionInitials(String(entry.name || ""), "U"),
+              entry.initials ||
+              getMentionInitials(String(entry.name || ""), "U"),
           },
         ]),
       ),
@@ -729,7 +735,9 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   const mentionListText =
     resolvedTheme === "dark" ? "#ffffff" : "hsl(var(--popover-foreground))";
   const mentionFocusedBg =
-    resolvedTheme === "dark" ? "hsl(var(--accent) / 0.35)" : "hsl(var(--muted))";
+    resolvedTheme === "dark"
+      ? "hsl(var(--accent) / 0.35)"
+      : "hsl(var(--muted))";
   const mentionFocusedText =
     resolvedTheme === "dark" ? "#ffffff" : "hsl(var(--foreground))";
   const mentionComposerStyle = React.useMemo(
@@ -863,7 +871,8 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   const shareJamMutation = useShareWorkspaceJam();
   const archiveJamMutation = useArchiveWorkspaceJam();
   const unarchiveJamMutation = useUnarchiveWorkspaceJam();
-  const requestWorkspaceJamEditAccessMutation = useRequestWorkspaceJamEditAccess();
+  const requestWorkspaceJamEditAccessMutation =
+    useRequestWorkspaceJamEditAccess();
   const reviewWorkspaceJamEditAccessRequestMutation =
     useReviewWorkspaceJamEditAccessRequest();
 
@@ -1514,7 +1523,8 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
             const fallbackInitials =
               mention.kind === "team"
                 ? mentionTeam?.initials || getMentionInitials(mentionLabel, "T")
-                : mentionUser?.initials || getMentionInitials(mentionLabel, "U");
+                : mentionUser?.initials ||
+                  getMentionInitials(mentionLabel, "U");
 
             return (
               <Badge
@@ -1523,7 +1533,10 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                 className="h-5 px-1.5 text-[10px]"
               >
                 <Avatar className="mr-1 size-3.5">
-                  <AvatarImage src={mentionUser?.avatarUrl} alt={mentionLabel} />
+                  <AvatarImage
+                    src={mentionUser?.avatarUrl}
+                    alt={mentionLabel}
+                  />
                   <AvatarFallback className="text-[9px] font-medium">
                     {fallbackInitials}
                   </AvatarFallback>
@@ -1556,7 +1569,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
               <div>
                 <p className="text-[13px] font-semibold">Jams</p>
                 <p className="text-muted-foreground text-[11px]">
-                  Compact boards with instant canvas mode
+                  Shared whiteboards for planning, feedback, and team sketching
                 </p>
               </div>
               <Button
@@ -1570,7 +1583,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
               </Button>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <div className="relative w-full min-w-[16rem] flex-1">
+              <div className="relative w-130 ">
                 <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-2.5 size-3.5" />
                 <Input
                   value={listSearch}
@@ -1579,7 +1592,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                   className="h-8 pl-8 text-[12px]"
                 />
               </div>
-              <div className="bg-muted/40 border-border/50 inline-flex h-8 items-center rounded-lg border p-0.5">
+              <div className="bg-muted/40 border-border/50 inline-flex h-8 items-center rounded-lg border p-0.5 ml-auto">
                 {JAMS_SCOPE_OPTIONS.map((option) => {
                   const isActive = scope === option.value;
                   return (
@@ -1788,12 +1801,17 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
               <LoaderComponent />
             ) : (
               <div className="flex h-full min-h-0">
-                <div data-tour="jam-canvas-surface" className="relative min-h-0 flex-1">
+                <div
+                  data-tour="jam-canvas-surface"
+                  className="relative min-h-0 flex-1"
+                >
                   <JamCanvas
                     jamId={activeJam.jamId}
                     snapshot={resolvedCanvasSnapshot}
                     canEdit={Boolean(activeJam.canEdit)}
-                    gridModeEnabled={Boolean(activeJam.canEdit) && isSnapEnabled}
+                    gridModeEnabled={
+                      Boolean(activeJam.canEdit) && isSnapEnabled
+                    }
                     onSnapshotChange={handleCanvasSnapshotChange}
                     onRegisterSnapshotGetter={(getter) => {
                       latestCanvasSnapshotGetterRef.current = getter;
@@ -1882,16 +1900,21 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                                     <div className="min-w-0 flex-1">
                                       <div className="flex items-center justify-between gap-2">
                                         <p className="truncate text-[11px] font-medium">
-                                          {comment.user?.name || "Workspace member"}
+                                          {comment.user?.name ||
+                                            "Workspace member"}
                                         </p>
                                         <p className="text-muted-foreground shrink-0 text-[10px]">
-                                          {formatRelativeTime(comment.createdAt)}
+                                          {formatRelativeTime(
+                                            comment.createdAt,
+                                          )}
                                         </p>
                                       </div>
                                       <p className="mt-1 whitespace-pre-wrap text-[12px]">
                                         {comment.message}
                                       </p>
-                                      {renderMentionBadges(comment.mentions || [])}
+                                      {renderMentionBadges(
+                                        comment.mentions || [],
+                                      )}
                                       <button
                                         type="button"
                                         className="text-muted-foreground hover:text-foreground mt-1 inline-flex items-center gap-1 text-[10.5px]"
@@ -1917,13 +1940,19 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                                   comment.replies.length ? (
                                     <div className="mt-2 space-y-1.5 border-l border-border/35 pl-3">
                                       {comment.replies.map((reply) => (
-                                        <div key={reply.id} className="space-y-0.5">
+                                        <div
+                                          key={reply.id}
+                                          className="space-y-0.5"
+                                        >
                                           <div className="flex items-center gap-1.5">
                                             <p className="text-[10.5px] font-medium">
-                                              {reply.user?.name || "Workspace member"}
+                                              {reply.user?.name ||
+                                                "Workspace member"}
                                             </p>
                                             <p className="text-muted-foreground text-[10px]">
-                                              {formatRelativeTime(reply.createdAt)}
+                                              {formatRelativeTime(
+                                                reply.createdAt,
+                                              )}
                                             </p>
                                           </div>
                                           <p className="text-[11px]">
@@ -1945,7 +1974,9 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                                         allowSuggestionsAboveCursor
                                         className="w-full"
                                         style={mentionComposerStyle}
-                                        disabled={createJamCommentMutation.isPending}
+                                        disabled={
+                                          createJamCommentMutation.isPending
+                                        }
                                       >
                                         <Mention
                                           trigger="@"
@@ -1954,7 +1985,9 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                                           displayTransform={(_id, display) =>
                                             `@${display}`
                                           }
-                                          renderSuggestion={renderMentionSuggestion}
+                                          renderSuggestion={
+                                            renderMentionSuggestion
+                                          }
                                           appendSpaceOnAdd
                                         />
                                       </MentionsInput>
@@ -1977,7 +2010,9 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                                             createJamCommentMutation.isPending ||
                                             !replyDraftPlain.trim()
                                           }
-                                          loading={createJamCommentMutation.isPending}
+                                          loading={
+                                            createJamCommentMutation.isPending
+                                          }
                                         >
                                           <Send className="size-3.5" />
                                           Reply
@@ -2209,7 +2244,9 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
             <Textarea
               id="jam-edit-request-message"
               value={editAccessRequestMessage}
-              onChange={(event) => setEditAccessRequestMessage(event.target.value)}
+              onChange={(event) =>
+                setEditAccessRequestMessage(event.target.value)
+              }
               maxLength={400}
               placeholder="I need edit access to continue this board."
               className="min-h-[90px] text-[12px]"
@@ -2328,9 +2365,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
             Array.isArray(activeJam.pendingEditAccessRequests) &&
             activeJam.pendingEditAccessRequests.length ? (
               <div className="bg-muted/20 border-border/45 space-y-2 rounded-md border p-2">
-                <p className="text-[11px] font-medium">
-                  Edit access requests
-                </p>
+                <p className="text-[11px] font-medium">Edit access requests</p>
                 <div className="space-y-1.5">
                   {activeJam.pendingEditAccessRequests.map((request) => (
                     <div
@@ -2536,11 +2571,11 @@ const JamListCard = ({
               <Eye className="size-3.5" />
               Open canvas
             </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={onShare}
-                disabled={!jam.canManage}
-                className="text-[12px]"
-              >
+            <DropdownMenuItem
+              onClick={onShare}
+              disabled={!jam.canManage}
+              className="text-[12px]"
+            >
               <Share2 className="size-3.5" />
               Share
             </DropdownMenuItem>

@@ -75,24 +75,24 @@ const LogoutModal = ({ open, onOpenChange }: Props) => {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="overflow-hidden p-0 sm:max-w-md">
-        <DialogHeader className="border-b border-border/35 bg-muted/20 px-4 py-3">
+      <DialogContent className="overflow-hidden border-border/50 p-0 sm:max-w-[26rem]">
+        <DialogHeader className="px-5 pt-5 pb-3">
           <div className="flex items-start gap-3">
-            <div className="inline-flex size-9 shrink-0 items-center justify-center rounded-md border border-destructive/35 bg-destructive/12 text-destructive ring-1 ring-destructive/20">
-              <LogOut className="size-4" />
+            <div className="inline-flex size-8 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/50 text-destructive">
+              <LogOut className="size-3.5" />
             </div>
             <div className="space-y-1">
               <DialogTitle className="text-[14px]">Log out of Squircle?</DialogTitle>
-              <DialogDescription className="text-[12px]">
-                You can sign back in anytime. Your workspace data will remain
-                unchanged.
+              <DialogDescription className="text-[12px] leading-relaxed">
+                You will be signed out on this device. Your workspace data stays
+                intact.
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="space-y-3 px-4 py-3">
-          <div className="bg-background/80 flex items-center gap-2 rounded-md border border-border/35 px-2.5 py-2">
+        <div className="space-y-2.5 border-b border-border/40 px-5 pb-4">
+          <div className="bg-muted/25 flex items-center gap-2 rounded-md border border-border/45 px-2.5 py-2">
             <Avatar size="sm">
               {userAvatarUrl ? (
                 <AvatarImage src={userAvatarUrl} alt={userName || userEmail} />
@@ -109,23 +109,26 @@ const LogoutModal = ({ open, onOpenChange }: Props) => {
             </div>
           </div>
 
-          <div className="text-muted-foreground rounded-md border border-destructive/30 bg-destructive/8 px-2.5 py-2 text-[11.5px]">
-            You will stop receiving live updates until you sign in again.
-          </div>
+          <p className="text-muted-foreground px-0.5 text-[11.5px]">
+            You can sign back in anytime to resume notifications and live updates.
+          </p>
         </div>
 
-        <DialogFooter className="border-t border-border/35 bg-background/70 px-4 py-3">
+        <DialogFooter className="bg-background/95 px-5 py-4 sm:justify-end">
           <DialogClose asChild>
-            <Button variant="outline">Cancel</Button>
+            <Button variant="ghost" size="sm">
+              Cancel
+            </Button>
           </DialogClose>
 
           <Button
             variant="destructive"
+            size="sm"
             loading={isLoggingUserOut}
             onClick={handleLogout}
           >
             <LogOut className="size-3.5" />
-            Logout
+            Sign out
           </Button>
         </DialogFooter>
       </DialogContent>

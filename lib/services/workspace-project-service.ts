@@ -120,6 +120,7 @@ export interface WorkspaceProjectTasksQueryParams {
   pipelineId?: string;
   startDate?: string;
   statusFilter?: "all" | "open" | "blocked" | "completed";
+  assigneeScope?: "all" | "mine";
 }
 
 export interface WorkspaceProjectEventsQueryParams {

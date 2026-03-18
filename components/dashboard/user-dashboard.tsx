@@ -446,6 +446,11 @@ const UserDashboard = () => {
     }).length;
   }, [myOpenTasks]);
 
+  const pendingOnMePreview = React.useMemo(
+    () => myOpenTasks.slice(0, 3),
+    [myOpenTasks],
+  );
+
   const activeWorkflowCount = React.useMemo(
     () =>
       projectRecords.reduce((total, record) => {
@@ -1312,7 +1317,7 @@ const UserDashboard = () => {
             title="Today"
             description="Fast glance on what needs attention."
           >
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               <div className="bg-background/55 border-border/40 flex items-center justify-between rounded-lg border px-2.5 py-2">
                 <div className="inline-flex items-center gap-1.5 text-[11.5px]">
                   <AlarmClockCheck className="text-primary size-3.5" />
@@ -1348,6 +1353,47 @@ const UserDashboard = () => {
                 <span className="text-[13px] font-semibold">
                   {atRiskProjects.length}
                 </span>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-muted-foreground text-[10.5px] uppercase">
+                    Pending on me
+                  </p>
+                  <span className="text-[11px] font-semibold">
+                    {myOpenTasks.length}
+                  </span>
+                </div>
+
+                {pendingOnMePreview.length ? (
+                  <div className="space-y-1">
+                    {pendingOnMePreview.map((task) => (
+                      <Link
+                        key={`pending-on-me-${task.key}`}
+                        href={`${getProjectRoute(task.projectId)}?tab=dos&workflow=${task.workflowId}&task=${task.taskId}`}
+                        className="bg-background/45 border-border/40 hover:bg-background/60 flex items-center justify-between gap-2 rounded-md border px-2 py-1.5"
+                      >
+                        <div className="min-w-0">
+                          <p className="line-clamp-1 text-[11.5px] font-medium">
+                            {task.title}
+                          </p>
+                          <p className="text-muted-foreground line-clamp-1 text-[10px]">
+                            {task.projectName}
+                          </p>
+                        </div>
+                        <span className="text-muted-foreground shrink-0 text-[10px]">
+                          {formatDate(task.dueDate)}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-muted-foreground text-[11px]">
+                    No pending tasks assigned to you.
+                  </p>
+                )}
               </div>
             </div>
           </DashboardSection>

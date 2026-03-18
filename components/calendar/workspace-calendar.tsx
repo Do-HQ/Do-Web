@@ -798,8 +798,8 @@ const WorkspaceCalendar = () => {
           ))}
         </div>
         <div className="min-h-0 flex-1 overflow-auto">
-          <div className="min-h-full min-w-[42rem]">
-            <div className="bg-muted/20 grid h-full min-h-[30rem] grid-cols-7 grid-rows-6 gap-px">
+          <div className="h-full min-h-full min-w-[42rem]">
+            <div className="bg-muted/20 grid h-full min-h-full grid-cols-7 grid-rows-6 gap-px">
               {monthGridDays.map((day) => {
                 const key = dateKey(day);
                 const dayEvents = monthDayEventsMap.get(key) || [];
@@ -966,7 +966,7 @@ const WorkspaceCalendar = () => {
             </div>
 
             <div
-              className="bg-muted/20 grid min-h-[42rem] gap-px"
+              className="bg-muted/20 grid h-full min-h-[42rem] gap-px"
               style={{
                 gridTemplateColumns: `56px repeat(${days.length}, minmax(0, 1fr))`,
               }}
@@ -1408,7 +1408,7 @@ const WorkspaceCalendar = () => {
   return (
     <div
       data-tour="calendar-shell"
-      className="flex h-full min-h-0 w-full flex-1 gap-3 max-lg:flex-col max-lg:overflow-auto"
+      className="flex h-full min-h-0 w-full flex-1 items-stretch gap-3 max-lg:flex-col max-lg:overflow-auto"
     >
       <aside
         data-tour="calendar-sidebar"

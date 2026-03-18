@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { WorkspaceProjectTaskRecord } from "@/types/project";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
 import useWorkspaceStore from "@/stores/workspace";
+import useAuthStore from "@/stores/auth";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -59,14 +60,21 @@ type ProjectDosTabProps = {
   ) => void;
   onEditTask: (workflowId: string, taskId: string) => void;
   onCreateSubtask?: (workflowId: string, taskId: string) => void;
-  onEditSubtask?: (workflowId: string, taskId: string, subtaskId: string) => void;
+  onEditSubtask?: (
+    workflowId: string,
+    taskId: string,
+    subtaskId: string,
+  ) => void;
   onMoveTask: (
     workflowId: string,
     taskId: string,
     nextStatus: ProjectTaskStatus,
     sectionId?: string,
   ) => void;
-  onCreateCustomSection: (label: string, tone: ProjectKanbanSectionTone) => void;
+  onCreateCustomSection: (
+    label: string,
+    tone: ProjectKanbanSectionTone,
+  ) => void;
   onDeleteCustomSection: (sectionId: string) => void;
   onTaskAction: (
     label: string,
@@ -94,7 +102,9 @@ function mapTasksToFlattenedRows(
       COMPLETE_STATUS.has(subtask.status),
     ).length;
     const progress =
-      typeof task.progress === "number" ? task.progress : getTaskRowProgress(task);
+      typeof task.progress === "number"
+        ? task.progress
+        : getTaskRowProgress(task);
     const executionState =
       (task.executionState as ProjectExecutionState | undefined) ??
       getTaskExecutionState(task);
@@ -130,6 +140,13 @@ const STATUS_OPTIONS: { value: ProjectDosStatusFilter; label: string }[] = [
   { value: "completed", label: "Completed" },
 ];
 
+type TaskAssigneeScope = "all" | "mine";
+
+const ASSIGNEE_SCOPE_OPTIONS: { value: TaskAssigneeScope; label: string }[] = [
+  { value: "all", label: "All assignees" },
+  { value: "mine", label: "Assigned to me" },
+];
+
 export function ProjectDosTab({
   projectId,
   project,
@@ -152,15 +169,24 @@ export function ProjectDosTab({
   onSubtaskAction,
 }: ProjectDosTabProps) {
   const { workspaceId } = useWorkspaceStore();
+  const { user } = useAuthStore();
   const { useWorkspaceProjectTasks } = useWorkspaceProject();
   const [view, setView] = useState<ProjectDosView>("kanban");
-  const [statusFilter, setStatusFilter] = useState<ProjectDosStatusFilter>("all");
+  const [statusFilter, setStatusFilter] =
+    useState<ProjectDosStatusFilter>("all");
+  const [assigneeScope, setAssigneeScope] = useState<TaskAssigneeScope>("all");
   const autoOpenedTaskRef = useRef(false);
 
   const selectedTeam = resolveSelectedTeam(project, selectedTeamId);
 
   const fallbackTasks = useMemo(
-    () => flattenProjectTasks(project.workflows, selectedPipeline, selectedTeam, startDate),
+    () =>
+      flattenProjectTasks(
+        project.workflows,
+        selectedPipeline,
+        selectedTeam,
+        startDate,
+      ),
     [project.workflows, selectedPipeline, selectedTeam, startDate],
   );
 
@@ -172,6 +198,7 @@ export function ProjectDosTab({
       pipelineId: selectedPipeline?.id ?? "",
       startDate,
       statusFilter,
+      assigneeScope,
     },
     {
       enabled: Boolean(workspaceId) && Boolean(projectId),
@@ -182,11 +209,29 @@ export function ProjectDosTab({
     const taskRecords = taskListQuery.data?.data?.tasks;
 
     if (Array.isArray(taskRecords)) {
-      return mapTasksToFlattenedRows(taskRecords);
+      return mapTasksToFlattenedRows(taskRecords).filter((task) => {
+        if (assigneeScope !== "mine") {
+          return true;
+        }
+
+        return String(task.assigneeId || "") === String(user?._id || "");
+      });
     }
 
-    return getFilteredTaskRows(fallbackTasks, statusFilter);
-  }, [fallbackTasks, statusFilter, taskListQuery.data]);
+    return getFilteredTaskRows(fallbackTasks, statusFilter).filter((task) => {
+      if (assigneeScope !== "mine") {
+        return true;
+      }
+
+      return String(task.assigneeId || "") === String(user?._id || "");
+    });
+  }, [
+    assigneeScope,
+    fallbackTasks,
+    statusFilter,
+    taskListQuery.data,
+    user?._id,
+  ]);
 
   const visibleTasks = scopedTasks;
 
@@ -231,7 +276,8 @@ export function ProjectDosTab({
   );
 
   const createTargetWorkflowId = useMemo(() => {
-    const preferredWorkflowId = visibleTasks[0]?.workflowId ?? scopedTasks[0]?.workflowId;
+    const preferredWorkflowId =
+      visibleTasks[0]?.workflowId ?? scopedTasks[0]?.workflowId;
 
     if (preferredWorkflowId) {
       return preferredWorkflowId;
@@ -271,10 +317,15 @@ export function ProjectDosTab({
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="space-y-2">
             <div>
-              <div className="text-[14px] font-semibold md:text-[15px]">Task workspace</div>
+              <div className="text-[14px] font-semibold md:text-[15px]">
+                Task workspace
+              </div>
               <div className="text-muted-foreground text-[12px] leading-5">
-                {visibleTasks.length} visible task{visibleTasks.length === 1 ? "" : "s"}
-                {selectedPipeline ? ` • ${selectedPipeline.name}` : " • All pipelines"}
+                {visibleTasks.length} visible task
+                {visibleTasks.length === 1 ? "" : "s"}
+                {selectedPipeline
+                  ? ` • ${selectedPipeline.name}`
+                  : " • All pipelines"}
                 {selectedTeam ? ` • ${selectedTeam.name}` : ""}
               </div>
             </div>
@@ -311,19 +362,41 @@ export function ProjectDosTab({
               </SelectContent>
             </Select>
 
-            <Input
-              type="date"
-              value={startDate}
-              onChange={(event) => onStartDateChange(event.target.value)}
-              className="h-8 w-40"
-              aria-label="Filter tasks by due date"
-            />
+            <Select
+              value={assigneeScope}
+              onValueChange={(value) =>
+                setAssigneeScope((value as TaskAssigneeScope) || "all")
+              }
+            >
+              <SelectTrigger size="sm" className="w-40">
+                <SelectValue placeholder="Assignee scope" />
+              </SelectTrigger>
+              <SelectContent>
+                {ASSIGNEE_SCOPE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <div className="space-y-0.5">
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(event) => onStartDateChange(event.target.value)}
+                className="h-8 w-40"
+                aria-label="Filter tasks by due date"
+              />
+            </div>
 
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => createTargetWorkflowId && onCreateTask(createTargetWorkflowId)}
+              onClick={() =>
+                createTargetWorkflowId && onCreateTask(createTargetWorkflowId)
+              }
               disabled={!createTargetWorkflowId}
             >
               <Plus />
@@ -362,7 +435,9 @@ export function ProjectDosTab({
         />
       ) : null}
 
-      {view === "charts" ? <ProjectDosCharts tasks={visibleTasks} onEditTask={onEditTask} /> : null}
+      {view === "charts" ? (
+        <ProjectDosCharts tasks={visibleTasks} onEditTask={onEditTask} />
+      ) : null}
     </div>
   );
 }
