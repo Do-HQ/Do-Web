@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   CalendarDays,
+  Github,
   HardDrive,
   Ellipsis,
   Link2,
@@ -35,6 +36,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import {
   Empty,
   EmptyDescription,
@@ -49,11 +51,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Switch } from "@/components/ui/switch";
 import LoaderComponent from "../shared/loader";
 import useWorkspaceStore from "@/stores/workspace";
 import useWorkspaceSlack from "@/hooks/use-workspace-slack";
 import useWorkspaceGoogleCalendar from "@/hooks/use-workspace-google-calendar";
 import useWorkspaceGoogleDrive from "@/hooks/use-workspace-google-drive";
+import useWorkspaceGithub from "@/hooks/use-workspace-github";
+import useWorkspaceProject from "@/hooks/use-workspace-project";
 import { useWorkspacePermissions } from "@/hooks/use-workspace-permissions";
 import type {
   SlackBindingEventType,
@@ -148,6 +153,8 @@ const SettingsIntegrations = () => {
   const workspaceSlackHook = useWorkspaceSlack();
   const workspaceGoogleCalendarHook = useWorkspaceGoogleCalendar();
   const workspaceGoogleDriveHook = useWorkspaceGoogleDrive();
+  const workspaceGithubHook = useWorkspaceGithub();
+  const workspaceProjectHook = useWorkspaceProject();
 
   const [channelSearch, setChannelSearch] = useState("");
   const [selectedChannelId, setSelectedChannelId] = useState("");
@@ -157,6 +164,12 @@ const SettingsIntegrations = () => {
   const [draftGoogleCalendarBindings, setDraftGoogleCalendarBindings] = useState<
     GoogleCalendarBindingDraft[]
   >([]);
+  const [githubRepositorySearch, setGithubRepositorySearch] = useState("");
+  const [selectedGithubProjectId, setSelectedGithubProjectId] = useState("");
+  const [selectedGithubRepositoryFullName, setSelectedGithubRepositoryFullName] =
+    useState("");
+  const [githubSyncTasks, setGithubSyncTasks] = useState(true);
+  const [githubSyncRisks, setGithubSyncRisks] = useState(true);
 
   const integrationQuery = workspaceSlackHook.useWorkspaceSlackIntegration(
     workspaceId || "",
@@ -201,10 +214,54 @@ const SettingsIntegrations = () => {
       workspaceId || "",
       { enabled: Boolean(workspaceId) },
     );
+  const githubIntegrationQuery = workspaceGithubHook.useWorkspaceGithubIntegration(
+    workspaceId || "",
+    { enabled: Boolean(workspaceId) },
+  );
+  const workspaceProjectsQuery = workspaceProjectHook.useWorkspaceProjects(
+    workspaceId || "",
+    {
+      page: 1,
+      limit: 100,
+      search: "",
+      archived: false,
+    },
+  );
+  const githubRepositoriesQuery = workspaceGithubHook.useWorkspaceGithubRepositories(
+    workspaceId || "",
+    {
+      search: githubRepositorySearch,
+      page: 1,
+      perPage: 100,
+    },
+    {
+      enabled:
+        Boolean(workspaceId) &&
+        Boolean(githubIntegrationQuery.data?.data?.isConnected),
+    },
+  );
+  const githubProjectBindingQuery =
+    workspaceGithubHook.useWorkspaceProjectGithubBinding(
+      workspaceId || "",
+      selectedGithubProjectId,
+      {
+        enabled:
+          Boolean(workspaceId) &&
+          Boolean(githubIntegrationQuery.data?.data?.isConnected) &&
+          Boolean(selectedGithubProjectId),
+      },
+    );
   const startGoogleDriveOAuthMutation =
     workspaceGoogleDriveHook.useStartWorkspaceGoogleDriveOAuth();
   const disconnectGoogleDriveMutation =
     workspaceGoogleDriveHook.useDisconnectWorkspaceGoogleDrive();
+  const startGithubOAuthMutation =
+    workspaceGithubHook.useStartWorkspaceGithubOAuth();
+  const disconnectGithubMutation = workspaceGithubHook.useDisconnectWorkspaceGithub();
+  const updateProjectGithubBindingMutation =
+    workspaceGithubHook.useUpdateWorkspaceProjectGithubBinding();
+  const disconnectProjectGithubBindingMutation =
+    workspaceGithubHook.useDisconnectWorkspaceProjectGithubBinding();
 
   const integration = integrationQuery.data?.data;
   const connected = Boolean(integration?.isConnected);
@@ -220,6 +277,11 @@ const SettingsIntegrations = () => {
   const googleConnected = Boolean(googleIntegration?.isConnected);
   const googleDriveIntegration = googleDriveIntegrationQuery.data?.data;
   const googleDriveConnected = Boolean(googleDriveIntegration?.isConnected);
+  const githubIntegration = githubIntegrationQuery.data?.data;
+  const githubConnected = Boolean(githubIntegration?.isConnected);
+  const workspaceProjects = workspaceProjectsQuery.data?.data?.projects ?? [];
+  const githubRepositories = githubRepositoriesQuery.data?.data?.repositories ?? [];
+  const githubBinding = githubProjectBindingQuery.data?.data?.binding || null;
   const googleCalendarOptions = useMemo(
     () => googleCalendarsQuery.data?.data?.calendars ?? [],
     [googleCalendarsQuery.data?.data?.calendars],
@@ -253,11 +315,35 @@ const SettingsIntegrations = () => {
   }, [initialGoogleCalendarBindings]);
 
   useEffect(() => {
+    if (selectedGithubProjectId || !workspaceProjects.length) {
+      return;
+    }
+
+    setSelectedGithubProjectId(String(workspaceProjects[0]?.projectId || ""));
+  }, [selectedGithubProjectId, workspaceProjects]);
+
+  useEffect(() => {
+    if (!githubBinding) {
+      setSelectedGithubRepositoryFullName("");
+      setGithubSyncTasks(true);
+      setGithubSyncRisks(true);
+      return;
+    }
+
+    setSelectedGithubRepositoryFullName(
+      String(githubBinding.repositoryFullName || "").trim(),
+    );
+    setGithubSyncTasks(githubBinding.syncTasks !== false);
+    setGithubSyncRisks(githubBinding.syncRisks !== false);
+  }, [githubBinding]);
+
+  useEffect(() => {
     const integrationParam = String(searchParams.get("integration") || "").trim();
     if (
       integrationParam !== "slack" &&
       integrationParam !== "google-calendar" &&
-      integrationParam !== "google-drive"
+      integrationParam !== "google-drive" &&
+      integrationParam !== "github"
     ) {
       return;
     }
@@ -267,6 +353,7 @@ const SettingsIntegrations = () => {
     const isSlack = integrationParam === "slack";
     const isGoogleCalendar = integrationParam === "google-calendar";
     const isGoogleDrive = integrationParam === "google-drive";
+    const isGithub = integrationParam === "github";
 
     if (status === "connected") {
       if (isSlack) {
@@ -298,12 +385,24 @@ const SettingsIntegrations = () => {
           queryKey: ["workspace-google-drive-files", workspaceId],
         });
       }
+
+      if (isGithub) {
+        toast.success("GitHub connected successfully.");
+        queryClient.invalidateQueries({
+          queryKey: ["workspace-github-integration", workspaceId],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["workspace-github-repositories", workspaceId],
+        });
+      }
     } else if (status === "error") {
       toast.error(
         isGoogleCalendar
           ? "Google Calendar connection failed."
           : isGoogleDrive
             ? "Google Drive connection failed."
+            : isGithub
+              ? "GitHub connection failed."
             : "Slack connection failed.",
         {
           description: reason || "Could not complete OAuth.",
@@ -667,16 +766,132 @@ const SettingsIntegrations = () => {
     });
   };
 
+  const handleStartGithubOAuth = async () => {
+    if (!workspaceId || !canManageWorkspaceSettings) {
+      return;
+    }
+
+    const loadingId = toast.loading("Opening GitHub connection...");
+
+    try {
+      const response = await startGithubOAuthMutation.mutateAsync({
+        workspaceId,
+      });
+      const authUrl = String(response?.data?.authUrl || "").trim();
+
+      if (!authUrl) {
+        throw new Error("GitHub OAuth URL is unavailable");
+      }
+
+      toast.success("Redirecting to GitHub...", { id: loadingId });
+      window.location.assign(authUrl);
+    } catch (error) {
+      toast.error("Could not start GitHub OAuth", {
+        id: loadingId,
+        description:
+          error instanceof Error ? error.message : "Please try again in a moment.",
+      });
+    }
+  };
+
+  const handleDisconnectGithub = async () => {
+    if (!workspaceId || !canManageWorkspaceSettings) {
+      return;
+    }
+
+    const request = disconnectGithubMutation.mutateAsync({ workspaceId });
+
+    await toast.promise(request, {
+      loading: "Disconnecting GitHub...",
+      success: () => {
+        queryClient.invalidateQueries({
+          queryKey: ["workspace-github-integration", workspaceId],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["workspace-github-repositories", workspaceId],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["workspace-project-github-binding", workspaceId],
+        });
+        return "GitHub integration disconnected.";
+      },
+      error: "Could not disconnect GitHub integration.",
+    });
+  };
+
+  const handleSaveProjectGithubBinding = async () => {
+    if (
+      !workspaceId ||
+      !selectedGithubProjectId ||
+      !selectedGithubRepositoryFullName ||
+      !canManageWorkspaceSettings
+    ) {
+      return;
+    }
+
+    const request = updateProjectGithubBindingMutation.mutateAsync({
+      workspaceId,
+      projectId: selectedGithubProjectId,
+      payload: {
+        repositoryFullName: selectedGithubRepositoryFullName,
+        syncRisks: githubSyncRisks,
+        syncTasks: githubSyncTasks,
+      },
+    });
+
+    await toast.promise(request, {
+      loading: "Saving project GitHub binding...",
+      success: () => {
+        queryClient.invalidateQueries({
+          queryKey: [
+            "workspace-project-github-binding",
+            workspaceId,
+            selectedGithubProjectId,
+          ],
+        });
+        return "Project GitHub binding updated.";
+      },
+      error: "Could not update project GitHub binding.",
+    });
+  };
+
+  const handleDisconnectProjectGithubBinding = async () => {
+    if (!workspaceId || !selectedGithubProjectId || !canManageWorkspaceSettings) {
+      return;
+    }
+
+    const request = disconnectProjectGithubBindingMutation.mutateAsync({
+      workspaceId,
+      projectId: selectedGithubProjectId,
+    });
+
+    await toast.promise(request, {
+      loading: "Disconnecting project repository binding...",
+      success: () => {
+        queryClient.invalidateQueries({
+          queryKey: [
+            "workspace-project-github-binding",
+            workspaceId,
+            selectedGithubProjectId,
+          ],
+        });
+        return "Project repository binding removed.";
+      },
+      error: "Could not remove project repository binding.",
+    });
+  };
+
   if (
     integrationQuery.isLoading ||
     googleIntegrationQuery.isLoading ||
-    googleDriveIntegrationQuery.isLoading
+    googleDriveIntegrationQuery.isLoading ||
+    githubIntegrationQuery.isLoading
   ) {
     return <LoaderComponent />;
   }
 
   return (
-    <FieldGroup className="gap-8">
+    <FieldGroup className="gap-6">
       <FieldSet>
         <FieldLegend>Slack</FieldLegend>
         <FieldDescription>
@@ -923,6 +1138,8 @@ const SettingsIntegrations = () => {
           </div>
         </FieldSet>
       ) : null}
+
+      <Separator className="bg-border/45" />
 
       <FieldSet>
         <FieldLegend>Google Calendar</FieldLegend>
@@ -1171,6 +1388,8 @@ const SettingsIntegrations = () => {
         </FieldSet>
       ) : null}
 
+      <Separator className="bg-border/45" />
+
       <FieldSet>
         <FieldLegend>Google Drive</FieldLegend>
         <FieldDescription>
@@ -1255,6 +1474,228 @@ const SettingsIntegrations = () => {
           </DropdownMenu>
         </div>
       </FieldSet>
+
+      <Separator className="bg-border/45" />
+
+      <FieldSet>
+        <FieldLegend>GitHub</FieldLegend>
+        <FieldDescription>
+          Connect GitHub and map project risks/tasks to repository issues.
+        </FieldDescription>
+
+        <Field orientation="horizontal">
+          <FieldContent>
+            <FieldTitle>Connection status</FieldTitle>
+            <FieldDescription>
+              Current workspace GitHub integration state.
+            </FieldDescription>
+          </FieldContent>
+          <Badge variant={githubConnected ? "default" : "outline"}>
+            {githubConnected ? "Connected" : "Not connected"}
+          </Badge>
+        </Field>
+
+        {githubIntegration?.connection ? (
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldTitle>GitHub account</FieldTitle>
+              <FieldDescription>
+                {githubIntegration.connection.accountLogin
+                  ? `@${githubIntegration.connection.accountLogin}`
+                  : "Connected GitHub account"}
+              </FieldDescription>
+            </FieldContent>
+            <div className="text-muted-foreground text-[12px]">
+              {formatDateLabel(githubIntegration.connection.installedAt)}
+            </div>
+          </Field>
+        ) : null}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 px-3 text-[12px]"
+            disabled={
+              !workspaceId ||
+              !canManageWorkspaceSettings ||
+              startGithubOAuthMutation.isPending
+            }
+            onClick={() => void handleStartGithubOAuth()}
+          >
+            <Github className="size-3.5" />
+            {githubConnected ? "Reconnect GitHub" : "Connect GitHub"}
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                className="size-8"
+                disabled={
+                  !workspaceId ||
+                  !githubConnected ||
+                  !canManageWorkspaceSettings ||
+                  disconnectGithubMutation.isPending
+                }
+              >
+                <Ellipsis className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => void handleDisconnectGithub()}
+                disabled={
+                  !workspaceId ||
+                  !githubConnected ||
+                  !canManageWorkspaceSettings ||
+                  disconnectGithubMutation.isPending
+                }
+              >
+                <Unlink className="size-3.5" />
+                Remove integration
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </FieldSet>
+
+      {githubConnected ? (
+        <FieldSet>
+          <FieldLegend>Project repository mapping</FieldLegend>
+          <FieldDescription>
+            Choose a project and repository to sync risks/issues and tasks.
+          </FieldDescription>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <Select
+              value={selectedGithubProjectId || undefined}
+              onValueChange={setSelectedGithubProjectId}
+              disabled={!workspaceProjects.length || !canManageWorkspaceSettings}
+            >
+              <SelectTrigger className="h-9 text-[12.5px]">
+                <SelectValue placeholder="Select project" />
+              </SelectTrigger>
+              <SelectContent>
+                {workspaceProjects.map((project) => (
+                  <SelectItem key={project.projectId} value={project.projectId}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Input
+              value={githubRepositorySearch}
+              onChange={(event) => setGithubRepositorySearch(event.target.value)}
+              placeholder="Search repositories"
+              className="h-9 text-[12.5px]"
+              disabled={!canManageWorkspaceSettings}
+            />
+          </div>
+
+          <Select
+            value={selectedGithubRepositoryFullName || undefined}
+            onValueChange={setSelectedGithubRepositoryFullName}
+            disabled={!canManageWorkspaceSettings || !githubRepositories.length}
+          >
+            <SelectTrigger className="h-9 w-full text-[12.5px]">
+              <SelectValue placeholder="Select repository to bind" />
+            </SelectTrigger>
+            <SelectContent>
+              {githubRepositories.map((repository) => (
+                <SelectItem key={String(repository.id)} value={repository.fullName}>
+                  {repository.fullName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {githubBinding ? (
+            <div className="text-muted-foreground text-[12px]">
+              Active binding:{" "}
+              <span className="text-foreground font-medium">
+                {githubBinding.repositoryFullName}
+              </span>
+            </div>
+          ) : null}
+
+          <div className="flex flex-col gap-2">
+            <label className="bg-card/60 ring-border/35 flex items-center justify-between rounded-md px-3 py-2 text-[12px] ring-1">
+              <span>Sync risks/issues as GitHub issues</span>
+              <Switch
+                checked={githubSyncRisks}
+                onCheckedChange={setGithubSyncRisks}
+                disabled={!canManageWorkspaceSettings}
+              />
+            </label>
+            <label className="bg-card/60 ring-border/35 flex items-center justify-between rounded-md px-3 py-2 text-[12px] ring-1">
+              <span>Sync tasks as GitHub issues</span>
+              <Switch
+                checked={githubSyncTasks}
+                onCheckedChange={setGithubSyncTasks}
+                disabled={!canManageWorkspaceSettings}
+              />
+            </label>
+          </div>
+
+          {githubRepositoriesQuery.isFetching ? (
+            <LoaderComponent />
+          ) : githubRepositories.length ? null : (
+            <Empty className="border-border/30 bg-card/40 gap-3 rounded-md border p-3 md:p-3">
+              <EmptyHeader className="gap-1.5">
+                <EmptyMedia variant="icon" className="size-8">
+                  <Github className="size-4 text-primary/85" />
+                </EmptyMedia>
+                <EmptyTitle className="text-[13px]">
+                  No repositories found
+                </EmptyTitle>
+                <EmptyDescription className="text-[12px]">
+                  Check repository access on the connected GitHub account.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          )}
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 px-3 text-[12px]"
+              disabled={
+                !workspaceId ||
+                !selectedGithubProjectId ||
+                !selectedGithubRepositoryFullName ||
+                !canManageWorkspaceSettings ||
+                updateProjectGithubBindingMutation.isPending
+              }
+              onClick={() => void handleSaveProjectGithubBinding()}
+            >
+              Save mapping
+            </Button>
+
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 px-3 text-[12px]"
+              disabled={
+                !workspaceId ||
+                !selectedGithubProjectId ||
+                !githubBinding ||
+                !canManageWorkspaceSettings ||
+                disconnectProjectGithubBindingMutation.isPending
+              }
+              onClick={() => void handleDisconnectProjectGithubBinding()}
+            >
+              Remove mapping
+            </Button>
+          </div>
+        </FieldSet>
+      ) : null}
     </FieldGroup>
   );
 };

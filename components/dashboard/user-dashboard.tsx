@@ -1145,9 +1145,16 @@ const UserDashboard = () => {
                   ))}
                 </div>
               ) : (
-                <p className="text-muted-foreground text-[11.5px]">
-                  No new keep-up items.
-                </p>
+                <Empty className="border-border/45 bg-background/35 rounded-lg border px-3 py-5">
+                  <EmptyHeader>
+                    <EmptyTitle className="text-[13px]">
+                      No new keep-up items
+                    </EmptyTitle>
+                    <EmptyDescription className="text-[11px]">
+                      Mentions and unread thread highlights will appear here.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
               )}
             </DashboardSection>
 
@@ -1230,9 +1237,16 @@ const UserDashboard = () => {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-muted-foreground text-[11.5px]">
-                      No active projects yet.
-                    </p>
+                    <Empty className="border-border/45 bg-background/35 rounded-lg border px-3 py-5">
+                      <EmptyHeader>
+                        <EmptyTitle className="text-[13px]">
+                          No active projects yet
+                        </EmptyTitle>
+                        <EmptyDescription className="text-[11px]">
+                          Create your first project to track risk and momentum.
+                        </EmptyDescription>
+                      </EmptyHeader>
+                    </Empty>
                   )}
 
                   <Separator />
@@ -1390,9 +1404,16 @@ const UserDashboard = () => {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-muted-foreground text-[11px]">
-                    No pending tasks assigned to you.
-                  </p>
+                  <Empty className="border-border/45 bg-background/35 rounded-lg border px-3 py-5">
+                    <EmptyHeader>
+                      <EmptyTitle className="text-[12.5px]">
+                        No pending tasks assigned to you
+                      </EmptyTitle>
+                      <EmptyDescription className="text-[11px]">
+                        Assigned open tasks show up here for quick follow-up.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
                 )}
               </div>
             </div>

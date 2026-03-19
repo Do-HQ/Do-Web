@@ -149,3 +149,57 @@ export interface WorkspaceGoogleDriveIntegrationResponseBody {
   isConnected: boolean;
   connection: WorkspaceGoogleDriveConnectionRecord | null;
 }
+
+export interface WorkspaceGithubConnectionRecord {
+  id: string;
+  workspaceId: string;
+  accountLogin: string;
+  accountId: number;
+  accountAvatarUrl: string;
+  accountHtmlUrl: string;
+  scopes: string[];
+  status: "active" | "disconnected";
+  connectedByUserId: string;
+  installedAt: string | null;
+  disconnectedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface WorkspaceGithubRepositoryRecord {
+  id: number;
+  name: string;
+  fullName: string;
+  private: boolean;
+  defaultBranch: string;
+  htmlUrl: string;
+  description: string;
+  ownerLogin: string;
+  ownerAvatarUrl: string;
+  updatedAt: string | null;
+}
+
+export interface WorkspaceProjectGithubBindingRecord {
+  id: string;
+  workspaceId: string;
+  projectId: string;
+  status: "active" | "disconnected";
+  repositoryId: number;
+  repositoryOwner: string;
+  repositoryName: string;
+  repositoryFullName: string;
+  repositoryHtmlUrl: string;
+  defaultBranch: string;
+  syncTasks: boolean;
+  syncRisks: boolean;
+  linkedByUserId: string;
+  linkedAt: string | null;
+  disconnectedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface WorkspaceGithubIntegrationResponseBody {
+  isConnected: boolean;
+  connection: WorkspaceGithubConnectionRecord | null;
+}
