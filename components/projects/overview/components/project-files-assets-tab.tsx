@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import {
+  Cloud,
   Code2,
   Copy,
   Download,
@@ -22,8 +23,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useProjectStore } from "@/stores";
 import useWorkspaceStore from "@/stores/workspace";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
+import useWorkspaceGoogleDrive from "@/hooks/use-workspace-google-drive";
 import useFile from "@/hooks/use-file";
 import type { CustomFile } from "@/types/file";
+import type { WorkspaceGoogleDriveFileRecord } from "@/types/integration";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -178,6 +181,45 @@ function inferAssetType(
   return "Document";
 }
 
+function inferAssetTypeFromDriveMime(mimeType?: string): ProjectAssetType {
+  const normalizedMime = String(mimeType || "").toLowerCase();
+
+  if (normalizedMime.startsWith("image/")) {
+    return "Image";
+  }
+
+  if (normalizedMime.startsWith("video/")) {
+    return "Video";
+  }
+
+  if (
+    normalizedMime.includes("javascript") ||
+    normalizedMime.includes("typescript") ||
+    normalizedMime.includes("json") ||
+    normalizedMime.includes("xml") ||
+    normalizedMime.includes("html") ||
+    normalizedMime.includes("css") ||
+    normalizedMime.startsWith("text/")
+  ) {
+    return "Code";
+  }
+
+  return "Document";
+}
+
+function formatUploadDateLabel(value?: string | null) {
+  if (!value) {
+    return "Just now";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "Just now";
+  }
+
+  return parsed.toLocaleString();
+}
+
 function formatAssetFileSize(rawSize?: number | string) {
   const size = typeof rawSize === "number" ? rawSize : Number(rawSize || 0);
 
@@ -253,6 +295,26 @@ function AssetPreviewPanel({ asset, onDownload }: AssetPreviewPanelProps) {
       return content.slice(0, 150_000);
     },
   });
+
+  if (asset.source === "google-drive" && asset.thumbnailUrl) {
+    return (
+      <img
+        src={asset.thumbnailUrl}
+        alt={asset.name}
+        className="h-[72vh] w-full rounded-lg object-contain"
+      />
+    );
+  }
+
+  if (asset.source === "google-drive" && asset.externalViewUrl) {
+    return (
+      <iframe
+        src={asset.externalViewUrl}
+        title={asset.name}
+        className="h-[72vh] w-full rounded-lg border border-border/20 bg-background"
+      />
+    );
+  }
 
   if (asset.url && asset.mimeType?.startsWith("image/")) {
     return (
@@ -373,6 +435,7 @@ export function ProjectFilesAssetsTab({
   const NO_LINKED_TASK_VALUE = "none";
   const { workspaceId } = useWorkspaceStore();
   const { useUpdateWorkspaceProject } = useWorkspaceProject();
+  const workspaceGoogleDriveHook = useWorkspaceGoogleDrive();
   const { useUploadAsset, useDeleteAsset } = useFile();
   const upsertProjectRecord = useProjectStore(
     (state) => state.upsertProjectRecord,
@@ -389,6 +452,13 @@ export function ProjectFilesAssetsTab({
   });
   const uploadAssetMutation = useUploadAsset();
   const deleteAssetMutation = useDeleteAsset();
+  const googleDriveIntegrationQuery =
+    workspaceGoogleDriveHook.useWorkspaceGoogleDriveIntegration(
+      workspaceId || "",
+      {
+        enabled: Boolean(workspaceId),
+      },
+    );
 
   const hiddenReplaceInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -397,9 +467,13 @@ export function ProjectFilesAssetsTab({
   const [viewerAsset, setViewerAsset] = useState<ProjectAsset | null>(null);
   const [sendAsset, setSendAsset] = useState<ProjectAsset | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [driveImportOpen, setDriveImportOpen] = useState(false);
   const [sendTarget, setSendTarget] = useState<string>(SEND_TARGETS[0]);
   const [sendNote, setSendNote] = useState("");
   const [uploadFileValue, setUploadFileValue] = useState<File | null>(null);
+  const [driveSearch, setDriveSearch] = useState("");
+  const [selectedDriveFileId, setSelectedDriveFileId] = useState("");
+  const [driveLinkedTaskId, setDriveLinkedTaskId] = useState(NO_LINKED_TASK_VALUE);
   const [uploadLinkedTaskId, setUploadLinkedTaskId] =
     useState(NO_LINKED_TASK_VALUE);
   const [replacingAsset, setReplacingAsset] = useState<ProjectAsset | null>(
@@ -408,6 +482,27 @@ export function ProjectFilesAssetsTab({
 
   const linkedTasks = useMemo(() => getLinkedTaskOptions(project), [project]);
   const assets = useMemo(() => project.assets ?? [], [project.assets]);
+  const googleDriveConnected = Boolean(
+    googleDriveIntegrationQuery.data?.data?.isConnected,
+  );
+  const googleDriveFilesQuery = workspaceGoogleDriveHook.useWorkspaceGoogleDriveFiles(
+    workspaceId || "",
+    {
+      search: driveSearch,
+      pageSize: 30,
+    },
+    {
+      enabled: Boolean(workspaceId) && driveImportOpen && googleDriveConnected,
+    },
+  );
+  const driveFiles = useMemo(
+    () => googleDriveFilesQuery.data?.data?.files ?? [],
+    [googleDriveFilesQuery.data?.data?.files],
+  );
+  const selectedDriveFile = useMemo(
+    () => driveFiles.find((file) => file.id === selectedDriveFileId) || null,
+    [driveFiles, selectedDriveFileId],
+  );
 
   const visibleAssets = useMemo(() => {
     const normalized = search.trim().toLowerCase();
@@ -475,6 +570,81 @@ export function ProjectFilesAssetsTab({
       fileSize: formatAssetFileSize(asset.fileSize),
       folder: asset.folder,
     } satisfies ProjectAsset;
+  };
+
+  const buildDriveProjectAsset = (
+    driveFile: WorkspaceGoogleDriveFileRecord,
+    linkedTaskId: string,
+  ) => {
+    const linkedTask = linkedTasks.find((task) => task.id === linkedTaskId);
+    const previewUrl =
+      String(driveFile.previewLink || "").trim() ||
+      String(driveFile.webViewLink || "").trim();
+    const downloadUrl = String(driveFile.downloadLink || "").trim();
+
+    return {
+      id: `asset-drive-${driveFile.id}-${Date.now().toString(36)}`,
+      source: "google-drive",
+      externalId: driveFile.id,
+      name: String(driveFile.name || "Untitled file"),
+      type: inferAssetTypeFromDriveMime(driveFile.mimeType),
+      url: previewUrl || downloadUrl,
+      externalViewUrl: String(driveFile.webViewLink || "").trim() || previewUrl,
+      externalDownloadUrl: downloadUrl,
+      thumbnailUrl: String(driveFile.thumbnailLink || "").trim(),
+      mimeType: driveFile.mimeType,
+      resourceType: inferAssetTypeFromDriveMime(driveFile.mimeType).toLowerCase(),
+      uploadedBy:
+        String(driveFile.ownerName || "").trim() ||
+        String(googleDriveIntegrationQuery.data?.data?.connection?.accountEmail || "").trim() ||
+        "Google Drive",
+      uploadedById: "",
+      uploadedAt: formatUploadDateLabel(driveFile.modifiedTime),
+      linkedTask: linkedTask?.title ?? "Unlinked",
+      linkedTaskId: linkedTask?.id,
+      fileSize: formatAssetFileSize(driveFile.size),
+      folder: "google-drive",
+    } satisfies ProjectAsset;
+  };
+
+  const handleOpenDriveImport = () => {
+    if (!workspaceId) {
+      toast("Open this project from a workspace to import cloud files.");
+      return;
+    }
+
+    if (!googleDriveConnected) {
+      toast("Connect Google Drive in Settings → Integrations first.");
+      return;
+    }
+
+    setDriveImportOpen(true);
+  };
+
+  const handleImportFromDrive = async () => {
+    if (!selectedDriveFile) {
+      toast("Select a Google Drive file to import.");
+      return;
+    }
+
+    if (assets.some((asset) => asset.externalId === selectedDriveFile.id)) {
+      toast("This Google Drive file is already attached to the project.");
+      return;
+    }
+
+    const linkedTaskId =
+      driveLinkedTaskId === NO_LINKED_TASK_VALUE ? "" : driveLinkedTaskId;
+    const importedAsset = buildDriveProjectAsset(selectedDriveFile, linkedTaskId);
+
+    await persistAssets([importedAsset, ...assets], {
+      loading: "Importing from Google Drive...",
+      success: "Google Drive file attached to this project.",
+      error: "We could not attach that Google Drive file.",
+    });
+
+    setSelectedDriveFileId("");
+    setDriveLinkedTaskId(NO_LINKED_TASK_VALUE);
+    setDriveImportOpen(false);
   };
 
   const handleUpload = async () => {
@@ -606,13 +776,16 @@ export function ProjectFilesAssetsTab({
   };
 
   const handleCopyLink = async (asset: ProjectAsset) => {
-    if (!asset.url) {
+    const linkValue =
+      String(asset.externalViewUrl || "").trim() || String(asset.url || "").trim();
+
+    if (!linkValue) {
       toast("No preview link is available for this asset.");
       return;
     }
 
     try {
-      await navigator.clipboard.writeText(asset.url);
+      await navigator.clipboard.writeText(linkValue);
       toast("File link copied.");
     } catch {
       toast("Could not copy file link in this browser.");
@@ -620,13 +793,18 @@ export function ProjectFilesAssetsTab({
   };
 
   const handleDownload = (asset: ProjectAsset) => {
-    if (!asset.url) {
+    const downloadUrl =
+      String(asset.externalDownloadUrl || "").trim() ||
+      String(asset.url || "").trim() ||
+      String(asset.externalViewUrl || "").trim();
+
+    if (!downloadUrl) {
       toast("No download URL is available for this file.");
       return;
     }
 
     const anchor = document.createElement("a");
-    anchor.href = asset.url;
+    anchor.href = downloadUrl;
     anchor.target = "_blank";
     anchor.rel = "noreferrer";
     anchor.download = asset.name;
@@ -690,6 +868,17 @@ export function ProjectFilesAssetsTab({
                   <Upload />
                   Upload
                 </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleOpenDriveImport}
+                  disabled={!googleDriveConnected}
+                >
+                  <Cloud />
+                  Import Drive
+                </Button>
               </div>
             </div>
           </div>
@@ -717,6 +906,9 @@ export function ProjectFilesAssetsTab({
                       </div>
                       <div className="text-muted-foreground mt-1 flex flex-wrap items-center gap-2 text-[11px]">
                         <span>{asset.type}</span>
+                        {asset.source === "google-drive" ? (
+                          <span>Google Drive</span>
+                        ) : null}
                         <span>{asset.fileSize}</span>
                         <span>{asset.uploadedBy}</span>
                       </div>
@@ -769,9 +961,16 @@ export function ProjectFilesAssetsTab({
                             </button>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className="font-medium">
-                              {asset.type}
-                            </Badge>
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant="outline" className="font-medium">
+                                {asset.type}
+                              </Badge>
+                              {asset.source === "google-drive" ? (
+                                <Badge variant="secondary" className="font-medium">
+                                  Drive
+                                </Badge>
+                              ) : null}
+                            </div>
                           </TableCell>
                           <TableCell>{asset.fileSize}</TableCell>
                           <TableCell>{asset.uploadedBy}</TableCell>
@@ -1069,6 +1268,123 @@ export function ProjectFilesAssetsTab({
               }
             >
               Upload file
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={driveImportOpen} onOpenChange={setDriveImportOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Import from Google Drive</DialogTitle>
+            <DialogDescription>
+              Search your connected Google Drive and attach a file to this project.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="drive-search">Search Drive files</Label>
+              <Input
+                id="drive-search"
+                value={driveSearch}
+                onChange={(event) => setDriveSearch(event.target.value)}
+                placeholder="Search by file name"
+                className="h-9"
+              />
+            </div>
+
+            <div className="max-h-64 overflow-auto rounded-md border border-border/25">
+              {googleDriveFilesQuery.isLoading || googleDriveFilesQuery.isFetching ? (
+                <div className="p-4">
+                  <LoaderComponent />
+                </div>
+              ) : driveFiles.length ? (
+                <div className="divide-y divide-border/20">
+                  {driveFiles.map((file) => {
+                    const active = selectedDriveFileId === file.id;
+                    return (
+                      <button
+                        key={file.id}
+                        type="button"
+                        className={`flex w-full items-start justify-between gap-3 px-3 py-2 text-left transition ${
+                          active ? "bg-muted/50" : "hover:bg-muted/30"
+                        }`}
+                        onClick={() => setSelectedDriveFileId(file.id)}
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-[12.5px] font-medium">
+                            {file.name}
+                          </div>
+                          <div className="text-muted-foreground mt-0.5 truncate text-[11px]">
+                            {file.ownerName || file.ownerEmail || "Google Drive"} ·{" "}
+                            {formatAssetFileSize(file.size)}
+                          </div>
+                        </div>
+                        <Badge variant={active ? "default" : "outline"} className="h-6">
+                          {active ? "Selected" : "Select"}
+                        </Badge>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="px-4 py-6">
+                  <Empty className="border-0 p-0 md:p-0">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <Cloud className="size-4 text-primary/85" />
+                      </EmptyMedia>
+                      <EmptyDescription className="text-[12px]">
+                        No Google Drive files found for this search.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
+                </div>
+              )}
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Linked task</Label>
+              <Select
+                value={driveLinkedTaskId}
+                onValueChange={setDriveLinkedTaskId}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Optional task link" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_LINKED_TASK_VALUE}>
+                    No linked task
+                  </SelectItem>
+                  {linkedTasks.map((task) => (
+                    <SelectItem key={task.id} value={task.id}>
+                      {task.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setDriveImportOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleImportFromDrive()}
+              disabled={
+                !selectedDriveFile ||
+                updateWorkspaceProjectMutation.isPending ||
+                googleDriveFilesQuery.isFetching
+              }
+            >
+              Attach file
             </Button>
           </DialogFooter>
         </DialogContent>

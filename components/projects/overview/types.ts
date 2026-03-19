@@ -172,9 +172,14 @@ export interface ProjectKanbanSection {
 export interface ProjectAsset {
   id: string;
   assetId?: string;
+  source?: "upload" | "google-drive";
+  externalId?: string;
   name: string;
   type: ProjectAssetType;
   url?: string;
+  externalViewUrl?: string;
+  externalDownloadUrl?: string;
+  thumbnailUrl?: string;
   mimeType?: string;
   resourceType?: string;
   uploadedBy: string;

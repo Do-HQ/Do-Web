@@ -67,3 +67,85 @@ export interface UpdateWorkspaceSlackBindingsRequestBody {
     enabled?: boolean;
   }>;
 }
+
+export interface WorkspaceGoogleCalendarConnectionRecord {
+  id: string;
+  workspaceId: string;
+  accountEmail: string;
+  scopes: string[];
+  status: "active" | "disconnected";
+  connectedByUserId: string;
+  installedAt: string | null;
+  disconnectedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface WorkspaceGoogleCalendarBindingRecord {
+  id: string;
+  workspaceId: string;
+  calendarId: string;
+  calendarName: string;
+  colorId: string;
+  isPrimary: boolean;
+  enabled: boolean;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface WorkspaceGoogleCalendarRecord {
+  id: string;
+  summary: string;
+  colorId: string;
+  isPrimary: boolean;
+}
+
+export interface WorkspaceGoogleCalendarIntegrationResponseBody {
+  isConnected: boolean;
+  connection: WorkspaceGoogleCalendarConnectionRecord | null;
+  calendars: WorkspaceGoogleCalendarBindingRecord[];
+}
+
+export interface UpdateWorkspaceGoogleCalendarBindingsRequestBody {
+  calendars: Array<{
+    calendarId: string;
+    calendarName: string;
+    colorId?: string;
+    isPrimary?: boolean;
+    enabled?: boolean;
+  }>;
+}
+
+export interface WorkspaceGoogleDriveConnectionRecord {
+  id: string;
+  workspaceId: string;
+  accountEmail: string;
+  scopes: string[];
+  status: "active" | "disconnected";
+  connectedByUserId: string;
+  installedAt: string | null;
+  disconnectedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface WorkspaceGoogleDriveFileRecord {
+  id: string;
+  name: string;
+  mimeType: string;
+  size: number;
+  modifiedTime: string | null;
+  webViewLink: string;
+  previewLink: string;
+  downloadLink: string;
+  iconLink: string;
+  thumbnailLink: string;
+  ownerName: string;
+  ownerEmail: string;
+  ownerAvatarUrl: string;
+}
+
+export interface WorkspaceGoogleDriveIntegrationResponseBody {
+  isConnected: boolean;
+  connection: WorkspaceGoogleDriveConnectionRecord | null;
+}
