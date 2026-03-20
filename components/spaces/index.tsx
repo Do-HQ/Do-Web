@@ -245,6 +245,9 @@ const SpacesPage = () => {
   const [optimisticMessagesByRoom, setOptimisticMessagesByRoom] = useState<
     Record<string, SpaceMessage[]>
   >({});
+  const [roomActivityOverrides, setRoomActivityOverrides] = useState<
+    Record<string, number>
+  >({});
   const [
     optimisticThreadRepliesByMessage,
     setOptimisticThreadRepliesByMessage,
@@ -362,8 +365,51 @@ const SpacesPage = () => {
       });
     });
 
-    return Array.from(roomMap.values()).map(mapRoomToUi);
-  }, [roomsQuery.data?.pages]);
+    const toTimestamp = (value?: string) => {
+      const parsed = new Date(String(value || "").trim()).getTime();
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    return Array.from(roomMap.values())
+      .sort((left, right) => {
+        const rightTime = Math.max(
+          Number(roomActivityOverrides[String(right.roomId)]) || 0,
+          toTimestamp(right.updatedAt),
+          toTimestamp(right.createdAt),
+        );
+        const leftTime = Math.max(
+          Number(roomActivityOverrides[String(left.roomId)]) || 0,
+          toTimestamp(left.updatedAt),
+          toTimestamp(left.createdAt),
+        );
+
+        if (rightTime !== leftTime) {
+          return rightTime - leftTime;
+        }
+
+        return String(left.name || "").localeCompare(String(right.name || ""));
+      })
+      .map(mapRoomToUi);
+  }, [roomActivityOverrides, roomsQuery.data?.pages]);
+  const bumpRoomActivity = useCallback((roomId: string, at = Date.now()) => {
+    const normalizedRoomId = String(roomId || "").trim();
+    if (!normalizedRoomId) {
+      return;
+    }
+
+    setRoomActivityOverrides((current) => {
+      const previous = Number(current[normalizedRoomId]) || 0;
+      const next = Math.max(previous, at);
+      if (next === previous) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [normalizedRoomId]: next,
+      };
+    });
+  }, []);
   const hasRooms = rooms.length > 0;
   const hasMoreRooms = Boolean(roomsQuery.hasNextPage);
   const isLoadingMoreRooms = Boolean(roomsQuery.isFetchingNextPage);
@@ -1235,6 +1281,8 @@ const SpacesPage = () => {
         return;
       }
 
+      bumpRoomActivity(String(roomId));
+
       queryClient.invalidateQueries({
         queryKey: [
           "workspace-spaces-room-messages",
@@ -1363,6 +1411,7 @@ const SpacesPage = () => {
     };
   }, [
     activeRoom?.id,
+    bumpRoomActivity,
     queryClient,
     resolvedWorkspaceId,
     selectedThreadMessageId,
@@ -1878,6 +1927,7 @@ const SpacesPage = () => {
     setComposer("");
     setComposerAttachments([]);
     appendOptimisticRoomMessage(roomId, optimisticMessage);
+    bumpRoomActivity(roomId);
 
     try {
       const payloadAttachments = await uploadDraftAttachments(draftAttachments);
@@ -1941,6 +1991,7 @@ const SpacesPage = () => {
     setThreadComposer("");
     setThreadAttachments([]);
     appendOptimisticThreadReply(messageId, optimisticReply);
+    bumpRoomActivity(roomId);
 
     try {
       const payloadAttachments = await uploadDraftAttachments(draftAttachments);

@@ -146,6 +146,7 @@ const areGoogleCalendarBindingsEqual = (
 const SettingsIntegrations = () => {
   const { workspaceId } = useWorkspaceStore();
   const { canManageWorkspaceSettings } = useWorkspacePermissions();
+  const canManageIntegrations = Boolean(workspaceId) && canManageWorkspaceSettings;
   const queryClient = useQueryClient();
   const router = useRouter();
   const pathname = usePathname();
@@ -173,13 +174,15 @@ const SettingsIntegrations = () => {
 
   const integrationQuery = workspaceSlackHook.useWorkspaceSlackIntegration(
     workspaceId || "",
-    { enabled: Boolean(workspaceId) },
+    { enabled: canManageIntegrations },
   );
   const channelsQuery = workspaceSlackHook.useWorkspaceSlackChannels(
     workspaceId || "",
     { search: channelSearch },
     {
-      enabled: Boolean(workspaceId) && Boolean(integrationQuery.data?.data?.isConnected),
+      enabled:
+        canManageIntegrations &&
+        Boolean(integrationQuery.data?.data?.isConnected),
     },
   );
 
@@ -190,14 +193,14 @@ const SettingsIntegrations = () => {
   const googleIntegrationQuery =
     workspaceGoogleCalendarHook.useWorkspaceGoogleCalendarIntegration(
       workspaceId || "",
-      { enabled: Boolean(workspaceId) },
+      { enabled: canManageIntegrations },
     );
   const googleCalendarsQuery = workspaceGoogleCalendarHook.useWorkspaceGoogleCalendars(
     workspaceId || "",
     { search: googleCalendarSearch },
     {
       enabled:
-        Boolean(workspaceId) &&
+        canManageIntegrations &&
         Boolean(googleIntegrationQuery.data?.data?.isConnected),
     },
   );
@@ -212,11 +215,11 @@ const SettingsIntegrations = () => {
   const googleDriveIntegrationQuery =
     workspaceGoogleDriveHook.useWorkspaceGoogleDriveIntegration(
       workspaceId || "",
-      { enabled: Boolean(workspaceId) },
+      { enabled: canManageIntegrations },
     );
   const githubIntegrationQuery = workspaceGithubHook.useWorkspaceGithubIntegration(
     workspaceId || "",
-    { enabled: Boolean(workspaceId) },
+    { enabled: canManageIntegrations },
   );
   const workspaceProjectsQuery = workspaceProjectHook.useWorkspaceProjects(
     workspaceId || "",
@@ -236,7 +239,7 @@ const SettingsIntegrations = () => {
     },
     {
       enabled:
-        Boolean(workspaceId) &&
+        canManageIntegrations &&
         Boolean(githubIntegrationQuery.data?.data?.isConnected),
     },
   );
@@ -246,7 +249,7 @@ const SettingsIntegrations = () => {
       selectedGithubProjectId,
       {
         enabled:
-          Boolean(workspaceId) &&
+          canManageIntegrations &&
           Boolean(githubIntegrationQuery.data?.data?.isConnected) &&
           Boolean(selectedGithubProjectId),
       },
@@ -279,7 +282,10 @@ const SettingsIntegrations = () => {
   const googleDriveConnected = Boolean(googleDriveIntegration?.isConnected);
   const githubIntegration = githubIntegrationQuery.data?.data;
   const githubConnected = Boolean(githubIntegration?.isConnected);
-  const workspaceProjects = workspaceProjectsQuery.data?.data?.projects ?? [];
+  const workspaceProjects = useMemo(
+    () => workspaceProjectsQuery.data?.data?.projects ?? [],
+    [workspaceProjectsQuery.data?.data?.projects],
+  );
   const githubRepositories = githubRepositoriesQuery.data?.data?.repositories ?? [];
   const githubBinding = githubProjectBindingQuery.data?.data?.binding || null;
   const googleCalendarOptions = useMemo(
@@ -882,12 +888,40 @@ const SettingsIntegrations = () => {
   };
 
   if (
-    integrationQuery.isLoading ||
-    googleIntegrationQuery.isLoading ||
-    googleDriveIntegrationQuery.isLoading ||
-    githubIntegrationQuery.isLoading
+    canManageIntegrations &&
+    (integrationQuery.isLoading ||
+      googleIntegrationQuery.isLoading ||
+      googleDriveIntegrationQuery.isLoading ||
+      githubIntegrationQuery.isLoading)
   ) {
     return <LoaderComponent />;
+  }
+
+  if (!canManageWorkspaceSettings) {
+    return (
+      <FieldGroup className="gap-4">
+        <FieldSet>
+          <FieldLegend>Integrations</FieldLegend>
+          <FieldDescription>
+            Connect external services like Slack, Google Calendar, Google Drive,
+            and GitHub.
+          </FieldDescription>
+          <Empty className="border-border/35 bg-card/45 rounded-md border p-5">
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Link2 className="size-4 text-primary/85" />
+              </EmptyMedia>
+              <EmptyTitle className="text-[13px]">
+                Integration settings are restricted
+              </EmptyTitle>
+              <EmptyDescription className="text-[12px]">
+                Only workspace owners and admins can manage integrations.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        </FieldSet>
+      </FieldGroup>
+    );
   }
 
   return (
@@ -1507,6 +1541,26 @@ const SettingsIntegrations = () => {
             </FieldContent>
             <div className="text-muted-foreground text-[12px]">
               {formatDateLabel(githubIntegration.connection.installedAt)}
+            </div>
+          </Field>
+        ) : null}
+
+        {githubIntegration?.webhook?.url ? (
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldTitle>Inbound webhook</FieldTitle>
+              <FieldDescription>
+                Configure this URL in GitHub repository webhooks to sync issue
+                edits/close/reopen back into Squircle.
+              </FieldDescription>
+            </FieldContent>
+            <div className="max-w-[18rem] text-right text-[11px]">
+              <p className="text-foreground truncate font-medium">
+                {githubIntegration.webhook.url}
+              </p>
+              <p className="text-muted-foreground">
+                Secret {githubIntegration.webhook.hasSecret ? "configured" : "missing"}
+              </p>
             </div>
           </Field>
         ) : null}

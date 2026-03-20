@@ -50,6 +50,7 @@ type ProfileFormState = {
   lastName: string;
   email: string;
   phoneNumber: string;
+  githubUsername: string;
   addressLine1: string;
   addressLine2: string;
   city: string;
@@ -98,6 +99,7 @@ const buildInitialProfile = (
   lastName: user?.lastName ?? "",
   email: user?.email ?? "",
   phoneNumber: user?.phoneNumber ?? "",
+  githubUsername: user?.githubUsername ?? "",
   addressLine1: user?.addressLine1 ?? "",
   addressLine2: user?.addressLine2 ?? "",
   city: user?.city ?? "",
@@ -287,6 +289,7 @@ const SettingsProfile = () => {
       lastName: profile.lastName.trim(),
       profilePhoto: profile.avatarId || null,
       phoneNumber: profile.phoneNumber.trim(),
+      githubUsername: profile.githubUsername.trim(),
       addressLine1: profile.addressLine1.trim(),
       addressLine2: profile.addressLine2.trim(),
       city: profile.city.trim(),
@@ -338,6 +341,7 @@ const SettingsProfile = () => {
         lastName: profile.lastName,
         email: profile.email,
         phoneNumber: profile.phoneNumber,
+        githubUsername: profile.githubUsername,
         addressLine1: profile.addressLine1,
         addressLine2: profile.addressLine2,
         city: profile.city,
@@ -517,6 +521,18 @@ const SettingsProfile = () => {
               }
               placeholder="+234 800 000 0000"
               tip="Phone verification will be enabled in a later pass."
+            />
+
+            <Input
+              label="GitHub username"
+              id="settings-github-username"
+              className="max-w-none"
+              value={profile.githubUsername}
+              onChange={(event) =>
+                updateProfileField("githubUsername", event.target.value)
+              }
+              placeholder="@octocat"
+              tip="Used for GitHub assignee sync when projects are linked to GitHub."
             />
 
             <Input

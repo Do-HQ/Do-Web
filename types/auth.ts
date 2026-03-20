@@ -38,6 +38,7 @@ export interface AuthUser {
   lastName: string;
   phoneNumber: string;
   phoneVerified: boolean;
+  githubUsername?: string;
   addressLine1: string;
   addressLine2: string;
   city: string;
@@ -66,6 +67,7 @@ export interface UpdateUserBody {
   profilePhoto: string | null;
   phoneNumber?: string;
   phoneVerified?: boolean;
+  githubUsername?: string;
   addressLine1?: string;
   addressLine2?: string;
   city?: string;

@@ -1,4 +1,12 @@
-import { MoreHorizontal, ShieldAlert, TriangleAlert } from "lucide-react";
+import {
+  Check,
+  CircleOff,
+  Eye,
+  MoreHorizontal,
+  ShieldAlert,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -139,18 +147,21 @@ export function ProjectOverviewRisks({
                       <DropdownMenuItem
                         onClick={() => onAction?.("open-details", item)}
                       >
+                        <Eye className="size-3.5" />
                         Open details
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         disabled={!canEdit || isClosed}
                         onClick={() => onAction?.("resolve", item)}
                       >
+                        <Check className="size-3.5" />
                         Mark resolved
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         disabled={!canEdit || isClosed || item.state !== "resolved"}
                         onClick={() => onAction?.("close", item)}
                       >
+                        <CircleOff className="size-3.5" />
                         Close
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
@@ -159,6 +170,7 @@ export function ProjectOverviewRisks({
                         disabled={!canEdit || isClosed}
                         onClick={() => onAction?.("delete", item)}
                       >
+                        <Trash2 className="size-3.5" />
                         Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>

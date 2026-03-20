@@ -6,13 +6,16 @@ import {
   ChevronRight,
   Check,
   CircleOff,
+  Eye,
   MessageSquare,
   MoreHorizontal,
+  Pencil,
   Plus,
   Send,
   ShieldAlert,
   Star,
   StarOff,
+  Trash2,
   TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -773,10 +776,6 @@ export function ProjectRisksIssuesTab({
       return;
     }
 
-    if (!window.confirm(`Delete "${item.title}"? This cannot be undone.`)) {
-      return;
-    }
-
     await toast.promise(
       deleteRiskMutation.mutateAsync({
         workspaceId,
@@ -1102,10 +1101,12 @@ export function ProjectRisksIssuesTab({
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => openDetails(item)}>
+                          <Eye className="size-3.5" />
                           Open details
                         </DropdownMenuItem>
                         {canEditItem ? (
                           <DropdownMenuItem onClick={() => openEdit(item)}>
+                            <Pencil className="size-3.5" />
                             Edit
                           </DropdownMenuItem>
                         ) : null}
@@ -1113,6 +1114,7 @@ export function ProjectRisksIssuesTab({
                           disabled={isItemClosed || !canEditItem}
                           onClick={() => handleQuickStatus(item, nextStatus)}
                         >
+                          <ChevronRight className="size-3.5" />
                           Mark {nextStatus}
                         </DropdownMenuItem>
                         <DropdownMenuItem
@@ -1139,6 +1141,7 @@ export function ProjectRisksIssuesTab({
                           disabled={isItemClosed || !canEditItem}
                           onClick={() => handleDelete(item)}
                         >
+                          <Trash2 className="size-3.5" />
                           Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>

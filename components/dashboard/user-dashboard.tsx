@@ -446,11 +446,6 @@ const UserDashboard = () => {
     }).length;
   }, [myOpenTasks]);
 
-  const pendingOnMePreview = React.useMemo(
-    () => myOpenTasks.slice(0, 3),
-    [myOpenTasks],
-  );
-
   const activeWorkflowCount = React.useMemo(
     () =>
       projectRecords.reduce((total, record) => {
@@ -1367,54 +1362,6 @@ const UserDashboard = () => {
                 <span className="text-[13px] font-semibold">
                   {atRiskProjects.length}
                 </span>
-              </div>
-
-              <Separator />
-
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-muted-foreground text-[10.5px] uppercase">
-                    Pending on me
-                  </p>
-                  <span className="text-[11px] font-semibold">
-                    {myOpenTasks.length}
-                  </span>
-                </div>
-
-                {pendingOnMePreview.length ? (
-                  <div className="space-y-1">
-                    {pendingOnMePreview.map((task) => (
-                      <Link
-                        key={`pending-on-me-${task.key}`}
-                        href={`${getProjectRoute(task.projectId)}?tab=dos&workflow=${task.workflowId}&task=${task.taskId}`}
-                        className="bg-background/45 border-border/40 hover:bg-background/60 flex items-center justify-between gap-2 rounded-md border px-2 py-1.5"
-                      >
-                        <div className="min-w-0">
-                          <p className="line-clamp-1 text-[11.5px] font-medium">
-                            {task.title}
-                          </p>
-                          <p className="text-muted-foreground line-clamp-1 text-[10px]">
-                            {task.projectName}
-                          </p>
-                        </div>
-                        <span className="text-muted-foreground shrink-0 text-[10px]">
-                          {formatDate(task.dueDate)}
-                        </span>
-                      </Link>
-                    ))}
-                  </div>
-                ) : (
-                  <Empty className="border-border/45 bg-background/35 rounded-lg border px-3 py-5">
-                    <EmptyHeader>
-                      <EmptyTitle className="text-[12.5px]">
-                        No pending tasks assigned to you
-                      </EmptyTitle>
-                      <EmptyDescription className="text-[11px]">
-                        Assigned open tasks show up here for quick follow-up.
-                      </EmptyDescription>
-                    </EmptyHeader>
-                  </Empty>
-                )}
               </div>
             </div>
           </DashboardSection>

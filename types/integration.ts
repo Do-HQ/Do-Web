@@ -202,4 +202,8 @@ export interface WorkspaceProjectGithubBindingRecord {
 export interface WorkspaceGithubIntegrationResponseBody {
   isConnected: boolean;
   connection: WorkspaceGithubConnectionRecord | null;
+  webhook?: {
+    url: string;
+    hasSecret: boolean;
+  };
 }
