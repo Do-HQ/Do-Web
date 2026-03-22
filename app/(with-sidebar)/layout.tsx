@@ -20,6 +20,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { workspaceId } = useWorkspaceStore();
   const isJamCanvasRoute =
     pathname.startsWith(`${ROUTES.JAMS}/`) && pathname !== ROUTES.JAMS;
+  const isDocDetailRoute =
+    pathname.startsWith(`${ROUTES.DOCS}/`) && pathname !== ROUTES.DOCS;
   const isImmersivePage =
     pathname === ROUTES.ASK_SQUIRCLE ||
     pathname === ROUTES.CALENDAR ||
@@ -65,6 +67,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         kind: "jam",
         href: `${ROUTES.JAMS}/${encodeURIComponent(jamId)}`,
       });
+      return;
+    }
+
+    if (pathname.startsWith(`${ROUTES.DOCS}/`)) {
+      const docId = decodeURIComponent(
+        pathname.slice(`${ROUTES.DOCS}/`.length).split("/")[0] || "",
+      ).trim();
+
+      if (!docId) {
+        return;
+      }
+
+      recordRecentVisit({
+        workspaceId: scopedWorkspaceId,
+        key: `doc:${docId}`,
+        kind: "doc",
+        href: `${ROUTES.DOCS}/${encodeURIComponent(docId)}`,
+      });
     }
   }, [pathname, workspaceId]);
 
@@ -88,11 +108,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <SidebarProvider className="h-[100dvh] overflow-hidden">
         <AppSidebar />
         <SidebarInset className="min-h-0 overflow-hidden">
-          <Header />
+          {!isDocDetailRoute ? <Header /> : null}
           <div
             className={cn(
               "flex h-full min-h-0 flex-1 flex-col",
-              isImmersivePage
+              isDocDetailRoute
+                ? "overflow-hidden p-0"
+                : isImmersivePage
                 ? "overflow-hidden p-0 md:px-4 md:pt-3 md:pb-0"
                 : "gap-4 overflow-y-auto px-4 py-6 md:py-10",
             )}

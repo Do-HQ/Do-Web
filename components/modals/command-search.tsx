@@ -71,6 +71,7 @@ type SearchResultItem = {
 
 const FAVORITE_ICON_MAP: Record<FavoriteItemType, LucideIcon> = {
   chat: Hash,
+  doc: StickyNote,
   workflow: GitBranch,
   task: ListTodo,
   subtask: ListChecks,

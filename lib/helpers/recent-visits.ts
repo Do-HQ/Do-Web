@@ -1,4 +1,4 @@
-export type RecentVisitKind = "project" | "space" | "jam";
+export type RecentVisitKind = "project" | "space" | "jam" | "doc";
 
 export type RecentVisitEntry = {
   key: string;
@@ -50,7 +50,12 @@ const readRecentVisitsRaw = (): RecentVisitEntry[] => {
           return null;
         }
 
-        if (kind !== "project" && kind !== "space" && kind !== "jam") {
+        if (
+          kind !== "project" &&
+          kind !== "space" &&
+          kind !== "jam" &&
+          kind !== "doc"
+        ) {
           return null;
         }
 
@@ -138,4 +143,3 @@ export const subscribeRecentVisits = (listener: () => void) => {
     window.removeEventListener(RECENT_VISITS_EVENT, listener);
   };
 };
-

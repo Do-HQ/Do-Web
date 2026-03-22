@@ -373,12 +373,12 @@ const SpacesPage = () => {
     return Array.from(roomMap.values())
       .sort((left, right) => {
         const rightTime = Math.max(
-          Number(roomActivityOverrides[String(right.roomId)]) || 0,
+          Number(roomActivityOverrides[String(right.id)]) || 0,
           toTimestamp(right.updatedAt),
           toTimestamp(right.createdAt),
         );
         const leftTime = Math.max(
-          Number(roomActivityOverrides[String(left.roomId)]) || 0,
+          Number(roomActivityOverrides[String(left.id)]) || 0,
           toTimestamp(left.updatedAt),
           toTimestamp(left.createdAt),
         );

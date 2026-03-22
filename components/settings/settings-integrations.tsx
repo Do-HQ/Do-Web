@@ -10,6 +10,7 @@ import {
   HardDrive,
   Ellipsis,
   Link2,
+  MessageCircle,
   Plus,
   Slack,
   TestTube2,
@@ -57,11 +58,13 @@ import useWorkspaceStore from "@/stores/workspace";
 import useWorkspaceSlack from "@/hooks/use-workspace-slack";
 import useWorkspaceGoogleCalendar from "@/hooks/use-workspace-google-calendar";
 import useWorkspaceGoogleDrive from "@/hooks/use-workspace-google-drive";
+import useWorkspaceGoogleChat from "@/hooks/use-workspace-google-chat";
 import useWorkspaceGithub from "@/hooks/use-workspace-github";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
 import { useWorkspacePermissions } from "@/hooks/use-workspace-permissions";
 import type {
   SlackBindingEventType,
+  WorkspaceGoogleChatSpaceBindingRecord,
   WorkspaceGoogleCalendarBindingRecord,
   WorkspaceSlackChannelBindingRecord,
 } from "@/types/integration";
@@ -75,6 +78,13 @@ type GoogleCalendarBindingDraft = Pick<
   WorkspaceGoogleCalendarBindingRecord,
   "calendarId" | "calendarName" | "colorId" | "isPrimary" | "enabled"
 >;
+
+type GoogleChatBindingDraft = Pick<
+  WorkspaceGoogleChatSpaceBindingRecord,
+  "spaceName" | "eventTypes" | "enabled" | "webhookPreview"
+> & {
+  webhookUrl?: string;
+};
 
 const SLACK_EVENT_FILTER_OPTIONS: Array<{
   value: SlackBindingEventType;
@@ -143,6 +153,46 @@ const areGoogleCalendarBindingsEqual = (
   return JSON.stringify(normalize(left)) === JSON.stringify(normalize(right));
 };
 
+const areGoogleChatBindingsEqual = (
+  left: GoogleChatBindingDraft[],
+  right: GoogleChatBindingDraft[],
+) => {
+  const normalize = (values: GoogleChatBindingDraft[]) =>
+    [...values]
+      .map((value) => ({
+        spaceName: String(value.spaceName || "").trim(),
+        enabled: value.enabled !== false,
+        eventTypes: Array.from(
+          new Set(
+            (Array.isArray(value.eventTypes) ? value.eventTypes : ["all"])
+              .map((type) => String(type || "").trim())
+              .filter(Boolean),
+          ),
+        ).sort(),
+      }))
+      .sort((a, b) => a.spaceName.localeCompare(b.spaceName));
+
+  return JSON.stringify(normalize(left)) === JSON.stringify(normalize(right));
+};
+
+const toSlackEventTypes = (eventTypes: unknown): SlackBindingEventType[] => {
+  const allowed = new Set(
+    SLACK_EVENT_FILTER_OPTIONS.map((option) => option.value),
+  );
+
+  const normalized = Array.from(
+    new Set(
+      (Array.isArray(eventTypes) ? eventTypes : ["all"])
+        .map((value) => String(value || "").trim())
+        .filter((value): value is SlackBindingEventType =>
+          allowed.has(value as SlackBindingEventType),
+        ),
+    ),
+  );
+
+  return normalized.length ? normalized : ["all"];
+};
+
 const SettingsIntegrations = () => {
   const { workspaceId } = useWorkspaceStore();
   const { canManageWorkspaceSettings } = useWorkspacePermissions();
@@ -154,6 +204,7 @@ const SettingsIntegrations = () => {
   const workspaceSlackHook = useWorkspaceSlack();
   const workspaceGoogleCalendarHook = useWorkspaceGoogleCalendar();
   const workspaceGoogleDriveHook = useWorkspaceGoogleDrive();
+  const workspaceGoogleChatHook = useWorkspaceGoogleChat();
   const workspaceGithubHook = useWorkspaceGithub();
   const workspaceProjectHook = useWorkspaceProject();
 
@@ -164,6 +215,14 @@ const SettingsIntegrations = () => {
   const [selectedGoogleCalendarId, setSelectedGoogleCalendarId] = useState("");
   const [draftGoogleCalendarBindings, setDraftGoogleCalendarBindings] = useState<
     GoogleCalendarBindingDraft[]
+  >([]);
+  const [googleChatSearch, setGoogleChatSearch] = useState("");
+  const [googleChatSpaceName, setGoogleChatSpaceName] = useState("");
+  const [googleChatWebhookUrl, setGoogleChatWebhookUrl] = useState("");
+  const [googleChatEventType, setGoogleChatEventType] =
+    useState<SlackBindingEventType>("all");
+  const [draftGoogleChatBindings, setDraftGoogleChatBindings] = useState<
+    GoogleChatBindingDraft[]
   >([]);
   const [githubRepositorySearch, setGithubRepositorySearch] = useState("");
   const [selectedGithubProjectId, setSelectedGithubProjectId] = useState("");
@@ -217,6 +276,21 @@ const SettingsIntegrations = () => {
       workspaceId || "",
       { enabled: canManageIntegrations },
     );
+  const googleChatIntegrationQuery =
+    workspaceGoogleChatHook.useWorkspaceGoogleChatIntegration(workspaceId || "", {
+      enabled: canManageIntegrations,
+    });
+  const googleChatSpacesQuery = workspaceGoogleChatHook.useWorkspaceGoogleChatSpaces(
+    workspaceId || "",
+    {
+      search: googleChatSearch,
+    },
+    {
+      enabled:
+        canManageIntegrations &&
+        Boolean(googleChatIntegrationQuery.data?.data?.isConnected),
+    },
+  );
   const githubIntegrationQuery = workspaceGithubHook.useWorkspaceGithubIntegration(
     workspaceId || "",
     { enabled: canManageIntegrations },
@@ -258,6 +332,12 @@ const SettingsIntegrations = () => {
     workspaceGoogleDriveHook.useStartWorkspaceGoogleDriveOAuth();
   const disconnectGoogleDriveMutation =
     workspaceGoogleDriveHook.useDisconnectWorkspaceGoogleDrive();
+  const updateGoogleChatSpacesMutation =
+    workspaceGoogleChatHook.useUpdateWorkspaceGoogleChatSpaces();
+  const sendGoogleChatTestMutation =
+    workspaceGoogleChatHook.useSendWorkspaceGoogleChatTest();
+  const disconnectGoogleChatMutation =
+    workspaceGoogleChatHook.useDisconnectWorkspaceGoogleChat();
   const startGithubOAuthMutation =
     workspaceGithubHook.useStartWorkspaceGithubOAuth();
   const disconnectGithubMutation = workspaceGithubHook.useDisconnectWorkspaceGithub();
@@ -280,6 +360,12 @@ const SettingsIntegrations = () => {
   const googleConnected = Boolean(googleIntegration?.isConnected);
   const googleDriveIntegration = googleDriveIntegrationQuery.data?.data;
   const googleDriveConnected = Boolean(googleDriveIntegration?.isConnected);
+  const googleChatIntegration = googleChatIntegrationQuery.data?.data;
+  const googleChatConnected = Boolean(googleChatIntegration?.isConnected);
+  const googleChatSpaces = useMemo(
+    () => googleChatSpacesQuery.data?.data?.spaces ?? [],
+    [googleChatSpacesQuery.data?.data?.spaces],
+  );
   const githubIntegration = githubIntegrationQuery.data?.data;
   const githubConnected = Boolean(githubIntegration?.isConnected);
   const workspaceProjects = useMemo(
@@ -295,6 +381,17 @@ const SettingsIntegrations = () => {
   const initialGoogleCalendarBindings = useMemo(
     () => googleIntegration?.calendars ?? [],
     [googleIntegration?.calendars],
+  );
+  const initialGoogleChatBindings = useMemo(
+    () =>
+      (googleChatIntegration?.spaces || []).map((binding) => ({
+        spaceName: binding.spaceName,
+        eventTypes: toSlackEventTypes(binding.eventTypes),
+        enabled: binding.enabled !== false,
+        webhookPreview: binding.webhookPreview || "",
+        webhookUrl: "",
+      })),
+    [googleChatIntegration?.spaces],
   );
 
   useEffect(() => {
@@ -319,6 +416,18 @@ const SettingsIntegrations = () => {
       })),
     );
   }, [initialGoogleCalendarBindings]);
+
+  useEffect(() => {
+    setDraftGoogleChatBindings(
+      initialGoogleChatBindings.map((binding) => ({
+        spaceName: binding.spaceName,
+        eventTypes: binding.eventTypes?.length ? binding.eventTypes : ["all"],
+        enabled: binding.enabled !== false,
+        webhookPreview: binding.webhookPreview || "",
+        webhookUrl: "",
+      })),
+    );
+  }, [initialGoogleChatBindings]);
 
   useEffect(() => {
     if (selectedGithubProjectId || !workspaceProjects.length) {
@@ -471,6 +580,30 @@ const SettingsIntegrations = () => {
         initialGoogleCalendarBindings,
       ),
     [draftGoogleCalendarBindings, initialGoogleCalendarBindings],
+  );
+  const filteredGoogleChatBindings = useMemo(() => {
+    const needle = String(googleChatSearch || "")
+      .trim()
+      .toLowerCase();
+
+    if (!needle) {
+      return draftGoogleChatBindings;
+    }
+
+    return draftGoogleChatBindings.filter((binding) =>
+      String(binding.spaceName || "")
+        .trim()
+        .toLowerCase()
+        .includes(needle),
+    );
+  }, [draftGoogleChatBindings, googleChatSearch]);
+  const googleChatBindingsChanged = useMemo(
+    () =>
+      !areGoogleChatBindingsEqual(draftGoogleChatBindings, initialGoogleChatBindings) ||
+      draftGoogleChatBindings.some((binding) =>
+        Boolean(String(binding.webhookUrl || "").trim()),
+      ),
+    [draftGoogleChatBindings, initialGoogleChatBindings],
   );
 
   const handleStartSlackOAuth = async () => {
@@ -722,6 +855,197 @@ const SettingsIntegrations = () => {
     });
   };
 
+  const handleAddGoogleChatBinding = () => {
+    const spaceName = String(googleChatSpaceName || "").trim();
+    const webhookUrl = String(googleChatWebhookUrl || "").trim();
+
+    if (!spaceName) {
+      toast.error("Space name is required.");
+      return;
+    }
+
+    if (!webhookUrl) {
+      toast.error("Webhook URL is required.");
+      return;
+    }
+
+    setDraftGoogleChatBindings((current) => {
+      const key = spaceName.toLowerCase();
+      if (current.some((binding) => binding.spaceName.toLowerCase() === key)) {
+        toast.error("This Google Chat space is already added.");
+        return current;
+      }
+
+      return [
+        ...current,
+        {
+          spaceName,
+          eventTypes: [googleChatEventType || "all"],
+          enabled: true,
+          webhookPreview: "",
+          webhookUrl,
+        },
+      ];
+    });
+
+    setGoogleChatSpaceName("");
+    setGoogleChatWebhookUrl("");
+    setGoogleChatEventType("all");
+  };
+
+  const handleRemoveGoogleChatBinding = (spaceName: string) => {
+    const target = String(spaceName || "").trim().toLowerCase();
+    setDraftGoogleChatBindings((current) =>
+      current.filter(
+        (binding) => String(binding.spaceName || "").trim().toLowerCase() !== target,
+      ),
+    );
+  };
+
+  const handleChangeGoogleChatBindingEvent = (
+    spaceName: string,
+    eventType: SlackBindingEventType,
+  ) => {
+    const target = String(spaceName || "").trim().toLowerCase();
+    setDraftGoogleChatBindings((current) =>
+      current.map((binding) =>
+        String(binding.spaceName || "").trim().toLowerCase() === target
+          ? {
+              ...binding,
+              eventTypes: [eventType],
+            }
+          : binding,
+      ),
+    );
+  };
+
+  const handleToggleGoogleChatBindingEnabled = (
+    spaceName: string,
+    enabled: boolean,
+  ) => {
+    const target = String(spaceName || "").trim().toLowerCase();
+    setDraftGoogleChatBindings((current) =>
+      current.map((binding) =>
+        String(binding.spaceName || "").trim().toLowerCase() === target
+          ? {
+              ...binding,
+              enabled,
+            }
+          : binding,
+      ),
+    );
+  };
+
+  const handleUpdateGoogleChatBindingWebhook = (
+    spaceName: string,
+    webhookUrl: string,
+  ) => {
+    const target = String(spaceName || "").trim().toLowerCase();
+    setDraftGoogleChatBindings((current) =>
+      current.map((binding) =>
+        String(binding.spaceName || "").trim().toLowerCase() === target
+          ? {
+              ...binding,
+              webhookUrl,
+            }
+          : binding,
+      ),
+    );
+  };
+
+  const handleSaveGoogleChatBindings = async () => {
+    if (!workspaceId || !canManageWorkspaceSettings) {
+      return;
+    }
+
+    const existingByKey = new Set(
+      initialGoogleChatBindings.map((binding) =>
+        String(binding.spaceName || "").trim().toLowerCase(),
+      ),
+    );
+
+    const normalizedPayload = draftGoogleChatBindings.map((binding) => {
+      const normalizedSpaceName = String(binding.spaceName || "").trim();
+      const normalizedKey = normalizedSpaceName.toLowerCase();
+      const normalizedWebhookUrl = String(binding.webhookUrl || "").trim();
+
+      if (!normalizedSpaceName) {
+        throw new Error("All Google Chat spaces must have a name.");
+      }
+
+      if (!existingByKey.has(normalizedKey) && !normalizedWebhookUrl) {
+        throw new Error(
+          `Webhook URL is required for new Google Chat space: ${normalizedSpaceName}`,
+        );
+      }
+
+      return {
+        spaceName: normalizedSpaceName,
+        eventTypes: toSlackEventTypes(binding.eventTypes),
+        enabled: binding.enabled !== false,
+        ...(normalizedWebhookUrl ? { webhookUrl: normalizedWebhookUrl } : {}),
+      };
+    });
+
+    const request = updateGoogleChatSpacesMutation.mutateAsync({
+      workspaceId,
+      payload: {
+        spaces: normalizedPayload,
+      },
+    });
+
+    await toast.promise(request, {
+      loading: "Saving Google Chat space bindings...",
+      success: () => {
+        queryClient.invalidateQueries({
+          queryKey: ["workspace-google-chat-integration", workspaceId],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["workspace-google-chat-spaces", workspaceId],
+        });
+        return "Google Chat bindings updated.";
+      },
+      error: (error) =>
+        error instanceof Error ? error.message : "Could not update Google Chat bindings.",
+    });
+  };
+
+  const handleSendGoogleChatTest = async () => {
+    if (!workspaceId || !canManageWorkspaceSettings) {
+      return;
+    }
+
+    const request = sendGoogleChatTestMutation.mutateAsync({ workspaceId });
+
+    await toast.promise(request, {
+      loading: "Sending Google Chat test message...",
+      success: "Google Chat test message sent.",
+      error: "Could not send Google Chat test message.",
+    });
+  };
+
+  const handleDisconnectGoogleChat = async () => {
+    if (!workspaceId || !canManageWorkspaceSettings) {
+      return;
+    }
+
+    const request = disconnectGoogleChatMutation.mutateAsync({ workspaceId });
+
+    await toast.promise(request, {
+      loading: "Disconnecting Google Chat...",
+      success: () => {
+        queryClient.invalidateQueries({
+          queryKey: ["workspace-google-chat-integration", workspaceId],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["workspace-google-chat-spaces", workspaceId],
+        });
+        return "Google Chat integration disconnected.";
+      },
+      error: "Could not disconnect Google Chat integration.",
+    });
+  };
+
   const handleStartGoogleDriveOAuth = async () => {
     if (!workspaceId || !canManageWorkspaceSettings) {
       return;
@@ -892,6 +1216,7 @@ const SettingsIntegrations = () => {
     (integrationQuery.isLoading ||
       googleIntegrationQuery.isLoading ||
       googleDriveIntegrationQuery.isLoading ||
+      googleChatIntegrationQuery.isLoading ||
       githubIntegrationQuery.isLoading)
   ) {
     return <LoaderComponent />;
@@ -1506,6 +1831,290 @@ const SettingsIntegrations = () => {
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+        </div>
+      </FieldSet>
+
+      <Separator className="bg-border/45" />
+
+      <FieldSet>
+        <FieldLegend>Google Chat</FieldLegend>
+        <FieldDescription>
+          Connect Google Chat webhook spaces and send workspace notifications.
+        </FieldDescription>
+
+        <Field orientation="horizontal">
+          <FieldContent>
+            <FieldTitle>Connection status</FieldTitle>
+            <FieldDescription>
+              Current workspace Google Chat integration state.
+            </FieldDescription>
+          </FieldContent>
+          <Badge variant={googleChatConnected ? "default" : "outline"}>
+            {googleChatConnected ? "Connected" : "Not connected"}
+          </Badge>
+        </Field>
+
+        {googleChatConnected ? (
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldTitle>Active spaces</FieldTitle>
+              <FieldDescription>
+                {googleChatSpaces.length} configured space
+                {googleChatSpaces.length === 1 ? "" : "s"}.
+              </FieldDescription>
+            </FieldContent>
+            <div className="text-muted-foreground text-[12px]">
+              Last updated {formatDateLabel(googleChatIntegration?.spaces?.[0]?.updatedAt)}
+            </div>
+          </Field>
+        ) : null}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                className="size-8"
+                disabled={
+                  !workspaceId ||
+                  !googleChatConnected ||
+                  !canManageWorkspaceSettings ||
+                  sendGoogleChatTestMutation.isPending ||
+                  disconnectGoogleChatMutation.isPending
+                }
+              >
+                <Ellipsis className="size-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem
+                onClick={() => void handleSendGoogleChatTest()}
+                disabled={
+                  !workspaceId ||
+                  !googleChatConnected ||
+                  !canManageWorkspaceSettings ||
+                  sendGoogleChatTestMutation.isPending
+                }
+              >
+                <TestTube2 className="size-3.5" />
+                Send test
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                variant="destructive"
+                onClick={() => void handleDisconnectGoogleChat()}
+                disabled={
+                  !workspaceId ||
+                  !googleChatConnected ||
+                  !canManageWorkspaceSettings ||
+                  disconnectGoogleChatMutation.isPending
+                }
+              >
+                <Unlink className="size-3.5" />
+                Remove integration
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </FieldSet>
+
+      <FieldSet>
+        <FieldLegend>Google Chat space bindings</FieldLegend>
+        <FieldDescription>
+          Add webhook spaces and choose which event type each space receives.
+        </FieldDescription>
+
+        <div className="grid gap-2 sm:grid-cols-2">
+          <Input
+            value={googleChatSearch}
+            onChange={(event) => setGoogleChatSearch(event.target.value)}
+            placeholder="Search configured spaces"
+            className="h-9 text-[12.5px]"
+            disabled={!canManageWorkspaceSettings}
+          />
+          <Input
+            value={googleChatSpaceName}
+            onChange={(event) => setGoogleChatSpaceName(event.target.value)}
+            placeholder="Google Chat space name"
+            className="h-9 text-[12.5px]"
+            disabled={!canManageWorkspaceSettings}
+          />
+          <Input
+            value={googleChatWebhookUrl}
+            onChange={(event) => setGoogleChatWebhookUrl(event.target.value)}
+            placeholder="Google Chat webhook URL"
+            className="h-9 text-[12.5px]"
+            disabled={!canManageWorkspaceSettings}
+          />
+          <Select
+            value={googleChatEventType}
+            onValueChange={(value) =>
+              setGoogleChatEventType(value as SlackBindingEventType)
+            }
+            disabled={!canManageWorkspaceSettings}
+          >
+            <SelectTrigger className="h-9 w-full text-[12.5px]">
+              <SelectValue placeholder="Select events" />
+            </SelectTrigger>
+            <SelectContent>
+              {SLACK_EVENT_FILTER_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-9 px-3 text-[12px]"
+            disabled={
+              !canManageWorkspaceSettings ||
+              !String(googleChatSpaceName || "").trim() ||
+              !String(googleChatWebhookUrl || "").trim()
+            }
+            onClick={handleAddGoogleChatBinding}
+          >
+            <Plus className="size-3.5" />
+            Add space
+          </Button>
+        </div>
+
+        {googleChatSpacesQuery.isFetching ? (
+          <LoaderComponent />
+        ) : filteredGoogleChatBindings.length ? (
+          <div className="space-y-2">
+            {filteredGoogleChatBindings.map((binding) => (
+              <div
+                key={binding.spaceName}
+                className="bg-card/65 ring-border/35 flex flex-col gap-2 rounded-md p-2 ring-1"
+              >
+                <div className="flex items-start gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-[13px] font-medium">
+                      {binding.spaceName}
+                    </div>
+                    <div className="text-muted-foreground text-[11px]">
+                      {binding.webhookPreview || "Webhook URL stored securely"}
+                    </div>
+                  </div>
+                  <label className="text-muted-foreground flex items-center gap-2 text-[11px]">
+                    Enabled
+                    <Switch
+                      checked={binding.enabled !== false}
+                      onCheckedChange={(enabled) =>
+                        handleToggleGoogleChatBindingEnabled(binding.spaceName, enabled)
+                      }
+                      disabled={!canManageWorkspaceSettings}
+                    />
+                  </label>
+                </div>
+
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_12rem_auto]">
+                  <Input
+                    value={binding.webhookUrl || ""}
+                    onChange={(event) =>
+                      handleUpdateGoogleChatBindingWebhook(
+                        binding.spaceName,
+                        event.target.value,
+                      )
+                    }
+                    placeholder="Paste webhook URL to replace existing"
+                    className="h-8 text-[12px]"
+                    disabled={!canManageWorkspaceSettings}
+                  />
+                  <Select
+                    value={(binding.eventTypes?.[0] || "all") as SlackBindingEventType}
+                    onValueChange={(value) =>
+                      handleChangeGoogleChatBindingEvent(
+                        binding.spaceName,
+                        value as SlackBindingEventType,
+                      )
+                    }
+                    disabled={!canManageWorkspaceSettings}
+                  >
+                    <SelectTrigger className="h-8 w-full text-[12px]">
+                      <SelectValue placeholder="Choose events" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SLACK_EVENT_FILTER_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="size-8 shrink-0"
+                    disabled={!canManageWorkspaceSettings}
+                    onClick={() => handleRemoveGoogleChatBinding(binding.spaceName)}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <Empty className="border-border/30 bg-card/40 gap-3 rounded-md border p-3 md:p-3">
+            <EmptyHeader className="gap-1.5">
+              <EmptyMedia variant="icon" className="size-8">
+                <MessageCircle className="size-4 text-primary/85" />
+              </EmptyMedia>
+              <EmptyTitle className="text-[13px]">
+                No Google Chat spaces configured
+              </EmptyTitle>
+              <EmptyDescription className="text-[12px]">
+                Add a space webhook to start receiving notifications in Google Chat.
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )}
+
+        <div className="flex items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            className="h-8 px-3 text-[12px]"
+            disabled={
+              !canManageWorkspaceSettings ||
+              !googleChatBindingsChanged ||
+              updateGoogleChatSpacesMutation.isPending
+            }
+            onClick={() => void handleSaveGoogleChatBindings()}
+          >
+            Save bindings
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-8 px-3 text-[12px]"
+            disabled={!canManageWorkspaceSettings || !googleChatBindingsChanged}
+            onClick={() => {
+              setDraftGoogleChatBindings(
+                initialGoogleChatBindings.map((binding) => ({
+                  ...binding,
+                  webhookUrl: "",
+                })),
+              );
+              setGoogleChatSpaceName("");
+              setGoogleChatWebhookUrl("");
+              setGoogleChatEventType("all");
+            }}
+          >
+            Reset
+          </Button>
         </div>
       </FieldSet>
 

@@ -86,7 +86,7 @@ const SwitchWorkspace = () => {
   return (
     <section className="max-w-150 mx-auto flex flex-col gap-6">
       <div>
-        <Button onClick={handleExploreWorkspace}>
+        <Button onClick={handleExploreWorkspace} variant="secondary">
           <ChevronLeft />
         </Button>
       </div>

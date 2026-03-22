@@ -1,5 +1,6 @@
 export type FavoriteItemType =
   | "chat"
+  | "doc"
   | "workflow"
   | "task"
   | "subtask"
@@ -14,4 +15,3 @@ export type AppFavoriteItem = {
   subtitle?: string;
   createdAt: number;
 };
-

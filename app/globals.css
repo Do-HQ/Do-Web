@@ -1,5 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "@blocknote/core/fonts/inter.css";
+@import "@blocknote/shadcn/style.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -246,4 +248,45 @@ body {
 .jam-excalidraw .welcome-screen-decor,
 .jam-excalidraw .welcome-screen-menu-item__shortcut {
   display: none !important;
+}
+
+.workspace-doc-editor-view .bn-container {
+  background: transparent !important;
+}
+
+.workspace-doc-editor-view .bn-editor {
+  background: transparent !important;
+  padding: 0.25rem 0 !important;
+  font-size: 0.875rem !important;
+}
+
+.workspace-doc-editor-view .bn-editor [data-content-type="heading"] {
+  letter-spacing: -0.01em;
+}
+
+.bn-side-menu,
+.bn-formatting-toolbar,
+.bn-suggestion-menu,
+.bn-popover,
+.bn-menu-dropdown,
+.bn-color-picker-dropdown,
+.bn-select {
+  background: var(--popover) !important;
+  color: var(--popover-foreground) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 0.625rem !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  z-index: 120 !important;
+  opacity: 1 !important;
+}
+
+.bn-suggestion-menu-item {
+  font-size: 0.75rem !important;
+  border-radius: 0.45rem !important;
+}
+
+.bn-suggestion-menu-item:hover {
+  background: var(--accent) !important;
+  color: var(--accent-foreground) !important;
 }

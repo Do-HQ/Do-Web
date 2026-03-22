@@ -150,6 +150,35 @@ export interface WorkspaceGoogleDriveIntegrationResponseBody {
   connection: WorkspaceGoogleDriveConnectionRecord | null;
 }
 
+export interface WorkspaceGoogleChatSpaceBindingRecord {
+  id: string;
+  workspaceId: string;
+  spaceName: string;
+  eventTypes: SlackBindingEventType[];
+  enabled: boolean;
+  status: "active" | "disconnected";
+  connectedByUserId: string;
+  connectedAt: string | null;
+  disconnectedAt: string | null;
+  webhookPreview: string;
+  createdAt: string | null;
+  updatedAt: string | null;
+}
+
+export interface WorkspaceGoogleChatIntegrationResponseBody {
+  isConnected: boolean;
+  spaces: WorkspaceGoogleChatSpaceBindingRecord[];
+}
+
+export interface UpdateWorkspaceGoogleChatBindingsRequestBody {
+  spaces: Array<{
+    spaceName: string;
+    webhookUrl?: string;
+    eventTypes: SlackBindingEventType[];
+    enabled?: boolean;
+  }>;
+}
+
 export interface WorkspaceGithubConnectionRecord {
   id: string;
   workspaceId: string;

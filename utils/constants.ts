@@ -10,6 +10,7 @@ export const ROUTES = {
   SUPPORT_ADMIN: "/support/admin",
   ARCHIVE: "/archive",
   TEMPLATES: "/templates",
+  DOCS: "/docs",
   PROJECTS: "/projects",
   ASK_SQUIRCLE: "/ask-squircle",
   JAMS: "/jams",

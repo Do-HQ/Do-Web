@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   Archive,
   Calendar,
+  FileText,
   FolderKanban,
   Home,
   Inbox,
@@ -157,6 +158,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         url: ROUTES.JAMS,
         icon: Shapes,
         isActive: pathname.startsWith(ROUTES.JAMS),
+      },
+      {
+        title: "Docs",
+        url: ROUTES.DOCS,
+        icon: FileText,
+        isActive: pathname.startsWith(ROUTES.DOCS),
       },
       {
         title: "Templates",

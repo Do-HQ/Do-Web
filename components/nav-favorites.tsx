@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowUpRight,
+  BookText,
   GitBranch,
   Hash,
   ListChecks,
@@ -60,6 +61,7 @@ export function NavFavorites({
     React.ComponentType<{ className?: string }>
   > = {
     chat: Hash,
+    doc: BookText,
     workflow: GitBranch,
     task: ListTodo,
     subtask: ListChecks,
