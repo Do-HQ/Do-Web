@@ -3,6 +3,9 @@ import type { Metadata } from "next";
 import SharedDocView from "@/components/docs/shared-doc-view";
 import { WorkspaceDocRecord } from "@/types/doc";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 const DEFAULT_OG_IMAGE =
   "https://res.cloudinary.com/dgiropjpp/image/upload/v1769595973/Logo_maker_project-1_kh0vdk.png";
 const IMAGE_EXT_PATTERN =
@@ -101,7 +104,7 @@ function extractFirstImageFromBlocks(value: unknown): string | null {
     const block = item as Record<string, unknown>;
     const blockType = String(block.type || "").toLowerCase();
 
-    if (blockType === "image") {
+    if (blockType.includes("image") || blockType === "file") {
       const props =
         block.props && typeof block.props === "object"
           ? (block.props as Record<string, unknown>)
@@ -110,6 +113,10 @@ function extractFirstImageFromBlocks(value: unknown): string | null {
       const candidates = [
         props.url,
         props.src,
+        props.previewUrl,
+        props.preview,
+        props.image,
+        props.file,
         block.url,
         block.src,
         block.href,
@@ -180,8 +187,11 @@ export async function generateMetadata({
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 200);
-  const ogImage =
-    extractFirstImageFromBlocks(doc?.content || []) || DEFAULT_OG_IMAGE;
+  const firstDocImage = extractFirstImageFromBlocks(doc?.content || []);
+  const imageCandidates = [firstDocImage, DEFAULT_OG_IMAGE].filter(
+    (value, index, self): value is string =>
+      Boolean(value) && self.indexOf(value) === index,
+  );
   const urlPath = `/docs/shared/${encodeURIComponent(shareToken)}`;
 
   return {
@@ -193,22 +203,20 @@ export async function generateMetadata({
       type: "article",
       url: urlPath,
       siteName: "Squircle",
-      images: [
-        {
-          url: ogImage,
-          width: 1200,
-          height: 630,
-          alt: doc?.title?.trim()
-            ? `${doc.title} shared document`
-            : "Squircle shared document",
-        },
-      ],
+      images: imageCandidates.map((url) => ({
+        url,
+        width: 1200,
+        height: 630,
+        alt: doc?.title?.trim()
+          ? `${doc.title} shared document`
+          : "Squircle shared document",
+      })),
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
-      images: [ogImage],
+      images: imageCandidates,
     },
   };
 }
