@@ -58,83 +58,76 @@ function isLikelyImageUrl(value: unknown): value is string {
   }
 
   if (normalized.startsWith("data:image/")) {
-    return true;
+    return false;
   }
 
   if (!/^https?:\/\//i.test(normalized)) {
     return false;
   }
 
-  return (
-    IMAGE_EXT_PATTERN.test(normalized) || normalized.includes("/image/upload/")
-  );
+  try {
+    const parsed = new URL(normalized);
+    const hostname = parsed.hostname.toLowerCase();
+
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "0.0.0.0"
+    ) {
+      return false;
+    }
+
+    return (
+      IMAGE_EXT_PATTERN.test(normalized) ||
+      normalized.includes("/image/upload/") ||
+      normalized.includes("images.unsplash.com") ||
+      normalized.includes("googleusercontent.com")
+    );
+  } catch {
+    return false;
+  }
 }
 
-function extractFirstImageUrl(value: unknown): string | null {
-  if (isLikelyImageUrl(value)) {
-    return value.trim();
-  }
-
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = extractFirstImageUrl(item);
-      if (found) {
-        return found;
-      }
-    }
+function extractFirstImageFromBlocks(value: unknown): string | null {
+  if (!Array.isArray(value)) {
     return null;
   }
 
-  if (!value || typeof value !== "object") {
-    return null;
-  }
-
-  const node = value as Record<string, unknown>;
-
-  // Prefer explicit image block payloads first.
-  if (
-    typeof node.type === "string" &&
-    node.type.toLowerCase().includes("image")
-  ) {
-    const directCandidates = [
-      node.url,
-      node.src,
-      node.href,
-      node.image,
-      node.file,
-      node.content,
-    ];
-
-    for (const candidate of directCandidates) {
-      const found = extractFirstImageUrl(candidate);
-      if (found) {
-        return found;
-      }
+  for (const item of value) {
+    if (!item || typeof item !== "object") {
+      continue;
     }
 
-    if (node.props && typeof node.props === "object") {
-      const props = node.props as Record<string, unknown>;
-      const propCandidates = [
+    const block = item as Record<string, unknown>;
+    const blockType = String(block.type || "").toLowerCase();
+
+    if (blockType === "image") {
+      const props =
+        block.props && typeof block.props === "object"
+          ? (block.props as Record<string, unknown>)
+          : {};
+
+      const candidates = [
         props.url,
         props.src,
-        props.href,
-        props.image,
-        props.file,
+        block.url,
+        block.src,
+        block.href,
       ];
 
-      for (const candidate of propCandidates) {
-        const found = extractFirstImageUrl(candidate);
-        if (found) {
-          return found;
+      for (const candidate of candidates) {
+        if (isLikelyImageUrl(candidate)) {
+          return String(candidate).trim();
         }
       }
     }
-  }
 
-  for (const candidate of Object.values(node)) {
-    const found = extractFirstImageUrl(candidate);
-    if (found) {
-      return found;
+    const nestedCandidates = [block.children, block.content];
+    for (const nested of nestedCandidates) {
+      const found = extractFirstImageFromBlocks(nested);
+      if (found) {
+        return found;
+      }
     }
   }
 
@@ -187,7 +180,8 @@ export async function generateMetadata({
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 200);
-  const ogImage = extractFirstImageUrl(doc?.content || []) || DEFAULT_OG_IMAGE;
+  const ogImage =
+    extractFirstImageFromBlocks(doc?.content || []) || DEFAULT_OG_IMAGE;
   const urlPath = `/docs/shared/${encodeURIComponent(shareToken)}`;
 
   return {
