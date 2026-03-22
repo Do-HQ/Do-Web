@@ -5,6 +5,8 @@ import { WorkspaceDocRecord } from "@/types/doc";
 
 const DEFAULT_OG_IMAGE =
   "https://res.cloudinary.com/dgiropjpp/image/upload/v1769595973/Logo_maker_project-1_kh0vdk.png";
+const IMAGE_EXT_PATTERN =
+  /\.(png|jpe?g|gif|webp|avif|bmp|svg)(?:\?.*)?$/i;
 
 type SharedDocApiResponse = {
   message?: string;
@@ -39,6 +41,104 @@ function extractText(value: unknown): string {
   }
 
   return "";
+}
+
+function isLikelyImageUrl(value: unknown): value is string {
+  if (typeof value !== "string") {
+    return false;
+  }
+
+  const normalized = value.trim();
+  if (!normalized) {
+    return false;
+  }
+
+  if (normalized.startsWith("blob:")) {
+    return false;
+  }
+
+  if (normalized.startsWith("data:image/")) {
+    return true;
+  }
+
+  if (!/^https?:\/\//i.test(normalized)) {
+    return false;
+  }
+
+  return (
+    IMAGE_EXT_PATTERN.test(normalized) || normalized.includes("/image/upload/")
+  );
+}
+
+function extractFirstImageUrl(value: unknown): string | null {
+  if (isLikelyImageUrl(value)) {
+    return value.trim();
+  }
+
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = extractFirstImageUrl(item);
+      if (found) {
+        return found;
+      }
+    }
+    return null;
+  }
+
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+
+  const node = value as Record<string, unknown>;
+
+  // Prefer explicit image block payloads first.
+  if (
+    typeof node.type === "string" &&
+    node.type.toLowerCase().includes("image")
+  ) {
+    const directCandidates = [
+      node.url,
+      node.src,
+      node.href,
+      node.image,
+      node.file,
+      node.content,
+    ];
+
+    for (const candidate of directCandidates) {
+      const found = extractFirstImageUrl(candidate);
+      if (found) {
+        return found;
+      }
+    }
+
+    if (node.props && typeof node.props === "object") {
+      const props = node.props as Record<string, unknown>;
+      const propCandidates = [
+        props.url,
+        props.src,
+        props.href,
+        props.image,
+        props.file,
+      ];
+
+      for (const candidate of propCandidates) {
+        const found = extractFirstImageUrl(candidate);
+        if (found) {
+          return found;
+        }
+      }
+    }
+  }
+
+  for (const candidate of Object.values(node)) {
+    const found = extractFirstImageUrl(candidate);
+    if (found) {
+      return found;
+    }
+  }
+
+  return null;
 }
 
 async function fetchSharedDoc(shareToken: string): Promise<WorkspaceDocRecord | null> {
@@ -87,6 +187,7 @@ export async function generateMetadata({
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 200);
+  const ogImage = extractFirstImageUrl(doc?.content || []) || DEFAULT_OG_IMAGE;
   const urlPath = `/docs/shared/${encodeURIComponent(shareToken)}`;
 
   return {
@@ -100,10 +201,12 @@ export async function generateMetadata({
       siteName: "Squircle",
       images: [
         {
-          url: DEFAULT_OG_IMAGE,
+          url: ogImage,
           width: 1200,
           height: 630,
-          alt: "Squircle shared document",
+          alt: doc?.title?.trim()
+            ? `${doc.title} shared document`
+            : "Squircle shared document",
         },
       ],
     },
@@ -111,7 +214,7 @@ export async function generateMetadata({
       card: "summary_large_image",
       title,
       description,
-      images: [DEFAULT_OG_IMAGE],
+      images: [ogImage],
     },
   };
 }

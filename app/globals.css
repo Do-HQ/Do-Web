@@ -264,6 +264,21 @@ body {
   letter-spacing: -0.01em;
 }
 
+.workspace-doc-editor-view .bn-editor .bn-block-outer:has(
+    > .bn-block > .bn-block-content[data-content-type="paragraph"]
+  )
+  + .bn-block-outer:has(
+    > .bn-block > .bn-block-content[data-content-type="paragraph"]
+  ) {
+  margin-top: 0.42rem !important;
+}
+
+.workspace-doc-editor-view .bn-editor
+  .bn-block-content[data-content-type="paragraph"]
+  .bn-inline-content {
+  line-height: 1.62 !important;
+}
+
 .bn-side-menu,
 .bn-formatting-toolbar,
 .bn-suggestion-menu,

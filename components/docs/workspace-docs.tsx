@@ -555,7 +555,10 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
   };
 
   const updateDocQueryCache = useCallback(
-    (doc: WorkspaceDocRecord, scopedWorkspaceId: string = workspaceId || "") => {
+    (
+      doc: WorkspaceDocRecord,
+      scopedWorkspaceId: string = workspaceId || "",
+    ) => {
       if (!scopedWorkspaceId) {
         return;
       }
@@ -586,7 +589,8 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
 
   const flushPendingSaves = useCallback(async () => {
     const context = pendingSaveContextRef.current;
-    const hasMetaUpdates = Object.keys(pendingMetaUpdatesRef.current).length > 0;
+    const hasMetaUpdates =
+      Object.keys(pendingMetaUpdatesRef.current).length > 0;
     const hasContentUpdate = pendingContentRef.current !== null;
 
     if (!context || (!hasMetaUpdates && !hasContentUpdate)) {
@@ -1653,7 +1657,7 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
                       }
                       onBlur={handleTitleBlur}
                       placeholder="Untitled doc"
-                      className="h-7 min-w-0 max-w-full border-none bg-transparent px-0 text-[12px] font-medium shadow-none sm:max-w-[26rem] focus-visible:ring-0 focus-visible:ring-offset-0"
+                      className="h-7 min-w-0 max-w-full border-none bg-transparent px-0 text-[12px] font-medium shadow-none dark:bg-transparent sm:max-w-[26rem] focus-visible:ring-0 focus-visible:ring-offset-0"
                       disabled={!selectedDoc.canEdit || isBusy}
                     />
                     <div className="ml-auto flex shrink-0 items-center gap-1">
