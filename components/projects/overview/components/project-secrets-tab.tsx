@@ -92,6 +92,27 @@ type ProjectSecretsTabProps = {
   teams: ProjectTeamSummary[];
 };
 
+type SecretMutationError = {
+  code?: string;
+  message?: string;
+  description?: string;
+  approvalRequest?: {
+    id?: string;
+    _id?: string;
+  };
+  response?: {
+    data?: {
+      code?: string;
+      message?: string;
+      description?: string;
+      approvalRequest?: {
+        id?: string;
+        _id?: string;
+      };
+    };
+  };
+};
+
 const VISIBILITY_LABELS: Record<WorkspaceProjectSecretVisibility, string> = {
   team: "Assigned team",
   restricted: "Selected members",
@@ -149,6 +170,45 @@ const toDraftFromSecret = (
     memberIds: visibility === "restricted" ? memberIds : [],
     teamIds: visibility === "team" ? teamIds : [],
   };
+};
+
+const getSecretMutationErrorMeta = (error: unknown) => {
+  const normalized = (error || {}) as SecretMutationError;
+  const data = normalized.response?.data;
+  const code = String(data?.code || normalized.code || "").trim();
+  const message = String(data?.message || normalized.message || "").trim();
+  const description = String(
+    data?.description || normalized.description || "",
+  ).trim();
+  const approvalRequest = data?.approvalRequest || normalized.approvalRequest;
+
+  return {
+    code,
+    message,
+    description,
+    approvalRequest,
+  };
+};
+
+const isApprovalRequiredMutation = (error: unknown) =>
+  getSecretMutationErrorMeta(error).code === "APPROVAL_REQUIRED";
+
+const getSecretMutationErrorMessage = (
+  error: unknown,
+  fallback: string,
+): string => {
+  const { message, description } = getSecretMutationErrorMeta(error);
+  return description || message || fallback;
+};
+
+const getApprovalRequestedMessage = (error: unknown, actionLabel: string) => {
+  const { approvalRequest } = getSecretMutationErrorMeta(error);
+  const requestId = String(
+    approvalRequest?.id || approvalRequest?._id || "",
+  ).trim();
+  return requestId
+    ? `${actionLabel} requires approval. Request #${requestId.slice(0, 8)} created.`
+    : `${actionLabel} requires approval and has been sent to approvers.`;
 };
 
 export function ProjectSecretsTab({
@@ -293,7 +353,7 @@ export function ProjectSecretsTab({
     });
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!workspaceId) {
       toast("Open this project from a workspace to manage secrets.");
       return;
@@ -342,8 +402,8 @@ export function ProjectSecretsTab({
     }
 
     if (draft.id) {
-      updateSecretMutation.mutate(
-        {
+      const request = updateSecretMutation
+        .mutateAsync({
           workspaceId,
           projectId,
           secretId: draft.id,
@@ -355,58 +415,76 @@ export function ProjectSecretsTab({
             teamIds: payload.teamIds,
             value: payload.value || undefined,
           },
-        },
-        {
-          onSuccess: () => {
-            invalidateSecretQueries();
-            setEditorOpen(false);
-            toast("Secret updated.");
-          },
-        },
-      );
+        })
+        .then((response) => {
+          invalidateSecretQueries();
+          setEditorOpen(false);
+          return response;
+        });
+
+      toast.promise(request, {
+        loading: "Updating secret...",
+        success: "Secret updated.",
+        error: (error) =>
+          isApprovalRequiredMutation(error)
+            ? getApprovalRequestedMessage(error, "Secret update")
+            : getSecretMutationErrorMessage(error, "Unable to update secret."),
+      });
       return;
     }
 
-    createSecretMutation.mutate(
-      {
+    const request = createSecretMutation
+      .mutateAsync({
         workspaceId,
         projectId,
         payload,
-      },
-      {
-        onSuccess: () => {
-          invalidateSecretQueries();
-          setEditorOpen(false);
-          toast("Secret created.");
-        },
-      },
-    );
+      })
+      .then((response) => {
+        invalidateSecretQueries();
+        setEditorOpen(false);
+        return response;
+      });
+
+    toast.promise(request, {
+      loading: "Creating secret...",
+      success: "Secret created.",
+      error: (error) =>
+        isApprovalRequiredMutation(error)
+          ? getApprovalRequestedMessage(error, "Secret creation")
+          : getSecretMutationErrorMessage(error, "Unable to create secret."),
+    });
   };
 
-  const handleDelete = (secret: WorkspaceProjectSecretRecord) => {
+  const handleDelete = async (secret: WorkspaceProjectSecretRecord) => {
     if (!workspaceId) {
       toast("Open this project from a workspace to manage secrets.");
       return;
     }
 
-    deleteSecretMutation.mutate(
-      {
+    const request = deleteSecretMutation
+      .mutateAsync({
         workspaceId,
         projectId,
         secretId: secret.id,
-      },
-      {
-        onSuccess: () => {
-          setRevealedSecrets((current) => {
-            const next = { ...current };
-            delete next[secret.id];
-            return next;
-          });
-          invalidateSecretQueries();
-          toast("Secret deleted.");
-        },
-      },
-    );
+      })
+      .then((response) => {
+        setRevealedSecrets((current) => {
+          const next = { ...current };
+          delete next[secret.id];
+          return next;
+        });
+        invalidateSecretQueries();
+        return response;
+      });
+
+    toast.promise(request, {
+      loading: "Deleting secret...",
+      success: "Secret deleted.",
+      error: (error) =>
+        isApprovalRequiredMutation(error)
+          ? getApprovalRequestedMessage(error, "Secret deletion")
+          : getSecretMutationErrorMessage(error, "Unable to delete secret."),
+    });
   };
 
   const revealSecretValue = async (secret: WorkspaceProjectSecretRecord) => {
@@ -431,21 +509,23 @@ export function ProjectSecretsTab({
       return;
     }
 
-    revealSecretMutation.mutate(
-      {
+    try {
+      const response = await revealSecretMutation.mutateAsync({
         workspaceId,
         projectId,
         secretId: secret.id,
-      },
-      {
-        onSuccess: (response) => {
-          setRevealedSecrets((current) => ({
-            ...current,
-            [secret.id]: response.value,
-          }));
-        },
-      },
-    );
+      });
+      setRevealedSecrets((current) => ({
+        ...current,
+        [secret.id]: response.value,
+      }));
+    } catch (error) {
+      if (isApprovalRequiredMutation(error)) {
+        toast(getApprovalRequestedMessage(error, "Secret reveal"));
+        return;
+      }
+      toast(getSecretMutationErrorMessage(error, "Unable to reveal secret."));
+    }
   };
 
   const handleCopySecret = async (secret: WorkspaceProjectSecretRecord) => {
@@ -464,28 +544,37 @@ export function ProjectSecretsTab({
     }
   };
 
-  const handlePolicySave = () => {
+  const handlePolicySave = async () => {
     if (!workspaceId) {
       toast("Open this project from a workspace to update policy.");
       return;
     }
 
-    updatePolicyMutation.mutate(
-      {
+    const request = updatePolicyMutation
+      .mutateAsync({
         workspaceId,
         projectId,
         updates: {
           defaultVisibility: policyVisibility,
         },
-      },
-      {
-        onSuccess: () => {
-          invalidateSecretQueries();
-          setPolicyOpen(false);
-          toast("Secret policy updated.");
-        },
-      },
-    );
+      })
+      .then((response) => {
+        invalidateSecretQueries();
+        setPolicyOpen(false);
+        return response;
+      });
+
+    toast.promise(request, {
+      loading: "Updating secret rules...",
+      success: "Secret rules updated.",
+      error: (error) =>
+        isApprovalRequiredMutation(error)
+          ? getApprovalRequestedMessage(error, "Secret rules update")
+          : getSecretMutationErrorMessage(
+              error,
+              "Unable to update secret rules.",
+            ),
+    });
   };
 
   const openPolicy = () => {

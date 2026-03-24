@@ -31,8 +31,7 @@ export default async function ProjectOverviewPage({
     initialTab === "dos" ||
     initialTab === "files-assets" ||
     initialTab === "risks-issues" ||
-    initialTab === "secrets" ||
-    initialTab === "agents-automation"
+    initialTab === "secrets"
       ? initialTab
       : undefined;
   const workflowValue = resolvedSearchParams?.workflow;

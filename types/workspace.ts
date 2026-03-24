@@ -19,6 +19,36 @@ export interface WorkspaceGovernanceSettings {
   messageRetentionDays: number;
 }
 
+export interface WorkspaceKnowledgeBaseSourceIndexingSettings {
+  indexWorkspaceDocs: boolean;
+  indexProjectSpecs: boolean;
+  indexTaskComments: boolean;
+  includeCompletedProjects: boolean;
+  indexingCadence: "daily" | "weekly" | "manual";
+}
+
+export interface WorkspaceKnowledgeBaseAgentBehaviorSettings {
+  requireSourceCitation: boolean;
+  allowSemanticSearchAcrossProjects: boolean;
+  allowDraftAnswersFromPartialSources: boolean;
+  autoSuggestRelatedDocs: boolean;
+  responseDepth: "concise" | "balanced" | "detailed";
+}
+
+export interface WorkspaceKnowledgeBaseGovernanceSettings {
+  allowMembersCreatePages: boolean;
+  requireApprovalForPublishedPages: boolean;
+  lockPagesAfterApproval: boolean;
+  archiveStalePages: boolean;
+  stalePageWindow: "30" | "60" | "90";
+}
+
+export interface WorkspaceKnowledgeBaseSettings {
+  sourceIndexing: WorkspaceKnowledgeBaseSourceIndexingSettings;
+  agentBehavior: WorkspaceKnowledgeBaseAgentBehaviorSettings;
+  governance: WorkspaceKnowledgeBaseGovernanceSettings;
+}
+
 export interface WorkspaceWorkSchedule {
   enabled: boolean;
   timezone: string;
@@ -44,6 +74,7 @@ export interface WorkspaceType {
   flowDefaults?: WorkspaceFlowDefaults;
   governance?: WorkspaceGovernanceSettings;
   workSchedule?: WorkspaceWorkSchedule;
+  knowledgeBase?: WorkspaceKnowledgeBaseSettings;
 }
 
 export interface JoinWorkspaceRequestBody {
@@ -69,6 +100,11 @@ export interface WorkspaceSettingsUpdateBody {
   flowDefaults?: Partial<WorkspaceFlowDefaults>;
   governance?: Partial<WorkspaceGovernanceSettings>;
   workSchedule?: Partial<WorkspaceWorkSchedule>;
+  knowledgeBase?: {
+    sourceIndexing?: Partial<WorkspaceKnowledgeBaseSourceIndexingSettings>;
+    agentBehavior?: Partial<WorkspaceKnowledgeBaseAgentBehaviorSettings>;
+    governance?: Partial<WorkspaceKnowledgeBaseGovernanceSettings>;
+  };
 }
 
 export interface WorkspaceInviteRequestBody {
@@ -78,6 +114,12 @@ export interface WorkspaceInviteRequestBody {
 
 export interface AcceptWorkspaceInviteRequestBody {
   token: string;
+}
+
+export interface RevokeWorkspaceInviteRequestBody {
+  workspaceId: string;
+  token: string;
+  reason?: string;
 }
 
 export interface WorkspaceRole {
@@ -95,6 +137,7 @@ export interface WorkspacePerson {
     name: string;
     status: "active" | "archived";
   }>;
+  activeTasks?: number;
   score: number;
   createdAt: string;
   updatedAt: string;
@@ -109,6 +152,7 @@ export interface WorkspaceInvite {
   token: string;
   expiresAt: string;
   accepted: boolean;
+  invitedByUserId?: string;
   createdAt: string;
   updatedAt: string;
   __v: number;

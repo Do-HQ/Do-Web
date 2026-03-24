@@ -19,7 +19,7 @@ const SettingsWorkspacePeople = () => {
         <FieldSet>
           <FieldLegend>Workspace People</FieldLegend>
           <FieldDescription>
-            These details identify your workspace and are visible to members.
+            Manage workspace members, team placement, roles, and account access.
           </FieldDescription>
           <SettingsWorkspacePeopleTable />
         </FieldSet>
@@ -30,7 +30,7 @@ const SettingsWorkspacePeople = () => {
           <FieldSet>
             <FieldLegend>Workspace Join Requests</FieldLegend>
             <FieldDescription>
-              These details identify your workspace and are visible to members.
+              Review pending requests from users who want to join this workspace.
             </FieldDescription>
             <SettingsWorkspacePropleRequestsTable />
           </FieldSet>
@@ -42,7 +42,7 @@ const SettingsWorkspacePeople = () => {
           <FieldSet>
             <FieldLegend>Workspace Invites</FieldLegend>
             <FieldDescription>
-              These details identify your workspace and are visible to members.
+              Send, resend, and revoke workspace invitations.
             </FieldDescription>
             <SettingsWorkspacePropleInvitesTable />
           </FieldSet>

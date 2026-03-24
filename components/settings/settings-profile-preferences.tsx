@@ -1,6 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useTheme } from "next-themes";
+import { toast } from "sonner";
+
+import useAuthStore from "@/stores/auth";
+import useUser from "@/hooks/use-user";
+import { getUserPreferences } from "@/lib/helpers/user-preferences";
+import type {
+  UserPreferences,
+  UserStartPagePreference,
+  UserThemePreference,
+} from "@/types/auth";
 import {
   Field,
   FieldContent,
@@ -20,105 +31,97 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { useTheme } from "next-themes";
-import { Theme } from "@/types";
-import { toast } from "sonner";
 
-type AppearancePreferences = {
-  theme: Theme;
-  density: "comfortable" | "compact";
-  reduceMotion: boolean;
-};
-
-type WorkspacePreferences = {
-  startPage: "home" | "my-tasks" | "inbox" | "last-visited";
-  defaultTaskView: "list" | "board" | "timeline";
-  weekStartsOn: "monday" | "sunday";
-  showCompletedTasks: boolean;
-};
-
-type ProductivityPreferences = {
-  autoSaveDrafts: boolean;
-  confirmBeforeDelete: boolean;
-  showKeyboardShortcuts: boolean;
-  enableCommandPaletteHints: boolean;
-};
-
-const DEFAULT_APPEARANCE: AppearancePreferences = {
-  theme: "system",
-  density: "comfortable",
-  reduceMotion: false,
-};
-
-const DEFAULT_WORKSPACE: WorkspacePreferences = {
-  startPage: "home",
-  defaultTaskView: "list",
-  weekStartsOn: "monday",
-  showCompletedTasks: true,
-};
-
-const DEFAULT_PRODUCTIVITY: ProductivityPreferences = {
-  autoSaveDrafts: true,
-  confirmBeforeDelete: true,
-  showKeyboardShortcuts: true,
-  enableCommandPaletteHints: true,
-};
+type AppearancePreferences = UserPreferences["appearance"];
+type WorkspacePreferences = UserPreferences["workspace"];
 
 const hasChanges = <T extends Record<string, string | boolean>>(
   value: T,
   saved: T,
-) => {
-  return (Object.keys(value) as Array<keyof T>).some(
-    (key) => value[key] !== saved[key],
+) =>
+  (Object.keys(value) as Array<keyof T>).some((key) => value[key] !== saved[key]);
+
+const SettingsProfilePreferences = () => {
+  const { user, setUser } = useAuthStore();
+  const { setTheme } = useTheme();
+  const { useUpdateUser } = useUser();
+  const { mutateAsync: updateUserPreferences, isPending: isSavingPreferences } =
+    useUpdateUser({
+      onSuccess: (response) => {
+        const nextUser = response?.data?.user;
+        if (nextUser) {
+          setUser(nextUser);
+        }
+      },
+    });
+
+  const initialPreferences = useMemo(() => getUserPreferences(user), [user]);
+
+  const [appearance, setAppearance] = useState<AppearancePreferences>(
+    initialPreferences.appearance,
   );
-};
-
-const SettingsProfileReferences = () => {
-  // Hooks
-  const { theme, setTheme } = useTheme();
-
-  // State
-  const [appearance, setAppearance] = useState<AppearancePreferences>({
-    ...DEFAULT_APPEARANCE,
-    theme: (theme as Theme) || "system",
-  });
   const [savedAppearance, setSavedAppearance] = useState<AppearancePreferences>(
-    {
-      ...DEFAULT_APPEARANCE,
-      theme: (theme as Theme) || "system",
-    },
+    initialPreferences.appearance,
+  );
+  const [workspace, setWorkspace] = useState<WorkspacePreferences>(
+    initialPreferences.workspace,
+  );
+  const [savedWorkspace, setSavedWorkspace] = useState<WorkspacePreferences>(
+    initialPreferences.workspace,
   );
 
-  const [workspace, setWorkspace] =
-    useState<WorkspacePreferences>(DEFAULT_WORKSPACE);
-  const [savedWorkspace, setSavedWorkspace] =
-    useState<WorkspacePreferences>(DEFAULT_WORKSPACE);
+  useEffect(() => {
+    setAppearance(initialPreferences.appearance);
+    setSavedAppearance(initialPreferences.appearance);
+    setWorkspace(initialPreferences.workspace);
+    setSavedWorkspace(initialPreferences.workspace);
+  }, [initialPreferences]);
 
-  const [productivity, setProductivity] =
-    useState<ProductivityPreferences>(DEFAULT_PRODUCTIVITY);
-  const [savedProductivity, setSavedProductivity] =
-    useState<ProductivityPreferences>(DEFAULT_PRODUCTIVITY);
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
 
-  // Derived
+    document.body.dataset.reduceMotion = appearance.reduceMotion
+      ? "true"
+      : "false";
+  }, [appearance.reduceMotion]);
+
   const appearanceChanged = useMemo(
     () => hasChanges(appearance, savedAppearance),
     [appearance, savedAppearance],
   );
+
   const workspaceChanged = useMemo(
     () => hasChanges(workspace, savedWorkspace),
     [workspace, savedWorkspace],
   );
-  const productivityChanged = useMemo(
-    () => hasChanges(productivity, savedProductivity),
-    [productivity, savedProductivity],
-  );
 
-  // Handlers
-  const handleSaveAppearance = () => {
-    setSavedAppearance(appearance);
-    toast.success("Appearance preferences updated", {
-      description: "Appearance settings are saved locally for now.",
+  const persistPreferences = async (nextPreferences: UserPreferences) => {
+    const request = updateUserPreferences({
+      preferences: nextPreferences,
     });
+
+    toast.promise(request, {
+      loading: "Saving preferences...",
+      success: "Preferences updated",
+      error: "Could not save preferences.",
+    });
+
+    const response = await request;
+    const normalized = getUserPreferences(response?.data?.user ?? user);
+    setAppearance(normalized.appearance);
+    setSavedAppearance(normalized.appearance);
+    setWorkspace(normalized.workspace);
+    setSavedWorkspace(normalized.workspace);
+  };
+
+  const handleSaveAppearance = async () => {
+    const nextPreferences: UserPreferences = {
+      appearance,
+      workspace: savedWorkspace,
+    };
+    await persistPreferences(nextPreferences);
   };
 
   const handleResetAppearance = () => {
@@ -126,26 +129,16 @@ const SettingsProfileReferences = () => {
     setTheme(savedAppearance.theme);
   };
 
-  const handleSaveWorkspace = () => {
-    setSavedWorkspace(workspace);
-    toast.success("Workspace preferences updated", {
-      description: "Workspace defaults are saved locally for now.",
-    });
+  const handleSaveWorkspace = async () => {
+    const nextPreferences: UserPreferences = {
+      appearance: savedAppearance,
+      workspace,
+    };
+    await persistPreferences(nextPreferences);
   };
 
   const handleResetWorkspace = () => {
     setWorkspace(savedWorkspace);
-  };
-
-  const handleSaveProductivity = () => {
-    setSavedProductivity(productivity);
-    toast.success("Productivity preferences updated", {
-      description: "Productivity preferences are saved locally for now.",
-    });
-  };
-
-  const handleResetProductivity = () => {
-    setProductivity(savedProductivity);
   };
 
   return (
@@ -153,7 +146,7 @@ const SettingsProfileReferences = () => {
       <FieldSet>
         <FieldLegend>Appearance</FieldLegend>
         <FieldDescription>
-          Control how the interface looks and feels while you work.
+          Personal display options applied across your app experience.
         </FieldDescription>
 
         <Field orientation="horizontal">
@@ -166,7 +159,7 @@ const SettingsProfileReferences = () => {
           <Select
             value={appearance.theme}
             onValueChange={(value) => {
-              const nextTheme = value as Theme;
+              const nextTheme = value as UserThemePreference;
               setAppearance((prev) => ({ ...prev, theme: nextTheme }));
               setTheme(nextTheme);
             }}
@@ -184,35 +177,9 @@ const SettingsProfileReferences = () => {
 
         <Field orientation="horizontal">
           <FieldContent>
-            <FieldTitle>Density</FieldTitle>
-            <FieldDescription>
-              Choose how compact interface spacing should be.
-            </FieldDescription>
-          </FieldContent>
-          <Select
-            value={appearance.density}
-            onValueChange={(value) =>
-              setAppearance((prev) => ({
-                ...prev,
-                density: value as AppearancePreferences["density"],
-              }))
-            }
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Select density" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="comfortable">Comfortable</SelectItem>
-              <SelectItem value="compact">Compact</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-
-        <Field orientation="horizontal">
-          <FieldContent>
             <FieldTitle>Reduce motion</FieldTitle>
             <FieldDescription>
-              Minimize motion effects across transitions and overlays.
+              Reduce animations and transitions for calmer interactions.
             </FieldDescription>
           </FieldContent>
           <Switch
@@ -228,7 +195,8 @@ const SettingsProfileReferences = () => {
             className="max-w-20"
             size="sm"
             disabled={!appearanceChanged}
-            onClick={handleSaveAppearance}
+            onClick={() => void handleSaveAppearance()}
+            loading={isSavingPreferences}
           >
             Save
           </Button>
@@ -236,7 +204,7 @@ const SettingsProfileReferences = () => {
             className="max-w-20"
             size="sm"
             variant="ghost"
-            disabled={!appearanceChanged}
+            disabled={!appearanceChanged || isSavingPreferences}
             onClick={handleResetAppearance}
           >
             Reset
@@ -247,106 +215,36 @@ const SettingsProfileReferences = () => {
       <FieldSeparator />
 
       <FieldSet>
-        <FieldLegend>Workspace Defaults</FieldLegend>
+        <FieldLegend>Startup</FieldLegend>
         <FieldDescription>
-          Set your preferred starting views and planning defaults.
+          Choose where Squircle should take you after authentication.
         </FieldDescription>
 
         <Field orientation="horizontal">
           <FieldContent>
             <FieldTitle>Start page</FieldTitle>
             <FieldDescription>
-              Choose where you land after signing in.
+              Set your preferred landing route when your session starts.
             </FieldDescription>
           </FieldContent>
           <Select
             value={workspace.startPage}
             onValueChange={(value) =>
-              setWorkspace((prev) => ({
-                ...prev,
-                startPage: value as WorkspacePreferences["startPage"],
-              }))
+              setWorkspace({
+                startPage: value as UserStartPagePreference,
+              })
             }
           >
             <SelectTrigger className="w-44">
               <SelectValue placeholder="Select start page" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="home">Home</SelectItem>
-              <SelectItem value="my-tasks">My Tasks</SelectItem>
-              <SelectItem value="inbox">Inbox</SelectItem>
-              <SelectItem value="last-visited">Last Visited</SelectItem>
+              <SelectItem value="home">Dashboard</SelectItem>
+              <SelectItem value="my-tasks">My tasks</SelectItem>
+              <SelectItem value="inbox">Spaces inbox</SelectItem>
+              <SelectItem value="last-visited">Last visited</SelectItem>
             </SelectContent>
           </Select>
-        </Field>
-
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Default task view</FieldTitle>
-            <FieldDescription>
-              Pick your preferred project/task layout.
-            </FieldDescription>
-          </FieldContent>
-          <Select
-            value={workspace.defaultTaskView}
-            onValueChange={(value) =>
-              setWorkspace((prev) => ({
-                ...prev,
-                defaultTaskView:
-                  value as WorkspacePreferences["defaultTaskView"],
-              }))
-            }
-          >
-            <SelectTrigger className="w-44">
-              <SelectValue placeholder="Select task view" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="list">List</SelectItem>
-              <SelectItem value="board">Board</SelectItem>
-              <SelectItem value="timeline">Timeline</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Week starts on</FieldTitle>
-            <FieldDescription>
-              Set your preferred weekly planning start day.
-            </FieldDescription>
-          </FieldContent>
-          <Select
-            value={workspace.weekStartsOn}
-            onValueChange={(value) =>
-              setWorkspace((prev) => ({
-                ...prev,
-                weekStartsOn: value as WorkspacePreferences["weekStartsOn"],
-              }))
-            }
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Select day" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="monday">Monday</SelectItem>
-              <SelectItem value="sunday">Sunday</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Show completed tasks by default</FieldTitle>
-            <FieldDescription>
-              Automatically include completed items in task views.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={workspace.showCompletedTasks}
-            onCheckedChange={(checked) =>
-              setWorkspace((prev) => ({ ...prev, showCompletedTasks: checked }))
-            }
-          />
         </Field>
 
         <div className="flex items-center gap-2">
@@ -354,7 +252,8 @@ const SettingsProfileReferences = () => {
             className="max-w-20"
             size="sm"
             disabled={!workspaceChanged}
-            onClick={handleSaveWorkspace}
+            onClick={() => void handleSaveWorkspace()}
+            loading={isSavingPreferences}
           >
             Save
           </Button>
@@ -362,106 +261,8 @@ const SettingsProfileReferences = () => {
             className="max-w-20"
             size="sm"
             variant="ghost"
-            disabled={!workspaceChanged}
+            disabled={!workspaceChanged || isSavingPreferences}
             onClick={handleResetWorkspace}
-          >
-            Reset
-          </Button>
-        </div>
-      </FieldSet>
-
-      <FieldSeparator />
-
-      <FieldSet>
-        <FieldLegend>Productivity</FieldLegend>
-        <FieldDescription>
-          Adjust interaction preferences for speed and safety.
-        </FieldDescription>
-
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Auto-save drafts</FieldTitle>
-            <FieldDescription>
-              Save changes automatically while you edit.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={productivity.autoSaveDrafts}
-            onCheckedChange={(checked) =>
-              setProductivity((prev) => ({ ...prev, autoSaveDrafts: checked }))
-            }
-          />
-        </Field>
-
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Confirm before delete</FieldTitle>
-            <FieldDescription>
-              Ask for confirmation before destructive actions.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={productivity.confirmBeforeDelete}
-            onCheckedChange={(checked) =>
-              setProductivity((prev) => ({
-                ...prev,
-                confirmBeforeDelete: checked,
-              }))
-            }
-          />
-        </Field>
-
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Show keyboard shortcuts</FieldTitle>
-            <FieldDescription>
-              Display keyboard hints in menus and actions.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={productivity.showKeyboardShortcuts}
-            onCheckedChange={(checked) =>
-              setProductivity((prev) => ({
-                ...prev,
-                showKeyboardShortcuts: checked,
-              }))
-            }
-          />
-        </Field>
-
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Command palette hints</FieldTitle>
-            <FieldDescription>
-              Show suggested commands as you work.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={productivity.enableCommandPaletteHints}
-            onCheckedChange={(checked) =>
-              setProductivity((prev) => ({
-                ...prev,
-                enableCommandPaletteHints: checked,
-              }))
-            }
-          />
-        </Field>
-
-        <div className="flex items-center gap-2">
-          <Button
-            className="max-w-20"
-            size="sm"
-            disabled={!productivityChanged}
-            onClick={handleSaveProductivity}
-          >
-            Save
-          </Button>
-          <Button
-            className="max-w-20"
-            size="sm"
-            variant="ghost"
-            disabled={!productivityChanged}
-            onClick={handleResetProductivity}
           >
             Reset
           </Button>
@@ -471,4 +272,4 @@ const SettingsProfileReferences = () => {
   );
 };
 
-export default SettingsProfileReferences;
+export default SettingsProfilePreferences;

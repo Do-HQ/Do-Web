@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Button } from "../ui/button";
+
+import { Button } from "@/components/ui/button";
 import {
   Field,
   FieldContent,
@@ -12,475 +14,491 @@ import {
   FieldSeparator,
   FieldSet,
   FieldTitle,
-} from "../ui/field";
+} from "@/components/ui/field";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../ui/select";
-import { Switch } from "../ui/switch";
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import useWorkspace from "@/hooks/use-workspace";
+import useWorkspacePortfolio from "@/hooks/use-workspace-portfolio";
+import { useWorkspacePermissions } from "@/hooks/use-workspace-permissions";
+import { cn } from "@/lib/utils";
+import useWorkspaceStore from "@/stores/workspace";
+import { ApprovalPolicy } from "@/types/portfolio";
+import { WorkspaceGovernanceSettings } from "@/types/workspace";
 
-type AccessSecuritySettings = {
-  enforceSso: boolean;
-  enforceTwoFactor: boolean;
-  restrictByIpAllowlist: boolean;
-  blockPublicShareLinks: boolean;
-  sessionTimeout: "30m" | "1h" | "8h" | "24h";
+type SecurityGovernanceSettings = Pick<
+  WorkspaceGovernanceSettings,
+  | "restrictInvitesToAdmins"
+  | "requireJoinRequestApproval"
+  | "enableMessageExpiry"
+  | "messageRetentionDays"
+>;
+
+const DEFAULT_SECURITY_GOVERNANCE: SecurityGovernanceSettings = {
+  restrictInvitesToAdmins: false,
+  requireJoinRequestApproval: true,
+  enableMessageExpiry: false,
+  messageRetentionDays: 30,
 };
 
-type DataProtectionSettings = {
-  allowDataExport: boolean;
-  maskSensitiveFields: boolean;
-  watermarkExports: boolean;
-  requireExportApproval: boolean;
-  dataRetention: "90" | "180" | "365";
+const DEFAULT_APPROVAL_POLICY: ApprovalPolicy = {
+  riskResolveClose: true,
+  secretsMutations: true,
+  docsPublishing: true,
+  workflowStageChanges: true,
+  requiredApproverRoles: ["owner", "admin"],
 };
 
-type IncidentAuditSettings = {
-  sendSecurityAlerts: boolean;
-  autoLockSuspiciousSessions: boolean;
-  notifyOnRoleEscalation: boolean;
-  allowSelfServiceRecovery: boolean;
-  auditLogLevel: "standard" | "detailed";
-};
+const RETENTION_OPTIONS = [7, 14, 30, 60, 90, 180, 365] as const;
 
-const DEFAULT_ACCESS_SECURITY: AccessSecuritySettings = {
-  enforceSso: false,
-  enforceTwoFactor: true,
-  restrictByIpAllowlist: false,
-  blockPublicShareLinks: true,
-  sessionTimeout: "8h",
-};
+const hasGovernanceChanges = (
+  nextValue: SecurityGovernanceSettings,
+  savedValue: SecurityGovernanceSettings,
+) =>
+  nextValue.restrictInvitesToAdmins !== savedValue.restrictInvitesToAdmins ||
+  nextValue.requireJoinRequestApproval !== savedValue.requireJoinRequestApproval ||
+  nextValue.enableMessageExpiry !== savedValue.enableMessageExpiry ||
+  nextValue.messageRetentionDays !== savedValue.messageRetentionDays;
 
-const DEFAULT_DATA_PROTECTION: DataProtectionSettings = {
-  allowDataExport: true,
-  maskSensitiveFields: true,
-  watermarkExports: true,
-  requireExportApproval: false,
-  dataRetention: "365",
-};
-
-const DEFAULT_INCIDENT_AUDIT: IncidentAuditSettings = {
-  sendSecurityAlerts: true,
-  autoLockSuspiciousSessions: true,
-  notifyOnRoleEscalation: true,
-  allowSelfServiceRecovery: false,
-  auditLogLevel: "detailed",
-};
-
-const hasChanges = <T extends Record<string, string | boolean>>(
-  value: T,
-  saved: T,
-) => {
-  return (Object.keys(value) as Array<keyof T>).some(
-    (key) => value[key] !== saved[key],
-  );
-};
+const hasApprovalPolicyChanges = (
+  nextValue: ApprovalPolicy,
+  savedValue: ApprovalPolicy,
+) =>
+  nextValue.riskResolveClose !== savedValue.riskResolveClose ||
+  nextValue.secretsMutations !== savedValue.secretsMutations ||
+  nextValue.docsPublishing !== savedValue.docsPublishing ||
+  nextValue.workflowStageChanges !== savedValue.workflowStageChanges ||
+  nextValue.requiredApproverRoles.join("|") !==
+    savedValue.requiredApproverRoles.join("|");
 
 const SettingsWorkspaceSecurity = () => {
-  const [accessSecurity, setAccessSecurity] = useState<AccessSecuritySettings>(
-    DEFAULT_ACCESS_SECURITY,
-  );
-  const [savedAccessSecurity, setSavedAccessSecurity] =
-    useState<AccessSecuritySettings>(DEFAULT_ACCESS_SECURITY);
+  const { workspaceId } = useWorkspaceStore();
+  const { canManageWorkspaceSecurity } = useWorkspacePermissions();
+  const queryClient = useQueryClient();
+  const readOnlyWorkspaceSecurity = !canManageWorkspaceSecurity;
 
-  const [dataProtection, setDataProtection] = useState<DataProtectionSettings>(
-    DEFAULT_DATA_PROTECTION,
-  );
-  const [savedDataProtection, setSavedDataProtection] =
-    useState<DataProtectionSettings>(DEFAULT_DATA_PROTECTION);
+  const { useWorkspaceById, useUpdateWorkspace } = useWorkspace();
+  const workspaceQuery = useWorkspaceById(workspaceId || "");
+  const workspace = workspaceQuery.data?.data?.workspace;
 
-  const [incidentAudit, setIncidentAudit] = useState<IncidentAuditSettings>(
-    DEFAULT_INCIDENT_AUDIT,
-  );
-  const [savedIncidentAudit, setSavedIncidentAudit] =
-    useState<IncidentAuditSettings>(DEFAULT_INCIDENT_AUDIT);
+  const { useWorkspaceApprovalPolicy, useUpdateWorkspaceApprovalPolicy } =
+    useWorkspacePortfolio();
+  const approvalPolicyQuery = useWorkspaceApprovalPolicy(workspaceId || "", {
+    enabled: !!workspaceId && canManageWorkspaceSecurity,
+  });
 
-  const accessChanged = useMemo(
-    () => hasChanges(accessSecurity, savedAccessSecurity),
-    [accessSecurity, savedAccessSecurity],
+  const [governance, setGovernance] = useState<SecurityGovernanceSettings>(
+    DEFAULT_SECURITY_GOVERNANCE,
   );
-  const dataProtectionChanged = useMemo(
-    () => hasChanges(dataProtection, savedDataProtection),
-    [dataProtection, savedDataProtection],
-  );
-  const incidentAuditChanged = useMemo(
-    () => hasChanges(incidentAudit, savedIncidentAudit),
-    [incidentAudit, savedIncidentAudit],
+  const [savedGovernance, setSavedGovernance] =
+    useState<SecurityGovernanceSettings>(DEFAULT_SECURITY_GOVERNANCE);
+  const [approvalPolicy, setApprovalPolicy] =
+    useState<ApprovalPolicy>(DEFAULT_APPROVAL_POLICY);
+  const [savedApprovalPolicy, setSavedApprovalPolicy] =
+    useState<ApprovalPolicy>(DEFAULT_APPROVAL_POLICY);
+
+  useEffect(() => {
+    if (!workspace) {
+      return;
+    }
+
+    const nextGovernance: SecurityGovernanceSettings = {
+      ...DEFAULT_SECURITY_GOVERNANCE,
+      ...(workspace.governance || {}),
+    };
+
+    setGovernance(nextGovernance);
+    setSavedGovernance(nextGovernance);
+  }, [workspace]);
+
+  useEffect(() => {
+    if (!approvalPolicyQuery.data?.data?.policy) {
+      return;
+    }
+
+    const nextPolicy: ApprovalPolicy = {
+      ...DEFAULT_APPROVAL_POLICY,
+      ...approvalPolicyQuery.data.data.policy,
+      requiredApproverRoles:
+        Array.isArray(approvalPolicyQuery.data.data.policy.requiredApproverRoles) &&
+        approvalPolicyQuery.data.data.policy.requiredApproverRoles.length
+          ? approvalPolicyQuery.data.data.policy.requiredApproverRoles
+          : DEFAULT_APPROVAL_POLICY.requiredApproverRoles,
+    };
+
+    setApprovalPolicy(nextPolicy);
+    setSavedApprovalPolicy(nextPolicy);
+  }, [approvalPolicyQuery.data]);
+
+  const governanceChanged = useMemo(
+    () => hasGovernanceChanges(governance, savedGovernance),
+    [governance, savedGovernance],
   );
 
-  const handleSaveAccess = () => {
-    setSavedAccessSecurity(accessSecurity);
-    toast.success("Access security updated", {
-      description: "Security access controls are saved locally for now.",
+  const approvalPolicyChanged = useMemo(
+    () => hasApprovalPolicyChanges(approvalPolicy, savedApprovalPolicy),
+    [approvalPolicy, savedApprovalPolicy],
+  );
+
+  const { isPending: isSavingGovernance, mutateAsync: updateWorkspace } =
+    useUpdateWorkspace({
+      onSuccess() {
+        queryClient.invalidateQueries({
+          queryKey: ["get-workspace-detail", workspaceId],
+        });
+        queryClient.invalidateQueries({ queryKey: ["get-workspace-detail"] });
+        queryClient.invalidateQueries({ queryKey: ["user"] });
+      },
+    });
+
+  const {
+    isPending: isSavingApprovalPolicy,
+    mutateAsync: updateWorkspaceApprovalPolicy,
+  } = useUpdateWorkspaceApprovalPolicy({
+    onSuccess() {
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-portfolio-approval-policy", workspaceId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-portfolio-approval-requests", workspaceId],
+      });
+    },
+  });
+
+  const handleSaveGovernance = () => {
+    if (!workspaceId) {
+      return;
+    }
+
+    const request = updateWorkspace({
+      workspaceId,
+      data: {
+        governance: {
+          restrictInvitesToAdmins: governance.restrictInvitesToAdmins,
+          requireJoinRequestApproval: governance.requireJoinRequestApproval,
+          enableMessageExpiry: governance.enableMessageExpiry,
+          messageRetentionDays: governance.messageRetentionDays,
+        },
+      },
+    });
+
+    toast.promise(request, {
+      loading: "Saving workspace security...",
+      success: (response) => {
+        setSavedGovernance(governance);
+        return response?.data?.message || "Workspace security updated";
+      },
+      error: "Could not save workspace security",
     });
   };
 
-  const handleSaveDataProtection = () => {
-    setSavedDataProtection(dataProtection);
-    toast.success("Data protection updated", {
-      description: "Data protection rules are saved locally for now.",
+  const handleResetGovernance = () => {
+    setGovernance(savedGovernance);
+  };
+
+  const handleSaveApprovalPolicy = () => {
+    if (!workspaceId) {
+      return;
+    }
+
+    const request = updateWorkspaceApprovalPolicy({
+      workspaceId,
+      updates: approvalPolicy,
+    });
+
+    toast.promise(request, {
+      loading: "Saving approval gates...",
+      success: (response) => {
+        setSavedApprovalPolicy(approvalPolicy);
+        return response?.data?.message || "Approval policy updated";
+      },
+      error: "Could not save approval policy",
     });
   };
 
-  const handleSaveIncidentAudit = () => {
-    setSavedIncidentAudit(incidentAudit);
-    toast.success("Audit settings updated", {
-      description: "Security monitoring rules are saved locally for now.",
-    });
+  const handleResetApprovalPolicy = () => {
+    setApprovalPolicy(savedApprovalPolicy);
   };
+
+  const approverScopeValue = approvalPolicy.requiredApproverRoles.includes("admin")
+    ? "owner-admin"
+    : "owner-only";
 
   return (
     <FieldGroup className="gap-8">
       <FieldSet>
-        <FieldLegend>Access Security</FieldLegend>
+        <FieldLegend>Workspace Security</FieldLegend>
         <FieldDescription>
-          Control authentication strength and workspace session behavior.
+          Enforce invite, join, and message retention controls across the workspace.
         </FieldDescription>
+        {readOnlyWorkspaceSecurity ? (
+          <FieldDescription>
+            Read-only for members. Ask a workspace owner/admin to update security.
+          </FieldDescription>
+        ) : null}
 
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Enforce SSO</FieldTitle>
-            <FieldDescription>
-              Require sign-in through your identity provider.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={accessSecurity.enforceSso}
-            onCheckedChange={(checked) =>
-              setAccessSecurity((prev) => ({ ...prev, enforceSso: checked }))
-            }
-          />
-        </Field>
+        <div
+          className={cn(
+            "mt-3 flex flex-col gap-4",
+            readOnlyWorkspaceSecurity && "pointer-events-none opacity-65",
+          )}
+        >
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldTitle>Restrict invites to admins</FieldTitle>
+              <FieldDescription>
+                Only owners/admins can invite new members to the workspace.
+              </FieldDescription>
+            </FieldContent>
+            <Switch
+              checked={governance.restrictInvitesToAdmins}
+              disabled={workspaceQuery.isLoading}
+              onCheckedChange={(checked) =>
+                setGovernance((prev) => ({
+                  ...prev,
+                  restrictInvitesToAdmins: checked,
+                }))
+              }
+            />
+          </Field>
 
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Require two-factor authentication</FieldTitle>
-            <FieldDescription>
-              Enforce 2FA for all members in this workspace.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={accessSecurity.enforceTwoFactor}
-            onCheckedChange={(checked) =>
-              setAccessSecurity((prev) => ({ ...prev, enforceTwoFactor: checked }))
-            }
-          />
-        </Field>
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldTitle>Require join request approval</FieldTitle>
+              <FieldDescription>
+                New join requests stay pending until an owner/admin reviews them.
+              </FieldDescription>
+            </FieldContent>
+            <Switch
+              checked={governance.requireJoinRequestApproval}
+              disabled={workspaceQuery.isLoading}
+              onCheckedChange={(checked) =>
+                setGovernance((prev) => ({
+                  ...prev,
+                  requireJoinRequestApproval: checked,
+                }))
+              }
+            />
+          </Field>
 
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Restrict by IP allowlist</FieldTitle>
-            <FieldDescription>
-              Allow access only from approved network ranges.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={accessSecurity.restrictByIpAllowlist}
-            onCheckedChange={(checked) =>
-              setAccessSecurity((prev) => ({ ...prev, restrictByIpAllowlist: checked }))
-            }
-          />
-        </Field>
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldTitle>Enable message expiry</FieldTitle>
+              <FieldDescription>
+                Automatically remove old space messages based on the retention window.
+              </FieldDescription>
+            </FieldContent>
+            <Switch
+              checked={governance.enableMessageExpiry}
+              disabled={workspaceQuery.isLoading}
+              onCheckedChange={(checked) =>
+                setGovernance((prev) => ({
+                  ...prev,
+                  enableMessageExpiry: checked,
+                }))
+              }
+            />
+          </Field>
 
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Block public share links</FieldTitle>
-            <FieldDescription>
-              Prevent access through publicly accessible project links.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={accessSecurity.blockPublicShareLinks}
-            onCheckedChange={(checked) =>
-              setAccessSecurity((prev) => ({ ...prev, blockPublicShareLinks: checked }))
-            }
-          />
-        </Field>
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldTitle>Message retention window</FieldTitle>
+              <FieldDescription>
+                How long messages are retained when expiry is enabled.
+              </FieldDescription>
+            </FieldContent>
+            <Select
+              value={String(governance.messageRetentionDays)}
+              disabled={!governance.enableMessageExpiry}
+              onValueChange={(value) =>
+                setGovernance((prev) => ({
+                  ...prev,
+                  messageRetentionDays: Number(value),
+                }))
+              }
+            >
+              <SelectTrigger className="w-40">
+                <SelectValue placeholder="Retention" />
+              </SelectTrigger>
+              <SelectContent>
+                {RETENTION_OPTIONS.map((days) => (
+                  <SelectItem key={days} value={String(days)}>
+                    {days} days
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
 
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Session timeout</FieldTitle>
-            <FieldDescription>
-              Choose inactivity timeout for authenticated sessions.
-            </FieldDescription>
-          </FieldContent>
-          <Select
-            value={accessSecurity.sessionTimeout}
-            onValueChange={(value) =>
-              setAccessSecurity((prev) => ({
-                ...prev,
-                sessionTimeout: value as AccessSecuritySettings["sessionTimeout"],
-              }))
-            }
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Timeout" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="30m">30 minutes</SelectItem>
-              <SelectItem value="1h">1 hour</SelectItem>
-              <SelectItem value="8h">8 hours</SelectItem>
-              <SelectItem value="24h">24 hours</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-
-        <div className="flex items-center gap-2">
-          <Button size="sm" className="max-w-20" disabled={!accessChanged} onClick={handleSaveAccess}>
-            Save
-          </Button>
-          <Button
-            size="sm"
-            className="max-w-20"
-            variant="ghost"
-            disabled={!accessChanged}
-            onClick={() => setAccessSecurity(savedAccessSecurity)}
-          >
-            Reset
-          </Button>
+          <div className="flex items-center gap-2 pt-1">
+            <Button
+              className="max-w-20"
+              size="sm"
+              loading={isSavingGovernance}
+              disabled={
+                !governanceChanged || !workspaceId || readOnlyWorkspaceSecurity
+              }
+              onClick={handleSaveGovernance}
+            >
+              Save
+            </Button>
+            <Button
+              className="max-w-20"
+              size="sm"
+              variant="ghost"
+              disabled={!governanceChanged || readOnlyWorkspaceSecurity}
+              onClick={handleResetGovernance}
+            >
+              Reset
+            </Button>
+          </div>
         </div>
       </FieldSet>
 
       <FieldSeparator />
 
       <FieldSet>
-        <FieldLegend>Data Protection</FieldLegend>
+        <FieldLegend>Approval Gates</FieldLegend>
         <FieldDescription>
-          Set export permissions and controls for sensitive workspace data.
+          Decide which sensitive actions require explicit approval before they are applied.
         </FieldDescription>
 
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Allow data exports</FieldTitle>
-            <FieldDescription>
-              Permit CSV and report exports from workspace entities.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={dataProtection.allowDataExport}
-            onCheckedChange={(checked) =>
-              setDataProtection((prev) => ({ ...prev, allowDataExport: checked }))
-            }
-          />
-        </Field>
+        <div
+          className={cn(
+            "mt-3 flex flex-col gap-4",
+            readOnlyWorkspaceSecurity && "pointer-events-none opacity-65",
+          )}
+        >
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldTitle>Risk resolve/close requires approval</FieldTitle>
+              <FieldDescription>
+                Block risk closure until an approver signs off.
+              </FieldDescription>
+            </FieldContent>
+            <Switch
+              checked={approvalPolicy.riskResolveClose}
+              disabled={approvalPolicyQuery.isLoading}
+              onCheckedChange={(checked) =>
+                setApprovalPolicy((prev) => ({
+                  ...prev,
+                  riskResolveClose: checked,
+                }))
+              }
+            />
+          </Field>
 
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Mask sensitive fields in exports</FieldTitle>
-            <FieldDescription>
-              Redact critical data in generated reports and files.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={dataProtection.maskSensitiveFields}
-            onCheckedChange={(checked) =>
-              setDataProtection((prev) => ({ ...prev, maskSensitiveFields: checked }))
-            }
-          />
-        </Field>
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldTitle>Secret updates/reveal requires approval</FieldTitle>
+              <FieldDescription>
+                Gate secret mutation and reveal actions behind approval.
+              </FieldDescription>
+            </FieldContent>
+            <Switch
+              checked={approvalPolicy.secretsMutations}
+              disabled={approvalPolicyQuery.isLoading}
+              onCheckedChange={(checked) =>
+                setApprovalPolicy((prev) => ({
+                  ...prev,
+                  secretsMutations: checked,
+                }))
+              }
+            />
+          </Field>
 
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Watermark exported files</FieldTitle>
-            <FieldDescription>
-              Include workspace identity watermark on exported documents.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={dataProtection.watermarkExports}
-            onCheckedChange={(checked) =>
-              setDataProtection((prev) => ({ ...prev, watermarkExports: checked }))
-            }
-          />
-        </Field>
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldTitle>Document publishing requires approval</FieldTitle>
+              <FieldDescription>
+                Require approval before public/external document publishing actions.
+              </FieldDescription>
+            </FieldContent>
+            <Switch
+              checked={approvalPolicy.docsPublishing}
+              disabled={approvalPolicyQuery.isLoading}
+              onCheckedChange={(checked) =>
+                setApprovalPolicy((prev) => ({
+                  ...prev,
+                  docsPublishing: checked,
+                }))
+              }
+            />
+          </Field>
 
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Require export approval</FieldTitle>
-            <FieldDescription>
-              Route export requests through admin review workflow.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={dataProtection.requireExportApproval}
-            onCheckedChange={(checked) =>
-              setDataProtection((prev) => ({
-                ...prev,
-                requireExportApproval: checked,
-              }))
-            }
-          />
-        </Field>
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldTitle>Workflow stage changes require approval</FieldTitle>
+              <FieldDescription>
+                Enforce approval when workflows move into protected stages.
+              </FieldDescription>
+            </FieldContent>
+            <Switch
+              checked={approvalPolicy.workflowStageChanges}
+              disabled={approvalPolicyQuery.isLoading}
+              onCheckedChange={(checked) =>
+                setApprovalPolicy((prev) => ({
+                  ...prev,
+                  workflowStageChanges: checked,
+                }))
+              }
+            />
+          </Field>
 
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Data retention</FieldTitle>
-            <FieldDescription>
-              Define log and audit data retention duration.
-            </FieldDescription>
-          </FieldContent>
-          <Select
-            value={dataProtection.dataRetention}
-            onValueChange={(value) =>
-              setDataProtection((prev) => ({
-                ...prev,
-                dataRetention: value as DataProtectionSettings["dataRetention"],
-              }))
-            }
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Retention" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="90">90 days</SelectItem>
-              <SelectItem value="180">180 days</SelectItem>
-              <SelectItem value="365">365 days</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
+          <Field orientation="horizontal">
+            <FieldContent>
+              <FieldTitle>Approver scope</FieldTitle>
+              <FieldDescription>
+                Choose whether only owners or owners + admins can approve.
+              </FieldDescription>
+            </FieldContent>
+            <Select
+              value={approverScopeValue}
+              onValueChange={(value) =>
+                setApprovalPolicy((prev) => ({
+                  ...prev,
+                  requiredApproverRoles:
+                    value === "owner-only" ? ["owner"] : ["owner", "admin"],
+                }))
+              }
+            >
+              <SelectTrigger className="w-44">
+                <SelectValue placeholder="Approver scope" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="owner-admin">Owners + admins</SelectItem>
+                <SelectItem value="owner-only">Owners only</SelectItem>
+              </SelectContent>
+            </Select>
+          </Field>
 
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            className="max-w-20"
-            disabled={!dataProtectionChanged}
-            onClick={handleSaveDataProtection}
-          >
-            Save
-          </Button>
-          <Button
-            size="sm"
-            className="max-w-20"
-            variant="ghost"
-            disabled={!dataProtectionChanged}
-            onClick={() => setDataProtection(savedDataProtection)}
-          >
-            Reset
-          </Button>
-        </div>
-      </FieldSet>
-
-      <FieldSeparator />
-
-      <FieldSet>
-        <FieldLegend>Incident &amp; Audit</FieldLegend>
-        <FieldDescription>
-          Configure monitoring signals and incident response defaults.
-        </FieldDescription>
-
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Send security alerts</FieldTitle>
-            <FieldDescription>
-              Notify workspace admins about risky account behavior.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={incidentAudit.sendSecurityAlerts}
-            onCheckedChange={(checked) =>
-              setIncidentAudit((prev) => ({ ...prev, sendSecurityAlerts: checked }))
-            }
-          />
-        </Field>
-
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Auto-lock suspicious sessions</FieldTitle>
-            <FieldDescription>
-              Immediately suspend sessions with suspicious activity patterns.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={incidentAudit.autoLockSuspiciousSessions}
-            onCheckedChange={(checked) =>
-              setIncidentAudit((prev) => ({
-                ...prev,
-                autoLockSuspiciousSessions: checked,
-              }))
-            }
-          />
-        </Field>
-
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Notify on role escalation</FieldTitle>
-            <FieldDescription>
-              Alert owners when high-privilege roles are assigned.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={incidentAudit.notifyOnRoleEscalation}
-            onCheckedChange={(checked) =>
-              setIncidentAudit((prev) => ({ ...prev, notifyOnRoleEscalation: checked }))
-            }
-          />
-        </Field>
-
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Allow self-service recovery</FieldTitle>
-            <FieldDescription>
-              Permit members to recover locked sessions without admin support.
-            </FieldDescription>
-          </FieldContent>
-          <Switch
-            checked={incidentAudit.allowSelfServiceRecovery}
-            onCheckedChange={(checked) =>
-              setIncidentAudit((prev) => ({
-                ...prev,
-                allowSelfServiceRecovery: checked,
-              }))
-            }
-          />
-        </Field>
-
-        <Field orientation="horizontal">
-          <FieldContent>
-            <FieldTitle>Audit log detail level</FieldTitle>
-            <FieldDescription>
-              Choose how detailed security event trails should be.
-            </FieldDescription>
-          </FieldContent>
-          <Select
-            value={incidentAudit.auditLogLevel}
-            onValueChange={(value) =>
-              setIncidentAudit((prev) => ({
-                ...prev,
-                auditLogLevel: value as IncidentAuditSettings["auditLogLevel"],
-              }))
-            }
-          >
-            <SelectTrigger className="w-40">
-              <SelectValue placeholder="Log level" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="standard">Standard</SelectItem>
-              <SelectItem value="detailed">Detailed</SelectItem>
-            </SelectContent>
-          </Select>
-        </Field>
-
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            className="max-w-20"
-            disabled={!incidentAuditChanged}
-            onClick={handleSaveIncidentAudit}
-          >
-            Save
-          </Button>
-          <Button
-            size="sm"
-            className="max-w-20"
-            variant="ghost"
-            disabled={!incidentAuditChanged}
-            onClick={() => setIncidentAudit(savedIncidentAudit)}
-          >
-            Reset
-          </Button>
+          <div className="flex items-center gap-2 pt-1">
+            <Button
+              className="max-w-20"
+              size="sm"
+              loading={isSavingApprovalPolicy}
+              disabled={
+                !approvalPolicyChanged || !workspaceId || readOnlyWorkspaceSecurity
+              }
+              onClick={handleSaveApprovalPolicy}
+            >
+              Save
+            </Button>
+            <Button
+              className="max-w-20"
+              size="sm"
+              variant="ghost"
+              disabled={!approvalPolicyChanged || readOnlyWorkspaceSecurity}
+              onClick={handleResetApprovalPolicy}
+            >
+              Reset
+            </Button>
+          </div>
         </div>
       </FieldSet>
     </FieldGroup>

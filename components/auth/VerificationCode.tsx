@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import useAuthStore from "@/stores/auth";
 import { H1, P } from "../ui/typography";
 import useAuth from "@/hooks/use-auth";
+import { resolveUserStartRoute } from "@/lib/helpers/user-preferences";
 import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
 
 const VerificationCode = () => {
@@ -62,7 +63,12 @@ const VerificationCode = () => {
         return;
       }
 
-      router.replace(ROUTES.DASHBOARD);
+      router.replace(
+        resolveUserStartRoute({
+          user: data?.data?.user,
+          workspaceId: data?.data?.user?.currentWorkspaceId?._id,
+        }),
+      );
     },
     onError() {
       setCode("");

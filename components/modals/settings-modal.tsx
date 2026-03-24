@@ -23,18 +23,14 @@ import {
   FolderInput,
   Library,
   Shield,
-  SunMoon,
-  ToyBrick,
   User2Icon,
   UserCog,
-  Workflow,
 } from "lucide-react";
-import SettingsProfileReferences from "../settings/settings-profile-preferences";
+import SettingsProfilePreferences from "../settings/settings-profile-preferences";
 import SettingsWorkspacePeople from "../settings/settings-worpspace-people";
 import SettingsProfile from "../settings/settings-profile";
 import SettingsNotifications from "../settings/settings-notifications";
 import SettingsWorkspaces from "../settings/settings-workspaces";
-import SettingsWorkspaceAutomation from "../settings/settings-workspace-automation";
 import SettingsWorkspaceSecurity from "../settings/settings-workspace-security";
 import SettingsWorkspaceKnowledgeBase from "../settings/settings-workspace-knowledge-base";
 import SettingsWorkspaceImport from "../settings/settings-workspace-import";
@@ -45,7 +41,6 @@ const workspace = {
     { name: "Overview", icon: CircleSmall },
     { name: "People", icon: UserCog },
     { name: "Teams", icon: Baby },
-    { name: "Automation ⭐️", icon: Workflow },
     { name: "Security", icon: Shield },
     { name: "Knowledge Base", icon: Library },
     { name: "Import", icon: FolderInput },
@@ -75,8 +70,6 @@ const SettingsModal = () => {
       return <SettingsWorkspaces />;
     } else if (id === "overview") {
       return <SettingsWorkspaceOverview />;
-    } else if (id.startsWith("automation")) {
-      return <SettingsWorkspaceAutomation />;
     } else if (id === "security") {
       return <SettingsWorkspaceSecurity />;
     } else if (id === "knowledge base") {
@@ -86,7 +79,7 @@ const SettingsModal = () => {
     } else if (id === "teams") {
       return <SettingsWorkspaceTeams />;
     } else if (id === "preferences") {
-      return <SettingsProfileReferences />;
+      return <SettingsProfilePreferences />;
     } else if (id === "people") {
       return <SettingsWorkspacePeople />;
     } else if (id === "integrations") {

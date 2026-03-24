@@ -19,6 +19,8 @@ const routeTitleMap: Record<string, string> = {
   [ROUTES.CALENDAR]: "Calendar",
   [ROUTES.ARCHIVE]: "Archive",
   [ROUTES.DOCS]: "Docs",
+  [ROUTES.KNOWLEDGE_BASE]: "Knowledge Base",
+  [ROUTES.PORTFOLIO]: "Portfolio",
   [ROUTES.ASK_SQUIRCLE]: "Ask Squircle",
   [ROUTES.SPACES]: "Spaces",
   [ROUTES.SPACES_TEAM_CALL]: "Team Call",

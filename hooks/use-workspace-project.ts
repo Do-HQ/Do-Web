@@ -81,6 +81,24 @@ import { AxiosError, AxiosResponse } from "axios";
 
 type UseOptions<T> = UseMutationOptions<AxiosResponse, unknown, T, unknown>;
 
+const isApprovalRequiredError = (error: unknown) => {
+  const payload = error as
+    | {
+        code?: string;
+        response?: {
+          data?: {
+            code?: string;
+          };
+        };
+      }
+    | undefined;
+
+  return (
+    String(payload?.response?.data?.code || payload?.code || "").trim() ===
+    "APPROVAL_REQUIRED"
+  );
+};
+
 const useWorkspaceProject = () => {
   const { handleError } = useError();
 
@@ -751,7 +769,9 @@ const useWorkspaceProject = () => {
       ...options,
       onError: (error, variables, onMutateResult, context) => {
         options?.onError?.(error, variables, onMutateResult, context);
-        handleError(error as AxiosError);
+        if (!isApprovalRequiredError(error)) {
+          handleError(error as AxiosError);
+        }
       },
     });
   };
@@ -774,7 +794,9 @@ const useWorkspaceProject = () => {
       ...options,
       onError: (error, variables, onMutateResult, context) => {
         options?.onError?.(error, variables, onMutateResult, context);
-        handleError(error as AxiosError);
+        if (!isApprovalRequiredError(error)) {
+          handleError(error as AxiosError);
+        }
       },
     });
   };
@@ -796,7 +818,9 @@ const useWorkspaceProject = () => {
       ...options,
       onError: (error, variables, onMutateResult, context) => {
         options?.onError?.(error, variables, onMutateResult, context);
-        handleError(error as AxiosError);
+        if (!isApprovalRequiredError(error)) {
+          handleError(error as AxiosError);
+        }
       },
     });
   };
@@ -818,7 +842,9 @@ const useWorkspaceProject = () => {
       ...options,
       onError: (error, variables, onMutateResult, context) => {
         options?.onError?.(error, variables, onMutateResult, context);
-        handleError(error as AxiosError);
+        if (!isApprovalRequiredError(error)) {
+          handleError(error as AxiosError);
+        }
       },
     });
   };
@@ -840,7 +866,9 @@ const useWorkspaceProject = () => {
       ...options,
       onError: (error, variables, onMutateResult, context) => {
         options?.onError?.(error, variables, onMutateResult, context);
-        handleError(error as AxiosError);
+        if (!isApprovalRequiredError(error)) {
+          handleError(error as AxiosError);
+        }
       },
     });
   };

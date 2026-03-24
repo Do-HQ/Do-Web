@@ -71,7 +71,13 @@ const SettingsWorkspacePeopleAddMembers = ({ open, onOpenChange }: Props) => {
           roles: [defaultRole?._id],
         });
 
-        queryClient.invalidateQueries({ queryKey: ["get-workspaces-invites"] });
+        queryClient.invalidateQueries({
+          queryKey: ["get-workspaces-invites", workspaceId],
+        });
+        queryClient.invalidateQueries({
+          queryKey: ["get-workspaces-people", workspaceId],
+        });
+        onOpenChange(false);
       },
     });
 

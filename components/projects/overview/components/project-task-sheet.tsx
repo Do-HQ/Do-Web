@@ -35,6 +35,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import useWorkspaceStore from "@/stores/workspace";
 import useWorkspace from "@/hooks/use-workspace";
@@ -53,14 +61,24 @@ import {
 } from "../types";
 import { getDerivedTaskStatusFromSubtasks, getTaskStatusLabel } from "../utils";
 
+type ProjectTaskDependencyOption = {
+  id: string;
+  title: string;
+  workflowId: string;
+  workflowName: string;
+};
+
 type ProjectTaskSheetProps = {
   open: boolean;
   mode: "create" | "edit";
+  workflowId: string;
   workflowName: string;
   members: ProjectMember[];
   teams: ProjectTeamSummary[];
   pipelines: ProjectPipelineSummary[];
   sections: ProjectKanbanSection[];
+  dependencyOptions: ProjectTaskDependencyOption[];
+  currentTaskId?: string;
   initialValues?: Partial<ProjectTaskEditorValues>;
   initiallyExpandSubtasks?: boolean;
   seedBlankSubtask?: boolean;
@@ -112,11 +130,14 @@ function buildBlankSubtask(
 export function ProjectTaskSheet({
   open,
   mode,
+  workflowId,
   workflowName,
   members,
   teams,
   pipelines,
   sections,
+  dependencyOptions,
+  currentTaskId,
   initialValues,
   initiallyExpandSubtasks,
   seedBlankSubtask,
@@ -203,6 +224,9 @@ export function ProjectTaskSheet({
   const [startDate, setStartDate] = useState(defaultStartDate);
   const [dueDate, setDueDate] = useState(defaultDueDate);
   const [sectionId, setSectionId] = useState(initialValues?.sectionId ?? "");
+  const [dependencyTaskIds, setDependencyTaskIds] = useState<string[]>(
+    initialValues?.dependencyTaskIds ?? [],
+  );
   const [subtasksOpen, setSubtasksOpen] = useState(
     Boolean(initiallyExpandSubtasks || seededSubtasks.length),
   );
@@ -490,6 +514,52 @@ export function ProjectTaskSheet({
     () => availableAssignees.find((member) => member.id === assigneeId) ?? null,
     [assigneeId, availableAssignees],
   );
+  const visibleDependencyOptions = useMemo(() => {
+    const excludedTaskId = String(currentTaskId || "").trim();
+    const normalizedOptions = dependencyOptions
+      .filter((option) => {
+        const optionId = String(option.id || "").trim();
+        return optionId && optionId !== excludedTaskId;
+      })
+      .sort((left, right) => {
+        const leftWorkflowPriority = left.workflowId === workflowId ? 0 : 1;
+        const rightWorkflowPriority = right.workflowId === workflowId ? 0 : 1;
+
+        if (leftWorkflowPriority !== rightWorkflowPriority) {
+          return leftWorkflowPriority - rightWorkflowPriority;
+        }
+
+        if (left.workflowName !== right.workflowName) {
+          return left.workflowName.localeCompare(right.workflowName);
+        }
+
+        return left.title.localeCompare(right.title);
+      });
+
+    return normalizedOptions;
+  }, [currentTaskId, dependencyOptions, workflowId]);
+  const selectedDependencyOptions = useMemo(() => {
+    const optionMap = new Map(
+      visibleDependencyOptions.map((option) => [option.id, option]),
+    );
+    return dependencyTaskIds
+      .map((taskId) => optionMap.get(taskId))
+      .filter(Boolean) as ProjectTaskDependencyOption[];
+  }, [dependencyTaskIds, visibleDependencyOptions]);
+
+  const toggleDependencyTask = (taskId: string, checked: boolean | string) => {
+    const shouldInclude = checked === true || checked === "indeterminate";
+    setDependencyTaskIds((current) => {
+      if (shouldInclude) {
+        if (current.includes(taskId)) {
+          return current;
+        }
+        return [...current, taskId];
+      }
+
+      return current.filter((id) => id !== taskId);
+    });
+  };
 
   const handleGenerateDraft = () => {
     const normalized = prompt.toLowerCase();
@@ -573,6 +643,7 @@ export function ProjectTaskSheet({
       startDate,
       dueDate,
       sectionId: sectionId || undefined,
+      dependencyTaskIds,
       subtasks: subtasks
         .map((subtask) => ({
           ...subtask,
@@ -916,6 +987,72 @@ export function ProjectTaskSheet({
             </div>
           </div>
         </div>
+
+        {isCreateMode ? (
+          <div className="grid gap-2">
+            <Label>Dependencies</Label>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="justify-start"
+                >
+                  {dependencyTaskIds.length
+                    ? `${dependencyTaskIds.length} predecessor${dependencyTaskIds.length > 1 ? "s" : ""} selected`
+                    : "Select predecessor tasks"}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                className="max-h-72 w-[22rem] overflow-y-auto sm:w-[28rem]"
+                align="start"
+              >
+                <DropdownMenuLabel>Task must wait for</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {visibleDependencyOptions.length ? (
+                  visibleDependencyOptions.map((option) => (
+                    <DropdownMenuCheckboxItem
+                      key={option.id}
+                      checked={dependencyTaskIds.includes(option.id)}
+                      onCheckedChange={(checked) =>
+                        toggleDependencyTask(option.id, checked)
+                      }
+                      onSelect={(event) => event.preventDefault()}
+                    >
+                      <span className="truncate text-[12px]">
+                        {option.title}
+                      </span>
+                      <span className="text-muted-foreground ml-1 truncate text-[11px]">
+                        {option.workflowName}
+                      </span>
+                    </DropdownMenuCheckboxItem>
+                  ))
+                ) : (
+                  <div className="text-muted-foreground px-2 py-2 text-[11px]">
+                    No other tasks available for dependencies.
+                  </div>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            {selectedDependencyOptions.length ? (
+              <div className="text-muted-foreground flex flex-wrap gap-1 text-[11px]">
+                {selectedDependencyOptions.map((option) => (
+                  <span
+                    key={option.id}
+                    className="bg-muted rounded-md px-2 py-0.5"
+                  >
+                    {option.title}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <div className="text-muted-foreground text-[11px] leading-5">
+                Optional. Selected tasks become predecessors before this task can
+                be marked done.
+              </div>
+            )}
+          </div>
+        ) : null}
 
         <Collapsible open={subtasksOpen} onOpenChange={setSubtasksOpen}>
           <div className="rounded-xl border border-border/35 bg-muted/15">

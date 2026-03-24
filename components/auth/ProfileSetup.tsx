@@ -14,6 +14,7 @@ import { CustomFile } from "@/types/file";
 import { useState } from "react";
 import useUser from "@/hooks/use-user";
 import useWorkspaceStore from "@/stores/workspace";
+import { resolveUserStartRoute } from "@/lib/helpers/user-preferences";
 import { z } from "zod";
 
 type ProfileSetupFormValues = z.infer<typeof updateUserSchema>;
@@ -30,11 +31,17 @@ const ProfileSetup = () => {
   const { useUpdateUser } = useUser();
   const { mutate: updateUser, isPending: isUpdatingUser } = useUpdateUser({
     onSuccess(data) {
-      setUser(data?.data?.user);
+      const authenticatedUser = data?.data?.user;
+      setUser(authenticatedUser);
       if (workspaces?.length === 0) {
         router.push(ROUTES.WORKSPACE);
       } else {
-        router.replace(ROUTES.DASHBOARD);
+        router.replace(
+          resolveUserStartRoute({
+            user: authenticatedUser,
+            workspaceId: authenticatedUser?.currentWorkspaceId?._id,
+          }),
+        );
       }
     },
   });

@@ -3,14 +3,22 @@
 import * as React from "react";
 import {
   AlertTriangle,
+  Archive,
+  BarChart3,
+  BookOpen,
   Bug,
+  Calendar,
+  FileText,
   FolderKanban,
   GitBranch,
   Hash,
   HomeIcon,
   InboxIcon,
+  LifeBuoy,
   ListChecks,
   ListTodo,
+  Library,
+  MessageCircleQuestion,
   PlusIcon,
   RefreshCcw,
   Sparkles,
@@ -37,9 +45,12 @@ import {
 } from "@/components/ui/command";
 import { Badge } from "@/components/ui/badge";
 import { useDebounce } from "@/hooks/use-debounce";
+import { getWorkspaceDocs } from "@/lib/services/workspace-doc-service";
+import { searchWorkspaceKnowledgeBase } from "@/lib/services/workspace-knowledge-base-service";
 import { getWorkspaceProjects } from "@/lib/services/workspace-project-service";
 import { getWorkspaceJams } from "@/lib/services/workspace-jam-service";
 import { getWorkspaceSpaceRooms } from "@/lib/services/workspace-space-service";
+import { getWorkspaceSupportTickets } from "@/lib/services/workspace-support-service";
 import { getWorkspaceTemplates } from "@/lib/services/workspace-template-service";
 import { cn } from "@/lib/utils";
 import useAuthStore from "@/stores/auth";
@@ -94,6 +105,22 @@ function includesQuery(value: string, query: string) {
   }
 
   return source.includes(target);
+}
+
+function dedupeSearchResults(items: SearchResultItem[]) {
+  const seen = new Set<string>();
+  const output: SearchResultItem[] = [];
+
+  for (const item of items) {
+    const key = `${normalize(item.href)}::${normalize(item.label)}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    output.push(item);
+  }
+
+  return output;
 }
 
 function getProjectIdFromPath(pathname: string) {
@@ -180,6 +207,45 @@ const CommandSearch = () => {
       }),
   });
 
+  const docsSearchQuery = useQuery({
+    queryKey: ["command-search-docs", resolvedWorkspaceId, normalizedQuery],
+    enabled: showSpotlightSearch && queryActive && Boolean(resolvedWorkspaceId),
+    queryFn: () =>
+      getWorkspaceDocs(resolvedWorkspaceId, {
+        page: 1,
+        limit: 25,
+        search: normalizedQuery,
+        archived: false,
+      }),
+  });
+
+  const knowledgeBaseSearchQuery = useQuery({
+    queryKey: ["command-search-knowledge-base", resolvedWorkspaceId, normalizedQuery],
+    enabled: showSpotlightSearch && queryActive && Boolean(resolvedWorkspaceId),
+    queryFn: () =>
+      searchWorkspaceKnowledgeBase(resolvedWorkspaceId, {
+        query: normalizedQuery,
+        page: 1,
+        limit: 20,
+        source: "all",
+        category: "all",
+        publishState: "all",
+      }),
+  });
+
+  const supportTicketsSearchQuery = useQuery({
+    queryKey: ["command-search-support-tickets", resolvedWorkspaceId, normalizedQuery],
+    enabled: showSpotlightSearch && queryActive && Boolean(resolvedWorkspaceId),
+    queryFn: () =>
+      getWorkspaceSupportTickets(resolvedWorkspaceId, {
+        page: 1,
+        limit: 15,
+        search: normalizedQuery,
+        status: "all",
+        priority: "all",
+      }),
+  });
+
   const closeAndRoute = React.useCallback(
     (href: string) => {
       setShowSpotlightSearch(false);
@@ -215,6 +281,27 @@ const CommandSearch = () => {
         onSelect: () => closeAndRoute(ROUTES.SPACES),
       },
       {
+        id: "nav-docs",
+        label: "Docs",
+        icon: FileText,
+        shortcut: "⌘D",
+        onSelect: () => closeAndRoute(ROUTES.DOCS),
+      },
+      {
+        id: "nav-kb",
+        label: "Knowledge Base",
+        icon: Library,
+        shortcut: "⌥⌘K",
+        onSelect: () => closeAndRoute(ROUTES.KNOWLEDGE_BASE),
+      },
+      {
+        id: "nav-calendar",
+        label: "Calendar",
+        icon: Calendar,
+        shortcut: "⌘L",
+        onSelect: () => closeAndRoute(ROUTES.CALENDAR),
+      },
+      {
         id: "nav-ask",
         label: "Ask Squircle",
         icon: Sparkles,
@@ -230,8 +317,30 @@ const CommandSearch = () => {
         shortcut: "⌘T",
         onSelect: () => closeAndRoute(ROUTES.TEMPLATES),
       },
+      {
+        id: "nav-portfolio",
+        label: "Portfolio",
+        icon: BarChart3,
+        shortcut: "⌘P",
+        onSelect: () => closeAndRoute(ROUTES.PORTFOLIO),
+      },
+      {
+        id: "nav-support",
+        label: user?.isInternal ? "Support Admin" : "Help & Support",
+        icon: user?.isInternal ? MessageCircleQuestion : LifeBuoy,
+        shortcut: "⌥⌘S",
+        onSelect: () =>
+          closeAndRoute(user?.isInternal ? ROUTES.SUPPORT_ADMIN : ROUTES.SUPPORT),
+      },
+      {
+        id: "nav-archive",
+        label: "Archive",
+        icon: Archive,
+        shortcut: "⌥⌘A",
+        onSelect: () => closeAndRoute(ROUTES.ARCHIVE),
+      },
     ],
-    [closeAndRoute],
+    [closeAndRoute, user?.isInternal],
   );
 
   const actionItems = React.useMemo<QuickActionItem[]>(
@@ -261,11 +370,18 @@ const CommandSearch = () => {
         onSelect: () => closeAndRoute(`${ROUTES.JAMS}?create=1`),
       },
       {
-        id: "action-new-template",
-        label: "New template",
-        icon: Store,
-        shortcut: "⇧⌘T",
-        onSelect: () => closeAndRoute(ROUTES.TEMPLATES),
+        id: "action-new-doc",
+        label: "New doc",
+        icon: FileText,
+        shortcut: "⌥⌘D",
+        onSelect: () => closeAndRoute(ROUTES.DOCS),
+      },
+      {
+        id: "action-new-support-ticket",
+        label: "New support ticket",
+        icon: LifeBuoy,
+        shortcut: "⌥⌘H",
+        onSelect: () => closeAndRoute(ROUTES.SUPPORT),
       },
       {
         id: "action-new-template",
@@ -339,13 +455,13 @@ const CommandSearch = () => {
     }
 
     const items = projectsSearchQuery.data?.data?.projects ?? [];
-    return items.map((entry) => ({
+    return dedupeSearchResults(items.map((entry) => ({
       id: `project:${entry.projectId}`,
       label: entry.name,
       href: getProjectRoute(entry.projectId),
       icon: FolderKanban,
       hint: entry.status,
-    }));
+    })));
   }, [projectsSearchQuery.data, queryActive]);
 
   const chatResults = React.useMemo<SearchResultItem[]>(() => {
@@ -354,7 +470,7 @@ const CommandSearch = () => {
     }
 
     const rooms = chatsSearchQuery.data?.data?.rooms ?? [];
-    return rooms.map((room) => ({
+    return dedupeSearchResults(rooms.map((room) => ({
       id: `chat:${room.id}`,
       label: room.name,
       href: `${ROUTES.SPACES}?room=${encodeURIComponent(room.id)}`,
@@ -368,7 +484,7 @@ const CommandSearch = () => {
               ? "Task thread"
               : `${room.scope} chat`,
       badge: room.unread > 0 ? `${room.unread} new` : undefined,
-    }));
+    })));
   }, [chatsSearchQuery.data, queryActive]);
 
   const jamResults = React.useMemo<SearchResultItem[]>(() => {
@@ -377,13 +493,13 @@ const CommandSearch = () => {
     }
 
     const jams = jamsSearchQuery.data?.data?.jams ?? [];
-    return jams.map((jam) => ({
+    return dedupeSearchResults(jams.map((jam) => ({
       id: `jam:${jam.id}`,
       label: jam.title,
       href: `${ROUTES.JAMS}/${jam.id}`,
       icon: StickyNote,
       hint: jam.visibility === "workspace" ? "Workspace jam" : "Private jam",
-    }));
+    })));
   }, [jamsSearchQuery.data, queryActive]);
 
   const templateResults = React.useMemo<SearchResultItem[]>(() => {
@@ -392,14 +508,152 @@ const CommandSearch = () => {
     }
 
     const templates = templatesSearchQuery.data?.data?.templates ?? [];
-    return templates.map((template) => ({
+    return dedupeSearchResults(templates.map((template) => ({
       id: `template:${template.id}`,
       label: template.name,
       href: ROUTES.TEMPLATES,
       icon: Store,
       hint: `${template.kind} template`,
-    }));
+    })));
   }, [queryActive, templatesSearchQuery.data]);
+
+  const routeResults = React.useMemo<SearchResultItem[]>(() => {
+    if (!queryActive) {
+      return [];
+    }
+
+    const pageResults: SearchResultItem[] = [
+      {
+        id: "route:dashboard",
+        label: "Dashboard",
+        href: ROUTES.DASHBOARD,
+        icon: HomeIcon,
+        hint: "Page",
+      },
+      {
+        id: "route:spaces",
+        label: "Spaces",
+        href: ROUTES.SPACES,
+        icon: InboxIcon,
+        hint: "Page",
+      },
+      {
+        id: "route:jams",
+        label: "Jams",
+        href: ROUTES.JAMS,
+        icon: StickyNote,
+        hint: "Page",
+      },
+      {
+        id: "route:docs",
+        label: "Docs",
+        href: ROUTES.DOCS,
+        icon: FileText,
+        hint: "Page",
+      },
+      {
+        id: "route:knowledge-base",
+        label: "Knowledge Base",
+        href: ROUTES.KNOWLEDGE_BASE,
+        icon: Library,
+        hint: "Page",
+      },
+      {
+        id: "route:portfolio",
+        label: "Portfolio",
+        href: ROUTES.PORTFOLIO,
+        icon: BarChart3,
+        hint: "Page",
+      },
+      {
+        id: "route:templates",
+        label: "Templates",
+        href: ROUTES.TEMPLATES,
+        icon: Store,
+        hint: "Page",
+      },
+      {
+        id: "route:calendar",
+        label: "Calendar",
+        href: ROUTES.CALENDAR,
+        icon: Calendar,
+        hint: "Page",
+      },
+      {
+        id: "route:archive",
+        label: "Archive",
+        href: ROUTES.ARCHIVE,
+        icon: Archive,
+        hint: "Page",
+      },
+      {
+        id: "route:support",
+        label: user?.isInternal ? "Support Admin" : "Help & Support",
+        href: user?.isInternal ? ROUTES.SUPPORT_ADMIN : ROUTES.SUPPORT,
+        icon: user?.isInternal ? MessageCircleQuestion : LifeBuoy,
+        hint: "Page",
+      },
+    ];
+
+    return dedupeSearchResults(
+      pageResults.filter((item) =>
+        includesQuery(`${item.label} ${item.hint || ""}`, normalizedQuery),
+      ),
+    );
+  }, [normalizedQuery, queryActive, user?.isInternal]);
+
+  const docsResults = React.useMemo<SearchResultItem[]>(() => {
+    if (!queryActive) {
+      return [];
+    }
+
+    const docs = docsSearchQuery.data?.data?.docs ?? [];
+    return dedupeSearchResults(docs.map((doc) => ({
+      id: `doc:${doc.id}`,
+      label: doc.title || "Untitled doc",
+      href: `${ROUTES.DOCS}/${encodeURIComponent(doc.id)}`,
+      icon: FileText,
+      hint: `${doc.category || "general"} • doc`,
+      badge: doc.publishState,
+    })));
+  }, [docsSearchQuery.data, queryActive]);
+
+  const knowledgeBaseResults = React.useMemo<SearchResultItem[]>(() => {
+    if (!queryActive) {
+      return [];
+    }
+
+    const articles = knowledgeBaseSearchQuery.data?.data?.articles ?? [];
+    return dedupeSearchResults(articles.map((article) => ({
+      id: `kb:${article.id}`,
+      label: article.title,
+      href: article.route || ROUTES.KNOWLEDGE_BASE,
+      icon:
+        article.source === "project"
+          ? FolderKanban
+          : article.source === "curated"
+            ? BookOpen
+            : Library,
+      hint: `${article.category} • knowledge`,
+      badge: `${Math.round(Number(article.confidenceScore || 0) * 100)}%`,
+    })));
+  }, [knowledgeBaseSearchQuery.data, queryActive]);
+
+  const supportTicketResults = React.useMemo<SearchResultItem[]>(() => {
+    if (!queryActive) {
+      return [];
+    }
+
+    const tickets = supportTicketsSearchQuery.data?.data?.tickets ?? [];
+    return dedupeSearchResults(tickets.map((ticket) => ({
+      id: `support:${ticket.id}`,
+      label: ticket.subject,
+      href: `${ROUTES.SUPPORT}/tickets/${encodeURIComponent(ticket.id)}`,
+      icon: LifeBuoy,
+      hint: `${ticket.priority} • ${ticket.status}`,
+      badge: ticket.category,
+    })));
+  }, [queryActive, supportTicketsSearchQuery.data]);
 
   const localWorkflowTaskRiskResults = React.useMemo<SearchResultItem[]>(() => {
     if (!queryActive) {
@@ -493,6 +747,20 @@ const CommandSearch = () => {
       return [];
     }
 
+    const reservedKeys = new Set(
+      [
+        ...routeResults,
+        ...projectResults,
+        ...chatResults,
+        ...jamResults,
+        ...templateResults,
+        ...docsResults,
+        ...knowledgeBaseResults,
+        ...supportTicketResults,
+        ...localWorkflowTaskRiskResults,
+      ].map((item) => `${normalize(item.href)}::${normalize(item.label)}`),
+    );
+
     return favorites
       .filter((favorite) =>
         includesQuery(
@@ -500,6 +768,10 @@ const CommandSearch = () => {
           normalizedQuery,
         ),
       )
+      .filter((favorite) => {
+        const key = `${normalize(favorite.href)}::${normalize(favorite.label)}`;
+        return !reservedKeys.has(key);
+      })
       .slice(0, 12)
       .map((favorite) => ({
         id: `favorite:${favorite.key}`,
@@ -509,14 +781,30 @@ const CommandSearch = () => {
         hint: favorite.subtitle || "Favorite",
         badge: "Favorite",
       }));
-  }, [favorites, normalizedQuery, queryActive]);
+  }, [
+    chatResults,
+    docsResults,
+    favorites,
+    jamResults,
+    knowledgeBaseResults,
+    localWorkflowTaskRiskResults,
+    normalizedQuery,
+    projectResults,
+    queryActive,
+    routeResults,
+    supportTicketResults,
+    templateResults,
+  ]);
 
   const loadingSearchResults =
     queryActive &&
     (projectsSearchQuery.isFetching ||
       chatsSearchQuery.isFetching ||
       jamsSearchQuery.isFetching ||
-      templatesSearchQuery.isFetching);
+      templatesSearchQuery.isFetching ||
+      docsSearchQuery.isFetching ||
+      knowledgeBaseSearchQuery.isFetching ||
+      supportTicketsSearchQuery.isFetching);
 
   React.useEffect(() => {
     if (!showSpotlightSearch) {
@@ -596,115 +884,235 @@ const CommandSearch = () => {
             </>
           ) : (
             <>
-              <CommandGroup heading="Results">
-                {loadingSearchResults ? (
+              {loadingSearchResults ? (
+                <CommandGroup heading="Searching">
                   <CommandItem disabled>
                     <LoaderComponent />
                   </CommandItem>
-                ) : null}
+                </CommandGroup>
+              ) : null}
 
-                {projectResults.map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    onSelect={() => closeAndRoute(item.href)}
-                  >
-                    <item.icon />
-                    <span>{item.label}</span>
-                    {item.hint ? (
-                      <span className="text-muted-foreground ml-auto text-[11px] capitalize">
-                        {item.hint}
-                      </span>
-                    ) : null}
-                  </CommandItem>
-                ))}
-
-                {chatResults.map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    onSelect={() => closeAndRoute(item.href)}
-                  >
-                    <item.icon />
-                    <span>{item.label}</span>
-                    {item.badge ? (
-                      <Badge variant="outline" className="ml-auto text-[10px]">
-                        {item.badge}
-                      </Badge>
-                    ) : item.hint ? (
-                      <span className="text-muted-foreground ml-auto text-[11px] capitalize">
-                        {item.hint}
-                      </span>
-                    ) : null}
-                  </CommandItem>
-                ))}
-
-                {jamResults.map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    onSelect={() => closeAndRoute(item.href)}
-                  >
-                    <item.icon />
-                    <span>{item.label}</span>
-                    {item.hint ? (
-                      <span className="text-muted-foreground ml-auto text-[11px] capitalize">
-                        {item.hint}
-                      </span>
-                    ) : null}
-                  </CommandItem>
-                ))}
-
-                {templateResults.map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    onSelect={() => closeAndRoute(item.href)}
-                  >
-                    <item.icon />
-                    <span>{item.label}</span>
-                    {item.hint ? (
-                      <span className="text-muted-foreground ml-auto text-[11px] capitalize">
-                        {item.hint}
-                      </span>
-                    ) : null}
-                  </CommandItem>
-                ))}
-
-                {localWorkflowTaskRiskResults.map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    onSelect={() => closeAndRoute(item.href)}
-                  >
-                    <item.icon />
-                    <span>{item.label}</span>
-                    {item.badge ? (
-                      <Badge
-                        variant="outline"
-                        className={cn("ml-auto text-[10px] capitalize")}
-                      >
-                        {item.badge}
-                      </Badge>
-                    ) : item.hint ? (
+              {routeResults.length ? (
+                <CommandGroup heading="Pages">
+                  {routeResults.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      onSelect={() => closeAndRoute(item.href)}
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
                       <span className="text-muted-foreground ml-auto text-[11px]">
                         {item.hint}
                       </span>
-                    ) : null}
-                  </CommandItem>
-                ))}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
 
-                {favoriteResults.map((item) => (
-                  <CommandItem
-                    key={item.id}
-                    onSelect={() => closeAndRoute(item.href)}
-                  >
-                    <item.icon />
-                    <span>{item.label}</span>
-                    <Badge variant="outline" className="ml-auto text-[10px]">
-                      {item.badge}
-                    </Badge>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
+              {projectResults.length ? (
+                <CommandGroup heading="Projects">
+                  {projectResults.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      onSelect={() => closeAndRoute(item.href)}
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
+                      {item.hint ? (
+                        <span className="text-muted-foreground ml-auto text-[11px] capitalize">
+                          {item.hint}
+                        </span>
+                      ) : null}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
+
+              {docsResults.length ? (
+                <CommandGroup heading="Docs">
+                  {docsResults.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      onSelect={() => closeAndRoute(item.href)}
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
+                      {item.badge ? (
+                        <Badge
+                          variant="outline"
+                          className="ml-auto text-[10px] capitalize"
+                        >
+                          {item.badge}
+                        </Badge>
+                      ) : item.hint ? (
+                        <span className="text-muted-foreground ml-auto text-[11px]">
+                          {item.hint}
+                        </span>
+                      ) : null}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
+
+              {knowledgeBaseResults.length ? (
+                <CommandGroup heading="Knowledge Base">
+                  {knowledgeBaseResults.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      onSelect={() => closeAndRoute(item.href)}
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
+                      {item.badge ? (
+                        <Badge variant="outline" className="ml-auto text-[10px]">
+                          {item.badge}
+                        </Badge>
+                      ) : item.hint ? (
+                        <span className="text-muted-foreground ml-auto text-[11px]">
+                          {item.hint}
+                        </span>
+                      ) : null}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
+
+              {supportTicketResults.length ? (
+                <CommandGroup heading="Support">
+                  {supportTicketResults.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      onSelect={() => closeAndRoute(item.href)}
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
+                      {item.badge ? (
+                        <Badge
+                          variant="outline"
+                          className="ml-auto text-[10px] capitalize"
+                        >
+                          {item.badge}
+                        </Badge>
+                      ) : item.hint ? (
+                        <span className="text-muted-foreground ml-auto text-[11px] capitalize">
+                          {item.hint}
+                        </span>
+                      ) : null}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
+
+              {chatResults.length ? (
+                <CommandGroup heading="Chats">
+                  {chatResults.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      onSelect={() => closeAndRoute(item.href)}
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
+                      {item.badge ? (
+                        <Badge variant="outline" className="ml-auto text-[10px]">
+                          {item.badge}
+                        </Badge>
+                      ) : item.hint ? (
+                        <span className="text-muted-foreground ml-auto text-[11px] capitalize">
+                          {item.hint}
+                        </span>
+                      ) : null}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
+
+              {jamResults.length ? (
+                <CommandGroup heading="Jams">
+                  {jamResults.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      onSelect={() => closeAndRoute(item.href)}
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
+                      {item.hint ? (
+                        <span className="text-muted-foreground ml-auto text-[11px] capitalize">
+                          {item.hint}
+                        </span>
+                      ) : null}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
+
+              {templateResults.length ? (
+                <CommandGroup heading="Templates">
+                  {templateResults.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      onSelect={() => closeAndRoute(item.href)}
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
+                      {item.hint ? (
+                        <span className="text-muted-foreground ml-auto text-[11px] capitalize">
+                          {item.hint}
+                        </span>
+                      ) : null}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
+
+              {localWorkflowTaskRiskResults.length ? (
+                <CommandGroup heading="Work Items">
+                  {localWorkflowTaskRiskResults.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      onSelect={() => closeAndRoute(item.href)}
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
+                      {item.badge ? (
+                        <Badge
+                          variant="outline"
+                          className={cn("ml-auto text-[10px] capitalize")}
+                        >
+                          {item.badge}
+                        </Badge>
+                      ) : item.hint ? (
+                        <span className="text-muted-foreground ml-auto text-[11px]">
+                          {item.hint}
+                        </span>
+                      ) : null}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
+
+              {favoriteResults.length ? (
+                <CommandGroup heading="Favorites">
+                  {favoriteResults.map((item) => (
+                    <CommandItem
+                      key={item.id}
+                      onSelect={() => closeAndRoute(item.href)}
+                    >
+                      <item.icon />
+                      <span>{item.label}</span>
+                      <Badge variant="outline" className="ml-auto text-[10px]">
+                        {item.badge}
+                      </Badge>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              ) : null}
 
               {!loadingSearchResults &&
+              !routeResults.length &&
               !projectResults.length &&
+              !docsResults.length &&
+              !knowledgeBaseResults.length &&
+              !supportTicketResults.length &&
               !chatResults.length &&
               !jamResults.length &&
               !templateResults.length &&

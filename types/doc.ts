@@ -3,6 +3,7 @@ import { Pagination } from "@/types";
 export type WorkspaceDocAccessScope = "workspace" | "assigned";
 export type WorkspaceDocPermission = "view" | "edit";
 export type WorkspaceDocLinkScope = "workspace" | "public";
+export type WorkspaceDocPublishState = "draft" | "review" | "published";
 
 export interface WorkspaceDocUserSummary {
   id: string;
@@ -31,6 +32,12 @@ export interface WorkspaceDocRecord {
   title: string;
   icon: string;
   summary: string;
+  publishState: WorkspaceDocPublishState;
+  category: string;
+  tags: string[];
+  confidenceScore: number;
+  featured: boolean;
+  pinned: boolean;
   content: unknown[];
   accessScope: WorkspaceDocAccessScope;
   workspacePermission: WorkspaceDocPermission;
@@ -72,6 +79,12 @@ export interface CreateWorkspaceDocRequestBody {
   title: string;
   icon?: string;
   summary?: string;
+  publishState?: WorkspaceDocPublishState;
+  category?: string;
+  tags?: string[];
+  confidenceScore?: number;
+  featured?: boolean;
+  pinned?: boolean;
   content?: unknown[];
   accessScope?: WorkspaceDocAccessScope;
   workspacePermission?: WorkspaceDocPermission;
@@ -88,6 +101,12 @@ export interface UpdateWorkspaceDocRequestBody {
   title?: string;
   icon?: string;
   summary?: string;
+  publishState?: WorkspaceDocPublishState;
+  category?: string;
+  tags?: string[];
+  confidenceScore?: number;
+  featured?: boolean;
+  pinned?: boolean;
   content?: unknown[];
   accessScope?: WorkspaceDocAccessScope;
   workspacePermission?: WorkspaceDocPermission;

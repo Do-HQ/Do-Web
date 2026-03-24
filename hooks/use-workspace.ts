@@ -16,6 +16,7 @@ import {
   getWorkspaceRoles,
   PaginationBody,
   requestToJoinWorkspace,
+  revokeWorkspaceInvite,
   switchWorkspace,
   updateWorkspace,
 } from "@/lib/services/workspace-service";
@@ -242,6 +243,23 @@ const useWorkspace = () => {
     });
   };
 
+  const useRevokeWorkspaceInvite = (
+    options?: UseOptions<{
+      workspaceId: string;
+      token: string;
+      reason?: string;
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: revokeWorkspaceInvite,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
   const useWorkspaceJoinRequests = (
     workspaceId: string,
     params: PaginationBody,
@@ -301,6 +319,7 @@ const useWorkspace = () => {
     useWorkspaceInvites,
     useCreateWorkspaceInvite,
     useAcceptWorkspaceInvite,
+    useRevokeWorkspaceInvite,
     useWorkspaceJoinRequests,
     useApproveWorkspaceJoinRequest,
     useDeclineWorkspaceJoinRequest,

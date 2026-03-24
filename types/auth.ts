@@ -23,6 +23,22 @@ export interface ValidateOtpBpdy {
 }
 
 export type WorkspaceRole = "owner" | "admin" | "member";
+export type UserThemePreference = "light" | "dark" | "system";
+export type UserStartPagePreference =
+  | "home"
+  | "my-tasks"
+  | "inbox"
+  | "last-visited";
+
+export interface UserPreferences {
+  appearance: {
+    theme: UserThemePreference;
+    reduceMotion: boolean;
+  };
+  workspace: {
+    startPage: UserStartPagePreference;
+  };
+}
 
 export interface UserWorkspace {
   workspaceId: WorkspaceType;
@@ -51,6 +67,7 @@ export interface AuthUser {
   updatedAt: string;
   __v: number;
   profilePhoto: CustomFile | null;
+  preferences?: UserPreferences;
   currentWorkspaceId: WorkspaceType;
 }
 
@@ -62,9 +79,9 @@ export interface AuthResponse {
 }
 
 export interface UpdateUserBody {
-  firstName: string;
-  lastName: string;
-  profilePhoto: string | null;
+  firstName?: string;
+  lastName?: string;
+  profilePhoto?: string | null;
   phoneNumber?: string;
   phoneVerified?: boolean;
   githubUsername?: string;
@@ -74,6 +91,7 @@ export interface UpdateUserBody {
   state?: string;
   postalCode?: string;
   country?: string;
+  preferences?: Partial<UserPreferences>;
 }
 
 export interface LogoutRequestBody {

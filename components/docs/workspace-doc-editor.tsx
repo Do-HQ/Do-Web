@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import { PartialBlock } from "@blocknote/core";
 import { useCreateBlockNote } from "@blocknote/react";
 import { BlockNoteView } from "@blocknote/shadcn";
@@ -38,10 +37,7 @@ const WorkspaceDocEditor = ({
   immersive = false,
 }: WorkspaceDocEditorProps) => {
   const { resolvedTheme } = useTheme();
-  const normalizedContent = useMemo(
-    () => normalizeInitialContent(initialContent),
-    [docId],
-  );
+  const normalizedContent = normalizeInitialContent(initialContent);
 
   const editor = useCreateBlockNote(
     {

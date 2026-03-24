@@ -7,6 +7,8 @@ import { toast } from "sonner";
 import useWorkspace from "@/hooks/use-workspace";
 import LoaderComponent from "@/components/shared/loader";
 import { Button } from "@/components/ui/button";
+import useAuthStore from "@/stores/auth";
+import { resolveUserStartRoute } from "@/lib/helpers/user-preferences";
 import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
 
 export default function AcceptInviteClient() {
@@ -14,6 +16,7 @@ export default function AcceptInviteClient() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token")?.trim() || "";
   const attemptedRef = useRef(false);
+  const { user } = useAuthStore();
   const { useAcceptWorkspaceInvite } = useWorkspace();
   const acceptInvite = useAcceptWorkspaceInvite();
 
@@ -31,12 +34,17 @@ export default function AcceptInviteClient() {
 
     return request
       .then(() => {
-        router.replace(ROUTES.DASHBOARD);
+        router.replace(
+          resolveUserStartRoute({
+            user,
+            workspaceId: user?.currentWorkspaceId?._id,
+          }),
+        );
       })
       .catch(() => {
         attemptedRef.current = false;
       });
-  }, [acceptInvite, router, token]);
+  }, [acceptInvite, router, token, user]);
 
   useEffect(() => {
     if (attemptedRef.current || !token) {

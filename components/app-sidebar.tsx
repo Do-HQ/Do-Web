@@ -3,11 +3,13 @@
 import * as React from "react";
 import {
   Archive,
+  BarChart3,
   Calendar,
   FileText,
   FolderKanban,
   Home,
   Inbox,
+  Library,
   MessageCircleQuestion,
   Shield,
   Shapes,
@@ -17,7 +19,6 @@ import {
   Sparkles,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-
 import { CreateProjectSheet } from "@/components/projects/create-project-sheet";
 import { shouldShowProfileCompletionIndicator } from "@/lib/helpers/profile-completion";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
@@ -164,6 +165,18 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         url: ROUTES.DOCS,
         icon: FileText,
         isActive: pathname.startsWith(ROUTES.DOCS),
+      },
+      {
+        title: "Knowledge Base",
+        url: ROUTES.KNOWLEDGE_BASE,
+        icon: Library,
+        isActive: pathname.startsWith(ROUTES.KNOWLEDGE_BASE),
+      },
+      {
+        title: "Portfolio",
+        url: ROUTES.PORTFOLIO,
+        icon: BarChart3,
+        isActive: pathname.startsWith(ROUTES.PORTFOLIO),
       },
       {
         title: "Templates",

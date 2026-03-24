@@ -14,6 +14,7 @@ import TeamCallNotificationListener from "@/components/spaces/team-call-notifica
 import RouteWalkthrough from "@/components/walkthrough/route-walkthrough";
 import useWorkspaceStore from "@/stores/workspace";
 import { recordRecentVisit } from "@/lib/helpers/recent-visits";
+import UserPreferencesSync from "@/components/preferences/user-preferences-sync";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -25,6 +26,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const isImmersivePage =
     pathname === ROUTES.ASK_SQUIRCLE ||
     pathname === ROUTES.CALENDAR ||
+    pathname === ROUTES.KNOWLEDGE_BASE ||
     pathname.startsWith(ROUTES.JAMS) ||
     pathname.startsWith(ROUTES.SPACES);
 
@@ -94,6 +96,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="bg-background h-[100dvh] overflow-hidden">
           {children}
           <Toaster position="top-right" />
+          <UserPreferencesSync />
           <ProjectNotificationListener />
           <TeamCallNotificationListener />
           <RouteWalkthrough />
@@ -121,6 +124,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           >
             {children}
             <Toaster position="top-right" />
+            <UserPreferencesSync />
             <ProjectNotificationListener />
             <TeamCallNotificationListener />
             <RouteWalkthrough />

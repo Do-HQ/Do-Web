@@ -1,11 +1,11 @@
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import {
   ArrowUpDown,
   CircleOff,
   Ellipsis,
-  MailPlus,
+  RefreshCcw,
   SearchX,
   Send,
 } from "lucide-react";
@@ -53,8 +53,35 @@ import { WorkspaceInvite, WorkspaceRole } from "@/types/workspace";
 import dayJs from "@/lib/helpers/dayJs";
 import LoaderComponent from "../shared/loader";
 import { useWorkspacePermissions } from "@/hooks/use-workspace-permissions";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
-export const columns: ColumnDef<WorkspaceInvite>[] = [
+type InviteActionHandlers = {
+  canManageInvites: boolean;
+  isActionPending: boolean;
+  onResend: (invite: WorkspaceInvite) => void;
+  onRevoke: (invite: WorkspaceInvite) => void;
+};
+
+const getStatusLabel = (invite: WorkspaceInvite) => {
+  if (invite?.accepted) {
+    return "accepted";
+  }
+
+  const expiryTime = new Date(invite?.expiresAt || "").getTime();
+  if (Number.isFinite(expiryTime) && expiryTime <= Date.now()) {
+    return "expired";
+  }
+
+  return "pending";
+};
+
+const getColumns = ({
+  canManageInvites,
+  isActionPending,
+  onResend,
+  onRevoke,
+}: InviteActionHandlers): ColumnDef<WorkspaceInvite>[] => [
   {
     accessorKey: "email",
     header: "Email address",
@@ -107,18 +134,19 @@ export const columns: ColumnDef<WorkspaceInvite>[] = [
     accessorKey: "accepted",
     header: () => <div className="text-left">Status</div>,
     cell: ({ row }) => {
-      const text = row.getValue("accepted");
-      console.log(text, "Text");
+      const invite = row.original;
+      const status = getStatusLabel(invite);
+
       return (
         <Badge
           className={cn(
             "capitalize",
-            text
-              ? "bg-green-700/30 text-green-400"
-              : "bg-yellow-700/30 text-yellow-400",
+            status === "accepted" && "bg-green-700/30 text-green-400",
+            status === "pending" && "bg-yellow-700/30 text-yellow-400",
+            status === "expired" && "bg-zinc-700/30 text-zinc-400",
           )}
         >
-          {row.getValue("accepted") ? "Accepted" : "Pending"}
+          {status}
         </Badge>
       );
     },
@@ -127,24 +155,45 @@ export const columns: ColumnDef<WorkspaceInvite>[] = [
     id: "actions",
     enableHiding: false,
     cell: ({ row }) => {
+      const invite = row.original;
+      const status = getStatusLabel(invite);
+      const disableResend = !canManageInvites || status === "accepted" || isActionPending;
+      const disableRevoke = !canManageInvites || status !== "pending" || isActionPending;
+
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm">
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={!canManageInvites || isActionPending}
+              title={
+                !canManageInvites
+                  ? "Only workspace owners/admins can manage invites."
+                  : undefined
+              }
+            >
               <Ellipsis />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <MailPlus />
+              <DropdownMenuItem
+                disabled={disableResend}
+                onClick={() => onResend(invite)}
+              >
+                <RefreshCcw />
                 Resend Invite
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
 
             <DropdownMenuGroup>
-              <DropdownMenuItem variant="destructive">
+              <DropdownMenuItem
+                variant="destructive"
+                disabled={disableRevoke}
+                onClick={() => onRevoke(invite)}
+              >
                 <CircleOff />
                 Revoke invite
               </DropdownMenuItem>
@@ -167,9 +216,9 @@ const SettingsWorkspacePropleInvitesTable = () => {
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-
   // Utils
   const debouncedSearch = useDebounce(search, 500);
+  const queryClient = useQueryClient();
 
   // Helpers
   const handlPageUpdate = (
@@ -189,7 +238,9 @@ const SettingsWorkspacePropleInvitesTable = () => {
 
   // Stores
   const { workspaceId } = useWorkspaceStore();
-  const { canInviteWorkspaceMembers } = useWorkspacePermissions();
+  const { canInviteWorkspaceMembers, isOwner, isAdmin } =
+    useWorkspacePermissions();
+  const canManageInvites = canInviteWorkspaceMembers || isOwner || isAdmin;
 
   // Memo
   const queryParams = useMemo(
@@ -202,15 +253,134 @@ const SettingsWorkspacePropleInvitesTable = () => {
   );
 
   // Hooks
-  const { useWorkspaceInvites } = useWorkspace();
+  const { useWorkspaceInvites, useCreateWorkspaceInvite, useRevokeWorkspaceInvite } =
+    useWorkspace();
   const { data: workspaceInvitesData, isPending: isGettingWorkspaceInvites } =
     useWorkspaceInvites(workspaceId!, queryParams);
+  const createWorkspaceInviteMutation = useCreateWorkspaceInvite();
+  const revokeWorkspaceInviteMutation = useRevokeWorkspaceInvite();
 
   const workspaceInvites = workspaceInvitesData?.data?.invites ?? [];
 
+  const isInviteActionPending =
+    createWorkspaceInviteMutation.isPending || revokeWorkspaceInviteMutation.isPending;
+
+  const invalidateInviteQueries = useCallback(async () => {
+    if (!workspaceId) {
+      return;
+    }
+
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["get-workspaces-invites", workspaceId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["get-workspaces-people", workspaceId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["get-user-workspaces"],
+      }),
+    ]);
+  }, [queryClient, workspaceId]);
+
+  const handleRevokeInvite = useCallback((invite: WorkspaceInvite) => {
+    if (!workspaceId || !invite?.token || !canManageInvites) {
+      return;
+    }
+
+    const request = revokeWorkspaceInviteMutation.mutateAsync({
+      workspaceId,
+      token: invite.token,
+      reason: "Invite revoked from workspace people settings.",
+    });
+
+    toast.promise(request, {
+      loading: "Revoking workspace invite...",
+      success: async (response) => {
+        await invalidateInviteQueries();
+        return response?.data?.message || "Workspace invite revoked";
+      },
+      error: (error) =>
+        error instanceof Error
+          ? error.message
+          : "Could not revoke workspace invite",
+    });
+  }, [
+    canManageInvites,
+    invalidateInviteQueries,
+    revokeWorkspaceInviteMutation,
+    workspaceId,
+  ]);
+
+  const handleResendInvite = useCallback((invite: WorkspaceInvite) => {
+    if (!workspaceId || !invite?.email || !canManageInvites) {
+      return;
+    }
+
+    const request = (async () => {
+      const inviteStatus = getStatusLabel(invite);
+
+      if (inviteStatus === "pending" && invite.token) {
+        await revokeWorkspaceInviteMutation.mutateAsync({
+          workspaceId,
+          token: invite.token,
+          reason: "Resending workspace invite.",
+        });
+      }
+
+      const roleIds = (invite.roleIds || [])
+        .map((role) => String(role?._id || "").trim())
+        .filter(Boolean);
+
+      return createWorkspaceInviteMutation.mutateAsync({
+        workspaceId,
+        data: [
+          {
+            email: invite.email,
+            roleIds,
+          },
+        ],
+      });
+    })();
+
+    toast.promise(request, {
+      loading: "Resending workspace invite...",
+      success: async (response) => {
+        await invalidateInviteQueries();
+        return response?.data?.message || "Workspace invite resent";
+      },
+      error: (error) =>
+        error instanceof Error
+          ? error.message
+          : "Could not resend workspace invite",
+    });
+  }, [
+    canManageInvites,
+    createWorkspaceInviteMutation,
+    invalidateInviteQueries,
+    revokeWorkspaceInviteMutation,
+    workspaceId,
+  ]);
+
+  const columns = useMemo(
+    () =>
+      getColumns({
+        canManageInvites,
+        isActionPending: isInviteActionPending,
+        onResend: handleResendInvite,
+        onRevoke: handleRevokeInvite,
+      }),
+    [
+      canManageInvites,
+      handleResendInvite,
+      handleRevokeInvite,
+      isInviteActionPending,
+    ],
+  );
+
   const table = useReactTable({
     data: workspaceInvites!,
-    columns: columns,
+    columns,
     onSortingChange: setSorting,
     manualPagination: true,
     pageCount: workspaceInvitesData?.data?.pagination?.totalPages ?? -1,
@@ -239,14 +409,17 @@ const SettingsWorkspacePropleInvitesTable = () => {
         <Input
           placeholder="Search by user email..."
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(event) => {
+            setPage(1);
+            setSearch(event.target.value);
+          }}
           className="max-w-sm"
         />
         <Button
           onClick={handleOpenAddMemberModalAction}
-          disabled={!canInviteWorkspaceMembers}
+          disabled={!canManageInvites}
           title={
-            !canInviteWorkspaceMembers
+            !canManageInvites
               ? "Only workspace owners/admins can send invites."
               : undefined
           }
@@ -319,7 +492,7 @@ const SettingsWorkspacePropleInvitesTable = () => {
           </div>
         )}
       </div>
-      {workspaceInvites?.length > PAGE_LIMIT && (
+      {(workspaceInvitesData?.data?.pagination?.total || 0) > PAGE_LIMIT && (
         <div className="flex items-center justify-end space-x-2 py-4">
           <div className="space-x-2 flex items-center  gap-4">
             <Button

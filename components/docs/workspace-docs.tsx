@@ -565,7 +565,15 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
 
       queryClient.setQueryData(
         ["workspace-doc-detail", scopedWorkspaceId, doc.id],
-        (previous: any) => ({
+        (
+          previous:
+            | {
+                data?: {
+                  doc?: WorkspaceDocRecord;
+                };
+              }
+            | undefined,
+        ) => ({
           ...(previous || {}),
           data: {
             ...(previous?.data || {}),

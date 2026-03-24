@@ -10,7 +10,6 @@ import {
   WorkspaceSupportTicketInternalNotesResponse,
   UpdateWorkspaceSupportTicketRequestBody,
   WorkspaceSupportKnowledgeBaseQueryParams,
-  WorkspaceSupportKnowledgeBaseResponse,
   WorkspaceSupportStatusResponse,
   WorkspaceSupportTicketDetailResponse,
   WorkspaceSupportTicketMessagesQueryParams,
@@ -18,6 +17,7 @@ import {
   WorkspaceSupportTicketsQueryParams,
   WorkspaceSupportTicketsResponse,
 } from "@/types/support";
+import { searchWorkspaceKnowledgeBase } from "@/lib/services/workspace-knowledge-base-service";
 
 const WORKSPACE_SUPPORT_ENDPOINTS = {
   tickets: (workspaceId: string) => `/workspace/${workspaceId}/support/tickets`,
@@ -31,8 +31,6 @@ const WORKSPACE_SUPPORT_ENDPOINTS = {
     `/workspace/${workspaceId}/support/tickets/${ticketId}/messages`,
   ticketInternalNotes: (workspaceId: string, ticketId: string) =>
     `/workspace/${workspaceId}/support/tickets/${ticketId}/internal-notes`,
-  knowledgeBase: (workspaceId: string) =>
-    `/workspace/${workspaceId}/support/knowledge-base/search`,
   status: (workspaceId: string) => `/workspace/${workspaceId}/support/status`,
 };
 
@@ -212,16 +210,14 @@ export const searchWorkspaceSupportKnowledgeBase = async (
   params: WorkspaceSupportKnowledgeBaseQueryParams = {},
 ) => {
   const { query = "", limit = 6 } = params;
-
-  return await axiosInstance.get<WorkspaceSupportKnowledgeBaseResponse>(
-    WORKSPACE_SUPPORT_ENDPOINTS.knowledgeBase(workspaceId),
-    {
-      params: {
-        query,
-        limit,
-      },
-    },
-  );
+  return await searchWorkspaceKnowledgeBase(workspaceId, {
+    query,
+    limit,
+    page: 1,
+    source: "all",
+    category: "all",
+    publishState: "all",
+  });
 };
 
 export const getWorkspaceSupportStatus = async (workspaceId: string) => {

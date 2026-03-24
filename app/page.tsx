@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 import LoaderComponent from "@/components/shared/loader";
+import { getUser } from "@/lib/services/user-service";
+import { resolveUserStartRoute } from "@/lib/helpers/user-preferences";
+import useAuthStore from "@/stores/auth";
 import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -13,23 +16,43 @@ import { ArrowRight } from "lucide-react";
 
 export default function Home() {
   const router = useRouter();
+  const { setUser } = useAuthStore();
   const [checkedToken, setCheckedToken] = useState(false);
   const [hasToken, setHasToken] = useState(false);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
+    const timeoutId = window.setTimeout(async () => {
       const accessToken = localStorage.getItem(LOCAL_KEYS.TOKEN);
       const nextHasToken = Boolean(accessToken);
       setHasToken(nextHasToken);
-      setCheckedToken(true);
 
       if (nextHasToken) {
-        router.replace(ROUTES.DASHBOARD);
+        try {
+          const response = await getUser();
+          const authenticatedUser = response?.data?.user;
+          setUser(authenticatedUser);
+
+          router.replace(
+            resolveUserStartRoute({
+              user: authenticatedUser,
+              workspaceId: authenticatedUser?.currentWorkspaceId?._id,
+            }),
+          );
+          setCheckedToken(true);
+          return;
+        } catch {
+          localStorage.removeItem(LOCAL_KEYS.TOKEN);
+          localStorage.removeItem(LOCAL_KEYS.REFRESH_TOKEN);
+          setUser(null);
+          setHasToken(false);
+        }
       }
+
+      setCheckedToken(true);
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [router]);
+  }, [router, setUser]);
 
   if (!checkedToken) {
     return <LoaderComponent />;

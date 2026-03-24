@@ -93,6 +93,13 @@ export interface WorkspaceSupportKnowledgeBaseArticle {
   body: string;
   tags: string[];
   route: string;
+  source?: "doc" | "project" | "curated";
+  category?: string;
+  publishState?: "draft" | "review" | "published";
+  confidenceScore?: number;
+  featured?: boolean;
+  pinned?: boolean;
+  updatedAt?: string;
 }
 
 export interface WorkspaceSupportTicketsQueryParams {
@@ -182,6 +189,12 @@ export interface WorkspaceSupportTicketInternalNotesResponse {
 export interface WorkspaceSupportKnowledgeBaseResponse {
   message: string;
   articles: WorkspaceSupportKnowledgeBaseArticle[];
+  pagination?: Pagination;
+  facets?: {
+    sources: Array<{ value: string; count: number }>;
+    categories: Array<{ value: string; count: number }>;
+    tags: Array<{ value: string; count: number }>;
+  };
 }
 
 export interface WorkspaceSupportStatusResponse {

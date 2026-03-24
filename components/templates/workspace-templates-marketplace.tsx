@@ -65,6 +65,7 @@ import {
   WorkspaceTemplateKind,
   WorkspaceTemplateRecord,
 } from "@/types/template";
+import { useDebounce } from "@/hooks/use-debounce";
 
 type TemplateFormState = {
   kind: WorkspaceTemplateKind;
@@ -89,7 +90,9 @@ type TemplateFormState = {
   };
 };
 
-const makeDefaultFormState = (kind: WorkspaceTemplateKind): TemplateFormState => ({
+const makeDefaultFormState = (
+  kind: WorkspaceTemplateKind,
+): TemplateFormState => ({
   kind,
   name: "",
   description: "",
@@ -143,7 +146,9 @@ function templateToForm(template: WorkspaceTemplateRecord): TemplateFormState {
   };
 }
 
-function buildPayload(form: TemplateFormState): CreateWorkspaceTemplateRequestBody {
+function buildPayload(
+  form: TemplateFormState,
+): CreateWorkspaceTemplateRequestBody {
   if (form.kind === "project") {
     return {
       kind: "project",
@@ -212,11 +217,19 @@ export function WorkspaceTemplatesMarketplace() {
   const [kind, setKind] = useState<WorkspaceTemplateKind>("project");
   const [search, setSearch] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<WorkspaceTemplateRecord | null>(null);
-  const [form, setForm] = useState<TemplateFormState>(makeDefaultFormState("project"));
-  const [deleteDialog, setDeleteDialog] = useState<WorkspaceTemplateRecord | null>(null);
+  const [editingTemplate, setEditingTemplate] =
+    useState<WorkspaceTemplateRecord | null>(null);
+  const [form, setForm] = useState<TemplateFormState>(
+    makeDefaultFormState("project"),
+  );
+  const [deleteDialog, setDeleteDialog] =
+    useState<WorkspaceTemplateRecord | null>(null);
   const [projectCreateOpen, setProjectCreateOpen] = useState(false);
-  const [projectCreateTemplateId, setProjectCreateTemplateId] = useState<string>("");
+  const [projectCreateTemplateId, setProjectCreateTemplateId] =
+    useState<string>("");
+
+  // Debounce
+  const debouncedSearch = useDebounce(search, 500);
 
   const templatesQuery = useWorkspaceTemplates(
     workspaceId ?? "",
@@ -224,7 +237,7 @@ export function WorkspaceTemplatesMarketplace() {
       page: 1,
       limit: 100,
       kind,
-      search,
+      search: debouncedSearch,
       archived: false,
     },
     {
@@ -341,13 +354,12 @@ export function WorkspaceTemplatesMarketplace() {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-3">
-      <div className="rounded-2xl border border-border/35 bg-muted/15 p-4 sm:p-5">
+      <div className="rounded-lg border border-border/35 bg-muted/15 p-4 sm:p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-base font-semibold">Templates marketplace</h1>
             <p className="text-muted-foreground text-[12px]">
-              Build reusable project and task templates with placeholders like
-              {" "}
+              Build reusable project and task templates with placeholders like{" "}
               <span className="font-medium">{"{{feature}}"}</span>.
             </p>
           </div>
@@ -389,22 +401,24 @@ export function WorkspaceTemplatesMarketplace() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-border/35 bg-background/70">
+      <div className="rounded-xl bg-background/70">
         {templatesQuery.isLoading ? (
           <div className="p-6">
             <LoaderComponent />
           </div>
         ) : templates.length ? (
-          <div className="grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             {templates.map((template) => (
               <article
                 key={template.id}
-                className="group flex h-full flex-col gap-3 rounded-xl border border-border/30 bg-muted/10 p-3 transition-colors hover:bg-muted/20"
+                className="group flex h-full flex-col gap-3 rounded-lg border border-border/30 bg-muted/10 p-3 transition-colors hover:bg-muted/20"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 space-y-1">
                     <div className="flex items-center gap-2">
-                      <span className="truncate text-sm font-semibold">{template.name}</span>
+                      <span className="truncate text-sm font-semibold">
+                        {template.name}
+                      </span>
                       <Badge
                         variant="secondary"
                         className="inline-flex items-center gap-1 text-[10px] uppercase"
@@ -438,7 +452,10 @@ export function WorkspaceTemplatesMarketplace() {
                         <span className="sr-only">Template options</span>
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-44 text-[12px]">
+                    <DropdownMenuContent
+                      align="end"
+                      className="w-44 text-[12px]"
+                    >
                       <DropdownMenuItem
                         className="gap-2 py-1.5"
                         onClick={() => {
@@ -481,11 +498,17 @@ export function WorkspaceTemplatesMarketplace() {
                 ) : null}
 
                 <div className="mt-auto flex flex-wrap items-center gap-1.5 pt-0.5">
-                  {(template.placeholders || []).slice(0, 4).map((placeholder) => (
-                    <Badge key={placeholder} variant="outline" className="text-[10px] text-sky-600 dark:text-sky-400">
-                      {`{{${placeholder}}}`}
-                    </Badge>
-                  ))}
+                  {(template.placeholders || [])
+                    .slice(0, 4)
+                    .map((placeholder) => (
+                      <Badge
+                        key={placeholder}
+                        variant="outline"
+                        className="text-[10px] text-sky-600 dark:text-sky-400"
+                      >
+                        {`{{${placeholder}}}`}
+                      </Badge>
+                    ))}
                 </div>
               </article>
             ))}
@@ -502,9 +525,7 @@ export function WorkspaceTemplatesMarketplace() {
                   )}
                 </EmptyMedia>
                 <EmptyTitle className="text-[15px]">
-                  {search.trim()
-                    ? "No matching templates"
-                    : "No templates yet"}
+                  {search.trim() ? "No matching templates" : "No templates yet"}
                 </EmptyTitle>
                 <EmptyDescription className="text-[12px]">
                   {search.trim()
@@ -563,9 +584,14 @@ export function WorkspaceTemplatesMarketplace() {
                   <Input
                     value={form.name}
                     onChange={(event) =>
-                      setForm((current) => ({ ...current, name: event.target.value }))
+                      setForm((current) => ({
+                        ...current,
+                        name: event.target.value,
+                      }))
                     }
-                    placeholder={form.kind === "project" ? "Q2 Launch" : "QA Checklist"}
+                    placeholder={
+                      form.kind === "project" ? "Q2 Launch" : "QA Checklist"
+                    }
                   />
                 </div>
 
@@ -586,12 +612,16 @@ export function WorkspaceTemplatesMarketplace() {
                 <div className="rounded-lg border border-border/30 bg-muted/15 p-3">
                   <div className="text-[12px] font-medium">Placeholders</div>
                   <div className="text-muted-foreground mt-1 text-[11px] leading-5">
-                    Use placeholders in template text. They are substituted when users apply
-                    the template.
+                    Use placeholders in template text. They are substituted when
+                    users apply the template.
                   </div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {placeholderTips.map((item) => (
-                      <Badge key={item} variant="outline" className="text-[10px]">
+                      <Badge
+                        key={item}
+                        variant="outline"
+                        className="text-[10px]"
+                      >
                         {item}
                       </Badge>
                     ))}
@@ -641,7 +671,8 @@ export function WorkspaceTemplatesMarketplace() {
                               ...current,
                               project: {
                                 ...current.project,
-                                status: value as TemplateFormState["project"]["status"],
+                                status:
+                                  value as TemplateFormState["project"]["status"],
                               },
                             }))
                           }
@@ -677,7 +708,9 @@ export function WorkspaceTemplatesMarketplace() {
                           <SelectContent>
                             <SelectItem value="product">Product</SelectItem>
                             <SelectItem value="marketing">Marketing</SelectItem>
-                            <SelectItem value="operations">Operations</SelectItem>
+                            <SelectItem value="operations">
+                              Operations
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -693,7 +726,9 @@ export function WorkspaceTemplatesMarketplace() {
                               ...current,
                               project: {
                                 ...current.project,
-                                startOffsetDays: Number(event.target.value || 0),
+                                startOffsetDays: Number(
+                                  event.target.value || 0,
+                                ),
                               },
                             }))
                           }
@@ -745,7 +780,8 @@ export function WorkspaceTemplatesMarketplace() {
                               ...current,
                               task: {
                                 ...current.task,
-                                status: value as TemplateFormState["task"]["status"],
+                                status:
+                                  value as TemplateFormState["task"]["status"],
                               },
                             }))
                           }
@@ -755,7 +791,9 @@ export function WorkspaceTemplatesMarketplace() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="todo">To do</SelectItem>
-                            <SelectItem value="in-progress">In progress</SelectItem>
+                            <SelectItem value="in-progress">
+                              In progress
+                            </SelectItem>
                             <SelectItem value="review">Review</SelectItem>
                             <SelectItem value="done">Done</SelectItem>
                             <SelectItem value="blocked">Blocked</SelectItem>
@@ -771,7 +809,8 @@ export function WorkspaceTemplatesMarketplace() {
                               ...current,
                               task: {
                                 ...current.task,
-                                priority: value as TemplateFormState["task"]["priority"],
+                                priority:
+                                  value as TemplateFormState["task"]["priority"],
                               },
                             }))
                           }
@@ -842,7 +881,9 @@ export function WorkspaceTemplatesMarketplace() {
 
                     <div className="rounded-lg border border-border/25 bg-muted/10 p-3">
                       <div className="mb-2 flex items-center justify-between">
-                        <div className="text-[12px] font-medium">Subtask templates</div>
+                        <div className="text-[12px] font-medium">
+                          Subtask templates
+                        </div>
                         <Button
                           type="button"
                           size="sm"
@@ -869,7 +910,7 @@ export function WorkspaceTemplatesMarketplace() {
                         {form.task.subtasks.length ? (
                           form.task.subtasks.map((subtask, index) => (
                             <div
-                              key={`${index}-${subtask.titleTemplate}`}
+                              key={index}
                               className="grid items-center gap-2 sm:grid-cols-[1fr_8rem_auto]"
                             >
                               <Input
@@ -900,7 +941,8 @@ export function WorkspaceTemplatesMarketplace() {
                                     const next = [...current.task.subtasks];
                                     next[index] = {
                                       ...next[index],
-                                      status: value as TaskTemplateSubtaskPayload["status"],
+                                      status:
+                                        value as TaskTemplateSubtaskPayload["status"],
                                     };
 
                                     return {
@@ -918,10 +960,14 @@ export function WorkspaceTemplatesMarketplace() {
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="todo">To do</SelectItem>
-                                  <SelectItem value="in-progress">In progress</SelectItem>
+                                  <SelectItem value="in-progress">
+                                    In progress
+                                  </SelectItem>
                                   <SelectItem value="review">Review</SelectItem>
                                   <SelectItem value="done">Done</SelectItem>
-                                  <SelectItem value="blocked">Blocked</SelectItem>
+                                  <SelectItem value="blocked">
+                                    Blocked
+                                  </SelectItem>
                                 </SelectContent>
                               </Select>
                               <Button
@@ -934,7 +980,8 @@ export function WorkspaceTemplatesMarketplace() {
                                     task: {
                                       ...current.task,
                                       subtasks: current.task.subtasks.filter(
-                                        (_, subtaskIndex) => subtaskIndex !== index,
+                                        (_, subtaskIndex) =>
+                                          subtaskIndex !== index,
                                       ),
                                     },
                                   }))
@@ -956,14 +1003,19 @@ export function WorkspaceTemplatesMarketplace() {
               </div>
             </div>
             <div className="flex items-center justify-end gap-2 border-t border-border/25 px-5 py-3">
-              <Button type="button" variant="ghost" onClick={() => setEditorOpen(false)}>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setEditorOpen(false)}
+              >
                 Cancel
               </Button>
               <Button
                 type="button"
                 onClick={handleSubmit}
                 loading={
-                  createTemplateMutation.isPending || updateTemplateMutation.isPending
+                  createTemplateMutation.isPending ||
+                  updateTemplateMutation.isPending
                 }
               >
                 {editingTemplate ? "Save template" : "Create template"}
@@ -973,19 +1025,27 @@ export function WorkspaceTemplatesMarketplace() {
         </SheetContent>
       </Sheet>
 
-      <Dialog open={Boolean(deleteDialog)} onOpenChange={(open) => !open && setDeleteDialog(null)}>
+      <Dialog
+        open={Boolean(deleteDialog)}
+        onOpenChange={(open) => !open && setDeleteDialog(null)}
+      >
         <DialogContent className="sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>Delete template</DialogTitle>
             <DialogDescription>
-              Delete
-              {" "}
-              <span className="font-medium text-foreground">{deleteDialog?.name}</span>
+              Delete{" "}
+              <span className="font-medium text-foreground">
+                {deleteDialog?.name}
+              </span>
               ? This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button type="button" variant="ghost" onClick={() => setDeleteDialog(null)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setDeleteDialog(null)}
+            >
               Cancel
             </Button>
             <Button

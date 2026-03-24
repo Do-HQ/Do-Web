@@ -11,6 +11,8 @@ export const ROUTES = {
   ARCHIVE: "/archive",
   TEMPLATES: "/templates",
   DOCS: "/docs",
+  KNOWLEDGE_BASE: "/knowledge-base",
+  PORTFOLIO: "/portfolio",
   PROJECTS: "/projects",
   ASK_SQUIRCLE: "/ask-squircle",
   JAMS: "/jams",

@@ -63,7 +63,6 @@ export const PROJECT_TABS: { key: ProjectTabKey; label: string }[] = [
   { key: "files-assets", label: "Files & Assets" },
   { key: "risks-issues", label: "Risks & Issues" },
   { key: "secrets", label: "Secrets" },
-  { key: "agents-automation", label: "Automation" },
 ];
 
 export const HEATMAP_LEVEL_CLASSES: Record<ProjectHeatmapDay["level"], string> = {
@@ -680,8 +679,12 @@ export function getDerivedTaskStatusFromSubtasks(
     return "done";
   }
 
-  if (statuses.some((status) => status === "in-progress" || status === "review")) {
+  if (statuses.some((status) => status === "in-progress")) {
     return "in-progress";
+  }
+
+  if (statuses.some((status) => status === "review")) {
+    return "review";
   }
 
   if (statuses.some((status) => status === "blocked")) {

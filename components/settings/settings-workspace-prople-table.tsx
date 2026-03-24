@@ -370,7 +370,7 @@ const SettingsWorkspacePeopleTable = () => {
             .filter(Boolean)
             .join(", ") || "Workspace member",
         role: member?.roles || [],
-        activeTasks: 0,
+        activeTasks: Number(member?.activeTasks || 0),
         score: Number(member?.score || 0),
       };
     });

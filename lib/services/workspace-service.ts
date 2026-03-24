@@ -4,6 +4,7 @@ import {
   CreateWorkspaceRequestBody,
   JoinWorkspaceRequestBody,
   ModerateWorkspaceJoinRequestBody,
+  RevokeWorkspaceInviteRequestBody,
   WorkspaceInvite,
   WorkspaceJoinRequest,
   WorkspacePerson,
@@ -162,6 +163,18 @@ export const acceptWorkspaceInvite = async (
   return await axiosInstance.post<ResponseObject>(
     `${WORKSPACE_ENDPOINTS.WORKSPACE_INVITE}/accept`,
     data,
+  );
+};
+
+export const revokeWorkspaceInvite = async (
+  data: RevokeWorkspaceInviteRequestBody,
+) => {
+  return await axiosInstance.post<ResponseObject>(
+    `${WORKSPACE_ENDPOINTS.WORKSPACE_INVITE}/${data.workspaceId}/revoke`,
+    {
+      token: data.token,
+      reason: data.reason,
+    },
   );
 };
 

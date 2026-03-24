@@ -19,6 +19,44 @@ type SecretsQueryParams = {
   archived?: boolean;
 };
 
+type SecretServiceErrorPayload = {
+  message?: string;
+  description?: string;
+  code?: string;
+  approvalRequest?: unknown;
+};
+
+class WorkspaceProjectSecretServiceError extends Error {
+  status: number;
+
+  code?: string;
+
+  approvalRequest?: unknown;
+
+  response: {
+    data: SecretServiceErrorPayload;
+  };
+
+  constructor(status: number, payload: SecretServiceErrorPayload = {}) {
+    super(
+      String(payload?.description || payload?.message || "Request failed"),
+    );
+    this.name = "WorkspaceProjectSecretServiceError";
+    this.status = status;
+    this.code =
+      typeof payload?.code === "string" ? payload.code : undefined;
+    this.approvalRequest = payload?.approvalRequest;
+    this.response = {
+      data: {
+        message: payload?.message,
+        description: payload?.description,
+        code: this.code,
+        approvalRequest: payload?.approvalRequest,
+      },
+    };
+  }
+}
+
 const CLIENT_TRANSPORT_VERSION = "v1";
 
 const buildHeaders = () => {
@@ -52,12 +90,9 @@ const parseResponse = async <T>(response: Response): Promise<T> => {
       : payload;
 
   if (!response.ok) {
-    throw new Error(
-      String(
-        decodedPayload?.description ||
-          decodedPayload?.message ||
-          "Request failed",
-      ),
+    throw new WorkspaceProjectSecretServiceError(
+      response.status,
+      (decodedPayload || {}) as SecretServiceErrorPayload,
     );
   }
 
@@ -231,6 +266,7 @@ const revealWorkspaceProjectSecret = async (data: {
 
 export type { SecretsQueryParams };
 export {
+  WorkspaceProjectSecretServiceError,
   getWorkspaceProjectSecrets,
   getWorkspaceProjectSecretsPolicy,
   updateWorkspaceProjectSecretsPolicy,

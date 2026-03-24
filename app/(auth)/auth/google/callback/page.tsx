@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import LoaderComponent from "@/components/shared/loader";
 import { getUser } from "@/lib/services/user-service";
+import { resolveUserStartRoute } from "@/lib/helpers/user-preferences";
 import useAuthStore from "@/stores/auth";
 import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
 import { toast } from "sonner";
@@ -55,7 +56,12 @@ const GoogleAuthCallbackPage = () => {
           return;
         }
 
-        router.replace(ROUTES.DASHBOARD);
+        router.replace(
+          resolveUserStartRoute({
+            user,
+            workspaceId: user?.currentWorkspaceId?._id,
+          }),
+        );
       } catch {
         localStorage.removeItem(LOCAL_KEYS.TOKEN);
         localStorage.removeItem(LOCAL_KEYS.REFRESH_TOKEN);

@@ -202,6 +202,8 @@ export interface ProjectWorkflowSubtask {
   updatedAt: string;
   progress?: number;
   executionState?: ProjectExecutionState;
+  estimateHours?: number;
+  remainingHours?: number;
 }
 
 export interface ProjectWorkflowTask {
@@ -219,6 +221,8 @@ export interface ProjectWorkflowTask {
   progress?: number;
   executionState?: ProjectExecutionState;
   subtasks?: ProjectWorkflowSubtask[];
+  estimateHours?: number;
+  remainingHours?: number;
 }
 
 export interface ProjectWorkflow {
@@ -295,6 +299,8 @@ export interface ProjectSubtaskEditorValues {
   assigneeId?: string;
   startDate: string;
   dueDate: string;
+  estimateHours?: number;
+  remainingHours?: number;
 }
 
 export type ProjectTaskDraftSubtask = ProjectSubtaskEditorValues;
@@ -308,7 +314,10 @@ export interface ProjectTaskEditorValues {
   pipelineId: string;
   startDate: string;
   dueDate: string;
+  estimateHours?: number;
+  remainingHours?: number;
   sectionId?: string;
+  dependencyTaskIds?: string[];
   subtasks?: ProjectTaskDraftSubtask[];
 }
 

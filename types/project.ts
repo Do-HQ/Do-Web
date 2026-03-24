@@ -51,6 +51,7 @@ export interface CreateWorkspaceProjectWorkflowRequestBody {
 export interface UpdateWorkspaceProjectWorkflowRequestBody {
   name: string;
   teamId?: string;
+  status?: ProjectWorkflowStatus;
 }
 
 export interface CreateWorkspaceProjectTaskRequestBody {
@@ -62,6 +63,8 @@ export interface CreateWorkspaceProjectTaskRequestBody {
   pipelineId: string;
   startDate: string;
   dueDate: string;
+  estimateHours?: number;
+  remainingHours?: number;
   sectionId?: string;
   subtasks?: ProjectTaskDraftSubtask[];
 }
@@ -116,6 +119,12 @@ export interface WorkspaceProjectSecretPolicy {
   defaultVisibility: WorkspaceProjectSecretVisibility;
 }
 
+export interface WorkspaceProjectSubtaskEditorValuesWithEffort
+  extends ProjectSubtaskEditorValues {
+  estimateHours?: number;
+  remainingHours?: number;
+}
+
 export interface WorkspaceProjectSecretRecord {
   id: string;
   key: string;
@@ -148,7 +157,8 @@ export interface UpdateWorkspaceProjectSecretPolicyRequestBody {
   defaultVisibility: WorkspaceProjectSecretVisibility;
 }
 
-export type CreateWorkspaceProjectSubtaskRequestBody = ProjectSubtaskEditorValues;
+export type CreateWorkspaceProjectSubtaskRequestBody =
+  WorkspaceProjectSubtaskEditorValuesWithEffort;
 
 export type UpdateWorkspaceProjectSubtaskRequestBody =
   Partial<CreateWorkspaceProjectSubtaskRequestBody>;
@@ -184,7 +194,10 @@ export type WorkspaceProjectNotificationType =
   | "support.ticket.created"
   | "support.ticket.updated"
   | "support.ticket.message"
-  | "support.ticket.assigned";
+  | "support.ticket.assigned"
+  | "approval.requested"
+  | "approval.approved"
+  | "approval.rejected";
 
 export type WorkspaceProjectAgentRunType =
   | "standup"

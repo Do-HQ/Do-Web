@@ -16,6 +16,7 @@ import {
 import { WorkspaceProjectTaskRecord } from "@/types/project";
 import { useQueryClient } from "@tanstack/react-query";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
+import useWorkspacePortfolio from "@/hooks/use-workspace-portfolio";
 import useWorkspace from "@/hooks/use-workspace";
 import { useWorkspacePermissions } from "@/hooks/use-workspace-permissions";
 import { cn } from "@/lib/utils";
@@ -32,6 +33,7 @@ import {
   ProjectTaskEditorValues,
   ProjectTaskStatus,
   ProjectWorkflow,
+  ProjectWorkflowSubtask,
   ProjectWorkflowEditorValues,
   ProjectWorkflowView,
 } from "./types";
@@ -175,13 +177,12 @@ function deriveStatusFromSubtasks(subtasks: Array<{ status: ProjectTaskStatus }>
     return "done";
   }
 
-  if (
-    subtasks.some(
-      (subtask) =>
-        subtask.status === "in-progress" || subtask.status === "review",
-    )
-  ) {
+  if (subtasks.some((subtask) => subtask.status === "in-progress")) {
     return "in-progress";
+  }
+
+  if (subtasks.some((subtask) => subtask.status === "review")) {
+    return "review";
   }
 
   if (subtasks.some((subtask) => subtask.status === "blocked")) {
@@ -194,15 +195,18 @@ function deriveStatusFromSubtasks(subtasks: Array<{ status: ProjectTaskStatus }>
 function alignTaskSubtasksForLaneMove(
   task: ProjectWorkflow["tasks"][number] | undefined,
   nextStatus: ProjectTaskStatus,
-) {
-  const subtasks = Array.isArray(task?.subtasks) ? task.subtasks : [];
+): ProjectWorkflowSubtask[] {
+  const subtasks: ProjectWorkflowSubtask[] = Array.isArray(task?.subtasks)
+    ? (task.subtasks as ProjectWorkflowSubtask[])
+    : [];
 
   if (!subtasks.length) {
     return subtasks;
   }
 
-  const nextSubtasks = subtasks.map((subtask) => ({
+  const nextSubtasks: ProjectWorkflowSubtask[] = subtasks.map((subtask) => ({
     ...subtask,
+    status: (subtask.status as ProjectTaskStatus) ?? "todo",
     updatedAt: "Just now",
   }));
 
@@ -221,31 +225,50 @@ function alignTaskSubtasksForLaneMove(
   }
 
   if (nextStatus === "blocked") {
-    const candidateIndex = nextSubtasks.findIndex(
-      (subtask) => subtask.status !== "done",
+    const hasOpenSubtask = nextSubtasks.some((subtask) => subtask.status !== "done");
+
+    if (!hasOpenSubtask) {
+      nextSubtasks[0] = {
+        ...nextSubtasks[0],
+        status: "blocked",
+        updatedAt: "Just now",
+      };
+      return nextSubtasks;
+    }
+
+    return nextSubtasks.map((subtask) =>
+      subtask.status === "done"
+        ? subtask
+        : {
+            ...subtask,
+            status: "blocked" as ProjectTaskStatus,
+            updatedAt: "Just now",
+          },
     );
-    const targetIndex = candidateIndex >= 0 ? candidateIndex : 0;
-    nextSubtasks[targetIndex] = {
-      ...nextSubtasks[targetIndex],
-      status: "blocked",
-      updatedAt: "Just now",
-    };
-    return nextSubtasks;
   }
 
   if (nextStatus === "in-progress" || nextStatus === "review") {
-    const activeStatus: ProjectTaskStatus =
-      nextStatus === "review" ? "review" : "in-progress";
-    const candidateIndex = nextSubtasks.findIndex(
-      (subtask) => subtask.status !== "done",
+    const activeStatus: ProjectTaskStatus = nextStatus === "review" ? "review" : "in-progress";
+    const hasOpenSubtask = nextSubtasks.some((subtask) => subtask.status !== "done");
+
+    if (!hasOpenSubtask) {
+      nextSubtasks[0] = {
+        ...nextSubtasks[0],
+        status: activeStatus,
+        updatedAt: "Just now",
+      };
+      return nextSubtasks;
+    }
+
+    return nextSubtasks.map((subtask) =>
+      subtask.status === "done"
+        ? subtask
+        : {
+            ...subtask,
+            status: activeStatus as ProjectTaskStatus,
+            updatedAt: "Just now",
+          },
     );
-    const targetIndex = candidateIndex >= 0 ? candidateIndex : 0;
-    nextSubtasks[targetIndex] = {
-      ...nextSubtasks[targetIndex],
-      status: activeStatus,
-      updatedAt: "Just now",
-    };
-    return nextSubtasks;
   }
 
   if (nextStatus === "todo") {
@@ -258,19 +281,15 @@ function alignTaskSubtasksForLaneMove(
       return nextSubtasks;
     }
 
-    const hasTodo = nextSubtasks.some((subtask) => subtask.status === "todo");
-    if (!hasTodo) {
-      const candidateIndex = nextSubtasks.findIndex(
-        (subtask) => subtask.status !== "done",
-      );
-      if (candidateIndex >= 0) {
-        nextSubtasks[candidateIndex] = {
-          ...nextSubtasks[candidateIndex],
-          status: "todo",
-          updatedAt: "Just now",
-        };
-      }
-    }
+    return nextSubtasks.map((subtask) =>
+      subtask.status === "done"
+        ? subtask
+        : {
+            ...subtask,
+            status: "todo" as ProjectTaskStatus,
+            updatedAt: "Just now",
+          },
+    );
   }
 
   return nextSubtasks;
@@ -313,6 +332,7 @@ export default function ProjectOverview({
   const workspacePermissions = useWorkspacePermissions();
   const queryClient = useQueryClient();
   const workspaceHook = useWorkspace();
+  const workspacePortfolioHook = useWorkspacePortfolio();
   const {
     useWorkspaceProjectDetail,
     useWorkspaceProjectWorkflows,
@@ -489,6 +509,8 @@ export default function ProjectOverview({
       }
     },
   });
+  const { useCreateWorkspaceTaskDependency } = workspacePortfolioHook;
+  const createWorkspaceTaskDependencyMutation = useCreateWorkspaceTaskDependency();
 
   const [activeTab, setActiveTab] = useState<ProjectTabKey>(
     initialTab ?? "overview",
@@ -1445,6 +1467,18 @@ export default function ProjectOverview({
     });
   };
 
+  const dependencyTaskOptions = project.workflows
+    .filter((workflow) => !workflow.archived)
+    .flatMap((workflow) =>
+      workflow.tasks.map((task) => ({
+        id: String(task.id || "").trim(),
+        title: String(task.title || "").trim() || "Untitled task",
+        workflowId: String(workflow.id || "").trim(),
+        workflowName: String(workflow.name || "").trim() || "Workflow",
+      })),
+    )
+    .filter((option) => option.id);
+
   const moveTaskToStatus = (
     workflowId: string,
     taskId: string,
@@ -1601,7 +1635,7 @@ export default function ProjectOverview({
     );
   };
 
-  const handleTaskSubmit = (values: ProjectTaskEditorValues) => {
+  const handleTaskSubmit = async (values: ProjectTaskEditorValues) => {
     if (!taskSheetState) {
       return;
     }
@@ -1648,20 +1682,60 @@ export default function ProjectOverview({
       return;
     }
 
-    createWorkspaceProjectTaskMutation.mutate(
-      {
+    try {
+      const createResponse = await createWorkspaceProjectTaskMutation.mutateAsync({
         workspaceId,
         projectId,
         workflowId: taskSheetState.workflowId,
         payload,
-      },
-      {
-        onSuccess: () => {
-          toast("Task created.");
-          setTaskSheetState(null);
-        },
-      },
-    );
+      });
+
+      const createdTaskId = String(createResponse.data?.task?.id || "").trim();
+      const nextDependencyTaskIds = [
+        ...new Set(
+          (values.dependencyTaskIds ?? [])
+            .map((taskId) => String(taskId || "").trim())
+            .filter(Boolean),
+        ),
+      ].filter((taskId) => taskId !== createdTaskId);
+
+      if (createdTaskId && nextDependencyTaskIds.length) {
+        const dependencyResults = await Promise.allSettled(
+          nextDependencyTaskIds.map((sourceTaskId) =>
+            createWorkspaceTaskDependencyMutation.mutateAsync({
+              workspaceId,
+              payload: {
+                projectId,
+                sourceTaskId,
+                targetTaskId: createdTaskId,
+              },
+            }),
+          ),
+        );
+        const failedCount = dependencyResults.filter(
+          (result) => result.status === "rejected",
+        ).length;
+
+        if (failedCount) {
+          toast(
+            `Task created. ${nextDependencyTaskIds.length - failedCount}/${nextDependencyTaskIds.length} dependencies linked.`,
+          );
+        } else {
+          toast(
+            `Task created with ${nextDependencyTaskIds.length} dependency${nextDependencyTaskIds.length > 1 ? "ies" : ""}.`,
+          );
+        }
+      } else {
+        toast("Task created.");
+      }
+
+      setTaskSheetState(null);
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-portfolio-dependencies", workspaceId],
+      });
+    } catch {
+      // Global error handling is already managed in the mutation hooks.
+    }
   };
 
   const handleWorkflowAction = (
@@ -2188,11 +2262,14 @@ export default function ProjectOverview({
           key={`task-${taskSheetState.mode}-${taskSheetState.taskId ?? "new"}-${taskSheetState.seedBlankSubtask ? "seed" : "plain"}`}
           open
           mode={taskSheetState.mode}
+          workflowId={taskSheetWorkflow.id}
           workflowName={taskSheetWorkflow.name}
           members={resolvedMembers}
           teams={project.teams}
           pipelines={project.pipelines}
           sections={project.customSections ?? []}
+          dependencyOptions={dependencyTaskOptions}
+          currentTaskId={taskForSheet?.id}
           initialValues={
             taskSheetState.mode === "edit" && taskForSheet
               ? {

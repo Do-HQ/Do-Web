@@ -768,7 +768,7 @@ const UserDashboard = () => {
   if (!resolvedWorkspaceId) {
     return (
       <div className="mx-auto w-full max-w-6xl">
-        <Empty className="border-border/50 bg-card/70 min-h-[26rem] rounded-2xl border">
+        <Empty className="border-border/50 bg-card/70 min-h-[26rem] rounded-2xl">
           <EmptyHeader>
             <EmptyMedia variant="icon">
               <Layers3 />
@@ -793,7 +793,7 @@ const UserDashboard = () => {
   return (
     <div
       data-tour="dashboard-shell"
-      className="mx-auto flex w-full max-w-6xl flex-col gap-4 pb-2"
+      className="mx-auto flex w-full max-w-6xl flex-col gap-4 pb-2 "
     >
       <section
         data-tour="dashboard-hero"
