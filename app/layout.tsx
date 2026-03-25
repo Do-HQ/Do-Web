@@ -5,6 +5,9 @@ import "@excalidraw/excalidraw/index.css";
 import ReactQueryContextProvider from "@/lib/context/queryClient";
 import { ThemeProvider } from "next-themes";
 
+const DEFAULT_PREVIEW_IMAGE =
+  "https://res.cloudinary.com/dgiropjpp/image/upload/v1774470169/Logo_maker_project-2_1_2_wh3vxm.png";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -45,7 +48,7 @@ export const metadata: Metadata = {
     siteName: "Squircle",
     images: [
       {
-        url: "https://res.cloudinary.com/dgiropjpp/image/upload/v1769595973/Logo_maker_project-1_kh0vdk.png",
+        url: DEFAULT_PREVIEW_IMAGE,
         width: 1200,
         height: 630,
         alt: "Squircle – Modern workspace & productivity platform",
@@ -60,9 +63,7 @@ export const metadata: Metadata = {
     title: "Squircle – Where Teams Turn Ideas into Action",
     description:
       "Capture ideas, build plans, collaborate in real-time, and switch workspaces effortlessly.",
-    images: [
-      "https://res.cloudinary.com/dgiropjpp/image/upload/v1769595973/Logo_maker_project-1_kh0vdk.png",
-    ],
+    images: [DEFAULT_PREVIEW_IMAGE],
     site: "@squircle",
     creator: "@squircle",
   },
