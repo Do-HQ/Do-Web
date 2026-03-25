@@ -1,4 +1,8 @@
-import { WALKTHROUGH_VERSION, type WalkthroughSection } from "./steps";
+import {
+  SETTINGS_WALKTHROUGH_SECTIONS,
+  WALKTHROUGH_VERSION,
+  type WalkthroughSection,
+} from "./steps";
 
 const WALKTHROUGH_PREFIX = `squircle:walkthrough:v${WALKTHROUGH_VERSION}`;
 
@@ -15,6 +19,15 @@ export const isWalkthroughCompleted = (
     return false;
   }
 
+  if (section === "settings") {
+    return SETTINGS_WALKTHROUGH_SECTIONS.some(
+      (settingsSection) =>
+        window.localStorage.getItem(
+          getWalkthroughStorageKey(userId, settingsSection),
+        ) === "done",
+    );
+  }
+
   return (
     window.localStorage.getItem(getWalkthroughStorageKey(userId, section)) ===
     "done"
@@ -26,6 +39,16 @@ export const markWalkthroughCompleted = (
   section: WalkthroughSection,
 ) => {
   if (typeof window === "undefined" || !userId) {
+    return;
+  }
+
+  if (section === "settings") {
+    SETTINGS_WALKTHROUGH_SECTIONS.forEach((settingsSection) => {
+      window.localStorage.setItem(
+        getWalkthroughStorageKey(userId, settingsSection),
+        "done",
+      );
+    });
     return;
   }
 
@@ -58,4 +81,3 @@ export const resetWalkthroughForUser = (userId?: string) => {
 
   keysToRemove.forEach((key) => window.localStorage.removeItem(key));
 };
-

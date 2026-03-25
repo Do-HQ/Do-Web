@@ -96,6 +96,24 @@ const subscribeSpaceRoom = ({
   return socket;
 };
 
+const subscribeWorkspaceSpaces = ({
+  workspaceId,
+}: {
+  workspaceId: string;
+}) => {
+  const socket = getSpacesSocket();
+
+  if (!socket.connected) {
+    socket.connect();
+  }
+
+  socket.emit("spaces:workspace:subscribe", {
+    workspaceId,
+  });
+
+  return socket;
+};
+
 const unsubscribeSpaceRoom = ({
   workspaceId,
   roomId,
@@ -113,6 +131,20 @@ const unsubscribeSpaceRoom = ({
   });
 };
 
+const unsubscribeWorkspaceSpaces = ({
+  workspaceId,
+}: {
+  workspaceId: string;
+}) => {
+  if (!spacesSocket) {
+    return;
+  }
+
+  spacesSocket.emit("spaces:workspace:unsubscribe", {
+    workspaceId,
+  });
+};
+
 export type {
   SpaceMessageEventPayload,
   SpaceMessageDeletedEventPayload,
@@ -120,6 +152,8 @@ export type {
 };
 export {
   getSpacesSocket,
+  subscribeWorkspaceSpaces,
   subscribeSpaceRoom,
+  unsubscribeWorkspaceSpaces,
   unsubscribeSpaceRoom,
 };

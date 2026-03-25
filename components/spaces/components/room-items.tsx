@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Hash, Lock, Phone, Star, Users } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useFavoritesStore } from "@/stores";
@@ -22,11 +23,22 @@ const RoomItems = ({ roomEntries, activeRoomId, onPick }: RoomItemsProps) => {
   );
 
   return roomEntries.map((room) => {
-    const ScopeIcon = SCOPE_META[room.scope].icon;
     const isActive = room.id === activeRoomId;
     const isDirectChat = isDirectRoom(room);
     const favoriteKey = `chat:${room.id}`;
     const isFavorite = favoriteKeys.has(favoriteKey);
+    const avatarFallback =
+      String(room.avatarFallback || "")
+        .trim()
+        .slice(0, 2)
+        .toUpperCase() ||
+      room.name
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase() || "")
+        .join("") ||
+      "SP";
 
     return (
       <div
@@ -48,7 +60,12 @@ const RoomItems = ({ roomEntries, activeRoomId, onPick }: RoomItemsProps) => {
         )}
       >
         <div className="flex items-center gap-1.5">
-          <ScopeIcon className="text-muted-foreground size-4" />
+          <Avatar className="size-5 rounded-sm">
+            <AvatarImage src={room.avatarUrl} alt={room.name} />
+            <AvatarFallback className="rounded-sm text-[10px]">
+              {avatarFallback}
+            </AvatarFallback>
+          </Avatar>
           <p className="truncate text-[13px] font-medium">{room.name}</p>
           <button
             type="button"

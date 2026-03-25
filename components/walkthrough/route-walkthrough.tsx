@@ -3,9 +3,10 @@
 import * as React from "react";
 import { driver, type DriveStep } from "driver.js";
 import "driver.js/dist/driver.css";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import useAuthStore from "@/stores/auth";
+import { useAppStore } from "@/stores";
 import { ROUTES } from "@/utils/constants";
 
 import {
@@ -20,7 +21,13 @@ import "./walkthrough.css";
 
 const getWalkthroughSection = (
   pathname: string,
+  projectTab: string,
+  showSettings: boolean,
 ): WalkthroughSection | null => {
+  if (showSettings) {
+    return "settings";
+  }
+
   if (pathname === ROUTES.DASHBOARD) {
     return "dashboard";
   }
@@ -29,8 +36,39 @@ const getWalkthroughSection = (
     return "spaces";
   }
 
+  if (pathname === ROUTES.SUPPORT) {
+    return "support";
+  }
+
+  if (pathname === ROUTES.SUPPORT_ADMIN) {
+    return "support-admin";
+  }
+
+  if (pathname.startsWith(`${ROUTES.SUPPORT}/tickets/`)) {
+    return "support-thread";
+  }
+
+  if (pathname.startsWith(`${ROUTES.SUPPORT_ADMIN}/tickets/`)) {
+    return "support-admin-thread";
+  }
+
   if (pathname.startsWith("/projects/")) {
-    return "projects";
+    switch (String(projectTab || "").trim().toLowerCase()) {
+      case "workflows":
+        return "projects-workflows";
+      case "dos":
+        return "projects-dos";
+      case "files-assets":
+        return "projects-files-assets";
+      case "risks-issues":
+        return "projects-risks-issues";
+      case "secrets":
+        return "projects-secrets";
+      case "agents-automation":
+        return "projects-agents-automation";
+      default:
+        return "projects-overview";
+    }
   }
 
   if (pathname === ROUTES.CALENDAR) {
@@ -43,6 +81,30 @@ const getWalkthroughSection = (
 
   if (pathname.startsWith(`${ROUTES.JAMS}/`)) {
     return "jam-canvas";
+  }
+
+  if (pathname === ROUTES.DOCS) {
+    return "docs-index";
+  }
+
+  if (pathname.startsWith(`${ROUTES.DOCS}/`)) {
+    return "docs-editor";
+  }
+
+  if (pathname === ROUTES.KNOWLEDGE_BASE) {
+    return "knowledge-base";
+  }
+
+  if (pathname === ROUTES.PORTFOLIO) {
+    return "portfolio";
+  }
+
+  if (pathname === ROUTES.TEMPLATES) {
+    return "templates";
+  }
+
+  if (pathname === ROUTES.ARCHIVE) {
+    return "archive";
   }
 
   return null;
@@ -64,20 +126,61 @@ const resolveStepElement = (step: DriveStep) => {
   return Boolean(step.element);
 };
 
+const cleanupWalkthroughArtifacts = () => {
+  if (typeof document === "undefined") {
+    return;
+  }
+
+  const classNames = ["driver-active", "driver-fade", "driver-no-interaction"];
+
+  [document.body, document.documentElement].forEach((node) => {
+    if (!node) {
+      return;
+    }
+
+    classNames.forEach((className) => node.classList.remove(className));
+    node.style.removeProperty("overflow");
+    node.style.removeProperty("pointer-events");
+  });
+
+  document
+    .querySelectorAll(".driver-active, .driver-active-element, .driver-no-interaction")
+    .forEach((node) => {
+      classNames.forEach((className) => node.classList.remove(className));
+      if (node instanceof HTMLElement) {
+        node.style.removeProperty("overflow");
+        node.style.removeProperty("pointer-events");
+      }
+    });
+
+  document
+    .querySelectorAll(".driver-popover, .driver-overlay")
+    .forEach((node) => node.remove());
+};
+
 const RouteWalkthrough = () => {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { showSettings } = useAppStore();
   const { user } = useAuthStore();
   const driverRef = React.useRef<ReturnType<typeof driver> | null>(null);
   const startedRef = React.useRef(false);
 
   const userId = String(user?._id || "").trim();
+  const projectTab = String(searchParams?.get("tab") || "overview");
   const section = React.useMemo(
-    () => getWalkthroughSection(pathname),
-    [pathname],
+    () =>
+      getWalkthroughSection(
+        pathname,
+        projectTab,
+        Boolean(showSettings),
+      ),
+    [pathname, projectTab, showSettings],
   );
 
   React.useEffect(() => {
     if (!section || !userId || typeof window === "undefined") {
+      cleanupWalkthroughArtifacts();
       return;
     }
 
@@ -104,6 +207,7 @@ const RouteWalkthrough = () => {
       startedRef.current = true;
 
       driverRef.current?.destroy();
+      cleanupWalkthroughArtifacts();
       driverRef.current = driver({
         steps: availableSteps,
         animate: true,
@@ -119,6 +223,7 @@ const RouteWalkthrough = () => {
         doneBtnText: "Done",
         popoverClass: "sq-walkthrough-popover",
         onDestroyed: () => {
+          cleanupWalkthroughArtifacts();
           if (!startedRef.current) {
             return;
           }
@@ -145,6 +250,7 @@ const RouteWalkthrough = () => {
       if (driverRef.current?.isActive()) {
         driverRef.current.destroy();
       }
+      cleanupWalkthroughArtifacts();
     };
   }, [section, userId]);
 

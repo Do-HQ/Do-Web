@@ -584,8 +584,14 @@ export function ProjectSecretsTab({
 
   return (
     <>
-      <section className="overflow-hidden rounded-xl border border-border/35 bg-card/75 shadow-xs">
-        <div className="flex flex-col gap-3 border-b border-border/20 px-3 py-3 md:px-4">
+      <section
+        data-tour="project-secrets-shell"
+        className="overflow-hidden rounded-xl border border-border/35 bg-card/75 shadow-xs"
+      >
+        <div
+          data-tour="project-secrets-controls"
+          className="flex flex-col gap-3 border-b border-border/20 px-3 py-3 md:px-4"
+        >
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="text-[14px] font-semibold md:text-[15px]">
@@ -635,7 +641,7 @@ export function ProjectSecretsTab({
           <LoaderComponent />
         ) : secrets.length ? (
           <>
-            <div className="divide-y divide-border/20 lg:hidden">
+            <div data-tour="project-secrets-list" className="divide-y divide-border/20 lg:hidden">
               {secrets.map((secret) => {
                 const assignedMembers = members.filter((member) =>
                   secret.memberIds.includes(member.id),
@@ -771,7 +777,7 @@ export function ProjectSecretsTab({
               })}
             </div>
 
-            <div className="hidden overflow-x-auto lg:block">
+            <div data-tour="project-secrets-list" className="hidden overflow-x-auto lg:block">
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">

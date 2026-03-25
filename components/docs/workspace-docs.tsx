@@ -1413,13 +1413,17 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
   return (
     <>
       <div
+        data-tour={isDetailRoute ? "docs-editor-shell" : "docs-index-shell"}
         className={cn(
           "grid h-full min-h-0 gap-3",
           isDetailRoute ? "grid-cols-1" : "lg:grid-cols-[17rem_minmax(0,1fr)]",
         )}
       >
         {!isDetailRoute ? (
-          <aside className="bg-card/35 ring-border/35 flex min-h-[calc(100svh-8.6rem)] flex-col rounded-md p-2 ring-1">
+          <aside
+            data-tour="docs-index-sidebar"
+            className="bg-card/35 ring-border/35 flex min-h-[calc(100svh-8.6rem)] flex-col rounded-md p-2 ring-1"
+          >
             <div className="mb-2 flex items-center justify-between gap-2 px-1">
               <div>
                 <h2 className="text-[13px] font-semibold">Workspace docs</h2>
@@ -1432,6 +1436,7 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
                 size="icon"
                 variant="outline"
                 className="size-8"
+                data-tour="docs-index-create"
                 onClick={() => void handleCreateDoc()}
                 disabled={!workspaceId || createDocMutation.isPending}
               >
@@ -1493,7 +1498,10 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
               </p>
             </div>
 
-            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-1">
+            <div
+              data-tour="docs-index-results"
+              className="min-h-0 flex-1 space-y-1 overflow-y-auto px-1"
+            >
               {mainLoading ? (
                 <LoaderComponent />
               ) : docsForScope.length ? (
@@ -1635,7 +1643,10 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
             </div>
           ) : selectedDoc ? (
             <div className="flex h-full min-h-0 flex-col overflow-y-auto">
-              <div className="bg-background/92 sticky top-0 z-30 shrink-0 border-b backdrop-blur supports-[backdrop-filter]:bg-background/80">
+              <div
+                data-tour="docs-editor-header"
+                className="bg-background/92 sticky top-0 z-30 shrink-0 border-b backdrop-blur supports-[backdrop-filter]:bg-background/80"
+              >
                 <div className="flex min-h-14 items-center gap-2 px-3">
                   <SidebarTrigger />
                   <SidebarSeparator
@@ -1691,6 +1702,7 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
                         <PopoverTrigger asChild>
                           <Button
                             type="button"
+                            data-tour="docs-editor-share"
                             variant="outline"
                             size="sm"
                             className="h-8 gap-1.5 px-2.5 text-[11.5px]"
@@ -2215,7 +2227,10 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
                 </div>
               </div>
 
-              <div className="min-h-0 flex-1 px-3 py-4 md:px-5">
+              <div
+                data-tour="docs-editor-surface"
+                className="min-h-0 flex-1 px-3 py-4 md:px-5"
+              >
                 <div className="mx-auto w-full max-w-[58rem]">
                   <WorkspaceDocEditor
                     key={selectedDoc.id}

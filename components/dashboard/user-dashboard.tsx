@@ -14,6 +14,7 @@ import {
   FilePenLine,
   FolderKanban,
   GitBranch,
+  GraduationCap,
   Layers3,
   MessageCircleMore,
   Sparkles,
@@ -24,6 +25,7 @@ import {
 import useWorkspaceJam from "@/hooks/use-workspace-jam";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
 import useWorkspaceSpace from "@/hooks/use-workspace-space";
+import useWorkspace from "@/hooks/use-workspace";
 import { useWorkspacePermissions } from "@/hooks/use-workspace-permissions";
 import {
   getRecentVisits,
@@ -297,6 +299,7 @@ const UserDashboard = () => {
   const projectHook = useWorkspaceProject();
   const spaceHook = useWorkspaceSpace();
   const jamHook = useWorkspaceJam();
+  const workspaceHook = useWorkspace();
 
   const resolvedWorkspaceId = React.useMemo(
     () => String(workspaceId || user?.currentWorkspaceId?._id || "").trim(),
@@ -327,6 +330,13 @@ const UserDashboard = () => {
       () => ({ page: 1, limit: 16, archived: false, includeSnapshot: false }),
       [],
     ),
+  );
+
+  const onboardingQuery = workspaceHook.useWorkspaceOnboarding(
+    resolvedWorkspaceId,
+    {
+      enabled: !!resolvedWorkspaceId,
+    },
   );
 
   const projects = React.useMemo<WorkspaceProjectRecord[]>(
@@ -461,6 +471,8 @@ const UserDashboard = () => {
     () => rooms.reduce((total, room) => total + Number(room.unread || 0), 0),
     [rooms],
   );
+
+  const onboardingPrompt = onboardingQuery.data?.data?.onboarding;
 
   const upcomingItems = React.useMemo<DashboardUpcomingItem[]>(() => {
     const now = Date.now();
@@ -876,6 +888,39 @@ const UserDashboard = () => {
           </div>
         </div>
       </section>
+
+      {onboardingPrompt?.shouldPrompt ? (
+        <section className="bg-card/70 border-border/55 rounded-xl border p-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase text-muted-foreground">
+                <GraduationCap className="size-3.5" />
+                Workspace onboarding
+              </div>
+              <h2 className="text-[15px] font-semibold">
+                {onboardingPrompt.kit.title}
+              </h2>
+              <p className="text-muted-foreground text-[12px]">
+                {onboardingPrompt.progress.completedRequiredCount}/
+                {onboardingPrompt.progress.requiredCount ||
+                  onboardingPrompt.progress.totalCount}{" "}
+                required items complete. Finish the guided checklist your
+                workspace prepared for new members.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="outline" className="text-[11px]">
+                {onboardingPrompt.progress.percentComplete}% complete
+              </Badge>
+              <Link href={ROUTES.ONBOARDING} className={buttonVariants({ size: "sm" })}>
+                Continue onboarding
+                <ArrowRight className="size-4" />
+              </Link>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <DashboardSection
         tourId="dashboard-recents"

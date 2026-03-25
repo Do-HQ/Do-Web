@@ -60,6 +60,55 @@ export interface WorkspaceWorkSchedule {
   };
 }
 
+export type WorkspaceOnboardingItemType =
+  | "doc"
+  | "knowledge-base"
+  | "video"
+  | "link";
+
+export interface WorkspaceOnboardingKitItem {
+  id: string;
+  type: WorkspaceOnboardingItemType;
+  title: string;
+  description: string;
+  required: boolean;
+  docId?: string | null;
+  articleId?: string | null;
+  route?: string | null;
+  url?: string | null;
+  thumbnailUrl?: string | null;
+  completed?: boolean;
+}
+
+export interface WorkspaceOnboardingKit {
+  enabled: boolean;
+  title: string;
+  description: string;
+  items: WorkspaceOnboardingKitItem[];
+}
+
+export interface WorkspaceOnboardingProgress {
+  startedAt: string | null;
+  completedAt: string | null;
+  lastViewedAt: string | null;
+  completedItemIds: string[];
+  totalCount: number;
+  completedCount: number;
+  requiredCount: number;
+  completedRequiredCount: number;
+  percentComplete: number;
+  allRequiredCompleted: boolean;
+}
+
+export interface WorkspaceOnboardingState {
+  workspaceId: string;
+  workspaceName: string;
+  isWorkspaceOwner: boolean;
+  shouldPrompt: boolean;
+  kit: WorkspaceOnboardingKit;
+  progress: WorkspaceOnboardingProgress;
+}
+
 export interface WorkspaceType {
   _id: string;
   name: string;
@@ -75,6 +124,7 @@ export interface WorkspaceType {
   governance?: WorkspaceGovernanceSettings;
   workSchedule?: WorkspaceWorkSchedule;
   knowledgeBase?: WorkspaceKnowledgeBaseSettings;
+  onboardingKit?: WorkspaceOnboardingKit;
 }
 
 export interface JoinWorkspaceRequestBody {
@@ -100,6 +150,7 @@ export interface WorkspaceSettingsUpdateBody {
   flowDefaults?: Partial<WorkspaceFlowDefaults>;
   governance?: Partial<WorkspaceGovernanceSettings>;
   workSchedule?: Partial<WorkspaceWorkSchedule>;
+  onboardingKit?: Partial<WorkspaceOnboardingKit>;
   knowledgeBase?: {
     sourceIndexing?: Partial<WorkspaceKnowledgeBaseSourceIndexingSettings>;
     agentBehavior?: Partial<WorkspaceKnowledgeBaseAgentBehaviorSettings>;

@@ -180,49 +180,53 @@ export function ProjectWorkflowsTab({
 
   return (
     <>
-      <div className="flex flex-col gap-3 md:gap-4">
-        <ProjectWorkflowDurationChart
-          summaries={timingSummaries}
-          selectedWorkflowId={effectiveSelectedWorkflowId}
-          onSelectWorkflow={handleOpenWorkflowDetails}
-        />
+      <div data-tour="project-workflows-shell" className="flex flex-col gap-3 md:gap-4">
+        <div data-tour="project-workflows-chart">
+          <ProjectWorkflowDurationChart
+            summaries={timingSummaries}
+            selectedWorkflowId={effectiveSelectedWorkflowId}
+            onSelectWorkflow={handleOpenWorkflowDetails}
+          />
+        </div>
 
-        <ProjectWorkflowsTable
-          projectId={projectId}
-          workflows={workflows}
-          loading={loading}
-          sortMode={sortMode}
-          onSortModeChange={onSortModeChange}
-          pagination={pagination}
-          onPreviousPage={onPreviousPage}
-          onNextPage={onNextPage}
-          members={members}
-          teams={teams}
-          selectedPipeline={selectedPipeline}
-          selectedTeamId={selectedTeamId}
-          onTeamChange={onTeamChange}
-          startDate={startDate}
-          onStartDateChange={onStartDateChange}
-          view={view}
-          onViewChange={onViewChange}
-          selectedWorkflowId={effectiveSelectedWorkflowId}
-          onSelectWorkflow={setSelectedWorkflowId}
-          onOpenWorkflowDetails={handleOpenWorkflowDetails}
-          expandedWorkflowIds={expandedWorkflowIds}
-          onToggleWorkflow={handleToggleWorkflow}
-          expandedTaskIds={expandedTaskIds}
-          onToggleTask={handleToggleTask}
-          onCreateWorkflow={onCreateWorkflow}
-          onEditWorkflow={onEditWorkflow}
-          onCreateTask={handleCreateTask}
-          onEditTask={onEditTask}
-          onCreateSubtask={handleCreateSubtask}
-          onEditSubtask={onEditSubtask}
-          onWorkflowAction={onWorkflowAction}
-          onTaskAction={onTaskAction}
-          onSubtaskAction={onSubtaskAction}
-          canManageWorkflowActions={canManageWorkflowActions}
-        />
+        <div data-tour="project-workflows-table">
+          <ProjectWorkflowsTable
+            projectId={projectId}
+            workflows={workflows}
+            loading={loading}
+            sortMode={sortMode}
+            onSortModeChange={onSortModeChange}
+            pagination={pagination}
+            onPreviousPage={onPreviousPage}
+            onNextPage={onNextPage}
+            members={members}
+            teams={teams}
+            selectedPipeline={selectedPipeline}
+            selectedTeamId={selectedTeamId}
+            onTeamChange={onTeamChange}
+            startDate={startDate}
+            onStartDateChange={onStartDateChange}
+            view={view}
+            onViewChange={onViewChange}
+            selectedWorkflowId={effectiveSelectedWorkflowId}
+            onSelectWorkflow={setSelectedWorkflowId}
+            onOpenWorkflowDetails={handleOpenWorkflowDetails}
+            expandedWorkflowIds={expandedWorkflowIds}
+            onToggleWorkflow={handleToggleWorkflow}
+            expandedTaskIds={expandedTaskIds}
+            onToggleTask={handleToggleTask}
+            onCreateWorkflow={onCreateWorkflow}
+            onEditWorkflow={onEditWorkflow}
+            onCreateTask={handleCreateTask}
+            onEditTask={onEditTask}
+            onCreateSubtask={handleCreateSubtask}
+            onEditSubtask={onEditSubtask}
+            onWorkflowAction={onWorkflowAction}
+            onTaskAction={onTaskAction}
+            onSubtaskAction={onSubtaskAction}
+            canManageWorkflowActions={canManageWorkflowActions}
+          />
+        </div>
 
         {archivedWorkflows.length ? (
           <section className="rounded-xl border border-border/30 bg-muted/10 p-3">

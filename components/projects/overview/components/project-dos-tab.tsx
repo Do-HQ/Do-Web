@@ -312,8 +312,11 @@ export function ProjectDosTab({
   };
 
   return (
-    <div className="flex flex-col gap-3 md:gap-4">
-      <section className="rounded-xl border border-border/35 bg-card/70 p-3 shadow-xs">
+    <div data-tour="project-dos-shell" className="flex flex-col gap-3 md:gap-4">
+      <section
+        data-tour="project-dos-controls"
+        className="rounded-xl border border-border/35 bg-card/70 p-3 shadow-xs"
+      >
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="space-y-2">
             <div>
@@ -407,36 +410,42 @@ export function ProjectDosTab({
       </section>
 
       {view === "kanban" ? (
-        <ProjectDosKanban
-          tasks={visibleTasks}
-          members={members}
-          selectedPipeline={selectedPipeline}
-          workflowOptions={visibleWorkflowOptions}
-          customSections={project.customSections ?? []}
-          onCreateCustomSection={onCreateCustomSection}
-          onDeleteCustomSection={onDeleteCustomSection}
-          onEditTask={onEditTask}
-          onCreateTask={onCreateTask}
-          onMoveTaskToLane={handleMoveTaskToLane}
-        />
+        <div data-tour="project-dos-kanban">
+          <ProjectDosKanban
+            tasks={visibleTasks}
+            members={members}
+            selectedPipeline={selectedPipeline}
+            workflowOptions={visibleWorkflowOptions}
+            customSections={project.customSections ?? []}
+            onCreateCustomSection={onCreateCustomSection}
+            onDeleteCustomSection={onDeleteCustomSection}
+            onEditTask={onEditTask}
+            onCreateTask={onCreateTask}
+            onMoveTaskToLane={handleMoveTaskToLane}
+          />
+        </div>
       ) : null}
 
       {view === "table" ? (
-        <ProjectDosTable
-          projectId={projectId}
-          tasks={visibleTasks}
-          members={members}
-          teams={teams}
-          onEditTask={onEditTask}
-          onCreateSubtask={onCreateSubtask}
-          onEditSubtask={onEditSubtask}
-          onTaskAction={onTaskAction}
-          onSubtaskAction={onSubtaskAction}
-        />
+        <div data-tour="project-dos-table">
+          <ProjectDosTable
+            projectId={projectId}
+            tasks={visibleTasks}
+            members={members}
+            teams={teams}
+            onEditTask={onEditTask}
+            onCreateSubtask={onCreateSubtask}
+            onEditSubtask={onEditSubtask}
+            onTaskAction={onTaskAction}
+            onSubtaskAction={onSubtaskAction}
+          />
+        </div>
       ) : null}
 
       {view === "charts" ? (
-        <ProjectDosCharts tasks={visibleTasks} onEditTask={onEditTask} />
+        <div data-tour="project-dos-charts">
+          <ProjectDosCharts tasks={visibleTasks} onEditTask={onEditTask} />
+        </div>
       ) : null}
     </div>
   );

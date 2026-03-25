@@ -1,4 +1,4 @@
-import ProfileSetup from "@/components/auth/ProfileSetup";
+import OnboardingRouteGate from "@/components/onboarding/onboarding-route-gate";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -6,8 +6,6 @@ export const metadata: Metadata = {
   description: "Create your profile and workspace",
 };
 
-const OnboardingPage = () => {
-  return <ProfileSetup />;
-};
+const OnboardingPage = () => <OnboardingRouteGate />;
 
 export default OnboardingPage;

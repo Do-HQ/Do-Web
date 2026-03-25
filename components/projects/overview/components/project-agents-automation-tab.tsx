@@ -535,7 +535,7 @@ export function ProjectAgentsAutomationTab({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div data-tour="project-agents-shell" className="flex flex-col gap-3">
       <Card className="border-border/35 bg-card/85 shadow-xs">
         <CardHeader className="pb-2">
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -614,7 +614,10 @@ export function ProjectAgentsAutomationTab({
       </Card>
 
       <Tabs defaultValue="deadlines" className="space-y-3">
-        <TabsList className="h-8 rounded-lg border border-border/25 bg-muted/55 p-1">
+        <TabsList
+          data-tour="project-agents-tabs"
+          className="h-8 rounded-lg border border-border/25 bg-muted/55 p-1"
+        >
           <TabsTrigger
             value="deadlines"
             className="h-6 px-2.5 text-[11px] data-[state=active]:bg-background"

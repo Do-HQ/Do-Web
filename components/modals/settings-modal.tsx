@@ -21,6 +21,7 @@ import {
   CircleSmall,
   Cog,
   FolderInput,
+  GraduationCap,
   Library,
   Shield,
   User2Icon,
@@ -35,6 +36,7 @@ import SettingsWorkspaceSecurity from "../settings/settings-workspace-security";
 import SettingsWorkspaceKnowledgeBase from "../settings/settings-workspace-knowledge-base";
 import SettingsWorkspaceImport from "../settings/settings-workspace-import";
 import SettingsIntegrations from "../settings/settings-integrations";
+import SettingsWorkspaceOnboarding from "../settings/settings-workspace-onboarding";
 
 const workspace = {
   nav: [
@@ -42,6 +44,7 @@ const workspace = {
     { name: "People", icon: UserCog },
     { name: "Teams", icon: Baby },
     { name: "Security", icon: Shield },
+    { name: "Onboarding", icon: GraduationCap },
     { name: "Knowledge Base", icon: Library },
     { name: "Import", icon: FolderInput },
   ],
@@ -60,6 +63,10 @@ const profile = {
 const SettingsModal = () => {
   // Store
   const { showSettings, setShowSettings, activeSetting } = useAppStore();
+  const activeSettingTourId = `settings-section-${String(activeSetting || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")}`;
 
   const renderComponent = (id: string) => {
     if (id === "profile") {
@@ -74,6 +81,8 @@ const SettingsModal = () => {
       return <SettingsWorkspaceSecurity />;
     } else if (id === "knowledge base") {
       return <SettingsWorkspaceKnowledgeBase />;
+    } else if (id === "onboarding") {
+      return <SettingsWorkspaceOnboarding />;
     } else if (id === "import") {
       return <SettingsWorkspaceImport />;
     } else if (id === "teams") {
@@ -91,7 +100,10 @@ const SettingsModal = () => {
 
   return (
     <Dialog open={showSettings} onOpenChange={setShowSettings}>
-      <DialogContent className="overflow-hidden p-0 md:max-h-205 md:max-w-275 lg:max-w-270">
+      <DialogContent
+        data-tour="settings-modal-shell"
+        className="overflow-hidden p-0 md:max-h-205 md:max-w-275 lg:max-w-270"
+      >
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">
           Customize your settings here.
@@ -99,14 +111,25 @@ const SettingsModal = () => {
         <SidebarProvider className="items-start">
           <SettingsSideBar workspace={workspace} profile={profile} />
           <main className="flex h-205 flex-1 flex-col ">
-            <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+            <header
+              data-tour="settings-modal-header"
+              className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12"
+            >
               <div className="flex items-center gap-2 px-8">
                 <H2 className="font-semibold capitalize">{activeSetting}</H2>
               </div>
             </header>
             <ScrollArea className="overflow-auto">
-              <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-8 pt-4 pb-12">
-                {renderComponent(activeSetting)}
+              <div
+                data-tour="settings-modal-content"
+                className="flex flex-1 flex-col gap-4 overflow-y-auto px-8 pt-4 pb-12"
+              >
+                <div
+                  data-tour="settings-modal-section"
+                  data-tour-section={activeSettingTourId}
+                >
+                  {renderComponent(activeSetting)}
+                </div>
               </div>
             </ScrollArea>
           </main>

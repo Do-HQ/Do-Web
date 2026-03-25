@@ -6,19 +6,23 @@ import {
   createWorkspace,
   createWorkspaceInvite,
   declineWorkspaceJoinRequest,
+  completeWorkspaceOnboarding,
   getPublicWorkspaces,
   getUserWorkspaces,
   getWorkspaceById,
   getWorkspaceInvites,
   getWorkspaceJoinRequests,
+  getWorkspaceOnboarding,
   getWorkspacePeople,
   removeWorkspaceMember,
   getWorkspaceRoles,
   PaginationBody,
   requestToJoinWorkspace,
   revokeWorkspaceInvite,
+  startWorkspaceOnboarding,
   switchWorkspace,
   updateWorkspace,
+  updateWorkspaceOnboardingItem,
 } from "@/lib/services/workspace-service";
 import {
   AcceptWorkspaceInviteRequestBody,
@@ -68,6 +72,24 @@ const useWorkspace = () => {
       queryFn: async () => {
         try {
           return await getWorkspaceById(id);
+        } catch (error: unknown) {
+          handleError(error as AxiosError);
+          throw error;
+        }
+      },
+    });
+  };
+
+  const useWorkspaceOnboarding = (
+    workspaceId: string,
+    options?: { enabled?: boolean },
+  ) => {
+    return useQuery({
+      queryKey: ["workspace-onboarding", workspaceId],
+      enabled: (options?.enabled ?? true) && !!workspaceId,
+      queryFn: async () => {
+        try {
+          return await getWorkspaceOnboarding(workspaceId);
         } catch (error: unknown) {
           handleError(error as AxiosError);
           throw error;
@@ -146,6 +168,49 @@ const useWorkspace = () => {
   ) => {
     return useMutation({
       mutationFn: updateWorkspace,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
+  const useStartWorkspaceOnboarding = (
+    options?: UseOptions<string>,
+  ) => {
+    return useMutation({
+      mutationFn: startWorkspaceOnboarding,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
+  const useUpdateWorkspaceOnboardingItem = (
+    options?: UseOptions<{
+      workspaceId: string;
+      itemId: string;
+      completed: boolean;
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: updateWorkspaceOnboardingItem,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
+  const useCompleteWorkspaceOnboarding = (
+    options?: UseOptions<string>,
+  ) => {
+    return useMutation({
+      mutationFn: completeWorkspaceOnboarding,
       ...options,
       onError: (error, variables, onMutateResult, context) => {
         options?.onError?.(error, variables, onMutateResult, context);
@@ -307,11 +372,15 @@ const useWorkspace = () => {
   return {
     usePublicWorkspace,
     useWorkspaceById,
+    useWorkspaceOnboarding,
     useRequestToJoinWorkspace,
     useCreateWorkspace,
     useSwitchWorkspace,
     useUsersWorkSpace,
     useUpdateWorkspace,
+    useStartWorkspaceOnboarding,
+    useUpdateWorkspaceOnboardingItem,
+    useCompleteWorkspaceOnboarding,
     useActiveWorkspace,
     useWorkspacePeople,
     useRemoveWorkspaceMember,

@@ -33,6 +33,8 @@ export interface WorkspaceSpaceRoomRecord {
   members: number;
   unread: number;
   topic: string;
+  avatarUrl?: string;
+  avatarFallback?: string;
   meta: {
     projectId: string | null;
     workflowId: string | null;

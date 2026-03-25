@@ -51,7 +51,9 @@ import {
   SpaceMessageDeletedEventPayload,
   SpaceMessageEventPayload,
   getSpacesSocket,
+  subscribeWorkspaceSpaces,
   subscribeSpaceRoom,
+  unsubscribeWorkspaceSpaces,
   unsubscribeSpaceRoom,
 } from "@/lib/realtime/spaces-socket";
 import CreateChatDialog from "./components/create-chat-dialog";
@@ -85,6 +87,7 @@ import type {
   WorkspaceSpaceRoomRecord,
 } from "@/types/space";
 import LoaderComponent from "../shared/loader";
+import { useDebounce } from "@/hooks/use-debounce";
 
 const roomQueryParams = {
   limit: 30,
@@ -167,6 +170,8 @@ const mapRoomToUi = (room: WorkspaceSpaceRoomRecord): SpaceRoom => ({
   members: Number(room.members || 0),
   unread: Number(room.unread || 0),
   topic: String(room.topic || ""),
+  avatarUrl: String(room.avatarUrl || "").trim() || undefined,
+  avatarFallback: String(room.avatarFallback || "").trim() || undefined,
   meta: room.meta,
 });
 
@@ -206,6 +211,15 @@ const mapMessageToUi = (
     : [],
   threadCount: Number(message.threadCount || 0),
 });
+
+const resolveIsoTimestamp = (value?: string) => {
+  const parsed = new Date(String(value || "").trim()).getTime();
+  if (!Number.isFinite(parsed)) {
+    return Date.now();
+  }
+
+  return parsed;
+};
 
 const SpacesPage = () => {
   const router = useRouter();
@@ -295,6 +309,11 @@ const SpacesPage = () => {
   const isLoadingOlderMessagesRef = useRef(false);
   const beforeOlderLoadScrollHeightRef = useRef(0);
   const beforeOlderLoadScrollTopRef = useRef(0);
+  const suppressMessagePaginationUntilRef = useRef(0);
+  const lastMessageScrollTopRef = useRef(0);
+  const autoScrollToBottomRef = useRef(true);
+  const recentSocketEventRef = useRef<Map<string, number>>(new Map());
+  const selectedThreadMessageIdRef = useRef<string | null>(null);
   const missingProjectRoomToastRef = useRef<string | null>(null);
   const lastMarkedReadRef = useRef<{
     workspaceId: string;
@@ -326,10 +345,13 @@ const SpacesPage = () => {
     user?.profilePhoto?.url,
   ]);
 
+  // Debounce
+  const debounced_search = useDebounce(roomQuery, 500);
+
   const roomsQuery = spaceHook.useWorkspaceSpaceRoomsInfinite(
     resolvedWorkspaceId,
     {
-      search: roomQuery,
+      search: debounced_search,
       kind: "all",
     },
     {
@@ -338,12 +360,15 @@ const SpacesPage = () => {
     },
   );
 
+  // Debounce
+  const debouncedNewSearch = useDebounce(newChatSearch, 500);
+
   const workspacePeopleQuery = workspaceHook.useWorkspacePeople(
     resolvedWorkspaceId,
     {
       page: 1,
       limit: 200,
-      search: newChatSearch,
+      search: debouncedNewSearch,
     },
   );
   const workspaceMentionPeopleQuery = workspaceHook.useWorkspacePeople(
@@ -884,7 +909,8 @@ const SpacesPage = () => {
           id: String(entry?.userId?._id || ""),
           name: display,
           email: String(entry?.userId?.email || ""),
-          avatarUrl: String(entry?.userId?.profilePhoto?.url || "") || undefined,
+          avatarUrl:
+            String(entry?.userId?.profilePhoto?.url || "") || undefined,
           role:
             Array.isArray(entry?.roles) && entry.roles.length
               ? entry.roles
@@ -1081,6 +1107,19 @@ const SpacesPage = () => {
     String(teamCallWidget?.roomId || "") === String(activeRoom?.id || "");
 
   useEffect(() => {
+    selectedThreadMessageIdRef.current = selectedThreadMessageId;
+  }, [selectedThreadMessageId]);
+
+  useEffect(() => {
+    autoScrollToBottomRef.current = true;
+    isLoadingOlderMessagesRef.current = false;
+    beforeOlderLoadScrollHeightRef.current = 0;
+    beforeOlderLoadScrollTopRef.current = 0;
+    suppressMessagePaginationUntilRef.current = Date.now() + 350;
+    lastMessageScrollTopRef.current = 0;
+  }, [activeRoom?.id]);
+
+  useEffect(() => {
     const container = messageListRef.current;
     if (!container) {
       return;
@@ -1092,13 +1131,25 @@ const SpacesPage = () => {
       container.scrollTop =
         beforeOlderLoadScrollTopRef.current + Math.max(0, delta);
       isLoadingOlderMessagesRef.current = false;
+      suppressMessagePaginationUntilRef.current = Date.now() + 250;
+      lastMessageScrollTopRef.current = container.scrollTop;
+      return;
+    }
+
+    const distanceToBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    const isNearBottom = distanceToBottom <= 120;
+
+    if (!autoScrollToBottomRef.current && !isNearBottom) {
       return;
     }
 
     container.scrollTo({
       top: container.scrollHeight,
-      behavior: "smooth",
+      behavior: autoScrollToBottomRef.current ? "auto" : "smooth",
     });
+    autoScrollToBottomRef.current = false;
+    lastMessageScrollTopRef.current = container.scrollTop;
   }, [activeMessages.length]);
 
   useEffect(() => {
@@ -1260,70 +1311,126 @@ const SpacesPage = () => {
   ]);
 
   useEffect(() => {
-    if (!resolvedWorkspaceId || !activeRoom?.id) {
+    if (!resolvedWorkspaceId) {
       return;
     }
 
-    const socket = subscribeSpaceRoom({
+    const socket = subscribeWorkspaceSpaces({
       workspaceId: resolvedWorkspaceId,
-      roomId: activeRoom.id,
     });
+    if (activeRoom?.id) {
+      subscribeSpaceRoom({
+        workspaceId: resolvedWorkspaceId,
+        roomId: activeRoom.id,
+      });
+    }
+
+    const dedupeSocketEvent = (key: string) => {
+      const now = Date.now();
+      const buffer = recentSocketEventRef.current;
+
+      buffer.forEach((seenAt, eventKey) => {
+        if (now - seenAt > 90_000) {
+          buffer.delete(eventKey);
+        }
+      });
+
+      if (buffer.has(key)) {
+        return true;
+      }
+
+      buffer.set(key, now);
+      return false;
+    };
 
     const handleMessageCreated = ({
       workspaceId,
       roomId,
+      message,
     }: SpaceMessageEventPayload) => {
       if (String(workspaceId) !== String(resolvedWorkspaceId)) {
         return;
       }
 
-      if (String(roomId) !== String(activeRoom.id)) {
+      const normalizedRoomId = String(roomId || "").trim();
+      if (!normalizedRoomId) {
         return;
       }
 
-      bumpRoomActivity(String(roomId));
+      const messageId = String(message?.id || "").trim();
+      if (
+        messageId &&
+        dedupeSocketEvent(
+          `created:${resolvedWorkspaceId}:${normalizedRoomId}:${messageId}`,
+        )
+      ) {
+        return;
+      }
+
+      bumpRoomActivity(
+        normalizedRoomId,
+        resolveIsoTimestamp(String(message?.sentAt || "")),
+      );
+
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-spaces-rooms", resolvedWorkspaceId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-spaces-keep-up", resolvedWorkspaceId],
+      });
+
+      if (normalizedRoomId !== String(activeRoom?.id || "")) {
+        return;
+      }
 
       queryClient.invalidateQueries({
         queryKey: [
           "workspace-spaces-room-messages",
           resolvedWorkspaceId,
-          activeRoom.id,
+          normalizedRoomId,
         ],
       });
       queryClient.invalidateQueries({
         queryKey: [
           "workspace-spaces-room-messages-infinite",
           resolvedWorkspaceId,
-          activeRoom.id,
+          normalizedRoomId,
         ],
       });
-
       queryClient.invalidateQueries({
         queryKey: [
           "workspace-spaces-thread-replies",
           resolvedWorkspaceId,
-          activeRoom.id,
+          normalizedRoomId,
         ],
-      });
-
-      queryClient.invalidateQueries({
-        queryKey: ["workspace-spaces-rooms", resolvedWorkspaceId],
-      });
-
-      queryClient.invalidateQueries({
-        queryKey: ["workspace-spaces-keep-up", resolvedWorkspaceId],
       });
     };
 
     const handleMessageUpdated = ({
       workspaceId,
       roomId,
+      message,
     }: SpaceMessageEventPayload) => {
       if (String(workspaceId) !== String(resolvedWorkspaceId)) {
         return;
       }
 
-      if (String(roomId) !== String(activeRoom.id)) {
+      const normalizedRoomId = String(roomId || "").trim();
+      if (!normalizedRoomId) {
+        return;
+      }
+
+      const messageId = String(message?.id || "").trim();
+      if (
+        messageId &&
+        dedupeSocketEvent(
+          `updated:${resolvedWorkspaceId}:${normalizedRoomId}:${messageId}`,
+        )
+      ) {
+        return;
+      }
+
+      if (normalizedRoomId !== String(activeRoom?.id || "")) {
         return;
       }
 
@@ -1331,14 +1438,14 @@ const SpacesPage = () => {
         queryKey: [
           "workspace-spaces-room-messages",
           resolvedWorkspaceId,
-          activeRoom.id,
+          normalizedRoomId,
         ],
       });
       queryClient.invalidateQueries({
         queryKey: [
           "workspace-spaces-room-messages-infinite",
           resolvedWorkspaceId,
-          activeRoom.id,
+          normalizedRoomId,
         ],
       });
 
@@ -1346,7 +1453,7 @@ const SpacesPage = () => {
         queryKey: [
           "workspace-spaces-thread-replies",
           resolvedWorkspaceId,
-          activeRoom.id,
+          normalizedRoomId,
         ],
       });
     };
@@ -1361,13 +1468,32 @@ const SpacesPage = () => {
         return;
       }
 
-      if (String(roomId) !== String(activeRoom.id)) {
+      const normalizedRoomId = String(roomId || "").trim();
+      if (!normalizedRoomId) {
+        return;
+      }
+
+      const normalizedMessageId = String(messageId || "").trim();
+      if (
+        normalizedMessageId &&
+        dedupeSocketEvent(
+          `deleted:${resolvedWorkspaceId}:${normalizedRoomId}:${normalizedMessageId}`,
+        )
+      ) {
+        return;
+      }
+
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-spaces-rooms", resolvedWorkspaceId],
+      });
+
+      if (normalizedRoomId !== String(activeRoom?.id || "")) {
         return;
       }
 
       if (
-        selectedThreadMessageId === String(messageId) ||
-        selectedThreadMessageId === String(parentMessageId || "")
+        selectedThreadMessageIdRef.current === normalizedMessageId ||
+        selectedThreadMessageIdRef.current === String(parentMessageId || "")
       ) {
         setSelectedThreadMessageId(null);
       }
@@ -1376,14 +1502,14 @@ const SpacesPage = () => {
         queryKey: [
           "workspace-spaces-room-messages",
           resolvedWorkspaceId,
-          activeRoom.id,
+          normalizedRoomId,
         ],
       });
       queryClient.invalidateQueries({
         queryKey: [
           "workspace-spaces-room-messages-infinite",
           resolvedWorkspaceId,
-          activeRoom.id,
+          normalizedRoomId,
         ],
       });
 
@@ -1391,7 +1517,7 @@ const SpacesPage = () => {
         queryKey: [
           "workspace-spaces-thread-replies",
           resolvedWorkspaceId,
-          activeRoom.id,
+          normalizedRoomId,
         ],
       });
     };
@@ -1404,18 +1530,17 @@ const SpacesPage = () => {
       socket.off("spaces:message:created", handleMessageCreated);
       socket.off("spaces:message:updated", handleMessageUpdated);
       socket.off("spaces:message:deleted", handleMessageDeleted);
-      unsubscribeSpaceRoom({
+      unsubscribeWorkspaceSpaces({
         workspaceId: resolvedWorkspaceId,
-        roomId: activeRoom.id,
       });
+      if (activeRoom?.id) {
+        unsubscribeSpaceRoom({
+          workspaceId: resolvedWorkspaceId,
+          roomId: activeRoom.id,
+        });
+      }
     };
-  }, [
-    activeRoom?.id,
-    bumpRoomActivity,
-    queryClient,
-    resolvedWorkspaceId,
-    selectedThreadMessageId,
-  ]);
+  }, [activeRoom?.id, bumpRoomActivity, queryClient, resolvedWorkspaceId]);
 
   useEffect(() => {
     if (!resolvedWorkspaceId || !activeRoom?.id) {
@@ -1692,7 +1817,11 @@ const SpacesPage = () => {
   };
 
   const loadOlderMessages = () => {
-    if (!messagesQuery.hasNextPage || messagesQuery.isFetchingNextPage) {
+    if (
+      !messagesQuery.hasNextPage ||
+      messagesQuery.isFetchingNextPage ||
+      isLoadingOlderMessagesRef.current
+    ) {
       return;
     }
 
@@ -1704,6 +1833,7 @@ const SpacesPage = () => {
     beforeOlderLoadScrollHeightRef.current = container.scrollHeight;
     beforeOlderLoadScrollTopRef.current = container.scrollTop;
     isLoadingOlderMessagesRef.current = true;
+    suppressMessagePaginationUntilRef.current = Date.now() + 250;
     void messagesQuery.fetchNextPage();
   };
 
@@ -1727,8 +1857,17 @@ const SpacesPage = () => {
 
   const handleMessageListScroll = (event: React.UIEvent<HTMLDivElement>) => {
     const target = event.currentTarget;
+    const now = Date.now();
+    const previousTop = lastMessageScrollTopRef.current;
+    const currentTop = target.scrollTop;
+    const isScrollingUp = currentTop < previousTop - 2;
+    lastMessageScrollTopRef.current = currentTop;
 
-    if (target.scrollTop <= 80) {
+    if (now < suppressMessagePaginationUntilRef.current) {
+      return;
+    }
+
+    if (currentTop <= 80 && isScrollingUp) {
       loadOlderMessages();
     }
   };
@@ -1924,6 +2063,7 @@ const SpacesPage = () => {
       threadCount: 0,
     };
 
+    autoScrollToBottomRef.current = true;
     setComposer("");
     setComposerAttachments([]);
     appendOptimisticRoomMessage(roomId, optimisticMessage);
@@ -2417,9 +2557,12 @@ const SpacesPage = () => {
     setKeepUpPage(1);
   }, [isKeepUpOpen]);
 
-  const ActiveScopeIcon = activeRoom
-    ? SCOPE_META[activeRoom.scope].icon
-    : Search;
+  const activeRoomAvatarFallback = activeRoom
+    ? String(activeRoom.avatarFallback || "")
+        .trim()
+        .slice(0, 2)
+        .toUpperCase() || mentionInitials(activeRoom.name, "SP")
+    : "SP";
 
   return (
     <>
@@ -2544,7 +2687,7 @@ const SpacesPage = () => {
 
               <Badge
                 variant="outline"
-                className="hidden text-[11px] sm:inline-flex"
+                className="hidden text-[11px] sm:inline-flex capitalize"
               >
                 {workspaceType}
               </Badge>
@@ -2609,33 +2752,20 @@ const SpacesPage = () => {
                     Team Call
                   </Button>
                 )}
-
-                {selectedThreadMessage ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 px-2.5 text-[13px]"
-                    onClick={closeThread}
-                  >
-                    <PanelRightClose className="size-4" />
-                    Close Thread
-                  </Button>
-                ) : (
-                  <Badge
-                    variant="outline"
-                    className="hidden text-[11px] min-[440px]:inline-flex"
-                  >
-                    Thread closed
-                  </Badge>
-                )}
               </div>
             </div>
 
             {activeRoom && (
               <div className="mt-2 flex flex-wrap items-start gap-2">
-                <div className="bg-muted/45 text-muted-foreground mt-0.5 inline-flex size-6 items-center justify-center rounded-sm">
-                  <ActiveScopeIcon className="size-4" />
-                </div>
+                <Avatar className="mt-0.5 size-6 rounded-sm">
+                  <AvatarImage
+                    src={activeRoom.avatarUrl}
+                    alt={activeRoom.name}
+                  />
+                  <AvatarFallback className="rounded-sm text-[10px]">
+                    {activeRoomAvatarFallback}
+                  </AvatarFallback>
+                </Avatar>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">
                     {activeRoom.name}

@@ -824,8 +824,14 @@ export function ProjectFilesAssetsTab({
 
   return (
     <>
-      <section className="overflow-hidden rounded-xl border border-border/35 bg-card/75 shadow-xs">
-        <div className="flex flex-col gap-3 border-b border-border/20 px-3 py-3 md:px-4">
+      <section
+        data-tour="project-files-shell"
+        className="overflow-hidden rounded-xl border border-border/35 bg-card/75 shadow-xs"
+      >
+        <div
+          data-tour="project-files-controls"
+          className="flex flex-col gap-3 border-b border-border/20 px-3 py-3 md:px-4"
+        >
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="text-[14px] font-semibold md:text-[15px]">
@@ -860,6 +866,7 @@ export function ProjectFilesAssetsTab({
                 </Select>
 
                 <Button
+                  data-tour="project-files-upload"
                   type="button"
                   variant="outline"
                   size="sm"
@@ -921,7 +928,7 @@ export function ProjectFilesAssetsTab({
               })}
             </div>
 
-            <div className="hidden lg:block">
+            <div data-tour="project-files-list" className="hidden lg:block">
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>

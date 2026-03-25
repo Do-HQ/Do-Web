@@ -905,9 +905,12 @@ export function ProjectRisksIssuesTab({
   };
 
   return (
-    <div className="flex flex-col gap-3 md:gap-4">
+    <div data-tour="project-risks-shell" className="flex flex-col gap-3 md:gap-4">
       <section className="rounded-xl border border-border/35 bg-card/75 shadow-xs">
-        <div className="flex flex-col gap-3 border-b border-border/20 px-3 py-3 md:px-4">
+        <div
+          data-tour="project-risks-controls"
+          className="flex flex-col gap-3 border-b border-border/20 px-3 py-3 md:px-4"
+        >
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="text-[14px] font-semibold md:text-[15px]">
@@ -998,7 +1001,7 @@ export function ProjectRisksIssuesTab({
         {risksQuery.isLoading ? (
           <LoaderComponent />
         ) : visibleItems.length ? (
-          <div className="divide-y divide-border/20">
+          <div data-tour="project-risks-list" className="divide-y divide-border/20">
             {visibleItems.map((item) => {
               const Icon = item.kind === "risk" ? TriangleAlert : ShieldAlert;
               const nextStatus =

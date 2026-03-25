@@ -353,8 +353,14 @@ export function WorkspaceTemplatesMarketplace() {
   }, [form.kind]);
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-3">
-      <div className="rounded-lg border border-border/35 bg-muted/15 p-4 sm:p-5">
+    <div
+      data-tour="templates-shell"
+      className="mx-auto flex w-full max-w-6xl flex-col gap-3"
+    >
+      <div
+        data-tour="templates-header"
+        className="rounded-lg border border-border/35 bg-muted/15 p-4 sm:p-5"
+      >
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 className="text-base font-semibold">Templates marketplace</h1>
@@ -363,7 +369,12 @@ export function WorkspaceTemplatesMarketplace() {
               <span className="font-medium">{"{{feature}}"}</span>.
             </p>
           </div>
-          <Button type="button" size="sm" onClick={openCreateEditor}>
+          <Button
+            data-tour="templates-create"
+            type="button"
+            size="sm"
+            onClick={openCreateEditor}
+          >
             <Plus className="size-4" />
             New template
           </Button>
@@ -375,7 +386,10 @@ export function WorkspaceTemplatesMarketplace() {
             onValueChange={(value) => setKind(value as WorkspaceTemplateKind)}
             className="gap-0 md:w-auto"
           >
-            <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-none bg-transparent p-0">
+            <TabsList
+              data-tour="templates-tabs"
+              className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-none bg-transparent p-0"
+            >
               <TabsTrigger
                 value="project"
                 className="h-8 flex-none rounded-lg border-0 px-3 text-[12px] font-medium text-muted-foreground data-[state=active]:bg-muted/80 data-[state=active]:text-foreground data-[state=active]:shadow-none"
@@ -401,7 +415,7 @@ export function WorkspaceTemplatesMarketplace() {
         </div>
       </div>
 
-      <div className="rounded-xl bg-background/70">
+      <div data-tour="templates-grid" className="rounded-xl bg-background/70">
         {templatesQuery.isLoading ? (
           <div className="p-6">
             <LoaderComponent />

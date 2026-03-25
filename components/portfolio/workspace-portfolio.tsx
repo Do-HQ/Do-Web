@@ -739,7 +739,10 @@ const WorkspacePortfolio = () => {
   }
 
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-3">
+    <div
+      data-tour="portfolio-shell"
+      className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-3"
+    >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="space-y-0.5">
           <div className="flex items-center gap-1.5">
@@ -752,7 +755,11 @@ const WorkspacePortfolio = () => {
         </div>
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" className="h-8 text-[12px]">
+            <Button
+              data-tour="portfolio-filters"
+              variant="outline"
+              className="h-8 text-[12px]"
+            >
               <SlidersHorizontal className="mr-1.5 size-3.5" />
               Filters
             </Button>
@@ -834,7 +841,10 @@ const WorkspacePortfolio = () => {
       </div>
 
       <Tabs defaultValue="executive" className="min-h-0 flex-1 gap-0">
-        <TabsList className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-none bg-transparent p-0 mb-3">
+        <TabsList
+          data-tour="portfolio-tabs"
+          className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-none bg-transparent p-0 mb-3"
+        >
           <TabsTrigger
             value="executive"
             className="h-8 flex-none rounded-lg border-0 px-3 text-[12px] font-medium text-muted-foreground data-[state=active]:bg-muted/80 data-[state=active]:text-foreground data-[state=active]:shadow-none"
@@ -1223,7 +1233,11 @@ const WorkspacePortfolio = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="dependencies" className="space-y-3">
+        <TabsContent
+          value="dependencies"
+          data-tour="portfolio-dependencies"
+          className="space-y-3"
+        >
           <Card className="border-border/40">
             <CardHeader>
               <div className="flex items-center justify-between gap-4">
@@ -1471,7 +1485,11 @@ const WorkspacePortfolio = () => {
           </div>
         </TabsContent>
 
-        <TabsContent value="capacity" className="space-y-3">
+        <TabsContent
+          value="capacity"
+          data-tour="portfolio-capacity"
+          className="space-y-3"
+        >
           <Card className="border-border/40">
             <CardHeader className="pb-2">
               <div className="flex items-center gap-1.5">
@@ -1820,7 +1838,11 @@ const WorkspacePortfolio = () => {
           </div>
         </TabsContent>
 
-        <TabsContent value="approvals" className="space-y-3">
+        <TabsContent
+          value="approvals"
+          data-tour="portfolio-approvals"
+          className="space-y-3"
+        >
           <Card className="border-border/40">
             <CardHeader className="pb-2">
               <div className="flex flex-wrap items-center justify-between gap-2">

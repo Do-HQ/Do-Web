@@ -36,10 +36,17 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import useAuthStore from "@/stores/auth";
 import { useAppStore, useFavoritesStore, useProjectStore } from "@/stores";
 import useWorkspaceStore from "@/stores/workspace";
 import { getProjectRoute, ROUTES } from "@/utils/constants";
+import WorkspaceArchive from "@/components/archive/workspace-archive";
 
 import SettingsModal from "./modals/settings-modal";
 
@@ -56,6 +63,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     (state) => state.setWorkspaceScope,
   );
   const projectCreateOpen = useProjectStore((state) => state.projectCreateOpen);
+  const [archiveDialogOpen, setArchiveDialogOpen] = React.useState(false);
   const setProjectCreateOpen = useProjectStore(
     (state) => state.setProjectCreateOpen,
   );
@@ -206,9 +214,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       },
       {
         title: "Archive",
-        url: ROUTES.ARCHIVE,
+        url: "#",
         icon: Archive,
-        isActive: pathname === ROUTES.ARCHIVE,
+        isActive: pathname === ROUTES.ARCHIVE || archiveDialogOpen,
+        onClick: () => setArchiveDialogOpen(true),
       },
       ...(user?.isInternal
         ? [
@@ -292,6 +301,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         open={projectCreateOpen}
         onOpenChange={setProjectCreateOpen}
       />
+      <Dialog open={archiveDialogOpen} onOpenChange={setArchiveDialogOpen}>
+        <DialogContent className="min-h-100 max-h-180 w-xl gap-0 overflow-hidden p-0 sm:max-w-[640px]">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Archive</DialogTitle>
+          </DialogHeader>
+          <WorkspaceArchive
+            variant="popup"
+            onOpenFullPage={() => {
+              setArchiveDialogOpen(false);
+              router.push(ROUTES.ARCHIVE);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
       <SettingsModal />
     </Sidebar>
   );

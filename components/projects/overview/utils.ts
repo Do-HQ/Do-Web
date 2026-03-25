@@ -194,10 +194,16 @@ export function getScopedHeatmap(
 }
 
 export function formatShortDate(value: string) {
+  const parsed = new Date(String(value || "").trim());
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "No date";
+  }
+
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
-  }).format(new Date(value));
+  }).format(parsed);
 }
 
 export function formatTaskSummary(taskCounts: ProjectTaskCounts) {

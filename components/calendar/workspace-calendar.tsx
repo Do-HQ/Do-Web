@@ -53,6 +53,7 @@ import { cn } from "@/lib/utils";
 import useWorkspaceStore from "@/stores/workspace";
 import type { WorkspaceProjectRecord } from "@/types/project";
 import LoaderComponent from "../shared/loader";
+import { useDebounce } from "@/hooks/use-debounce";
 
 type CalendarView = "month" | "week" | "day" | "year" | "agenda";
 type CalendarEventType = "task" | "milestone" | "workflow" | "risk";
@@ -544,8 +545,11 @@ const WorkspaceCalendar = () => {
     }
   }, [projectOptions, selectedProjectId]);
 
+  // Debounce
+  const debouncedSearch = useDebounce(searchTerm, 500);
+
   const visibleEvents = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const normalizedSearch = debouncedSearch.trim().toLowerCase();
     return allEvents.filter((event) => {
       if (!typeFilters[event.type]) {
         return false;
@@ -568,10 +572,10 @@ const WorkspaceCalendar = () => {
 
       return true;
     });
-  }, [allEvents, searchTerm, selectedProjectId, typeFilters]);
+  }, [allEvents, debouncedSearch, selectedProjectId, typeFilters]);
 
   const timelineTaskEvents = useMemo(() => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const normalizedSearch = debouncedSearch.trim().toLowerCase();
 
     return sortEvents(
       allEvents.filter((event) => {
@@ -595,7 +599,7 @@ const WorkspaceCalendar = () => {
         return haystack.includes(normalizedSearch);
       }),
     );
-  }, [allEvents, searchTerm, selectedProjectId]);
+  }, [allEvents, debouncedSearch, selectedProjectId]);
 
   const selectedEvent = useMemo(
     () => visibleEvents.find((event) => event.id === selectedEventId) || null,
@@ -1060,8 +1064,7 @@ const WorkspaceCalendar = () => {
                     })}
 
                     {(() => {
-                      const nowMinutes =
-                        now.getHours() * 60 + now.getMinutes();
+                      const nowMinutes = now.getHours() * 60 + now.getMinutes();
                       const nowTopPercent =
                         ((nowMinutes - dayStartMinutes) / totalMinutes) * 100;
                       const showNowIndicator =

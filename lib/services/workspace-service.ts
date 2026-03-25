@@ -7,6 +7,7 @@ import {
   RevokeWorkspaceInviteRequestBody,
   WorkspaceInvite,
   WorkspaceJoinRequest,
+  WorkspaceOnboardingState,
   WorkspacePerson,
   WorkspaceRole,
   WorkspaceSettingsUpdateBody,
@@ -44,6 +45,41 @@ export const getWorkspaceById = async (wokspaceId: string) => {
   return await axiosInstance.get<{
     workspace: WorkspaceType;
   }>(`${WORKSPACE_ENDPOINTS.GET_PUBLIC_WORKSPACE}/${wokspaceId}`);
+};
+
+export const getWorkspaceOnboarding = async (workspaceId: string) => {
+  return await axiosInstance.get<{
+    onboarding: WorkspaceOnboardingState;
+  }>(`${WORKSPACE_ENDPOINTS.GET_PUBLIC_WORKSPACE}/${workspaceId}/onboarding`);
+};
+
+export const startWorkspaceOnboarding = async (workspaceId: string) => {
+  return await axiosInstance.post<{
+    onboarding: WorkspaceOnboardingState;
+  }>(`${WORKSPACE_ENDPOINTS.GET_PUBLIC_WORKSPACE}/${workspaceId}/onboarding/start`);
+};
+
+export const updateWorkspaceOnboardingItem = async (data: {
+  workspaceId: string;
+  itemId: string;
+  completed: boolean;
+}) => {
+  return await axiosInstance.patch<{
+    onboarding: WorkspaceOnboardingState;
+  }>(
+    `${WORKSPACE_ENDPOINTS.GET_PUBLIC_WORKSPACE}/${data.workspaceId}/onboarding/items/${data.itemId}`,
+    {
+      completed: data.completed,
+    },
+  );
+};
+
+export const completeWorkspaceOnboarding = async (workspaceId: string) => {
+  return await axiosInstance.post<{
+    onboarding: WorkspaceOnboardingState;
+  }>(
+    `${WORKSPACE_ENDPOINTS.GET_PUBLIC_WORKSPACE}/${workspaceId}/onboarding/complete`,
+  );
 };
 
 export const updateWorkspace = async (data: {

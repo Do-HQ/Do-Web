@@ -21,6 +21,12 @@ interface Props {
   profile: { nav: { name: string; icon: LucideIcon }[] };
 }
 
+const toTourSlug = (value: string) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-");
+
 const SettingsSideBar = ({ workspace, profile }: Props) => {
   // Store
   const { setActiveSetting, activeSetting } = useAppStore();
@@ -37,6 +43,7 @@ const SettingsSideBar = ({ workspace, profile }: Props) => {
     if (
       normalized.includes("automation") ||
       normalized === "security" ||
+      normalized === "onboarding" ||
       normalized === "import"
     ) {
       return isAdminLike;
@@ -46,7 +53,11 @@ const SettingsSideBar = ({ workspace, profile }: Props) => {
   };
 
   return (
-    <Sidebar collapsible="none" className="hidden md:flex">
+    <Sidebar
+      collapsible="none"
+      className="hidden md:flex"
+      data-tour="settings-modal-nav"
+    >
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupLabel>Profile</SidebarGroupLabel>
@@ -63,7 +74,7 @@ const SettingsSideBar = ({ workspace, profile }: Props) => {
                     asChild
                     isActive={item.name?.toLowerCase() === activeSetting}
                   >
-                    <a href="#">
+                    <a href="#" data-tour={`settings-nav-${toTourSlug(item.name)}`}>
                       <item.icon />
                       <span className="inline-flex items-center gap-1.5">
                         <span>{item.name}</span>
@@ -107,7 +118,7 @@ const SettingsSideBar = ({ workspace, profile }: Props) => {
                         : "cursor-not-allowed opacity-55"
                     }
                   >
-                    <a href="#">
+                    <a href="#" data-tour={`settings-nav-${toTourSlug(item.name)}`}>
                       <item.icon />
                       <span>{item.name}</span>
                     </a>

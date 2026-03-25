@@ -410,7 +410,10 @@ export default function WorkspaceKnowledgeBase() {
   }
 
   return (
-    <section className="flex h-full min-h-0 w-full flex-col gap-3">
+    <section
+      data-tour="knowledge-base-shell"
+      className="flex h-full min-h-0 w-full flex-col gap-3"
+    >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="space-y-0.5">
           <h1 className="text-[15px] font-semibold">Knowledge base</h1>
@@ -435,12 +438,16 @@ export default function WorkspaceKnowledgeBase() {
       </div>
 
       <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[270px_360px_minmax(0,1fr)]">
-        <section className="bg-background relative flex min-h-0 flex-col overflow-hidden rounded-xl border border-border/45">
+        <section
+          data-tour="knowledge-base-navigator"
+          className="bg-background relative flex min-h-0 flex-col overflow-hidden rounded-xl border border-border/45"
+        >
           <div className="space-y-2 border-b px-3 py-3">
             <h2 className="text-[13px] font-medium">Navigator</h2>
             <div className="relative">
               <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2" />
               <Input
+                data-tour="knowledge-base-search"
                 value={search}
                 onChange={(event) => {
                   setSearch(event.target.value);
@@ -561,7 +568,10 @@ export default function WorkspaceKnowledgeBase() {
           </div>
         </section>
 
-        <section className="bg-background relative flex min-h-0 flex-col overflow-hidden rounded-xl border border-border/45">
+        <section
+          data-tour="knowledge-base-articles"
+          className="bg-background relative flex min-h-0 flex-col overflow-hidden rounded-xl border border-border/45"
+        >
           <div className="space-y-2 border-b px-3 py-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-[13px] font-medium">Articles</h2>
@@ -801,7 +811,10 @@ export default function WorkspaceKnowledgeBase() {
           </div>
         </section>
 
-        <section className="bg-background relative flex min-h-0 flex-col overflow-hidden rounded-xl border border-border/45">
+        <section
+          data-tour="knowledge-base-detail"
+          className="bg-background relative flex min-h-0 flex-col overflow-hidden rounded-xl border border-border/45"
+        >
           <div className="space-y-2 border-b px-3 py-3">
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div className="min-w-0 space-y-1">

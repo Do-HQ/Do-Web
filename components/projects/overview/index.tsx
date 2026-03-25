@@ -2140,88 +2140,100 @@ export default function ProjectOverview({
             </div>
           </>
         ) : activeTab === "workflows" ? (
-          <ProjectWorkflowsTab
-            projectId={projectId}
-            initialWorkflowId={initialWorkflowId}
-            workflows={workflowsTabWorkflows}
-            loading={workflowsTabListQuery.isLoading || workflowsTabListQuery.isFetching}
-            archivedWorkflows={workflowsTabArchivedWorkflows}
-            sortMode={workflowsTabSortMode}
-            onSortModeChange={setWorkflowsTabSortMode}
-            pagination={workflowsTabListQuery.data?.data?.pagination ?? null}
-            onPreviousPage={() => setWorkflowsTabPage((current) => Math.max(1, current - 1))}
-            onNextPage={() =>
-              setWorkflowsTabPage((current) =>
-                workflowsTabListQuery.data?.data?.pagination?.hasNextPage ? current + 1 : current,
-              )
-            }
-            members={resolvedMembers}
-            teams={project.teams}
-            selectedPipeline={selectedPipeline}
-            selectedTeamId={teamFilter}
-            onTeamChange={setTeamFilter}
-            startDate={startDate}
-            onStartDateChange={setStartDate}
-            view={workflowView}
-            onViewChange={setWorkflowView}
-            onCreateWorkflow={openCreateWorkflow}
-            onEditWorkflow={openEditWorkflow}
-            onCreateTask={openCreateTask}
-            onEditTask={openEditTask}
-            onCreateSubtask={openCreateSubtask}
-            onEditSubtask={openEditSubtask}
-            onWorkflowAction={handleWorkflowAction}
-            onTaskAction={handleTaskAction}
-            onSubtaskAction={handleSubtaskAction}
-            canManageWorkflowActions={canCreateWorkflows}
-          />
+          <div data-tour="project-tab-workflows">
+            <ProjectWorkflowsTab
+              projectId={projectId}
+              initialWorkflowId={initialWorkflowId}
+              workflows={workflowsTabWorkflows}
+              loading={workflowsTabListQuery.isLoading || workflowsTabListQuery.isFetching}
+              archivedWorkflows={workflowsTabArchivedWorkflows}
+              sortMode={workflowsTabSortMode}
+              onSortModeChange={setWorkflowsTabSortMode}
+              pagination={workflowsTabListQuery.data?.data?.pagination ?? null}
+              onPreviousPage={() => setWorkflowsTabPage((current) => Math.max(1, current - 1))}
+              onNextPage={() =>
+                setWorkflowsTabPage((current) =>
+                  workflowsTabListQuery.data?.data?.pagination?.hasNextPage ? current + 1 : current,
+                )
+              }
+              members={resolvedMembers}
+              teams={project.teams}
+              selectedPipeline={selectedPipeline}
+              selectedTeamId={teamFilter}
+              onTeamChange={setTeamFilter}
+              startDate={startDate}
+              onStartDateChange={setStartDate}
+              view={workflowView}
+              onViewChange={setWorkflowView}
+              onCreateWorkflow={openCreateWorkflow}
+              onEditWorkflow={openEditWorkflow}
+              onCreateTask={openCreateTask}
+              onEditTask={openEditTask}
+              onCreateSubtask={openCreateSubtask}
+              onEditSubtask={openEditSubtask}
+              onWorkflowAction={handleWorkflowAction}
+              onTaskAction={handleTaskAction}
+              onSubtaskAction={handleSubtaskAction}
+              canManageWorkflowActions={canCreateWorkflows}
+            />
+          </div>
         ) : activeTab === "dos" ? (
-          <ProjectDosTab
-            projectId={projectId}
-            project={project}
-            initialTaskId={initialTaskId}
-            members={resolvedMembers}
-            teams={project.teams}
-            selectedPipeline={selectedPipeline}
-            selectedTeamId={teamFilter}
-            onTeamChange={setTeamFilter}
-            startDate={startDate}
-            onStartDateChange={setStartDate}
-            onCreateTask={openCreateTask}
-            onEditTask={openEditTask}
-            onCreateSubtask={openCreateSubtask}
-            onEditSubtask={openEditSubtask}
-            onMoveTask={moveTaskToStatus}
-            onTaskAction={handleTaskAction}
-            onSubtaskAction={handleSubtaskAction}
-            onCreateCustomSection={handleCreateCustomSection}
-            onDeleteCustomSection={handleDeleteCustomSection}
-          />
+          <div data-tour="project-tab-dos">
+            <ProjectDosTab
+              projectId={projectId}
+              project={project}
+              initialTaskId={initialTaskId}
+              members={resolvedMembers}
+              teams={project.teams}
+              selectedPipeline={selectedPipeline}
+              selectedTeamId={teamFilter}
+              onTeamChange={setTeamFilter}
+              startDate={startDate}
+              onStartDateChange={setStartDate}
+              onCreateTask={openCreateTask}
+              onEditTask={openEditTask}
+              onCreateSubtask={openCreateSubtask}
+              onEditSubtask={openEditSubtask}
+              onMoveTask={moveTaskToStatus}
+              onTaskAction={handleTaskAction}
+              onSubtaskAction={handleSubtaskAction}
+              onCreateCustomSection={handleCreateCustomSection}
+              onDeleteCustomSection={handleDeleteCustomSection}
+            />
+          </div>
         ) : activeTab === "files-assets" ? (
-          <ProjectFilesAssetsTab project={project} members={resolvedMembers} />
+          <div data-tour="project-tab-files-assets">
+            <ProjectFilesAssetsTab project={project} members={resolvedMembers} />
+          </div>
         ) : activeTab === "risks-issues" ? (
-          <ProjectRisksIssuesTab
-            workspaceId={workspaceId}
-            projectId={projectId}
-            initialRiskId={initialRiskId}
-            view={riskView}
-            onViewChange={setRiskView}
-            selectedPipeline={selectedPipeline}
-            selectedTeamId={teamFilter}
-            onTeamChange={setTeamFilter}
-            teams={project.teams}
-            members={resolvedMembers}
-            onProjectRecordSynced={handleRiskRecordSynced}
-          />
+          <div data-tour="project-tab-risks-issues">
+            <ProjectRisksIssuesTab
+              workspaceId={workspaceId}
+              projectId={projectId}
+              initialRiskId={initialRiskId}
+              view={riskView}
+              onViewChange={setRiskView}
+              selectedPipeline={selectedPipeline}
+              selectedTeamId={teamFilter}
+              onTeamChange={setTeamFilter}
+              teams={project.teams}
+              members={resolvedMembers}
+              onProjectRecordSynced={handleRiskRecordSynced}
+            />
+          </div>
         ) : activeTab === "secrets" ? (
-          <ProjectSecretsTab
-            workspaceId={workspaceId}
-            projectId={projectId}
-            members={resolvedMembers}
-            teams={project.teams}
-          />
+          <div data-tour="project-tab-secrets">
+            <ProjectSecretsTab
+              workspaceId={workspaceId}
+              projectId={projectId}
+              members={resolvedMembers}
+              teams={project.teams}
+            />
+          </div>
         ) : activeTab === "agents-automation" ? (
-          <ProjectAgentsAutomationTab project={project} members={resolvedMembers} />
+          <div data-tour="project-tab-agents-automation">
+            <ProjectAgentsAutomationTab project={project} members={resolvedMembers} />
+          </div>
         ) : (
           <ProjectOverviewPlaceholder kind="coming-soon" label="coming soon" />
         )}
