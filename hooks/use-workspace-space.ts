@@ -4,12 +4,15 @@ import {
   createWorkspaceSpaceRoom,
   createWorkspaceSpaceThreadReply,
   deleteWorkspaceSpaceMessage,
+  getWorkspaceSpacePinnedMessages,
   getWorkspaceSpaceKeepUp,
   getWorkspaceSpaceRoomMessages,
   getWorkspaceSpaceRooms,
   getWorkspaceSpaceThreadReplies,
   markWorkspaceSpaceKeepUpSeen,
   markWorkspaceSpaceRoomRead,
+  toggleWorkspaceSpaceMessagePin,
+  toggleWorkspaceSpaceMessageReaction,
   updateWorkspaceSpaceMessage,
 } from "@/lib/services/workspace-space-service";
 import {
@@ -194,6 +197,38 @@ const useWorkspaceSpace = () => {
     });
   };
 
+  const useWorkspaceSpacePinnedMessages = (
+    workspaceId: string,
+    roomId: string,
+    params: WorkspaceSpaceMessagesQueryParams = {},
+    options?: { enabled?: boolean },
+  ) => {
+    return useQuery({
+      queryKey: [
+        "workspace-spaces-room-pins",
+        workspaceId,
+        roomId,
+        params,
+      ],
+      enabled:
+        (options?.enabled ?? true) &&
+        !!workspaceId &&
+        !!roomId,
+      queryFn: async () => {
+        try {
+          return await getWorkspaceSpacePinnedMessages(
+            workspaceId,
+            roomId,
+            params,
+          );
+        } catch (error) {
+          handleError(error as AxiosError);
+          throw error;
+        }
+      },
+    });
+  };
+
   const useWorkspaceSpaceKeepUp = (
     workspaceId: string,
     params: WorkspaceSpaceKeepUpQueryParams = {},
@@ -324,12 +359,52 @@ const useWorkspaceSpace = () => {
     });
   };
 
+  const useToggleWorkspaceSpaceMessageReaction = (
+    options?:
+      | UseOptions<{
+          workspaceId: string;
+          roomId: string;
+          messageId: string;
+          emoji: string;
+        }>
+      | undefined,
+  ) => {
+    return useMutation({
+      mutationFn: toggleWorkspaceSpaceMessageReaction,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
+  const useToggleWorkspaceSpaceMessagePin = (
+    options?:
+      | UseOptions<{
+          workspaceId: string;
+          roomId: string;
+          messageId: string;
+        }>
+      | undefined,
+  ) => {
+    return useMutation({
+      mutationFn: toggleWorkspaceSpaceMessagePin,
+      ...options,
+      onError: (error, variables, onMutateResult, context) => {
+        options?.onError?.(error, variables, onMutateResult, context);
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
   return {
     useWorkspaceSpaceRooms,
     useWorkspaceSpaceRoomsInfinite,
     useWorkspaceSpaceRoomMessages,
     useWorkspaceSpaceRoomMessagesInfinite,
     useWorkspaceSpaceThreadReplies,
+    useWorkspaceSpacePinnedMessages,
     useWorkspaceSpaceKeepUp,
     useCreateWorkspaceSpaceRoom,
     useCreateWorkspaceSpaceMessage,
@@ -338,6 +413,8 @@ const useWorkspaceSpace = () => {
     useCreateWorkspaceSpaceThreadReply,
     useMarkWorkspaceSpaceRoomRead,
     useMarkWorkspaceSpaceKeepUpSeen,
+    useToggleWorkspaceSpaceMessageReaction,
+    useToggleWorkspaceSpaceMessagePin,
   };
 };
 

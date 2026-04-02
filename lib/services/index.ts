@@ -7,22 +7,19 @@ import config from "@/config";
 import { generateHeaders } from "../helpers/generateHeaders";
 import { LOCAL_KEYS } from "@/utils/constants";
 
-const REFRESH_ENDPOINT = "/user/refresh";
-const FALLBACK_REFRESH_ENDPOINT = "/refresh";
+const REFRESH_ENDPOINT = "/auth/refresh";
 const AUTH_ROUTES = [
   "/auth/sign-in",
   "/auth/verify-otp",
+  "/auth/refresh",
   REFRESH_ENDPOINT,
-  FALLBACK_REFRESH_ENDPOINT,
 ];
 
 type RetryRequestConfig = InternalAxiosRequestConfig & {
   _retry?: boolean;
 };
 
-const getToken = () => {
-  return localStorage.getItem(LOCAL_KEYS.TOKEN);
-};
+const getToken = () => localStorage.getItem(LOCAL_KEYS.TOKEN);
 
 const getRefreshToken = () => {
   return localStorage.getItem(LOCAL_KEYS.REFRESH_TOKEN);
@@ -42,43 +39,22 @@ let refreshTokenPromise: Promise<string> | null = null;
 
 const refreshAccessToken = async () => {
   const refreshToken = getRefreshToken();
-
-  if (!refreshToken) {
-    throw new Error("No refresh token found");
-  }
-
-  let response: {
-    data: {
-      token: string;
-      refreshToken?: string;
-    };
-  };
-
-  try {
-    response = await axiosInstance.post<{
-      token: string;
-      refreshToken?: string;
-    }>(REFRESH_ENDPOINT, { refreshToken });
-  } catch (error) {
-    if (!axios.isAxiosError(error) || error.response?.status !== 404) {
-      throw error;
-    }
-
-    response = await axiosInstance.post<{
-      token: string;
-      refreshToken?: string;
-    }>(FALLBACK_REFRESH_ENDPOINT, { refreshToken });
-  }
+  const response = await axiosInstance.post<{
+    token: string;
+    refreshToken?: string;
+  }>(REFRESH_ENDPOINT, refreshToken ? { refreshToken } : {});
 
   const token = response?.data?.token;
-  const nextRefreshToken = response?.data?.refreshToken ?? refreshToken;
+  const nextRefreshToken = response?.data?.refreshToken ?? refreshToken ?? "";
 
   if (!token) {
     throw new Error("Unable to refresh access token");
   }
 
   localStorage.setItem(LOCAL_KEYS.TOKEN, token);
-  localStorage.setItem(LOCAL_KEYS.REFRESH_TOKEN, nextRefreshToken);
+  if (nextRefreshToken) {
+    localStorage.setItem(LOCAL_KEYS.REFRESH_TOKEN, nextRefreshToken);
+  }
 
   return token;
 };
@@ -102,8 +78,8 @@ axiosInstance.interceptors.request.use(
     }
 
     const headers = generateHeaders({
-      token: getToken()!,
-      clientId: config.CLIENT_ID!,
+      token: getToken() || undefined,
+      clientId: config.CLIENT_ID || undefined,
       workspaceId: "1",
       profileToken: "1",
       projectId: "1",

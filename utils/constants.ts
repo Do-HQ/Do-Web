@@ -31,6 +31,7 @@ export const LOCAL_KEYS = {
   TOKEN: "squircle-user-token",
   REFRESH_TOKEN: "squircle-refresh-token",
   REDIRECT: "squircle-redirect-path",
+  PENDING_AUTH_EMAIL: "squircle-pending-auth-email",
 };
 
 export const PAGE_LIMIT = 10;

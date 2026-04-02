@@ -19,7 +19,6 @@ import { useRouter } from "next/navigation";
 import { ROUTES } from "@/utils/constants";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import useAuthStore from "@/stores/auth";
-import { getUserAbbreviation } from "@/lib/helpers/return-full-name";
 import { cn } from "@/lib/utils";
 import useWorkspaceStore from "@/stores/workspace";
 import useWorkspace from "@/hooks/use-workspace";
@@ -40,6 +39,7 @@ export function TeamSwitcher() {
   const { isPending: isSwitchingWorkspace, mutate: switchWorkspace } =
     useSwitchWorkspace({
       onSuccess(data) {
+        router.replace(ROUTES.DASHBOARD);
         setWorkspaceId(data?.data?.workspace?._id);
         queryClient.invalidateQueries({
           queryKey: ["user"],
@@ -56,6 +56,16 @@ export function TeamSwitcher() {
     switchWorkspace({ workspaceId });
   };
 
+  const currentWorkspaceName = user?.currentWorkspaceId?.name || "Workspace";
+  const currentWorkspaceInitials =
+    String(currentWorkspaceName)
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((segment) => segment[0]?.toUpperCase())
+      .join("") || "WS";
+
   return (
     <SidebarMenu>
       <SidebarMenuItem>
@@ -64,16 +74,20 @@ export function TeamSwitcher() {
             <SidebarMenuButton className="w-full px-1.5">
               <Avatar
                 size="sm"
-                className="rounded-full"
                 userCard={{
-                  name: `${user?.firstName || ""} ${user?.lastName || ""}`.trim() || user?.email || "User",
-                  email: user?.email,
-                  role: "Workspace member",
-                  team: user?.currentWorkspaceId?.name,
+                  name: currentWorkspaceName,
+                  role: "Workspace",
+                  status: "Current workspace",
                 }}
               >
-                <AvatarImage src={user?.profilePhoto?.url} alt="@shadcn" />
-                <AvatarFallback>{getUserAbbreviation(user!)}</AvatarFallback>
+                <AvatarImage
+                  src={user?.currentWorkspaceId?.logo?.url}
+                  alt={currentWorkspaceName}
+                  className="rounded-md object-cover"
+                />
+                <AvatarFallback className="rounded-md">
+                  {currentWorkspaceInitials}
+                </AvatarFallback>
               </Avatar>
               <span className="truncate font-medium">
                 {user?.currentWorkspaceId?.name}
@@ -90,41 +104,55 @@ export function TeamSwitcher() {
             <DropdownMenuLabel className="text-muted-foreground text-xs">
               Workspaces
             </DropdownMenuLabel>
-            {workspaces?.map((team, index) => (
-              <DropdownMenuItem
-                key={team?._id}
-                onClick={() => handleSwitchWorkspace(team?._id)}
-                className={cn(
-                  "gap-2 p-1.5 text-xs font-medium",
-                  workspaceId === team?._id &&
-                    "bg-accent text-accent-foreground",
-                )}
-              >
-                <Avatar
-                  size="sm"
-                  className="rounded-sm"
-                  userCard={{
-                    name: team?.name || "Workspace",
-                    role: "Workspace",
-                    status: workspaceId === team?._id ? "Current workspace" : "Available",
-                  }}
-                >
-                  <AvatarImage
-                    src="https://res.cloudinary.com/dgiropjpp/image/upload/v1769577491/Logo_maker_project-2_jz4e09.png"
-                    alt="@shadcn"
-                  />
-                  <AvatarFallback>SQ</AvatarFallback>
-                </Avatar>
-                {team?.name}
-                <DropdownMenuShortcut>
-                  {isSwitchingWorkspace && workspaceId === team?._id ? (
-                    <Loader className="animate-spin" size={16} />
-                  ) : (
-                    <>⌘{index + 1}</>
+            {workspaces?.map((team, index) => {
+              const workspaceInitials =
+                String(team?.name || "")
+                  .trim()
+                  .split(/\s+/)
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((segment) => segment[0]?.toUpperCase())
+                  .join("") || "WS";
+
+              return (
+                <DropdownMenuItem
+                  key={team?._id}
+                  onClick={() => handleSwitchWorkspace(team?._id)}
+                  className={cn(
+                    "gap-2 p-1.5 text-xs font-medium",
+                    workspaceId === team?._id &&
+                      "bg-accent text-accent-foreground",
                   )}
-                </DropdownMenuShortcut>
-              </DropdownMenuItem>
-            ))}
+                >
+                  <Avatar
+                    size="sm"
+                    userCard={{
+                      name: team?.name || "Workspace",
+                      role: "Workspace",
+                      status:
+                        workspaceId === team?._id
+                          ? "Current workspace"
+                          : "Available",
+                    }}
+                  >
+                    <AvatarImage
+                      src={team?.logo?.url}
+                      alt={team?.name || "Workspace"}
+                      className="rounded-md object-cover"
+                    />
+                    <AvatarFallback>{workspaceInitials}</AvatarFallback>
+                  </Avatar>
+                  {team?.name}
+                  <DropdownMenuShortcut>
+                    {isSwitchingWorkspace && workspaceId === team?._id ? (
+                      <Loader className="animate-spin" size={16} />
+                    ) : (
+                      <>⌘{index + 1}</>
+                    )}
+                  </DropdownMenuShortcut>
+                </DropdownMenuItem>
+              );
+            })}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="gap-2 p-1.5"

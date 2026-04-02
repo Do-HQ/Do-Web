@@ -1,7 +1,7 @@
 import { Input } from "../shared/input";
 import useAuthStore from "@/stores/auth";
 import { useRouter } from "next/navigation";
-import { ROUTES } from "@/utils/constants";
+import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
 import Link from "next/link";
 import { Button } from "../ui/button";
 import { toast } from "sonner";
@@ -50,10 +50,17 @@ const Auth = ({ mode }: Props) => {
   const { isPending, mutate } = useOtp({
     onSuccess(_, variables) {
       setUser({ email: variables?.email });
+      if (variables?.email) {
+        localStorage.setItem(LOCAL_KEYS.PENDING_AUTH_EMAIL, variables.email);
+      }
       toast.success(`An OTP has been sent to ${variables?.email}`, {
         description: "Please check your inbox or spam for our email",
       });
-      router.push(`${ROUTES.VERIFY_OTP}?intent=${mode}`);
+      const query = new URLSearchParams({
+        intent: String(mode || "login"),
+        email: String(variables?.email || ""),
+      });
+      router.push(`${ROUTES.VERIFY_OTP}?${query.toString()}`);
     },
   });
 

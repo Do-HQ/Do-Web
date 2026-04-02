@@ -18,6 +18,8 @@ const WORKSPACE_SPACE_ENDPOINTS = {
     `/workspace/${workspaceId}/spaces/rooms/${roomId}/messages`,
   roomMessage: (workspaceId: string, roomId: string, messageId: string) =>
     `/workspace/${workspaceId}/spaces/rooms/${roomId}/messages/${messageId}`,
+  roomPins: (workspaceId: string, roomId: string) =>
+    `/workspace/${workspaceId}/spaces/rooms/${roomId}/pins`,
   threadReplies: (workspaceId: string, roomId: string, messageId: string) =>
     `/workspace/${workspaceId}/spaces/rooms/${roomId}/messages/${messageId}/thread`,
   markRead: (workspaceId: string, roomId: string) =>
@@ -128,6 +130,64 @@ export const deleteWorkspaceSpaceMessage = async (data: {
       data.messageId,
     ),
   );
+};
+
+export const toggleWorkspaceSpaceMessageReaction = async (data: {
+  workspaceId: string;
+  roomId: string;
+  messageId: string;
+  emoji: string;
+}) => {
+  return await axiosInstance.patch<{
+    message: string;
+    chatMessage: WorkspaceSpaceMessageRecord;
+  }>(
+    `${WORKSPACE_SPACE_ENDPOINTS.roomMessage(
+      data.workspaceId,
+      data.roomId,
+      data.messageId,
+    )}/reactions`,
+    {
+      emoji: data.emoji,
+    },
+  );
+};
+
+export const toggleWorkspaceSpaceMessagePin = async (data: {
+  workspaceId: string;
+  roomId: string;
+  messageId: string;
+}) => {
+  return await axiosInstance.patch<{
+    message: string;
+    pinned: boolean;
+    chatMessage: WorkspaceSpaceMessageRecord;
+  }>(
+    `${WORKSPACE_SPACE_ENDPOINTS.roomMessage(
+      data.workspaceId,
+      data.roomId,
+      data.messageId,
+    )}/pin`,
+  );
+};
+
+export const getWorkspaceSpacePinnedMessages = async (
+  workspaceId: string,
+  roomId: string,
+  params: WorkspaceSpaceMessagesQueryParams = {},
+) => {
+  const { page = 1, limit = 50 } = params;
+
+  return await axiosInstance.get<{
+    message: string;
+    messages: WorkspaceSpaceMessageRecord[];
+    pagination: SpacePagination;
+  }>(WORKSPACE_SPACE_ENDPOINTS.roomPins(workspaceId, roomId), {
+    params: {
+      page,
+      limit,
+    },
+  });
 };
 
 export const getWorkspaceSpaceThreadReplies = async (

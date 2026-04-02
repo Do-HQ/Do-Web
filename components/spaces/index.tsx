@@ -10,6 +10,7 @@ import {
   Menu,
   MessageSquareText,
   PanelRightClose,
+  Pin,
   Phone,
   Plus,
   Search,
@@ -57,6 +58,7 @@ import {
   unsubscribeSpaceRoom,
 } from "@/lib/realtime/spaces-socket";
 import CreateChatDialog from "./components/create-chat-dialog";
+import ForwardMessageDialog from "./components/forward-message-dialog";
 import MainChatPanel from "./components/main-chat-panel";
 import RoomItems from "./components/room-items";
 import TeamCallWidget from "./components/team-call-widget";
@@ -68,6 +70,7 @@ import type {
   ChatAuthor,
   MentionTokenMeta,
   MentionSuggestion,
+  SpaceMessageReaction,
   SpaceUserInfo,
   SpaceMessage,
   SpaceRoom,
@@ -96,6 +99,8 @@ const roomQueryParams = {
 const messageQueryParams = {
   limit: 30,
 } as const;
+
+type ForwardMessageSource = Pick<SpaceMessage, "author" | "content" | "attachments">;
 
 const formatChatTimestamp = (value?: string) => {
   if (!value) {
@@ -209,6 +214,15 @@ const mapMessageToUi = (
         url: attachment.url || undefined,
       }))
     : [],
+  reactions: Array.isArray(message.reactions)
+    ? message.reactions.map((reaction) => ({
+        emoji: String(reaction.emoji || ""),
+        count: Number(reaction.count || 0),
+        reacted: Boolean(reaction.reacted),
+      }))
+    : [],
+  isPinned: Boolean(message.isPinned),
+  pinnedAt: message.pinnedAt ? String(message.pinnedAt) : null,
   threadCount: Number(message.threadCount || 0),
 });
 
@@ -220,6 +234,86 @@ const resolveIsoTimestamp = (value?: string) => {
 
   return parsed;
 };
+
+const normalizeReactionEntries = (
+  reactions?: SpaceMessageReaction[],
+): SpaceMessageReaction[] => {
+  if (!Array.isArray(reactions)) {
+    return [];
+  }
+
+  return reactions
+    .map((reaction) => ({
+      emoji: String(reaction?.emoji || ""),
+      count: Math.max(0, Number(reaction?.count || 0)),
+      reacted: Boolean(reaction?.reacted),
+    }))
+    .filter((reaction) => reaction.emoji.length > 0 && reaction.count > 0);
+};
+
+const toggleReactionEntries = (
+  reactions: SpaceMessageReaction[] | undefined,
+  emoji: string,
+): SpaceMessageReaction[] => {
+  const normalizedEmoji = String(emoji || "").trim();
+  if (!normalizedEmoji) {
+    return normalizeReactionEntries(reactions);
+  }
+
+  const current = normalizeReactionEntries(reactions);
+  const index = current.findIndex((entry) => entry.emoji === normalizedEmoji);
+
+  if (index < 0) {
+    return [
+      ...current,
+      {
+        emoji: normalizedEmoji,
+        count: 1,
+        reacted: true,
+      },
+    ];
+  }
+
+  const target = current[index];
+  if (target.reacted) {
+    const nextCount = Math.max(0, target.count - 1);
+    if (nextCount === 0) {
+      return current.filter((_, entryIndex) => entryIndex !== index);
+    }
+
+    return current.map((entry, entryIndex) =>
+      entryIndex === index
+        ? {
+            ...entry,
+            count: nextCount,
+            reacted: false,
+          }
+        : entry,
+    );
+  }
+
+  return current.map((entry, entryIndex) =>
+    entryIndex === index
+      ? {
+          ...entry,
+          count: entry.count + 1,
+          reacted: true,
+        }
+      : entry,
+  );
+};
+
+const reactionSignature = (reactions?: SpaceMessageReaction[]) =>
+  JSON.stringify(
+    normalizeReactionEntries(reactions)
+      .slice()
+      .sort((left, right) => left.emoji.localeCompare(right.emoji))
+      .map((reaction) => ({
+        emoji: reaction.emoji,
+        count: reaction.count,
+        reacted: reaction.reacted,
+      })),
+  );
 
 const SpacesPage = () => {
   const router = useRouter();
@@ -266,6 +360,10 @@ const SpacesPage = () => {
     optimisticThreadRepliesByMessage,
     setOptimisticThreadRepliesByMessage,
   ] = useState<Record<string, ThreadReply[]>>({});
+  const [optimisticReactionsByMessageId, setOptimisticReactionsByMessageId] =
+    useState<Record<string, SpaceMessageReaction[]>>({});
+  const [optimisticPinnedByMessageId, setOptimisticPinnedByMessageId] =
+    useState<Record<string, boolean>>({});
 
   const [leftPanelWidth, setLeftPanelWidth] = useState(304);
   const [threadPanelWidth, setThreadPanelWidth] = useState(392);
@@ -276,16 +374,18 @@ const SpacesPage = () => {
   const [isRoomsSheetOpen, setIsRoomsSheetOpen] = useState(false);
   const [isThreadSheetOpen, setIsThreadSheetOpen] = useState(false);
   const [isCreateChatOpen, setIsCreateChatOpen] = useState(false);
+  const [isForwardDialogOpen, setIsForwardDialogOpen] = useState(false);
   const [isWorkspaceDetailsOpen, setIsWorkspaceDetailsOpen] = useState(false);
   const [isKeepUpOpen, setIsKeepUpOpen] = useState(false);
+  const [isPinsSheetOpen, setIsPinsSheetOpen] = useState(false);
   const [keepUpPage, setKeepUpPage] = useState(1);
   const [keepUpSearch, setKeepUpSearch] = useState("");
+  const [anchorMessageId, setAnchorMessageId] = useState<string | null>(null);
 
   const [teamCallWidget, setTeamCallWidget] =
     useState<TeamCallWidgetState | null>(null);
   const [teamCallDurationSeconds, setTeamCallDurationSeconds] = useState(0);
 
-  const [pinnedMessageIds, setPinnedMessageIds] = useState<string[]>([]);
   const [pinnedReplyIds, setPinnedReplyIds] = useState<string[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingMessageValue, setEditingMessageValue] = useState("");
@@ -295,6 +395,10 @@ const SpacesPage = () => {
   const [newChatMode, setNewChatMode] = useState<"direct" | "group">("direct");
   const [newChatGroupName, setNewChatGroupName] = useState("");
   const [newChatSearch, setNewChatSearch] = useState("");
+  const [forwardSearch, setForwardSearch] = useState("");
+  const [selectedForwardTargetId, setSelectedForwardTargetId] = useState("");
+  const [forwardMessageSource, setForwardMessageSource] =
+    useState<ForwardMessageSource | null>(null);
   const [selectedCreateMemberIds, setSelectedCreateMemberIds] = useState<
     string[]
   >([]);
@@ -548,8 +652,30 @@ const SpacesPage = () => {
       messageMap.set(message.id, message);
     });
 
-    return Array.from(messageMap.values());
-  }, [activeRoom?.id, optimisticMessagesByRoom, serverMessages]);
+    return Array.from(messageMap.values()).map((message) => {
+      const overrideReactions = optimisticReactionsByMessageId[message.id];
+      const overridePinned = optimisticPinnedByMessageId[message.id];
+
+      if (!overrideReactions && typeof overridePinned === "undefined") {
+        return message;
+      }
+
+      return {
+        ...message,
+        reactions: overrideReactions || message.reactions,
+        isPinned:
+          typeof overridePinned === "undefined"
+            ? Boolean(message.isPinned)
+            : Boolean(overridePinned),
+      };
+    });
+  }, [
+    activeRoom?.id,
+    optimisticMessagesByRoom,
+    optimisticPinnedByMessageId,
+    optimisticReactionsByMessageId,
+    serverMessages,
+  ]);
 
   const selectedThreadMessage = useMemo(() => {
     return (
@@ -558,6 +684,11 @@ const SpacesPage = () => {
       ) ?? null
     );
   }, [activeMessages, selectedThreadMessageId]);
+
+  useEffect(() => {
+    setAnchorMessageId(null);
+    setIsPinsSheetOpen(false);
+  }, [activeRoom?.id]);
 
   useEffect(() => {
     if (!urlProjectId || urlRoomId || !rooms.length) {
@@ -690,6 +821,7 @@ const SpacesPage = () => {
         sentAtRaw: mapped.sentAtRaw,
         edited: mapped.edited,
         attachments: mapped.attachments,
+        reactions: mapped.reactions,
       };
     });
   }, [threadRepliesQuery.data?.data?.replies]);
@@ -704,12 +836,87 @@ const SpacesPage = () => {
       replyMap.set(reply.id, reply);
     });
 
-    return Array.from(replyMap.values());
+    return Array.from(replyMap.values()).map((reply) => {
+      const overrideReactions = optimisticReactionsByMessageId[reply.id];
+      if (!overrideReactions) {
+        return reply;
+      }
+
+      return {
+        ...reply,
+        reactions: overrideReactions,
+      };
+    });
   }, [
+    optimisticReactionsByMessageId,
     optimisticThreadRepliesByMessage,
     selectedThreadMessage?.id,
     serverThreadReplies,
   ]);
+
+  useEffect(() => {
+    if (!Object.keys(optimisticReactionsByMessageId).length) {
+      return;
+    }
+
+    const serverReactionByMessageId = new Map<string, SpaceMessageReaction[]>();
+
+    serverMessages.forEach((message) => {
+      serverReactionByMessageId.set(message.id, message.reactions || []);
+    });
+
+    serverThreadReplies.forEach((reply) => {
+      serverReactionByMessageId.set(reply.id, reply.reactions || []);
+    });
+
+    setOptimisticReactionsByMessageId((prev) => {
+      const next = { ...prev };
+      let hasChange = false;
+
+      Object.entries(prev).forEach(([messageId, reactions]) => {
+        if (!serverReactionByMessageId.has(messageId)) {
+          return;
+        }
+
+        const serverReactions = serverReactionByMessageId.get(messageId) || [];
+        if (reactionSignature(reactions) === reactionSignature(serverReactions)) {
+          delete next[messageId];
+          hasChange = true;
+        }
+      });
+
+      return hasChange ? next : prev;
+    });
+  }, [optimisticReactionsByMessageId, serverMessages, serverThreadReplies]);
+
+  useEffect(() => {
+    if (!Object.keys(optimisticPinnedByMessageId).length) {
+      return;
+    }
+
+    const serverPinnedByMessageId = new Map<string, boolean>();
+    serverMessages.forEach((message) => {
+      serverPinnedByMessageId.set(message.id, Boolean(message.isPinned));
+    });
+
+    setOptimisticPinnedByMessageId((prev) => {
+      const next = { ...prev };
+      let hasChange = false;
+
+      Object.entries(prev).forEach(([messageId, isPinned]) => {
+        if (!serverPinnedByMessageId.has(messageId)) {
+          return;
+        }
+
+        if (Boolean(isPinned) === Boolean(serverPinnedByMessageId.get(messageId))) {
+          delete next[messageId];
+          hasChange = true;
+        }
+      });
+
+      return hasChange ? next : prev;
+    });
+  }, [optimisticPinnedByMessageId, serverMessages]);
 
   useEffect(() => {
     if (!activeRoom?.id) {
@@ -803,10 +1010,25 @@ const SpacesPage = () => {
     },
   );
 
+  const pinnedMessagesQuery = spaceHook.useWorkspaceSpacePinnedMessages(
+    resolvedWorkspaceId,
+    activeRoom?.id || "",
+    {
+      page: 1,
+      limit: 100,
+    },
+    {
+      enabled: Boolean(resolvedWorkspaceId && activeRoom?.id),
+    },
+  );
+
   const createRoomMutation = spaceHook.useCreateWorkspaceSpaceRoom();
   const createMessageMutation = spaceHook.useCreateWorkspaceSpaceMessage();
   const updateMessageMutation = spaceHook.useUpdateWorkspaceSpaceMessage();
   const deleteMessageMutation = spaceHook.useDeleteWorkspaceSpaceMessage();
+  const toggleMessageReactionMutation =
+    spaceHook.useToggleWorkspaceSpaceMessageReaction();
+  const toggleMessagePinMutation = spaceHook.useToggleWorkspaceSpaceMessagePin();
   const createThreadReplyMutation =
     spaceHook.useCreateWorkspaceSpaceThreadReply();
   const markReadMutation = spaceHook.useMarkWorkspaceSpaceRoomRead();
@@ -824,6 +1046,37 @@ const SpacesPage = () => {
     activeRoom?.scope === "task";
 
   const keepUpCount = keepUpBadgeQuery.data?.data?.pagination?.total ?? 0;
+  const pinnedMessages = useMemo(
+    () => {
+      const pinnedById = new Map<string, SpaceMessage>();
+
+      (pinnedMessagesQuery.data?.data?.messages || [])
+        .map(mapMessageToUi)
+        .forEach((message) => {
+          pinnedById.set(message.id, message);
+        });
+
+      activeMessages.forEach((message) => {
+        if (message.isPinned) {
+          pinnedById.set(message.id, message);
+          return;
+        }
+
+        if (pinnedById.has(message.id)) {
+          pinnedById.delete(message.id);
+        }
+      });
+
+      return Array.from(pinnedById.values()).sort((left, right) => {
+        const rightTs = resolveIsoTimestamp(right.pinnedAt || right.sentAtRaw);
+        const leftTs = resolveIsoTimestamp(left.pinnedAt || left.sentAtRaw);
+        return rightTs - leftTs;
+      });
+    },
+    [activeMessages, pinnedMessagesQuery.data?.data?.messages],
+  );
+  const pinnedMessagesCount = pinnedMessages.length;
+  const featuredPinnedMessage = pinnedMessages[0] || null;
   const keepUpItems = useMemo(
     () => keepUpQuery.data?.data?.items ?? [],
     [keepUpQuery.data?.data?.items],
@@ -871,6 +1124,54 @@ const SpacesPage = () => {
         email: String(entry?.userId?.email || ""),
       }));
   }, [workspacePeopleQuery.data?.data?.members, currentUser.id]);
+
+  const forwardTargetOptions = useMemo(() => {
+    const normalizedQuery = forwardSearch.trim().toLowerCase();
+    const options: Array<{
+      id: string;
+      name: string;
+      subtitle: string;
+      kind: "person" | "group";
+      avatarUrl?: string;
+      avatarFallback?: string;
+    }> = [];
+
+    createDialogMembers.forEach((member) => {
+      const matchSource = `${member.name} ${member.email}`.toLowerCase();
+      if (normalizedQuery && !matchSource.includes(normalizedQuery)) {
+        return;
+      }
+
+      options.push({
+        id: `person:${member.id}`,
+        name: member.name,
+        subtitle: member.email || "Workspace member",
+        kind: "person",
+        avatarFallback: mentionInitials(member.name, "U"),
+      });
+    });
+
+    rooms
+      .filter((room) => !isDirectRoom(room))
+      .forEach((room) => {
+        const subtitle = `${room.scope} • ${room.visibility}`;
+        const matchSource = `${room.name} ${subtitle}`.toLowerCase();
+        if (normalizedQuery && !matchSource.includes(normalizedQuery)) {
+          return;
+        }
+
+        options.push({
+          id: `room:${room.id}`,
+          name: room.name,
+          subtitle,
+          kind: "group",
+          avatarUrl: room.avatarUrl,
+          avatarFallback: room.avatarFallback || mentionInitials(room.name, "SP"),
+        });
+      });
+
+    return options;
+  }, [createDialogMembers, forwardSearch, rooms]);
 
   const mentionLookup = useMemo<{
     suggestions: MentionSuggestion[];
@@ -1448,6 +1749,13 @@ const SpacesPage = () => {
           normalizedRoomId,
         ],
       });
+      queryClient.invalidateQueries({
+        queryKey: [
+          "workspace-spaces-room-pins",
+          resolvedWorkspaceId,
+          normalizedRoomId,
+        ],
+      });
 
       queryClient.invalidateQueries({
         queryKey: [
@@ -1508,6 +1816,13 @@ const SpacesPage = () => {
       queryClient.invalidateQueries({
         queryKey: [
           "workspace-spaces-room-messages-infinite",
+          resolvedWorkspaceId,
+          normalizedRoomId,
+        ],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [
+          "workspace-spaces-room-pins",
           resolvedWorkspaceId,
           normalizedRoomId,
         ],
@@ -1605,12 +1920,17 @@ const SpacesPage = () => {
     setTeamCallDurationSeconds(0);
   };
 
-  const openTeamCall = (mode: "voice" | "video" = "video") => {
-    if (!activeRoom) {
+  const openTeamCallForRoom = (
+    room: SpaceRoom | null,
+    mode: "voice" | "video" = "video",
+  ) => {
+    if (!room) {
       return;
     }
 
     clearTeamCallWidget();
+    pendingRoomSyncRef.current = room.id;
+    setActiveRoomId(room.id);
 
     const startedAt = Date.now();
 
@@ -1622,23 +1942,28 @@ const SpacesPage = () => {
 
       socket.emit("team-call:start", {
         workspaceId: resolvedWorkspaceId,
-        roomId: activeRoom.id,
-        roomName: activeRoom.name,
-        roomScope: activeRoom.scope,
+        roomId: room.id,
+        roomName: room.name,
+        roomScope: room.scope,
         callMode: mode,
         startedAt,
         startedByName: currentUser.name,
+        startedByInitials: currentUser.initials,
       });
     }
 
     const query = new URLSearchParams({
-      roomId: activeRoom.id,
-      room: activeRoom.name,
-      scope: activeRoom.scope,
+      roomId: room.id,
+      room: room.name,
+      scope: room.scope,
       callMode: mode,
       startedAt: String(startedAt),
     });
     router.push(`${ROUTES.SPACES_TEAM_CALL}?${query.toString()}`);
+  };
+
+  const openTeamCall = (mode: "voice" | "video" = "video") => {
+    openTeamCallForRoom(activeRoom, mode);
   };
 
   const rejoinTeamCall = () => {
@@ -1659,7 +1984,7 @@ const SpacesPage = () => {
   };
 
   const handleStartCall = (mode: "voice" | "video") => {
-    openTeamCall(mode);
+    openTeamCallForRoom(activeRoom, mode);
   };
 
   const attachFiles = (files: FileList, target: "main" | "thread") => {
@@ -2060,6 +2385,7 @@ const SpacesPage = () => {
       sentAtRaw: new Date().toISOString(),
       edited: false,
       attachments: draftAttachments,
+      reactions: [],
       threadCount: 0,
     };
 
@@ -2126,6 +2452,7 @@ const SpacesPage = () => {
       sentAtRaw: new Date().toISOString(),
       edited: false,
       attachments: draftAttachments,
+      reactions: [],
     };
 
     setThreadComposer("");
@@ -2157,6 +2484,7 @@ const SpacesPage = () => {
           sentAtRaw: mappedReply.sentAtRaw,
           edited: mappedReply.edited,
           attachments: mappedReply.attachments,
+          reactions: mappedReply.reactions,
         });
       } else {
         removeOptimisticThreadReply(messageId, optimisticReplyId);
@@ -2189,13 +2517,7 @@ const SpacesPage = () => {
     }
   };
 
-  const forwardToMainChat = (
-    source: Pick<SpaceMessage, "author" | "content" | "attachments">,
-  ) => {
-    if (!resolvedWorkspaceId || !activeRoom) {
-      return;
-    }
-
+  const openForwardMessageDialog = (source: ForwardMessageSource) => {
     const forwardedContent = source.content.trim();
     if (
       !forwardedContent &&
@@ -2204,16 +2526,78 @@ const SpacesPage = () => {
       return;
     }
 
-    void createMessageMutation
-      .mutateAsync({
+    setForwardMessageSource(source);
+    setForwardSearch("");
+    setSelectedForwardTargetId("");
+    setIsForwardDialogOpen(true);
+  };
+
+  const handleSubmitForwardMessage = async () => {
+    if (!resolvedWorkspaceId || !forwardMessageSource || !selectedForwardTargetId) {
+      return;
+    }
+
+    const [targetKind, targetId] = selectedForwardTargetId.split(":");
+    const normalizedTargetId = String(targetId || "").trim();
+    if (!normalizedTargetId) {
+      return;
+    }
+
+    const forwardedText = forwardMessageSource.content.trim();
+    const contentHeader = `Forwarded from ${forwardMessageSource.author.name}`;
+    const payloadContent = forwardedText
+      ? `${contentHeader}\n${forwardedText}`
+      : contentHeader;
+
+    try {
+      let destinationRoomId = "";
+
+      if (targetKind === "person") {
+        const roomResponse = await createRoomMutation.mutateAsync({
+          workspaceId: resolvedWorkspaceId,
+          payload: {
+            kind: "direct",
+            memberUserIds: [normalizedTargetId],
+          },
+        });
+        destinationRoomId = String(roomResponse?.data?.room?.id || "").trim();
+      } else if (targetKind === "room") {
+        destinationRoomId = normalizedTargetId;
+      }
+
+      if (!destinationRoomId) {
+        return;
+      }
+
+      await createMessageMutation.mutateAsync({
         workspaceId: resolvedWorkspaceId,
-        roomId: activeRoom.id,
+        roomId: destinationRoomId,
         payload: {
-          content: `Forwarded from ${source.author.name}: ${forwardedContent}`,
-          attachments: source.attachments,
+          content: payloadContent,
+          attachments: forwardMessageSource.attachments || [],
         },
-      })
-      .then(() => upsertMessageCache(activeRoom.id));
+      });
+
+      upsertMessageCache(destinationRoomId);
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-spaces-rooms", resolvedWorkspaceId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [
+          "workspace-spaces-room-messages",
+          resolvedWorkspaceId,
+          destinationRoomId,
+        ],
+      });
+
+      setIsForwardDialogOpen(false);
+      setForwardMessageSource(null);
+      setForwardSearch("");
+      setSelectedForwardTargetId("");
+      toast.success("Message forwarded");
+    } catch {
+      // handled by shared hooks
+    }
   };
 
   const createTaskFromMessage = () => {
@@ -2300,8 +2684,6 @@ const SpacesPage = () => {
         messageId,
       });
 
-      setPinnedMessageIds((prev) => prev.filter((id) => id !== messageId));
-
       if (selectedThreadMessageId === messageId) {
         closeThread();
       }
@@ -2311,17 +2693,136 @@ const SpacesPage = () => {
       }
 
       upsertMessageCache(activeRoom.id);
+      queryClient.invalidateQueries({
+        queryKey: [
+          "workspace-spaces-room-pins",
+          resolvedWorkspaceId,
+          activeRoom.id,
+        ],
+      });
     } catch {
       // handled by shared hook
     }
   };
 
-  const togglePinnedMessage = (messageId: string) => {
-    setPinnedMessageIds((prev) =>
-      prev.includes(messageId)
-        ? prev.filter((id) => id !== messageId)
-        : [messageId, ...prev],
-    );
+  const togglePinnedMessage = async (messageId: string) => {
+    if (
+      !resolvedWorkspaceId ||
+      !activeRoom ||
+      !messageId
+    ) {
+      return;
+    }
+
+    const targetMessage = activeMessages.find((entry) => entry.id === messageId);
+    if (!targetMessage) {
+      return;
+    }
+
+    const previousPinned = Boolean(targetMessage.isPinned);
+    const nextPinned = !previousPinned;
+
+    setOptimisticPinnedByMessageId((prev) => ({
+      ...prev,
+      [messageId]: nextPinned,
+    }));
+
+    try {
+      await toggleMessagePinMutation.mutateAsync({
+        workspaceId: resolvedWorkspaceId,
+        roomId: activeRoom.id,
+        messageId,
+      });
+
+      upsertMessageCache(activeRoom.id);
+      queryClient.invalidateQueries({
+        queryKey: [
+          "workspace-spaces-room-pins",
+          resolvedWorkspaceId,
+          activeRoom.id,
+        ],
+      });
+    } catch {
+      setOptimisticPinnedByMessageId((prev) => {
+        const next = { ...prev };
+        next[messageId] = previousPinned;
+        return next;
+      });
+      // handled by shared hook
+    }
+  };
+
+  const getPinnedMessagePreview = (message: SpaceMessage) => {
+    const normalized = String(message.content || "").replace(/\s+/g, " ").trim();
+    if (!normalized) {
+      return "Pinned message";
+    }
+
+    return normalized.length > 120 ? `${normalized.slice(0, 120)}...` : normalized;
+  };
+
+  const openPinnedMessage = (messageId: string) => {
+    if (!messageId) {
+      return;
+    }
+
+    setIsPinsSheetOpen(false);
+    setAnchorMessageId(null);
+    window.setTimeout(() => {
+      setAnchorMessageId(messageId);
+    }, 0);
+  };
+
+  const reactToMessage = async (messageId: string, emoji: string) => {
+    if (
+      !resolvedWorkspaceId ||
+      !activeRoom ||
+      !messageId
+    ) {
+      return;
+    }
+
+    const targetMessage = activeMessages.find((entry) => entry.id === messageId);
+    if (!targetMessage) {
+      return;
+    }
+
+    const previousReactions = normalizeReactionEntries(targetMessage.reactions);
+    const optimisticReactions = toggleReactionEntries(previousReactions, emoji);
+
+    setOptimisticReactionsByMessageId((prev) => ({
+      ...prev,
+      [messageId]: optimisticReactions,
+    }));
+
+    try {
+      await toggleMessageReactionMutation.mutateAsync({
+        workspaceId: resolvedWorkspaceId,
+        roomId: activeRoom.id,
+        messageId,
+        emoji,
+      });
+
+      upsertMessageCache(activeRoom.id);
+      queryClient.invalidateQueries({
+        queryKey: [
+          "workspace-spaces-thread-replies",
+          resolvedWorkspaceId,
+          activeRoom.id,
+        ],
+      });
+    } catch {
+      setOptimisticReactionsByMessageId((prev) => {
+        const next = { ...prev };
+        if (previousReactions.length) {
+          next[messageId] = previousReactions;
+        } else {
+          delete next[messageId];
+        }
+        return next;
+      });
+      // handled by shared hook
+    }
   };
 
   const startEditingReply = (reply: ThreadReply) => {
@@ -2445,6 +2946,61 @@ const SpacesPage = () => {
     );
   };
 
+  const reactToThreadReply = async (replyId: string, emoji: string) => {
+    if (
+      !resolvedWorkspaceId ||
+      !activeRoom ||
+      !replyId
+    ) {
+      return;
+    }
+
+    const targetReply = activeThreadReplies.find((entry) => entry.id === replyId);
+    if (!targetReply) {
+      return;
+    }
+
+    const previousReactions = normalizeReactionEntries(targetReply.reactions);
+    const optimisticReactions = toggleReactionEntries(previousReactions, emoji);
+
+    setOptimisticReactionsByMessageId((prev) => ({
+      ...prev,
+      [replyId]: optimisticReactions,
+    }));
+
+    try {
+      await toggleMessageReactionMutation.mutateAsync({
+        workspaceId: resolvedWorkspaceId,
+        roomId: activeRoom.id,
+        messageId: replyId,
+        emoji,
+      });
+
+      upsertMessageCache(activeRoom.id);
+      if (selectedThreadMessage) {
+        queryClient.invalidateQueries({
+          queryKey: [
+            "workspace-spaces-thread-replies",
+            resolvedWorkspaceId,
+            activeRoom.id,
+            selectedThreadMessage.id,
+          ],
+        });
+      }
+    } catch {
+      setOptimisticReactionsByMessageId((prev) => {
+        const next = { ...prev };
+        if (previousReactions.length) {
+          next[replyId] = previousReactions;
+        } else {
+          delete next[replyId];
+        }
+        return next;
+      });
+      // handled by shared hook
+    }
+  };
+
   const getThreadCount = (messageId: string) => {
     const message = activeMessages.find((entry) => entry.id === messageId);
 
@@ -2564,6 +3120,10 @@ const SpacesPage = () => {
         .toUpperCase() || mentionInitials(activeRoom.name, "SP")
     : "SP";
 
+  const handleQuickDirectCall = (room: SpaceRoom) => {
+    openTeamCallForRoom(room, "voice");
+  };
+
   return (
     <>
       <div
@@ -2620,6 +3180,7 @@ const SpacesPage = () => {
                   roomEntries={rooms}
                   activeRoomId={activeRoom?.id || ""}
                   onPick={handleSelectRoom}
+                  onQuickCall={handleQuickDirectCall}
                 />
                 {isLoadingMoreRooms ? (
                   <div className="flex justify-center py-1.5">
@@ -2719,6 +3280,25 @@ const SpacesPage = () => {
                   )}
                 </Button>
 
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 px-2.5 text-[13px]"
+                  onClick={() => setIsPinsSheetOpen(true)}
+                  disabled={!activeRoom}
+                >
+                  <Pin className="size-4" />
+                  Pins
+                  {pinnedMessagesCount > 0 && (
+                    <Badge
+                      variant="secondary"
+                      className="ml-1 rounded-full px-1.5 py-0 text-[11px]"
+                    >
+                      {pinnedMessagesCount}
+                    </Badge>
+                  )}
+                </Button>
+
                 {isPersonalChat ? (
                   <>
                     <Button
@@ -2790,6 +3370,32 @@ const SpacesPage = () => {
                 )}
               </div>
             )}
+
+            {activeRoom && featuredPinnedMessage && (
+              <div className="mt-2 flex items-center gap-2 rounded-md border border-border/40 bg-muted/20 px-2 py-1.5">
+                <Badge variant="outline" className="text-[10px]">
+                  <Pin className="size-3.5" />
+                  {pinnedMessagesCount}
+                </Badge>
+                <button
+                  type="button"
+                  className="min-w-0 flex-1 truncate text-left text-[12px] text-muted-foreground transition-colors hover:text-foreground"
+                  onClick={() => openPinnedMessage(featuredPinnedMessage.id)}
+                >
+                  {getPinnedMessagePreview(featuredPinnedMessage)}
+                </button>
+                {pinnedMessagesCount > 1 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-[11px]"
+                    onClick={() => setIsPinsSheetOpen(true)}
+                  >
+                    View all
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
 
           {teamCallWidget && (
@@ -2807,7 +3413,7 @@ const SpacesPage = () => {
             <MainChatPanel
               activeMessages={activeMessages}
               selectedThreadMessageId={selectedThreadMessageId}
-              pinnedMessageIds={pinnedMessageIds}
+              anchorMessageId={anchorMessageId}
               editingMessageId={editingMessageId}
               editingMessageValue={editingMessageValue}
               composer={composer}
@@ -2829,8 +3435,9 @@ const SpacesPage = () => {
               onCancelEditingMessage={cancelEditingMessage}
               onStartEditingMessage={startEditingMessage}
               onCopyText={copyTextToClipboard}
+              onReactToMessage={reactToMessage}
               onTogglePinnedMessage={togglePinnedMessage}
-              onForwardMessage={forwardToMainChat}
+              onForwardMessage={openForwardMessageDialog}
               onCreateTaskFromMessage={createTaskFromMessage}
               onDeleteMessage={deleteMessageFromChat}
               onOpenJamFromMessage={openSharedJamFromMessage}
@@ -2916,8 +3523,9 @@ const SpacesPage = () => {
                   onCancelEditingReply={cancelEditingReply}
                   onStartEditingReply={startEditingReply}
                   onCopyText={copyTextToClipboard}
+                  onReactToReply={reactToThreadReply}
                   onTogglePinnedReply={togglePinnedReply}
-                  onForwardReply={forwardToMainChat}
+                  onForwardReply={openForwardMessageDialog}
                   onCreateTaskFromReply={createTaskFromMessage}
                   onDeleteThreadReply={deleteThreadReply}
                   onOpenJamFromMessage={openSharedJamFromMessage}
@@ -2981,6 +3589,7 @@ const SpacesPage = () => {
                   roomEntries={rooms}
                   activeRoomId={activeRoom?.id || ""}
                   onPick={handleSelectRoom}
+                  onQuickCall={handleQuickDirectCall}
                 />
                 {isLoadingMoreRooms ? (
                   <div className="flex justify-center py-1.5">
@@ -3051,8 +3660,9 @@ const SpacesPage = () => {
             onCancelEditingReply={cancelEditingReply}
             onStartEditingReply={startEditingReply}
             onCopyText={copyTextToClipboard}
+            onReactToReply={reactToThreadReply}
             onTogglePinnedReply={togglePinnedReply}
-            onForwardReply={forwardToMainChat}
+            onForwardReply={openForwardMessageDialog}
             onCreateTaskFromReply={createTaskFromMessage}
             onDeleteThreadReply={deleteThreadReply}
             onOpenJamFromMessage={openSharedJamFromMessage}
@@ -3063,6 +3673,79 @@ const SpacesPage = () => {
             }
             onRemoveAttachment={removeDraftAttachment}
           />
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={isPinsSheetOpen} onOpenChange={setIsPinsSheetOpen}>
+        <SheetContent
+          side="right"
+          className="w-full max-w-none p-0 sm:max-w-md"
+        >
+          <SheetHeader className="border-b border-border/35 px-4 py-3">
+            <SheetTitle className="text-[15px]">Pinned Messages</SheetTitle>
+            <SheetDescription className="text-[12px]">
+              Jump to important messages pinned in this space.
+            </SheetDescription>
+          </SheetHeader>
+
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            {pinnedMessagesQuery.isLoading ? (
+              <div className="flex h-full min-h-[10rem] items-center justify-center">
+                <LoaderComponent />
+              </div>
+            ) : pinnedMessages.length ? (
+              <div className="space-y-2">
+                {pinnedMessages.map((message) => (
+                  <button
+                    key={`pin-${message.id}`}
+                    type="button"
+                    onClick={() => openPinnedMessage(message.id)}
+                    className="w-full rounded-lg border border-border/45 bg-background/70 px-3 py-2 text-left transition-colors hover:bg-accent/30"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Avatar size="sm" className="size-7">
+                        <AvatarImage
+                          src={message.author.avatarUrl}
+                          alt={message.author.name}
+                        />
+                        <AvatarFallback className="text-[10px]">
+                          {message.author.initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[12px] font-medium">
+                          {message.author.name}
+                        </p>
+                        <p className="text-muted-foreground text-[11px]">
+                          {message.sentAt}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="text-[10px]">
+                        <Pin className="size-3.5" />
+                        Pinned
+                      </Badge>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-[12px] text-muted-foreground">
+                      {getPinnedMessagePreview(message)}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="flex h-full min-h-[10rem] items-center justify-center">
+                <Empty className="border-0 p-0 md:p-0">
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <Pin className="size-4 text-primary/85" />
+                    </EmptyMedia>
+                    <EmptyDescription className="text-center text-[12px]">
+                      No pinned messages in this space yet.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              </div>
+            )}
+          </div>
         </SheetContent>
       </Sheet>
 
@@ -3250,6 +3933,37 @@ const SpacesPage = () => {
         onCancel={() => {
           setIsCreateChatOpen(false);
           clearCreateChatForm();
+        }}
+      />
+
+      <ForwardMessageDialog
+        open={isForwardDialogOpen}
+        onOpenChange={(open) => {
+          setIsForwardDialogOpen(open);
+          if (!open) {
+            setForwardMessageSource(null);
+            setForwardSearch("");
+            setSelectedForwardTargetId("");
+          }
+        }}
+        search={forwardSearch}
+        sourcePreview={
+          forwardMessageSource?.content?.trim() ||
+          (forwardMessageSource?.attachments?.length
+            ? `${forwardMessageSource.attachments.length} attachment${forwardMessageSource.attachments.length === 1 ? "" : "s"}`
+            : "")
+        }
+        selectedTargetId={selectedForwardTargetId}
+        targetOptions={forwardTargetOptions}
+        isSubmitting={createMessageMutation.isPending || createRoomMutation.isPending}
+        onSearchChange={setForwardSearch}
+        onSelectTarget={setSelectedForwardTargetId}
+        onSubmit={handleSubmitForwardMessage}
+        onCancel={() => {
+          setIsForwardDialogOpen(false);
+          setForwardMessageSource(null);
+          setForwardSearch("");
+          setSelectedForwardTargetId("");
         }}
       />
 

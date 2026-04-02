@@ -22,8 +22,8 @@ import {
   Download,
   Info,
   Link2,
-  Loader2,
   LogOut,
+  MoreHorizontal,
   Trash2,
   Upload,
   X,
@@ -44,6 +44,12 @@ import useFile from "@/hooks/use-file";
 import { UpdateUserBody } from "@/types/auth";
 import { getMissingProfileCompletionFields } from "@/lib/helpers/profile-completion";
 import { Country, State } from "country-state-city";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 
 type ProfileFormState = {
   firstName: string;
@@ -150,25 +156,10 @@ const SettingsProfile = () => {
     },
   });
 
-  const { mutate: uploadProfileImage, isPending: isUploadingProfileImage } =
-    useUploadAsset({
-      onSuccess: (data) => {
-        const asset = data?.data?.asset;
-        if (!asset) {
-          return;
-        }
-
-        setProfile((prev) => ({
-          ...prev,
-          avatarId: asset._id,
-          avatarUrl: asset.url,
-        }));
-
-        toast.success("Photo uploaded", {
-          description: "Save profile to persist this change.",
-        });
-      },
-    });
+  const {
+    mutateAsync: uploadProfileImage,
+    isPending: isUploadingProfileImage,
+  } = useUploadAsset();
 
   // Effects
   useEffect(() => {
@@ -254,7 +245,9 @@ const SettingsProfile = () => {
     fileInputRef.current?.click();
   };
 
-  const handleAvatarUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = event.target.files?.[0];
     if (!file) {
       return;
@@ -271,16 +264,47 @@ const SettingsProfile = () => {
     formData.append("file", file);
     formData.append("folder", "profile");
     formData.append("ownerId", String(user._id));
-    uploadProfileImage(formData);
-    event.target.value = "";
+    const loadingToastId = toast.loading("Uploading profile image...");
+    try {
+      const response = await uploadProfileImage(formData);
+      const asset = response?.data?.asset;
+      const avatarId = String(asset?._id || "").trim();
+      const avatarUrl = String(asset?.url || "").trim();
+      if (!avatarId) {
+        toast.error("Unable to upload image", { id: loadingToastId });
+        return;
+      }
+
+      setProfile((prev) => ({
+        ...prev,
+        avatarId,
+        avatarUrl,
+      }));
+
+      toast.success("Profile image uploaded", { id: loadingToastId });
+
+      updateProfile({
+        profilePhoto: avatarId,
+      });
+    } catch {
+      toast.error("Unable to upload image", { id: loadingToastId });
+    } finally {
+      event.target.value = "";
+    }
   };
 
   const handleRemoveAvatar = () => {
+    if (!user?._id) {
+      return;
+    }
     setProfile((prev) => ({
       ...prev,
       avatarId: "",
       avatarUrl: "",
     }));
+    updateProfile({
+      profilePhoto: null,
+    });
   };
 
   const handleSaveProfile = () => {
@@ -426,66 +450,85 @@ const SettingsProfile = () => {
         ) : null}
 
         <div className="rounded-lg">
-          <div className="flex flex-wrap items-center gap-4">
-            <Avatar
-              size="lg"
-              userCard={{
-                name:
-                  `${profile.firstName || ""} ${profile.lastName || ""}`.trim() ||
-                  profile.email,
-                email: profile.email,
-                role: "Workspace member",
-              }}
-            >
-              <AvatarImage src={profile.avatarUrl} alt={profile.email} />
-              <AvatarFallback>
-                {getInitials(
-                  profile.firstName,
-                  profile.lastName,
-                  profile.email,
-                )}
-              </AvatarFallback>
-            </Avatar>
+          <div className="flex  flex-wrap items-center gap-4">
+            <FieldContent className="flex flex-row items-center gap-4 rounded-xl border border-border/35 bg-muted/20 px-3 py-3">
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={handlePickAvatar}
+                  className="group rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                  disabled={isUploadingProfileImage || isSavingProfile}
+                >
+                  <Avatar
+                    className="rounded-full border border-border/45 size-16"
+                    userCard={{
+                      name:
+                        `${profile.firstName || ""} ${profile.lastName || ""}`.trim() ||
+                        profile.email,
+                      email: profile.email,
+                      role: "Workspace member",
+                    }}
+                  >
+                    <AvatarImage src={profile.avatarUrl} alt={profile.email} />
+                    <AvatarFallback>
+                      {getInitials(
+                        profile.firstName,
+                        profile.lastName,
+                        profile.email,
+                      )}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="absolute -bottom-1 -right-1 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-colors group-hover:text-foreground">
+                    <Upload className="size-3.5" />
+                  </span>
+                </button>
+              </div>
 
-            <FieldContent className="min-w-0 flex-1">
-              <FieldTitle>Profile Photo</FieldTitle>
-              <FieldDescription>
-                Shown in comments, mentions, and member lists.
-              </FieldDescription>
+              <div className="min-w-0 flex-1">
+                <FieldTitle>Profile Photo</FieldTitle>
+                <FieldDescription>
+                  Shown in comments, mentions, direct chats, and member lists.
+                </FieldDescription>
+              </div>
+
+              <div className="ml-auto">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="size-8"
+                      disabled={isUploadingProfileImage || isSavingProfile}
+                    >
+                      <MoreHorizontal className="size-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-44">
+                    <DropdownMenuItem onClick={handlePickAvatar}>
+                      <Upload className="size-4" />
+                      {profile.avatarUrl ? "Change image" : "Upload image"}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={handleRemoveAvatar}
+                      disabled={!profile.avatarUrl}
+                      className="text-destructive focus:text-destructive"
+                    >
+                      <X className="size-4" />
+                      Remove image
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+              />
             </FieldContent>
-
-            <div className="ml-auto flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                loading={isUploadingProfileImage}
-                onClick={handlePickAvatar}
-              >
-                {isUploadingProfileImage ? (
-                  <Loader2 className="animate-spin" />
-                ) : (
-                  <Upload />
-                )}
-                Upload
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={handleRemoveAvatar}
-                disabled={!profile.avatarUrl || isUploadingProfileImage}
-              >
-                <X />
-                Remove
-              </Button>
-            </div>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              className="hidden"
-              accept="image/*"
-              onChange={handleAvatarUpload}
-            />
           </div>
 
           <div className="mt-4 grid gap-4 md:grid-cols-2">

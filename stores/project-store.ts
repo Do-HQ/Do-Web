@@ -509,6 +509,7 @@ function normalizeProjectRecord(record: ProjectOverviewRecord): ProjectOverviewR
     customSections: Array.isArray(project.customSections)
       ? project.customSections.map((item, index) => normalizeKanbanSection(item, index))
       : [],
+    kanbanLaneOrder: toStringArray(project.kanbanLaneOrder),
     assets: Array.isArray(project.assets)
       ? project.assets.map((item, index) => normalizeAsset(item, index))
       : [],

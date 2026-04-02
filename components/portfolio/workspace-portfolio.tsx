@@ -97,6 +97,227 @@ const portfolioQueryPrefix = {
   approvalRequests: "workspace-portfolio-approval-requests",
 } as const;
 
+const clampPercent = (value: number) => {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(100, Math.round(value)));
+};
+
+const metricIntentClassName = (intent: "good" | "warn" | "bad" | "info") => {
+  if (intent === "good") {
+    return "text-emerald-500";
+  }
+  if (intent === "warn") {
+    return "text-amber-500";
+  }
+  if (intent === "bad") {
+    return "text-destructive";
+  }
+  return "text-primary";
+};
+
+const metricIntentTrackClassName = (
+  intent: "good" | "warn" | "bad" | "info",
+) => {
+  if (intent === "good") {
+    return "stroke-emerald-500";
+  }
+  if (intent === "warn") {
+    return "stroke-amber-500";
+  }
+  if (intent === "bad") {
+    return "stroke-destructive";
+  }
+  return "stroke-primary";
+};
+
+const CircularMetric = ({
+  label,
+  value,
+  helper,
+  intent = "info",
+}: {
+  label: string;
+  value: number;
+  helper: string;
+  intent?: "good" | "warn" | "bad" | "info";
+}) => {
+  const normalized = clampPercent(value);
+  const radius = 24;
+  const circumference = 2 * Math.PI * radius;
+  const strokeOffset = circumference - (normalized / 100) * circumference;
+
+  return (
+    <div className="rounded-lg border border-border/35 bg-muted/20 p-3">
+      <div className="flex items-center gap-3">
+        <div className="relative flex h-14 w-14 shrink-0 items-center justify-center">
+          <svg
+            viewBox="0 0 60 60"
+            className="-rotate-90 h-14 w-14"
+            aria-label={`${label} ${normalized}%`}
+          >
+            <circle
+              cx="30"
+              cy="30"
+              r={radius}
+              className="stroke-muted/45 fill-none"
+              strokeWidth="6"
+            />
+            <circle
+              cx="30"
+              cy="30"
+              r={radius}
+              className={cn(
+                "fill-none transition-all duration-500 ease-out",
+                metricIntentTrackClassName(intent),
+              )}
+              strokeWidth="6"
+              strokeLinecap="round"
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeOffset}
+            />
+          </svg>
+          <span
+            className={cn(
+              "absolute text-[11px] font-semibold",
+              metricIntentClassName(intent),
+            )}
+          >
+            {normalized}%
+          </span>
+        </div>
+        <div className="min-w-0">
+          <p className="text-[12px] font-medium">{label}</p>
+          <p className="text-muted-foreground text-[11px]">{helper}</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const VelocityLineChart = ({
+  rows,
+  className,
+}: {
+  rows: PortfolioVelocityRow[];
+  className?: string;
+}) => {
+  if (!rows.length) {
+    return (
+      <div
+        className={cn(
+          "text-muted-foreground flex min-h-[11rem] items-center justify-center text-[11px]",
+          className,
+        )}
+      >
+        No velocity points yet.
+      </div>
+    );
+  }
+
+  const width = 720;
+  const height = 190;
+  const leftPadding = 20;
+  const rightPadding = 14;
+  const topPadding = 16;
+  const bottomPadding = 30;
+  const plotWidth = width - leftPadding - rightPadding;
+  const plotHeight = height - topPadding - bottomPadding;
+  const maxValue = Math.max(
+    1,
+    ...rows.map((row) =>
+      Number.isFinite(row.completedTasks) ? row.completedTasks : 0,
+    ),
+  );
+
+  const points = rows.map((row, index) => {
+    const denominator = Math.max(1, rows.length - 1);
+    const x = leftPadding + (plotWidth * index) / denominator;
+    const y =
+      topPadding +
+      plotHeight -
+      ((Number(row.completedTasks) || 0) / maxValue) * plotHeight;
+    return { x, y, label: row.weekLabel, value: row.completedTasks };
+  });
+
+  const linePath = points
+    .map((point, index) =>
+      `${index === 0 ? "M" : "L"} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`,
+    )
+    .join(" ");
+
+  const areaPath = `${linePath} L ${points[points.length - 1]?.x.toFixed(2)} ${(height - bottomPadding + 1).toFixed(2)} L ${points[0]?.x.toFixed(2)} ${(height - bottomPadding + 1).toFixed(2)} Z`;
+
+  return (
+    <div className={cn("rounded-lg border border-border/35 bg-muted/15 p-2", className)}>
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="h-[12rem] w-full"
+        preserveAspectRatio="none"
+        role="img"
+        aria-label="Velocity trend chart"
+      >
+        <defs>
+          <linearGradient
+            id="velocityAreaGradient"
+            x1="0"
+            y1="0"
+            x2="0"
+            y2="1"
+          >
+            <stop offset="0%" stopColor="hsl(var(--primary) / 0.35)" />
+            <stop offset="100%" stopColor="hsl(var(--primary) / 0.02)" />
+          </linearGradient>
+        </defs>
+        {[0.25, 0.5, 0.75, 1].map((step) => {
+          const y = topPadding + plotHeight * step;
+          return (
+            <line
+              key={step}
+              x1={leftPadding}
+              x2={width - rightPadding}
+              y1={y}
+              y2={y}
+              className="stroke-border/40"
+              strokeWidth="1"
+              vectorEffect="non-scaling-stroke"
+            />
+          );
+        })}
+        <path d={areaPath} fill="url(#velocityAreaGradient)" />
+        <path
+          d={linePath}
+          className="stroke-primary fill-none"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          vectorEffect="non-scaling-stroke"
+        />
+        {points.map((point) => (
+          <g key={point.label}>
+            <circle
+              cx={point.x}
+              cy={point.y}
+              r="3.8"
+              className="fill-background stroke-primary"
+              strokeWidth="2"
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
+        ))}
+      </svg>
+      <div className="mt-1 grid grid-cols-2 gap-1 text-[10px] text-muted-foreground sm:grid-cols-4 md:grid-cols-6">
+        {points.map((point) => (
+          <div key={point.label} className="truncate">
+            {point.label}: {point.value}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 const WorkspacePortfolio = () => {
   const { workspaceId } = useWorkspaceStore();
   const workspacePermissions = useWorkspacePermissions();
@@ -134,6 +355,15 @@ const WorkspacePortfolio = () => {
   const [horizonDays, setHorizonDays] = React.useState("30");
   const [approvalStatusFilter, setApprovalStatusFilter] =
     React.useState("pending");
+  const [activeTab, setActiveTab] = React.useState<
+    | "executive"
+    | "okrs"
+    | "health"
+    | "velocity"
+    | "dependencies"
+    | "capacity"
+    | "approvals"
+  >("executive");
   const [selectedDependencyProject, setSelectedDependencyProject] =
     React.useState("");
   const [sourceTaskId, setSourceTaskId] = React.useState("");
@@ -400,6 +630,54 @@ const WorkspacePortfolio = () => {
     { key: "docsPublishing" as const, label: "Docs publishing escalation" },
     { key: "workflowStageChanges" as const, label: "Workflow stage changes" },
   ];
+
+  const executionActionRows = React.useMemo(() => {
+    const risky = healthRows
+      .filter(
+        (row) =>
+          row.overdueTasks > 0 || row.blockedTasks > 0 || row.healthScore < 65,
+      )
+      .sort((left, right) => left.healthScore - right.healthScore)
+      .slice(0, 5);
+
+    return risky;
+  }, [healthRows]);
+
+  const completedVelocityAverage = React.useMemo(() => {
+    if (!velocityRows.length) {
+      return 0;
+    }
+    const total = velocityRows.reduce(
+      (sum, row) => sum + (Number(row.completedTasks) || 0),
+      0,
+    );
+    return Math.round((total / velocityRows.length) * 10) / 10;
+  }, [velocityRows]);
+
+  const blockedRatio = React.useMemo(() => {
+    if (!summary) {
+      return 0;
+    }
+    const denominator = Math.max(1, summary.openTasks || summary.tasks || 1);
+    return clampPercent((summary.blockedTasks / denominator) * 100);
+  }, [summary]);
+
+  const overdueRatio = React.useMemo(() => {
+    if (!summary) {
+      return 0;
+    }
+    const denominator = Math.max(1, summary.openTasks || summary.tasks || 1);
+    return clampPercent((summary.overdueTasks / denominator) * 100);
+  }, [summary]);
+
+  const atRiskProjectCount = React.useMemo(
+    () =>
+      healthRows.filter(
+        (row) =>
+          row.healthScore < 65 || row.overdueTasks > 0 || row.blockedTasks > 0,
+      ).length,
+    [healthRows],
+  );
 
   React.useEffect(() => {
     if (!projects.length) {
@@ -741,7 +1019,7 @@ const WorkspacePortfolio = () => {
   return (
     <div
       data-tour="portfolio-shell"
-      className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 flex-col gap-3"
+      className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col gap-3"
     >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="space-y-0.5">
@@ -840,7 +1118,22 @@ const WorkspacePortfolio = () => {
         </Popover>
       </div>
 
-      <Tabs defaultValue="executive" className="min-h-0 flex-1 gap-0">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) =>
+          setActiveTab(
+            value as
+              | "executive"
+              | "okrs"
+              | "health"
+              | "velocity"
+              | "dependencies"
+              | "capacity"
+              | "approvals",
+          )
+        }
+        className="min-h-0 flex-1 gap-0"
+      >
         <TabsList
           data-tour="portfolio-tabs"
           className="h-auto w-full justify-start gap-1 overflow-x-auto rounded-none bg-transparent p-0 mb-3"
@@ -906,80 +1199,194 @@ const WorkspacePortfolio = () => {
             </Empty>
           ) : (
             <>
+              <div className="grid gap-3 xl:grid-cols-[1.45fr_1fr]">
+                <Card className="border-border/40">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center gap-1.5">
+                      <CardTitle className="text-[13px]">
+                        Execution signals
+                      </CardTitle>
+                      <ProjectInfoTip content="Circular meters summarize the most important portfolio signals at a glance." />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <CircularMetric
+                        label="Completion rate"
+                        value={summary.completionRate}
+                        helper={`${summary.tasks} tasks in scope`}
+                        intent={
+                          summary.completionRate >= 70
+                            ? "good"
+                            : summary.completionRate >= 45
+                              ? "warn"
+                              : "bad"
+                        }
+                      />
+                      <CircularMetric
+                        label="Delivery risk"
+                        value={summary.deliveryRiskScore}
+                        helper="Composite risk signal"
+                        intent={
+                          summary.deliveryRiskScore >= 70
+                            ? "bad"
+                            : summary.deliveryRiskScore >= 40
+                              ? "warn"
+                              : "good"
+                        }
+                      />
+                      <CircularMetric
+                        label="Blocked ratio"
+                        value={blockedRatio}
+                        helper={`${summary.blockedTasks} blocked / ${summary.openTasks} open`}
+                        intent={
+                          blockedRatio >= 35
+                            ? "bad"
+                            : blockedRatio >= 15
+                              ? "warn"
+                              : "good"
+                        }
+                      />
+                      <CircularMetric
+                        label="Overdue pressure"
+                        value={overdueRatio}
+                        helper={`${summary.overdueTasks} overdue tasks`}
+                        intent={
+                          overdueRatio >= 30
+                            ? "bad"
+                            : overdueRatio >= 12
+                              ? "warn"
+                              : "good"
+                        }
+                      />
+                    </div>
+
+                    <div className="rounded-lg border border-border/35 bg-muted/20 p-3">
+                      <div className="mb-1.5 flex items-center justify-between gap-2">
+                        <p className="text-[12px] font-medium">
+                          Throughput trend
+                        </p>
+                        <p className="text-muted-foreground text-[11px]">
+                          Avg {completedVelocityAverage} tasks/week
+                        </p>
+                      </div>
+                      <VelocityLineChart rows={velocityRows} className="border-none bg-transparent p-0" />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-border/40">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center gap-1.5">
+                      <CardTitle className="text-[13px]">
+                        Action queue
+                      </CardTitle>
+                      <ProjectInfoTip content="Direct jumps to the places where action is needed now." />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <button
+                      type="button"
+                      className="bg-muted/20 hover:bg-muted/35 flex w-full items-center justify-between rounded-md border border-border/35 px-2.5 py-2 text-left transition-colors"
+                      onClick={() => setActiveTab("health")}
+                    >
+                      <div>
+                        <p className="text-[12px] font-medium">
+                          At-risk projects
+                        </p>
+                        <p className="text-muted-foreground text-[11px]">
+                          {atRiskProjectCount} projects need attention
+                        </p>
+                      </div>
+                      <AlertTriangle className="size-4 text-amber-500" />
+                    </button>
+
+                    <button
+                      type="button"
+                      className="bg-muted/20 hover:bg-muted/35 flex w-full items-center justify-between rounded-md border border-border/35 px-2.5 py-2 text-left transition-colors"
+                      onClick={() => setActiveTab("approvals")}
+                    >
+                      <div>
+                        <p className="text-[12px] font-medium">
+                          Pending approvals
+                        </p>
+                        <p className="text-muted-foreground text-[11px]">
+                          {approvalRequests.filter((request) => request.status === "pending").length} waiting for decision
+                        </p>
+                      </div>
+                      <ShieldCheck className="size-4 text-primary" />
+                    </button>
+
+                    <button
+                      type="button"
+                      className="bg-muted/20 hover:bg-muted/35 flex w-full items-center justify-between rounded-md border border-border/35 px-2.5 py-2 text-left transition-colors"
+                      onClick={() => setActiveTab("capacity")}
+                    >
+                      <div>
+                        <p className="text-[12px] font-medium">
+                          Capacity pressure
+                        </p>
+                        <p className="text-muted-foreground text-[11px]">
+                          {capacityMembers.filter((member) => member.utilization > 100).length} members overloaded
+                        </p>
+                      </div>
+                      <Users className="size-4 text-destructive" />
+                    </button>
+                  </CardContent>
+                </Card>
+              </div>
+
               <Card className="border-border/40">
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-1.5">
                     <CardTitle className="text-[13px]">
-                      Delivery pressure
+                      Projects needing attention
                     </CardTitle>
-                    <ProjectInfoTip content="Combines open, blocked, overdue and completion signals to estimate execution risk." />
+                    <ProjectInfoTip content="Quick prioritization list using health, blocked and overdue signals." />
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {[
-                      {
-                        label: "Open tasks",
-                        value: summary.openTasks,
-                        icon: Activity,
-                        tip: "All non-completed tasks in scope.",
-                      },
-                      {
-                        label: "Blocked",
-                        value: summary.blockedTasks,
-                        icon: AlertTriangle,
-                        tip: "Tasks that are blocked by dependency or status.",
-                      },
-                      {
-                        label: "Overdue",
-                        value: summary.overdueTasks,
-                        icon: Clock3,
-                        tip: "Tasks whose due date is in the past and not complete.",
-                      },
-                      {
-                        label: "Completion",
-                        value: `${summary.completionRate}%`,
-                        icon: CheckCircle2,
-                        tip: "Percent of scoped tasks currently marked done.",
-                      },
-                    ].map((item) => (
-                      <div
-                        key={item.label}
-                        className="bg-muted/30 flex items-center justify-between rounded-md border border-border/35 px-2.5 py-2"
-                      >
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1">
-                            <p className="text-muted-foreground text-[11px]">
-                              {item.label}
+                  {!executionActionRows.length ? (
+                    <p className="text-muted-foreground text-[11px]">
+                      No immediate hotspots. Portfolio signals look stable.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {executionActionRows.map((row) => (
+                        <div
+                          key={row.projectId}
+                          className="rounded-md border border-border/35 bg-muted/20 p-2.5"
+                        >
+                          <div className="mb-1 flex items-center justify-between gap-2">
+                            <p className="text-[12px] font-medium">
+                              {row.projectName}
                             </p>
-                            <ProjectInfoTip content={item.tip} />
+                            <Badge variant="outline" className="text-[10px]">
+                              Health {row.healthScore}
+                            </Badge>
                           </div>
-                          <p className="text-[14px] font-semibold">
-                            {item.value}
-                          </p>
+                          <div className="grid gap-1 text-[11px] text-muted-foreground sm:grid-cols-3">
+                            <span>Blocked: {row.blockedTasks}</span>
+                            <span>Overdue: {row.overdueTasks}</span>
+                            <span>Open: {row.openTasks}</span>
+                          </div>
+                          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
+                            <div
+                              className={cn(
+                                "h-full rounded-full",
+                                row.healthScore < 45
+                                  ? "bg-destructive"
+                                  : row.healthScore < 70
+                                    ? "bg-amber-500"
+                                    : "bg-emerald-500",
+                              )}
+                              style={{ width: `${clampPercent(row.healthScore)}%` }}
+                            />
+                          </div>
                         </div>
-                        <item.icon className="size-4 text-muted-foreground" />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="bg-muted/50 h-2 overflow-hidden rounded-full">
-                    <div
-                      className={cn(
-                        "h-full rounded-full transition-all",
-                        summary.deliveryRiskScore >= 70
-                          ? "bg-destructive"
-                          : summary.deliveryRiskScore >= 40
-                            ? "bg-amber-500"
-                            : "bg-emerald-500",
-                      )}
-                      style={{
-                        width: `${Math.min(100, summary.deliveryRiskScore)}%`,
-                      }}
-                    />
-                  </div>
-                  <p className="text-muted-foreground text-[11px]">
-                    Risk score: {summary.deliveryRiskScore}
-                  </p>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </>
@@ -1128,9 +1535,14 @@ const WorkspacePortfolio = () => {
         <TabsContent value="health">
           <Card className="border-border/40">
             <CardHeader className="pb-2">
-              <div className="flex items-center gap-1.5">
-                <CardTitle className="text-[13px]">Project health</CardTitle>
-                <ProjectInfoTip content="Health score per project based on open, blocked, overdue and completion metrics." />
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5">
+                  <CardTitle className="text-[13px]">Project health</CardTitle>
+                  <ProjectInfoTip content="Health score per project based on open, blocked, overdue and completion metrics." />
+                </div>
+                <Badge variant="outline" className="text-[10px]">
+                  {atRiskProjectCount} at-risk
+                </Badge>
               </div>
             </CardHeader>
             <CardContent>
@@ -1151,6 +1563,7 @@ const WorkspacePortfolio = () => {
                     <TableRow>
                       <TableHead>Project</TableHead>
                       <TableHead>Health</TableHead>
+                      <TableHead>Trend</TableHead>
                       <TableHead>Open</TableHead>
                       <TableHead>Blocked</TableHead>
                       <TableHead>Overdue</TableHead>
@@ -1165,6 +1578,25 @@ const WorkspacePortfolio = () => {
                         </TableCell>
                         <TableCell className="text-[12px]">
                           {row.healthScore}
+                        </TableCell>
+                        <TableCell className="text-[12px]">
+                          <div className="w-28 space-y-1">
+                            <div className="h-1.5 overflow-hidden rounded-full bg-muted">
+                              <div
+                                className={cn(
+                                  "h-full rounded-full",
+                                  row.healthScore < 45
+                                    ? "bg-destructive"
+                                    : row.healthScore < 70
+                                      ? "bg-amber-500"
+                                      : "bg-emerald-500",
+                                )}
+                                style={{
+                                  width: `${clampPercent(row.healthScore)}%`,
+                                }}
+                              />
+                            </div>
+                          </div>
                         </TableCell>
                         <TableCell className="text-[12px]">
                           {row.openTasks}
@@ -1208,26 +1640,22 @@ const WorkspacePortfolio = () => {
                   </EmptyHeader>
                 </Empty>
               ) : (
-                velocityRows.map((row) => {
-                  const width = Math.min(100, row.completedTasks * 10);
-                  return (
-                    <div
-                      key={`${row.weekStart}-${row.weekEnd}`}
-                      className="space-y-1"
-                    >
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span>{row.weekLabel}</span>
-                        <span>{row.completedTasks} completed</span>
+                <div className="space-y-3">
+                  <VelocityLineChart rows={velocityRows} />
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {velocityRows.map((row) => (
+                      <div
+                        key={`${row.weekStart}-${row.weekEnd}`}
+                        className="rounded-md border border-border/35 bg-muted/20 p-2"
+                      >
+                        <p className="text-[11px] font-medium">{row.weekLabel}</p>
+                        <p className="text-muted-foreground text-[10px]">
+                          {row.completedTasks} completed tasks
+                        </p>
                       </div>
-                      <div className="bg-muted h-2 overflow-hidden rounded-full">
-                        <div
-                          className="bg-primary h-full rounded-full"
-                          style={{ width: `${width}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })
+                    ))}
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>

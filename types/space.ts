@@ -54,7 +54,16 @@ export interface WorkspaceSpaceMessageRecord {
   sentAt: string;
   edited: boolean;
   attachments: WorkspaceSpaceAttachment[];
+  reactions: WorkspaceSpaceMessageReactionRecord[];
+  isPinned?: boolean;
+  pinnedAt?: string | null;
   threadCount: number;
+}
+
+export interface WorkspaceSpaceMessageReactionRecord {
+  emoji: string;
+  count: number;
+  reacted: boolean;
 }
 
 export interface WorkspaceSpaceKeepUpItem {

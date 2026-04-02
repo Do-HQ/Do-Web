@@ -26,6 +26,7 @@ import {
 type ProjectDosTaskCardProps = {
   task: FlattenedProjectTask;
   laneId: string;
+  laneOrderId: string;
   laneKind: "status" | "custom";
   laneStatus?: ProjectTaskStatus;
   members: ProjectMember[];
@@ -44,6 +45,7 @@ const PRIORITY_STYLES = {
 export function ProjectDosTaskCard({
   task,
   laneId,
+  laneOrderId,
   laneKind,
   laneStatus,
   members,
@@ -58,6 +60,7 @@ export function ProjectDosTaskCard({
       type: "task",
       task,
       laneId,
+      laneOrderId,
       laneKind,
       laneStatus,
     },

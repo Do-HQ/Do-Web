@@ -1,6 +1,7 @@
 import { workspaceSettingsSchema } from "@/lib/schemas/workspace";
 import z from "zod";
-import { AuthUser, UserType } from "./auth";
+import type { AuthUser, UserType } from "./auth";
+import type { CustomFile } from "./file";
 
 export interface WorkspaceFlowDefaults {
   projectDefaultView: "list" | "board" | "timeline";
@@ -113,6 +114,7 @@ export interface WorkspaceType {
   _id: string;
   name: string;
   type: string;
+  logo?: CustomFile | null;
   ownerId: AuthUser;
   members: AuthUser[];
   slug: string;
@@ -146,6 +148,7 @@ export type WorkspaceSettingsForm = z.infer<typeof workspaceSettingsSchema>;
 export interface WorkspaceSettingsUpdateBody {
   name?: string;
   type?: string;
+  logo?: string | null;
   allowedDomains?: string;
   flowDefaults?: Partial<WorkspaceFlowDefaults>;
   governance?: Partial<WorkspaceGovernanceSettings>;

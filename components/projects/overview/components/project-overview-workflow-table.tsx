@@ -65,6 +65,7 @@ import {
   getTaskStatusLabel,
   getViewChipClass,
   getWorkflowStatusLabel,
+  resolveUpdatedAtLabel,
   resolveMemberById,
 } from "../utils";
 import LoaderComponent from "@/components/shared/loader";
@@ -426,17 +427,16 @@ export function ProjectOverviewWorkflowTable({
       </div>
 
       {displayedWorkflows.length ? (
-        <div className="w-full overflow-x-auto">
-        <Table className="min-w-[920px]">
+        <Table className="table-fixed">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead className="w-[34%]">Name</TableHead>
-              <TableHead>Owner</TableHead>
-              <TableHead>Team</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-[18%]">Progress</TableHead>
-              <TableHead>Due</TableHead>
-              <TableHead>Updated</TableHead>
+              <TableHead className="w-[33%]">Name</TableHead>
+              <TableHead className="w-[14%]">Owner</TableHead>
+              <TableHead className="w-[14%]">Team</TableHead>
+              <TableHead className="w-[10%]">Status</TableHead>
+              <TableHead className="w-[15%]">Progress</TableHead>
+              <TableHead className="w-[7%]">Due</TableHead>
+              <TableHead className="w-[7%]">Updated</TableHead>
               <TableHead className="w-10 text-right"> </TableHead>
             </TableRow>
           </TableHeader>
@@ -462,7 +462,7 @@ export function ProjectOverviewWorkflowTable({
                         : "h-12 [&>td]:py-2.5",
                     )}
                   >
-                    <TableCell>
+                    <TableCell className="align-top">
                       <div className="flex min-w-0 items-center gap-2">
                         <button
                           type="button"
@@ -487,24 +487,29 @@ export function ProjectOverviewWorkflowTable({
                           )}
                         />
                         <div className="min-w-0">
-                          <div className="truncate text-[13px] font-medium leading-5 md:text-[14px]">
+                          <div className="text-[13px] font-medium leading-5 break-words whitespace-normal md:text-[14px]">
                             {workflow.name}
                           </div>
                           {workflow.description ? (
-                            <div className="text-muted-foreground line-clamp-1 text-[12px] leading-4">
+                            <div className="text-muted-foreground text-[12px] leading-4 break-words whitespace-normal">
                               {workflow.description}
                             </div>
                           ) : null}
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>{owner?.name ?? "Unassigned"}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="font-medium">
+                    <TableCell className="max-w-[11rem] break-words whitespace-normal align-top">
+                      {owner?.name ?? "Unassigned"}
+                    </TableCell>
+                    <TableCell className="align-top">
+                      <Badge
+                        variant="outline"
+                        className="max-w-[11rem] break-words whitespace-normal text-left font-medium"
+                      >
                         {team?.name ?? "No team"}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="align-top">
                       <Badge
                         variant="outline"
                         className={cn(
@@ -515,7 +520,7 @@ export function ProjectOverviewWorkflowTable({
                         {getWorkflowStatusLabel(workflow.status)}
                       </Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="align-top">
                       <div className="space-y-1">
                         <div
                           className={cn(
@@ -536,9 +541,23 @@ export function ProjectOverviewWorkflowTable({
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell>{workflow.dueWindow}</TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {workflow.updatedAt}
+                    <TableCell className="break-words whitespace-normal align-top">
+                      {workflow.dueWindow}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground break-words whitespace-normal align-top">
+                      {resolveUpdatedAtLabel(
+                        workflow.updatedAt,
+                        [
+                          ...workflow.tasks.flatMap((task) => [
+                            task.updatedAt,
+                            ...(task.subtasks || []).map(
+                              (subtask) => subtask.updatedAt,
+                            ),
+                          ]),
+                          workflow.targetEndDate,
+                          workflow.startedAt,
+                        ],
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -644,7 +663,7 @@ export function ProjectOverviewWorkflowTable({
                                 : "h-10 [&>td]:py-2",
                             )}
                           >
-                            <TableCell>
+                            <TableCell className="align-top">
                               <div className="flex min-w-0 items-center gap-2 pl-7">
                                 <span
                                   className={cn(
@@ -652,7 +671,7 @@ export function ProjectOverviewWorkflowTable({
                                     PRIORITY_DOT[task.priority],
                                   )}
                                 />
-                                <div className="truncate text-[12px] font-medium leading-5 md:text-[13px]">
+                                <div className="text-[12px] font-medium leading-5 break-words whitespace-normal md:text-[13px]">
                                   {task.title}
                                 </div>
                                 <Badge
@@ -663,11 +682,14 @@ export function ProjectOverviewWorkflowTable({
                                 </Badge>
                               </div>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="max-w-[11rem] break-words whitespace-normal align-top">
                               {assignee?.name ?? "Unassigned"}
                             </TableCell>
-                            <TableCell>
-                              <Badge variant="outline" className="font-medium">
+                            <TableCell className="align-top">
+                              <Badge
+                                variant="outline"
+                                className="max-w-[11rem] break-words whitespace-normal text-left font-medium"
+                              >
                                 {taskTeam?.name ?? "No team"}
                               </Badge>
                             </TableCell>
@@ -682,7 +704,7 @@ export function ProjectOverviewWorkflowTable({
                                 {getTaskStatusLabel(task.status)}
                               </Badge>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="align-top">
                               <div className="space-y-1">
                                 <div
                                   className={cn(
@@ -703,11 +725,20 @@ export function ProjectOverviewWorkflowTable({
                                 </div>
                               </div>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="break-words whitespace-normal align-top">
                               {formatShortDate(task.dueDate)}
                             </TableCell>
-                            <TableCell className="text-muted-foreground">
-                              {task.updatedAt}
+                            <TableCell className="text-muted-foreground break-words whitespace-normal align-top">
+                              {resolveUpdatedAtLabel(
+                                task.updatedAt,
+                                [
+                                  ...(task.subtasks || []).map(
+                                    (subtask) => subtask.updatedAt,
+                                  ),
+                                  task.dueDate,
+                                  task.startDate || "",
+                                ],
+                              )}
                             </TableCell>
                             <TableCell className="text-right">
                               <DropdownMenu>
@@ -786,7 +817,6 @@ export function ProjectOverviewWorkflowTable({
             })}
           </TableBody>
         </Table>
-        </div>
       ) : (
         <div className="px-4 py-5 text-[12px] text-muted-foreground">
           {loading ? (

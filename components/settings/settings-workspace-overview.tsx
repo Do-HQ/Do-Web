@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { ChangeEvent, useEffect, useRef, useState } from "react";
 import {
   Field,
   FieldContent,
@@ -12,7 +12,7 @@ import {
 } from "../ui/field";
 import { Input } from "../shared/input";
 import { Button } from "../ui/button";
-import { Check, Copy, Trash2 } from "lucide-react";
+import { Check, Copy, MoreHorizontal, Trash2, Upload, X } from "lucide-react";
 import { P } from "../ui/typography";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group";
 import {
@@ -31,10 +31,23 @@ import { WorkspaceSettingsForm } from "@/types/workspace";
 import { useCopyToClipboard } from "@/hooks/use-copy";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import useFile from "@/hooks/use-file";
+import useAuthStore from "@/stores/auth";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 
 const SettingsWorkspaceOverview = () => {
   // Stores
   const { workspaceId } = useWorkspaceStore();
+  const { user } = useAuthStore();
+
+  // Refs
+  const workspaceLogoInputRef = useRef<HTMLInputElement>(null);
 
   // Query
   const queryClient = useQueryClient();
@@ -44,6 +57,7 @@ const SettingsWorkspaceOverview = () => {
   const { isPending, data } = useWorkspaceById(workspaceId!);
   const { copy, copied } = useCopyToClipboard();
   const { useUpdateWorkspace } = useWorkspace();
+  const { useUploadAsset } = useFile();
 
   const { isPending: isUpdatingWorkspace, mutate: updateWorkspace } =
     useUpdateWorkspace({
@@ -61,6 +75,18 @@ const SettingsWorkspaceOverview = () => {
     });
 
   const workspace = data?.data?.workspace;
+
+  // States
+  const [workspaceLogo, setWorkspaceLogo] = useState({
+    id: "",
+    url: "",
+  });
+
+  // Mutations
+  const {
+    mutateAsync: uploadWorkspaceLogo,
+    isPending: isUploadingWorkspaceLogo,
+  } = useUploadAsset();
 
   //
   const form = useForm<WorkspaceSettingsForm>({
@@ -98,13 +124,102 @@ const SettingsWorkspaceOverview = () => {
 
   const formValues = form.getValues();
   const allowedDomainsValue = watch("allowedDomains");
+  const workspaceInitials =
+    String(formValues?.name || workspace?.name || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((segment) => segment[0]?.toUpperCase())
+      .join("") || "WS";
 
-  console.log(
-    JSON.stringify(formValues?.allowedDomains) ===
-      JSON.stringify(workspace?.allowedDomains),
-    formValues?.allowedDomains,
-    workspace?.allowedDomains,
-  );
+  useEffect(() => {
+    const nextId = String(workspace?.logo?._id || "").trim();
+    const nextUrl = String(workspace?.logo?.url || "").trim();
+
+    setWorkspaceLogo({
+      id: nextId,
+      url: nextUrl,
+    });
+  }, [workspace?.logo?._id, workspace?.logo?.url]);
+
+  const handlePickWorkspaceLogo = () => {
+    workspaceLogoInputRef.current?.click();
+  };
+
+  const handleWorkspaceLogoUpload = async (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    if (!user?._id || !workspace?._id) {
+      toast.error("Unable to upload workspace logo", {
+        description: "Workspace session is not ready. Refresh and try again.",
+      });
+      event.target.value = "";
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", "organization");
+    formData.append("ownerId", String(user._id));
+    formData.append("workspaceId", String(workspace._id));
+    const loadingToastId = toast.loading("Uploading workspace image...");
+    try {
+      const response = await uploadWorkspaceLogo(formData);
+      const asset = response?.data?.asset;
+      const logoId = String(asset?._id || "").trim();
+      const logoUrl = String(asset?.url || "").trim();
+      if (!logoId) {
+        toast.error("Unable to upload workspace image", {
+          id: loadingToastId,
+        });
+        return;
+      }
+
+      setWorkspaceLogo({
+        id: logoId,
+        url: logoUrl,
+      });
+
+      toast.success("Workspace image uploaded", {
+        id: loadingToastId,
+      });
+
+      updateWorkspace({
+        workspaceId: workspace._id,
+        data: {
+          logo: logoId,
+        },
+      });
+    } catch {
+      toast.error("Unable to upload workspace image", {
+        id: loadingToastId,
+      });
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const handleRemoveWorkspaceLogo = () => {
+    if (!workspace?._id) {
+      return;
+    }
+    setWorkspaceLogo({
+      id: "",
+      url: "",
+    });
+    updateWorkspace({
+      workspaceId: workspace._id,
+      data: {
+        logo: null,
+      },
+    });
+  };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
@@ -114,6 +229,75 @@ const SettingsWorkspaceOverview = () => {
           <FieldDescription>
             These details identify your workspace and are visible to members.
           </FieldDescription>
+          <FieldContent className="flex  flex-row border items-center gap-4 rounded-xl border-border/35 bg-muted/20 px-3 py-3">
+            <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={handlePickWorkspaceLogo}
+                className="group rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60"
+                disabled={isUploadingWorkspaceLogo || isUpdatingWorkspace}
+              >
+                <Avatar className="size-16 rounded-full border border-border/45">
+                  <AvatarImage
+                    src={workspaceLogo.url || undefined}
+                    alt={workspace?.name || "Workspace"}
+                  />
+                  <AvatarFallback className="rounded-full">
+                    {workspaceInitials}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="absolute -bottom-1 -right-1 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border bg-background text-muted-foreground shadow-sm transition-colors group-hover:text-foreground">
+                  <Upload className="size-3.5" />
+                </span>
+              </button>
+            </div>
+
+            <div className="min-w-0 space-y-0.5">
+              <p className="text-[12px] font-medium">Workspace image</p>
+              <p className="text-muted-foreground text-[11px]">
+                Upload a logo for this workspace. It appears in switchers,
+                invites, and headers.
+              </p>
+            </div>
+
+            <div className="ml-auto">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    size="icon"
+                    variant="ghost"
+                    className="size-8"
+                    disabled={isUploadingWorkspaceLogo || isUpdatingWorkspace}
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem onClick={handlePickWorkspaceLogo}>
+                    <Upload className="size-4" />
+                    {workspaceLogo.url ? "Change image" : "Upload image"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={!workspaceLogo.url}
+                    onClick={handleRemoveWorkspaceLogo}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <X className="size-4" />
+                    Remove image
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            <input
+              ref={workspaceLogoInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleWorkspaceLogoUpload}
+            />
+          </FieldContent>
           <Input
             label="Workspace name"
             className="max-w-80"

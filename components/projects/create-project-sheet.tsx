@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -102,7 +101,7 @@ export function CreateProjectSheet({
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({});
   const [autoAppliedTemplateId, setAutoAppliedTemplateId] = useState("");
-  const [templatePanelOpen, setTemplatePanelOpen] = useState(true);
+  const [templatePanelOpen, setTemplatePanelOpen] = useState(false);
 
   const templatesQuery = useWorkspaceTemplates(
     workspaceId ?? "",
@@ -250,14 +249,14 @@ export function CreateProjectSheet({
 
   useEffect(() => {
     if (!open) {
-      setTemplatePanelOpen(true);
+      setTemplatePanelOpen(false);
       return;
     }
 
-    if (selectedTemplateId) {
+    if (selectedTemplateId && !templatePanelOpen) {
       setTemplatePanelOpen(true);
     }
-  }, [open, selectedTemplateId]);
+  }, [open, selectedTemplateId, templatePanelOpen]);
 
   const handleGenerateDraft = () => {
     const nextName = extractProjectName(prompt) || "New Project";
@@ -369,23 +368,27 @@ export function CreateProjectSheet({
           onOpenChange={setTemplatePanelOpen}
           className="px-0 py-0"
         >
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <CollapsibleTrigger asChild>
-              <button
-                type="button"
-                className="flex min-w-0 flex-1 items-start justify-between gap-2 rounded-md px-1 py-1 text-left transition-colors hover:bg-muted/45"
-              >
-                <div>
-                  <div className="text-[12px] font-semibold">Use template</div>
-                  <p className="text-muted-foreground mt-1 text-[11px] leading-5">
-                    Select a saved project template and apply placeholder values.
-                  </p>
-                </div>
-                <ChevronDown
-                  className={`mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform ${templatePanelOpen ? "rotate-180" : ""}`}
-                  />
-                </button>
-              </CollapsibleTrigger>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="min-w-0">
+              <div className="text-[12px] font-semibold">Template assistant</div>
+              <p className="text-muted-foreground mt-1 text-[11px] leading-5">
+                {selectedTemplate
+                  ? `Selected: ${selectedTemplate.name}`
+                  : "Hidden by default so manual project creation stays focused."}
+              </p>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant={templatePanelOpen ? "secondary" : "outline"}
+              className="min-w-[8.5rem] justify-between gap-2 text-[11px]"
+              onClick={() => setTemplatePanelOpen((current) => !current)}
+            >
+              {templatePanelOpen ? "Hide template" : "Use template"}
+              <ChevronDown
+                className={`size-4 shrink-0 transition-transform ${templatePanelOpen ? "rotate-180" : ""}`}
+              />
+            </Button>
           </div>
 
           <CollapsibleContent className="mt-2.5 space-y-3">

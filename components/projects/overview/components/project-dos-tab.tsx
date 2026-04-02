@@ -76,6 +76,7 @@ type ProjectDosTabProps = {
     tone: ProjectKanbanSectionTone,
   ) => void;
   onDeleteCustomSection: (sectionId: string) => void;
+  onReorderKanbanLanes: (laneOrder: string[]) => void;
   onTaskAction: (
     label: string,
     workflowId: string,
@@ -165,6 +166,7 @@ export function ProjectDosTab({
   onMoveTask,
   onCreateCustomSection,
   onDeleteCustomSection,
+  onReorderKanbanLanes,
   onTaskAction,
   onSubtaskAction,
 }: ProjectDosTabProps) {
@@ -207,9 +209,24 @@ export function ProjectDosTab({
 
   const scopedTasks = useMemo(() => {
     const taskRecords = taskListQuery.data?.data?.tasks;
+    const fallbackScopedTasks = getFilteredTaskRows(fallbackTasks, statusFilter);
 
     if (Array.isArray(taskRecords)) {
-      return mapTasksToFlattenedRows(taskRecords).filter((task) => {
+      const serverScopedTasks = mapTasksToFlattenedRows(taskRecords);
+      const mergedById = new Map(
+        serverScopedTasks.map((task) => [String(task.id), task]),
+      );
+
+      // Keep server rows as source of truth, but append optimistic/local record rows
+      // so freshly-created tasks appear immediately before query refresh finishes.
+      fallbackScopedTasks.forEach((task) => {
+        const key = String(task.id);
+        if (!mergedById.has(key)) {
+          mergedById.set(key, task);
+        }
+      });
+
+      return Array.from(mergedById.values()).filter((task) => {
         if (assigneeScope !== "mine") {
           return true;
         }
@@ -218,7 +235,7 @@ export function ProjectDosTab({
       });
     }
 
-    return getFilteredTaskRows(fallbackTasks, statusFilter).filter((task) => {
+    return fallbackScopedTasks.filter((task) => {
       if (assigneeScope !== "mine") {
         return true;
       }
@@ -417,8 +434,10 @@ export function ProjectDosTab({
             selectedPipeline={selectedPipeline}
             workflowOptions={visibleWorkflowOptions}
             customSections={project.customSections ?? []}
+            laneOrder={project.kanbanLaneOrder ?? []}
             onCreateCustomSection={onCreateCustomSection}
             onDeleteCustomSection={onDeleteCustomSection}
+            onReorderLanes={onReorderKanbanLanes}
             onEditTask={onEditTask}
             onCreateTask={onCreateTask}
             onMoveTaskToLane={handleMoveTaskToLane}

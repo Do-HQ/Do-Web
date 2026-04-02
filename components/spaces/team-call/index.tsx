@@ -97,9 +97,9 @@ const TeamCallPage = () => {
     workspaceId || String(user?.currentWorkspaceId?._id || "").trim();
 
   const [isMicOn, setIsMicOn] = useState(true);
-  const [isVideoOn, setIsVideoOn] = useState(callMode === "video");
+  const [isVideoOn, setIsVideoOn] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
-  const [isGridView, setIsGridView] = useState(false);
+  const [isGridView, setIsGridView] = useState(true);
 
   const [isPanelOpenDesktop, setIsPanelOpenDesktop] = useState(true);
   const [isPanelSheetOpen, setIsPanelSheetOpen] = useState(false);
@@ -119,7 +119,6 @@ const TeamCallPage = () => {
     Record<string, Participant>
   >({});
 
-  const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const localPreviewRef = useRef<HTMLVideoElement | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -163,9 +162,15 @@ const TeamCallPage = () => {
     return [localParticipant, ...remoteParticipants];
   }, [localParticipant, remoteParticipantsMap]);
 
-  const featuredParticipant = participants[0] || localParticipant;
-  const tileParticipants = participants.slice(1);
   const isScreenSharing = Boolean(screenStream);
+  const screenSharingParticipant =
+    participants.find((participant) => participant.isScreenSharing) || null;
+  const featuredParticipant = screenSharingParticipant || participants[0] || localParticipant;
+  const tileParticipants = participants.filter(
+    (participant) => participant.id !== featuredParticipant.id,
+  );
+  const hasScreenSharing = Boolean(screenSharingParticipant);
+  const shouldRenderGrid = isGridView && !hasScreenSharing;
   const resolvedMediaError = roomId
     ? mediaError
     : "Missing call room context. Start the call from a chat room.";
@@ -278,16 +283,26 @@ const TeamCallPage = () => {
           return;
         }
 
-        remoteStreamsRef.current.set(targetUserId, incomingStream);
+        const existingStream = remoteStreamsRef.current.get(targetUserId);
+        const normalizedStream = existingStream || new MediaStream();
+        const existingTrackIds = new Set(normalizedStream.getTracks().map((track) => track.id));
+
+        incomingStream.getTracks().forEach((track) => {
+          if (!existingTrackIds.has(track.id)) {
+            normalizedStream.addTrack(track);
+          }
+        });
+
+        remoteStreamsRef.current.set(targetUserId, normalizedStream);
         upsertRemoteParticipant(targetUserId, {
-          stream: incomingStream,
-          isVideoOn: incomingStream.getVideoTracks().length > 0,
+          stream: normalizedStream,
+          isVideoOn: normalizedStream.getVideoTracks().length > 0,
         });
       };
 
       connection.onconnectionstatechange = () => {
         const state = connection.connectionState;
-        if (["failed", "closed", "disconnected"].includes(state)) {
+        if (["failed", "closed"].includes(state)) {
           closePeerConnection(targetUserId);
         }
       };
@@ -305,15 +320,17 @@ const TeamCallPage = () => {
       localStreamRef.current?.getVideoTracks()?.[0] ||
       null;
 
-    peerConnectionsRef.current.forEach((connection) => {
+    peerConnectionsRef.current.forEach((connection, targetUserId) => {
       const senders = connection.getSenders();
       const audioSender = senders.find((sender) => sender.track?.kind === "audio");
       const videoSender = senders.find((sender) => sender.track?.kind === "video");
+      let shouldRenegotiate = false;
 
       if (audioSender && audioSender.track !== audioTrack) {
         void audioSender.replaceTrack(audioTrack);
       } else if (!audioSender && audioTrack && localStreamRef.current) {
         connection.addTrack(audioTrack, localStreamRef.current);
+        shouldRenegotiate = true;
       }
 
       if (videoSender && videoSender.track !== videoTrack) {
@@ -322,9 +339,37 @@ const TeamCallPage = () => {
         const videoCarrier =
           screenStreamRef.current || localStreamRef.current || new MediaStream([videoTrack]);
         connection.addTrack(videoTrack, videoCarrier);
+        shouldRenegotiate = true;
+      }
+
+      if (
+        shouldRenegotiate &&
+        resolvedWorkspaceId &&
+        roomId &&
+        targetUserId &&
+        connection.signalingState === "stable"
+      ) {
+        void (async () => {
+          try {
+            const offer = await connection.createOffer();
+            await connection.setLocalDescription(offer);
+
+            sendTeamCallSignal({
+              workspaceId: resolvedWorkspaceId,
+              roomId,
+              targetUserId,
+              signal: {
+                type: "offer",
+                sdp: connection.localDescription?.toJSON() || offer,
+              },
+            });
+          } catch {
+            // Ignore renegotiation races; follow-up updates will retry.
+          }
+        })();
       }
     });
-  }, []);
+  }, [resolvedWorkspaceId, roomId]);
 
   const createOfferToParticipant = useCallback(
     async (targetUserId: string) => {
@@ -381,29 +426,41 @@ const TeamCallPage = () => {
       const connection = createPeerConnection(fromUserId);
 
       if (signal.type === "offer" && signal.sdp) {
-        await connection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
-        const answer = await connection.createAnswer();
-        await connection.setLocalDescription(answer);
+        try {
+          await connection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          const answer = await connection.createAnswer();
+          await connection.setLocalDescription(answer);
 
-        sendTeamCallSignal({
-          workspaceId: resolvedWorkspaceId,
-          roomId,
-          targetUserId: fromUserId,
-          signal: {
-            type: "answer",
-            sdp: connection.localDescription?.toJSON() || answer,
-          },
-        });
+          sendTeamCallSignal({
+            workspaceId: resolvedWorkspaceId,
+            roomId,
+            targetUserId: fromUserId,
+            signal: {
+              type: "answer",
+              sdp: connection.localDescription?.toJSON() || answer,
+            },
+          });
+        } catch {
+          // Ignore signaling race conditions; subsequent signaling will recover.
+        }
         return;
       }
 
       if (signal.type === "answer" && signal.sdp) {
-        await connection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        try {
+          await connection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        } catch {
+          // Ignore stale answer payloads during renegotiation.
+        }
         return;
       }
 
       if (signal.type === "ice-candidate" && signal.candidate) {
-        await connection.addIceCandidate(new RTCIceCandidate(signal.candidate));
+        try {
+          await connection.addIceCandidate(new RTCIceCandidate(signal.candidate));
+        } catch {
+          // Ignore candidates that arrive before remote description is available.
+        }
       }
     },
     [createPeerConnection, currentUserId, resolvedWorkspaceId, roomId],
@@ -448,14 +505,6 @@ const TeamCallPage = () => {
       window.clearTimeout(timer);
     };
   }, [startedAtParam]);
-
-  useEffect(() => {
-    if (!localVideoRef.current) {
-      return;
-    }
-
-    localVideoRef.current.srcObject = localStream;
-  }, [localStream]);
 
   useEffect(() => {
     if (!localPreviewRef.current) {
@@ -717,7 +766,7 @@ const TeamCallPage = () => {
         avatarUrl: user?.profilePhoto?.url,
         role: "Host",
         isMuted: false,
-        isVideoOn: callMode === "video",
+        isVideoOn: false,
         isScreenSharing: false,
       },
     }).then((response) => {
@@ -827,17 +876,6 @@ const TeamCallPage = () => {
     }
 
     setIsMicOn((prev) => !prev);
-  };
-
-  const handleToggleVideo = async () => {
-    if (!isVideoOn && !localStream) {
-      const stream = await initLocalMedia(true);
-      if (!stream) {
-        return;
-      }
-    }
-
-    setIsVideoOn((prev) => !prev);
   };
 
   const handleToggleScreenShare = async () => {
@@ -995,15 +1033,15 @@ const TeamCallPage = () => {
       <article
         key={participant.id}
         className={cn(
-          "relative min-h-0 overflow-hidden rounded-md border bg-muted/30",
-          compact && "w-[7rem] shrink-0",
+          "relative min-h-0 overflow-hidden rounded-xl border border-border/45 bg-muted/25",
+          compact && "w-[7.5rem] shrink-0",
         )}
       >
         {hasVideo ? (
           <video
             autoPlay
             playsInline
-            muted={participant.id === currentUserId}
+            muted={participant.id === currentUserId || !isSpeakerOn}
             ref={(node) => {
               if (!node || !participant.stream) {
                 return;
@@ -1033,7 +1071,24 @@ const TeamCallPage = () => {
           </div>
         )}
 
-        <div className="absolute right-1 bottom-1 left-1 flex items-center gap-1 rounded-sm bg-black/45 px-1.5 py-0.5 text-white">
+        {!hasVideo && participant.stream ? (
+          <audio
+            autoPlay
+            playsInline
+            muted={participant.id === currentUserId || !isSpeakerOn}
+            ref={(node) => {
+              if (!node || !participant.stream) {
+                return;
+              }
+
+              if (node.srcObject !== participant.stream) {
+                node.srcObject = participant.stream;
+              }
+            }}
+          />
+        ) : null}
+
+        <div className="absolute right-1 bottom-1 left-1 flex items-center gap-1 rounded-md bg-black/45 px-1.5 py-0.5 text-white backdrop-blur-sm">
           <p className="truncate text-[11px]">{participant.name}</p>
           <span className="ml-auto inline-flex items-center gap-1">
             {participant.isMuted ? (
@@ -1048,17 +1103,160 @@ const TeamCallPage = () => {
     );
   };
 
+  const renderVoiceParticipantOrb = (
+    participant: Participant,
+    featured = false,
+  ) => {
+    const hasVideo = Boolean(
+      participant.isVideoOn && participant.stream?.getVideoTracks()?.length,
+    );
+
+    return (
+      <article
+        key={`voice-${participant.id}`}
+        className={cn(
+          "flex min-w-[7.5rem] flex-col items-center gap-2 text-center transition-transform",
+          featured && "scale-[1.02]",
+        )}
+      >
+        <div
+          className={cn(
+            "relative flex items-center justify-center overflow-hidden rounded-full border bg-card/60",
+            featured ? "size-32 sm:size-40" : "size-24 sm:size-32",
+            featured
+              ? "ring-primary/55 border-primary/40 ring-2"
+              : "border-border/55 ring-1 ring-border/35",
+          )}
+        >
+          {hasVideo ? (
+            <video
+              autoPlay
+              playsInline
+              muted={participant.id === currentUserId || !isSpeakerOn}
+              ref={(node) => {
+                if (!node || !participant.stream) {
+                  return;
+                }
+
+                if (node.srcObject !== participant.stream) {
+                  node.srcObject = participant.stream;
+                }
+              }}
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <Avatar
+              className="size-[86%] border-0"
+              userCard={{
+                name: participant.name,
+                role: participant.role ?? "Member",
+                status: participant.isMuted ? "Muted" : "Live",
+              }}
+            >
+              <AvatarImage src={participant.avatarUrl} alt={participant.name} />
+              <AvatarFallback className="text-sm">
+                {participant.initials}
+              </AvatarFallback>
+            </Avatar>
+          )}
+
+          {!hasVideo && participant.stream ? (
+            <audio
+              autoPlay
+              playsInline
+              muted={participant.id === currentUserId || !isSpeakerOn}
+              ref={(node) => {
+                if (!node || !participant.stream) {
+                  return;
+                }
+
+                if (node.srcObject !== participant.stream) {
+                  node.srcObject = participant.stream;
+                }
+              }}
+            />
+          ) : null}
+
+          <span
+            className={cn(
+              "absolute bottom-1 inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px]",
+              participant.isMuted
+                ? "border-border/65 bg-background/75 text-muted-foreground"
+                : "border-primary/40 bg-primary/10 text-primary",
+            )}
+          >
+            {participant.isMuted ? (
+              <MicOff className="size-3" />
+            ) : (
+              <Mic className="size-3" />
+            )}
+            {renderAudioMeter(participant.id, participant.isMuted)}
+          </span>
+        </div>
+
+        <div className="space-y-0.5">
+          <p className="max-w-32 truncate text-[12px] font-medium">
+            {participant.name}
+          </p>
+          {participant.role ? (
+            <p className="text-muted-foreground text-[10px]">{participant.role}</p>
+          ) : null}
+        </div>
+      </article>
+    );
+  };
+
+  const renderVoiceView = () => {
+    const featuredVoiceParticipant =
+      participants.find((participant) => !participant.isMuted) ||
+      featuredParticipant;
+
+    return (
+      <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-b from-[#171232] via-[#0f1023] to-[#0c0d1a] px-3 py-4 text-white sm:px-6 sm:py-6">
+        <div className="mb-3 flex items-center justify-between">
+          <Badge variant="outline" className="border-white/25 bg-white/10 text-[11px] text-white">
+            Voice call
+          </Badge>
+          <Badge variant="secondary" className="bg-white/10 text-[11px] text-white">
+            {participants.length} participant{participants.length > 1 ? "s" : ""}
+          </Badge>
+        </div>
+
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto">
+          <div className="flex w-full flex-wrap items-center justify-center gap-4 sm:gap-7">
+            {participants.map((participant) =>
+              renderVoiceParticipantOrb(
+                participant,
+                participant.id === featuredVoiceParticipant.id,
+              ),
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderGridView = () => {
     return (
-      <div className="grid h-full min-h-0 grid-cols-2 gap-1.5 overflow-hidden sm:grid-cols-3 lg:grid-cols-4">
-        {isScreenSharing && (
-          <article className="relative min-h-0 overflow-hidden rounded-md border bg-black/85 sm:col-span-2">
-            {screenStream ? (
+      <div className="grid h-full min-h-0 auto-rows-fr grid-cols-2 gap-2 overflow-hidden sm:grid-cols-3 lg:grid-cols-4">
+        {hasScreenSharing && (
+          <article className="relative min-h-0 overflow-hidden rounded-xl border border-primary/30 bg-black/85 shadow-lg sm:col-span-2">
+            {featuredParticipant.id === currentUserId && screenStream ? (
+              <video ref={screenVideoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
+            ) : featuredParticipant.stream ? (
               <video
-                ref={screenVideoRef}
                 autoPlay
                 playsInline
-                muted
+                muted={featuredParticipant.id === currentUserId || !isSpeakerOn}
+                ref={(node) => {
+                  if (!node || !featuredParticipant.stream) {
+                    return;
+                  }
+
+                  if (node.srcObject !== featuredParticipant.stream) {
+                    node.srcObject = featuredParticipant.stream;
+                  }
+                }}
                 className="h-full w-full object-cover"
               />
             ) : (
@@ -1066,15 +1264,15 @@ const TeamCallPage = () => {
                 <p className="text-[12px] text-white/85">Screen share is live</p>
               </div>
             )}
-            <div className="absolute top-1.5 left-1.5 inline-flex items-center gap-1 rounded-sm bg-black/45 px-1.5 py-0.5 text-[11px] text-white">
+            <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/55 px-2 py-0.5 text-[11px] text-white backdrop-blur-sm">
               <MonitorUp className="size-3.5" />
-              Shared screen
+              {featuredParticipant.name} sharing
             </div>
           </article>
         )}
 
-        {[featuredParticipant, ...tileParticipants].map((participant) =>
-          renderParticipantTile(participant),
+        {(hasScreenSharing ? tileParticipants : [featuredParticipant, ...tileParticipants]).map(
+          (participant) => renderParticipantTile(participant),
         )}
       </div>
     );
@@ -1084,21 +1282,31 @@ const TeamCallPage = () => {
     return (
       <div
         className={cn(
-          "grid h-full min-h-0 gap-1.5 overflow-hidden",
-          isScreenSharing
+          "grid h-full min-h-0 gap-2 overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-br from-[#16122d] via-[#0d0d19] to-[#121425] p-2 sm:p-3",
+          hasScreenSharing
             ? "grid-rows-[minmax(0,1fr)_4.75rem] sm:grid-rows-[minmax(0,1fr)_6.75rem]"
-            : "grid-rows-[minmax(0,1fr)_4.25rem] sm:grid-rows-[minmax(0,1fr)_6.25rem]",
+            : "grid-rows-[minmax(0,1fr)_4.75rem] sm:grid-rows-[minmax(0,1fr)_6.75rem]",
         )}
       >
-        <article className="relative min-h-0 overflow-hidden rounded-md border bg-gradient-to-br from-black/90 via-black/78 to-black/90">
-          {isScreenSharing ? (
+        <article className="relative min-h-0 overflow-hidden rounded-xl border border-primary/25 bg-gradient-to-br from-black/90 via-black/80 to-black/90">
+          {hasScreenSharing ? (
             <>
-              {screenStream ? (
+              {featuredParticipant.id === currentUserId && screenStream ? (
+                <video ref={screenVideoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
+              ) : featuredParticipant.stream ? (
                 <video
-                  ref={screenVideoRef}
                   autoPlay
                   playsInline
-                  muted
+                  muted={featuredParticipant.id === currentUserId || !isSpeakerOn}
+                  ref={(node) => {
+                    if (!node || !featuredParticipant.stream) {
+                      return;
+                    }
+
+                    if (node.srcObject !== featuredParticipant.stream) {
+                      node.srcObject = featuredParticipant.stream;
+                    }
+                  }}
                   className="h-full w-full object-cover"
                 />
               ) : (
@@ -1109,23 +1317,32 @@ const TeamCallPage = () => {
                 </div>
               )}
 
-              <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-sm border border-white/20 bg-black/45 px-1.5 py-0.5 text-[11px] text-white">
+              <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/55 px-2 py-0.5 text-[11px] text-white backdrop-blur-sm">
                 <MonitorUp className="size-3.5" />
-                Screen share live
+                {featuredParticipant.name} sharing
               </div>
             </>
-          ) : isVideoOn && localStream ? (
+          ) : featuredParticipant.isVideoOn && featuredParticipant.stream ? (
             <video
-              ref={localVideoRef}
               autoPlay
               playsInline
-              muted
+              muted={featuredParticipant.id === currentUserId || !isSpeakerOn}
+              ref={(node) => {
+                if (!node || !featuredParticipant.stream) {
+                  return;
+                }
+
+                if (node.srcObject !== featuredParticipant.stream) {
+                  node.srcObject = featuredParticipant.stream;
+                }
+              }}
               className="h-full w-full object-cover"
             />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center">
+            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-transparent to-black/35">
               <Avatar
                 size="lg"
+                className="size-28 border-primary/45 ring-2 ring-primary/35 sm:size-36"
                 userCard={{
                   name: featuredParticipant.name,
                   role: featuredParticipant.role ?? "Member",
@@ -1141,7 +1358,7 @@ const TeamCallPage = () => {
             </div>
           )}
 
-          {isScreenSharing && isVideoOn && localStream && (
+          {hasScreenSharing && isVideoOn && localStream && (
             <div className="absolute right-2 bottom-8 h-16 w-[6.5rem] overflow-hidden rounded-sm border border-white/25 bg-black/30 shadow-lg">
               <video
                 ref={localPreviewRef}
@@ -1153,7 +1370,7 @@ const TeamCallPage = () => {
             </div>
           )}
 
-          <div className="absolute right-2 bottom-2 left-2 flex items-center gap-1 rounded-sm bg-black/45 px-2 py-1 text-white">
+          <div className="absolute right-2 bottom-2 left-2 flex items-center gap-1 rounded-full border border-white/20 bg-black/55 px-2 py-1 text-white backdrop-blur-sm">
             <p className="truncate text-[12px] font-medium">{featuredParticipant.name}</p>
             {featuredParticipant.role && (
               <span className="text-[11px] text-white/70">{featuredParticipant.role}</span>
@@ -1183,8 +1400,8 @@ const TeamCallPage = () => {
 
   return (
     <>
-      <div className="flex h-full min-h-0 w-full flex-1 gap-0 overflow-hidden overscroll-none sm:gap-2.5">
-        <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-none border border-x-0 border-b-0 bg-card sm:rounded-md sm:border-x sm:border-b">
+      <div className="flex h-full min-h-0 w-full flex-1 gap-0 overflow-hidden overscroll-none bg-gradient-to-b from-background via-background to-muted/10 sm:gap-2.5">
+        <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-none border border-x-0 border-b-0 bg-card/95 sm:rounded-xl sm:border-x sm:border-b sm:shadow-sm">
           <div className="shrink-0 border-b px-2.5 py-2 sm:px-3 sm:py-2.5">
             <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               <Button
@@ -1255,16 +1472,20 @@ const TeamCallPage = () => {
           </div>
 
           <div className="min-h-0 flex-1 overflow-hidden p-1.5 sm:p-2.5">
-            {isGridView ? renderGridView() : renderSpeakerView()}
+            {callMode === "voice" && !hasScreenSharing
+              ? renderVoiceView()
+              : shouldRenderGrid
+                ? renderGridView()
+                : renderSpeakerView()}
           </div>
 
           <div className="shrink-0 border-t bg-card/95 px-2.5 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:px-3 sm:py-2.5">
             <div className="overflow-x-auto">
-              <div className="mx-auto flex w-max min-w-full items-center justify-center gap-1.5">
+              <div className="mx-auto flex w-max min-w-full items-center justify-center gap-1.5 rounded-full border border-border/45 bg-background/75 p-1 shadow-sm">
                 <Button
                   size="sm"
                   variant={isMicOn ? "secondary" : "destructive"}
-                  className="h-9 px-2.5 text-[13px]"
+                  className="h-9 rounded-full px-2.5 text-[13px]"
                   onClick={handleToggleMic}
                 >
                   {isMicOn ? <Mic className="size-4" /> : <MicOff className="size-4" />}
@@ -1273,22 +1494,8 @@ const TeamCallPage = () => {
 
                 <Button
                   size="sm"
-                  variant={isVideoOn ? "secondary" : "destructive"}
-                  className="h-9 px-2.5 text-[13px]"
-                  onClick={handleToggleVideo}
-                >
-                  {isVideoOn ? (
-                    <Video className="size-4" />
-                  ) : (
-                    <VideoOff className="size-4" />
-                  )}
-                  {isVideoOn ? "Camera" : "Camera Off"}
-                </Button>
-
-                <Button
-                  size="sm"
                   variant={isScreenSharing ? "default" : "secondary"}
-                  className="h-9 px-2.5 text-[13px]"
+                  className="h-9 rounded-full px-2.5 text-[13px]"
                   onClick={handleToggleScreenShare}
                 >
                   {isScreenSharing ? (
@@ -1302,7 +1509,7 @@ const TeamCallPage = () => {
                 <Button
                   size="sm"
                   variant={isSpeakerOn ? "secondary" : "destructive"}
-                  className="h-9 px-2.5 text-[13px]"
+                  className="h-9 rounded-full px-2.5 text-[13px]"
                   onClick={() => setIsSpeakerOn((prev) => !prev)}
                 >
                   {isSpeakerOn ? (
@@ -1316,17 +1523,21 @@ const TeamCallPage = () => {
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="h-9 px-2.5 text-[13px]"
+                  className="h-9 rounded-full px-2.5 text-[13px]"
                   onClick={() => setIsGridView((prev) => !prev)}
                 >
                   <LayoutGrid className="size-4" />
-                  {isGridView ? "Speaker" : "Grid"}
+                  {callMode === "voice" && !hasScreenSharing
+                    ? "Tiles"
+                    : shouldRenderGrid
+                      ? "Speaker"
+                      : "Grid"}
                 </Button>
 
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="h-9 px-2.5 text-[13px] lg:hidden"
+                  className="h-9 rounded-full px-2.5 text-[13px] lg:hidden"
                   onClick={() => setIsPanelSheetOpen(true)}
                 >
                   <Users className="size-4" />
@@ -1335,7 +1546,7 @@ const TeamCallPage = () => {
 
                 <Button
                   size="sm"
-                  className="h-9 bg-destructive/85 px-2.5 text-[13px] text-white hover:bg-destructive"
+                  className="h-9 rounded-full bg-destructive/85 px-2.5 text-[13px] text-white hover:bg-destructive"
                   onClick={endCall}
                 >
                   <PhoneOff className="size-4" />

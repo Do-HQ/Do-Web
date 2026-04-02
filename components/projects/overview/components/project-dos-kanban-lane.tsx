@@ -2,8 +2,13 @@
 
 import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { Plus, Trash2 } from "lucide-react";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { GripVertical, Plus, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +36,7 @@ type WorkflowOption = {
 
 type ProjectDosKanbanLaneProps = {
   laneId: string;
+  laneOrderId: string;
   label: string;
   kind: "status" | "custom";
   status?: ProjectTaskStatus;
@@ -42,6 +48,7 @@ type ProjectDosKanbanLaneProps = {
   surfaceClassName: string;
   countClassName: string;
   canCreate?: boolean;
+  canReorderLane?: boolean;
   onEditTask: (workflowId: string, taskId: string) => void;
   onCreateTask?: (
     workflowId: string,
@@ -52,6 +59,7 @@ type ProjectDosKanbanLaneProps = {
 
 export function ProjectDosKanbanLane({
   laneId,
+  laneOrderId,
   label,
   kind,
   status,
@@ -63,16 +71,35 @@ export function ProjectDosKanbanLane({
   surfaceClassName,
   countClassName,
   canCreate = false,
+  canReorderLane = false,
   onEditTask,
   onCreateTask,
   onDeleteSection,
 }: ProjectDosKanbanLaneProps) {
   const [expandedTaskIds, setExpandedTaskIds] = useState<string[]>([]);
-  const { setNodeRef } = useDroppable({
-    id: `lane:${laneId}`,
+  const {
+    attributes: laneAttributes,
+    listeners: laneListeners,
+    setNodeRef: setLaneSortableRef,
+    transform: laneTransform,
+    transition: laneTransition,
+    isDragging: isLaneDragging,
+  } = useSortable({
+    id: laneOrderId,
     data: {
       type: "lane",
       laneId,
+      laneOrderId,
+      laneKind: kind,
+      laneStatus: status,
+    },
+  });
+  const { setNodeRef } = useDroppable({
+    id: `lane-drop:${laneId}`,
+    data: {
+      type: "lane",
+      laneId,
+      laneOrderId,
       laneKind: kind,
       laneStatus: status,
     },
@@ -136,67 +163,98 @@ export function ProjectDosKanbanLane({
 
   return (
     <div
-      ref={setNodeRef}
-      className={cn(
-        "flex w-[16.5rem] shrink-0 snap-start flex-col gap-2.5 rounded-xl border border-border/20 p-2.5 transition-all",
-        surfaceClassName,
-        highlightDropTarget && "border-primary/30 shadow-sm ring-1 ring-primary/15",
-      )}
+      ref={setLaneSortableRef}
+      style={{
+        transform: CSS.Transform.toString(laneTransform),
+        transition: laneTransition,
+      }}
+      className={cn("w-[16.5rem] shrink-0 snap-start", isLaneDragging && "z-20")}
     >
-      <div className="flex items-center justify-between gap-2 px-0.5">
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="truncate text-[13px] font-semibold leading-5">{label}</div>
-          <Badge variant="outline" className={cn("h-5 px-1.5 text-[11px] font-medium", countClassName)}>
-            {tasks.length}
-          </Badge>
-        </div>
-
-        <div className="flex items-center gap-1">
-          {renderCreateTrigger()}
-          {kind === "custom" && onDeleteSection ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={onDeleteSection}
-              aria-label={`Delete ${label}`}
+      <div
+        ref={setNodeRef}
+        className={cn(
+          "flex flex-col gap-2.5 rounded-xl border border-border/20 p-2.5 transition-all",
+          surfaceClassName,
+          highlightDropTarget && "border-primary/30 shadow-sm ring-1 ring-primary/15",
+        )}
+      >
+        <div className="flex items-center justify-between gap-2 px-0.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="truncate text-[13px] font-semibold leading-5">{label}</div>
+            <Badge
+              variant="outline"
+              className={cn("h-5 px-1.5 text-[11px] font-medium", countClassName)}
             >
-              <Trash2 />
-            </Button>
-          ) : null}
-        </div>
-      </div>
+              {tasks.length}
+            </Badge>
+          </div>
 
-      <SortableContext items={tasks.map((task) => task.id)} strategy={verticalListSortingStrategy}>
-        <div className="flex min-h-16 flex-col gap-2">
-          {tasks.length ? (
-            tasks.map((task) => (
-              <ProjectDosTaskCard
-                key={task.id}
-                task={task}
-                laneId={laneId}
-                laneKind={kind}
-                laneStatus={status}
-                members={members}
-                selectedPipeline={selectedPipeline}
-                onEditTask={onEditTask}
-                isExpanded={expandedTaskIds.includes(task.id)}
-                onToggleExpand={(taskId) =>
-                  setExpandedTaskIds((current) =>
-                    current.includes(taskId)
-                      ? current.filter((item) => item !== taskId)
-                      : [...current, taskId],
-                  )
-                }
-              />
-            ))
-          ) : (
-            <div className="text-muted-foreground rounded-lg border border-dashed border-border/20 px-2.5 py-3 text-[12px] leading-5">
-              Drop work here or create a new task for this lane.
-            </div>
-          )}
+          <div className="flex items-center gap-1">
+            {canReorderLane ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Reorder ${label}`}
+                className="cursor-grab active:cursor-grabbing"
+                onClick={(event) => event.preventDefault()}
+                onPointerDown={(event) => event.stopPropagation()}
+                {...laneAttributes}
+                {...laneListeners}
+              >
+                <GripVertical />
+              </Button>
+            ) : null}
+            {renderCreateTrigger()}
+            {kind === "custom" && onDeleteSection ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                onClick={onDeleteSection}
+                aria-label={`Delete ${label}`}
+              >
+                <Trash2 />
+              </Button>
+            ) : null}
+          </div>
         </div>
-      </SortableContext>
+
+        <SortableContext
+          items={tasks.map((task) => task.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="flex min-h-16 flex-col gap-2">
+            {tasks.length ? (
+              tasks.map((task) => (
+                <ProjectDosTaskCard
+                  key={task.id}
+                  task={task}
+                  laneId={laneId}
+                  laneOrderId={laneOrderId}
+                  laneKind={kind}
+                  laneStatus={status}
+                  members={members}
+                  selectedPipeline={selectedPipeline}
+                  onEditTask={onEditTask}
+                  isExpanded={expandedTaskIds.includes(task.id)}
+                  onToggleExpand={(taskId) =>
+                    setExpandedTaskIds((current) =>
+                      current.includes(taskId)
+                        ? current.filter((item) => item !== taskId)
+                        : [...current, taskId],
+                    )
+                  }
+                />
+              ))
+            ) : (
+              <div className="text-muted-foreground rounded-lg border border-dashed border-border/20 px-2.5 py-3 text-[12px] leading-5">
+                Drop work here or create a new task for this lane.
+              </div>
+            )}
+          </div>
+        </SortableContext>
+      </div>
     </div>
   );
 }

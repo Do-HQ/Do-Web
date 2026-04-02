@@ -82,7 +82,16 @@ export type SpaceMessage = {
   sentAtRaw?: string;
   edited?: boolean;
   attachments?: ChatAttachment[];
+  reactions?: SpaceMessageReaction[];
+  isPinned?: boolean;
+  pinnedAt?: string | null;
   threadCount?: number;
+};
+
+export type SpaceMessageReaction = {
+  emoji: string;
+  count: number;
+  reacted: boolean;
 };
 
 export type ThreadReply = {
@@ -94,6 +103,7 @@ export type ThreadReply = {
   sentAtRaw?: string;
   edited?: boolean;
   attachments?: ChatAttachment[];
+  reactions?: SpaceMessageReaction[];
 };
 
 export type PersonalCallState = {

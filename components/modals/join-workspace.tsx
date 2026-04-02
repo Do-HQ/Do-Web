@@ -22,6 +22,8 @@ import Link from "next/link";
 import useWorkspace from "@/hooks/use-workspace";
 import LoaderComponent from "../shared/loader";
 import { toast } from "sonner";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
+import { returnFullName } from "@/lib/helpers/return-full-name";
 
 interface Props {
   open: boolean;
@@ -54,6 +56,14 @@ const JoinWorkspaceModal = ({
 
   // Utils
   const workspace = data?.data?.workspace;
+  const workspaceInitials =
+    String(workspace?.name || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((segment) => segment[0]?.toUpperCase())
+      .join("") || "WS";
 
   // Handlers
   const handleJoinWorkspace = () => {
@@ -76,7 +86,27 @@ const JoinWorkspaceModal = ({
         ) : (
           <>
             <DialogHeader>
-              <DialogTitle>Request to Join {workspace?.name}</DialogTitle>
+              <div className="flex items-center gap-3">
+                <Avatar className="size-10 rounded-md">
+                  <AvatarImage
+                    src={workspace?.logo?.url}
+                    alt={workspace?.name || "Workspace"}
+                  />
+                  <AvatarFallback className="rounded-md">
+                    {workspaceInitials}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="space-y-1">
+                  <DialogTitle>Request to Join {workspace?.name}</DialogTitle>
+                  <DialogDescription>
+                    Owned by{" "}
+                    {workspace?.ownerId
+                      ? returnFullName(workspace.ownerId)
+                      : "the workspace team"}
+                    .
+                  </DialogDescription>
+                </div>
+              </div>
               <DialogDescription>
                 You’re about to request access to this workspace.
               </DialogDescription>

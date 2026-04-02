@@ -1154,6 +1154,28 @@ export default function ProjectOverview({
     );
   };
 
+  const getDefaultKanbanLaneOrder = (record: typeof project) => [
+    "status:todo",
+    "status:in-progress",
+    "status:review",
+    "status:blocked",
+    "status:done",
+    ...((record.customSections ?? []).map((section) => `custom:${section.id}`)),
+  ];
+
+  const resolveKanbanLaneOrder = (record: typeof project) => {
+    const defaultOrder = getDefaultKanbanLaneOrder(record);
+    const available = new Set(defaultOrder);
+    const storedOrder = (record.kanbanLaneOrder ?? [])
+      .map((item) => String(item || "").trim())
+      .filter((item) => available.has(item));
+
+    return [
+      ...storedOrder,
+      ...defaultOrder.filter((item) => !storedOrder.includes(item)),
+    ];
+  };
+
   const handleArchiveProject = async () => {
     if (!canArchiveProjects) {
       toast("Only workspace owners/admins can archive projects.");
@@ -1215,9 +1237,14 @@ export default function ProjectOverview({
       label: trimmedLabel,
       tone,
     };
+    const nextLaneOrder = [
+      ...resolveKanbanLaneOrder(project),
+      `custom:${nextSection.id}`,
+    ];
     const nextRecord = {
       ...project,
       customSections: [...(project.customSections ?? []), nextSection],
+      kanbanLaneOrder: nextLaneOrder,
     };
 
     upsertProjectRecord(nextRecord);
@@ -1254,6 +1281,9 @@ export default function ProjectOverview({
         customSections: (project.customSections ?? []).filter(
           (section) => section.id !== sectionId,
         ),
+        kanbanLaneOrder: resolveKanbanLaneOrder(project).filter(
+          (laneId) => laneId !== `custom:${sectionId}`,
+        ),
       },
       nextWorkflows,
     );
@@ -1281,6 +1311,42 @@ export default function ProjectOverview({
       queryClient.invalidateQueries({
         queryKey: ["workspace-project-tasks", workspaceId, projectId],
       });
+    }
+  };
+
+  const handleReorderKanbanLanes = async (laneOrder: string[]) => {
+    const available = new Set(getDefaultKanbanLaneOrder(project));
+    const normalized = [...new Set(laneOrder.map((item) => String(item || "").trim()))].filter(
+      (item) => Boolean(item) && available.has(item),
+    );
+
+    if (!normalized.length) {
+      return;
+    }
+
+    const previousProject = project;
+    const nextRecord = {
+      ...project,
+      kanbanLaneOrder: normalized,
+    };
+
+    upsertProjectRecord(nextRecord);
+
+    if (!workspaceId) {
+      return;
+    }
+
+    try {
+      await updateWorkspaceProjectMutation.mutateAsync({
+        workspaceId,
+        projectId,
+        updates: {
+          record: nextRecord,
+        },
+      });
+    } catch {
+      upsertProjectRecord(previousProject);
+      toast("We could not save board order.");
     }
   };
 
@@ -2199,6 +2265,7 @@ export default function ProjectOverview({
               onSubtaskAction={handleSubtaskAction}
               onCreateCustomSection={handleCreateCustomSection}
               onDeleteCustomSection={handleDeleteCustomSection}
+              onReorderKanbanLanes={handleReorderKanbanLanes}
             />
           </div>
         ) : activeTab === "files-assets" ? (

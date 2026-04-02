@@ -37,7 +37,6 @@ const ChatItemActionsMenu = ({
   onForward,
   onDelete,
   onReplyInThread,
-  onCreateTask,
   showCreateTask = false,
 }: ChatItemActionsMenuProps) => {
   return (
@@ -81,10 +80,18 @@ const ChatItemActionsMenu = ({
           Forward
         </DropdownMenuItem>
 
-        {showCreateTask && onCreateTask && (
-          <DropdownMenuItem className="text-[12px]" onClick={onCreateTask}>
+        {showCreateTask && (
+          <DropdownMenuItem
+            disabled
+            className="cursor-not-allowed text-[12px] opacity-70"
+          >
             <CheckCircle2 className="size-4" />
-            Create as task
+            <div className="flex flex-col items-start leading-tight">
+              <span className="[filter:blur(0.2px)]">Create as task</span>
+              <span className="text-[10px] text-muted-foreground">
+                Coming soon
+              </span>
+            </div>
           </DropdownMenuItem>
         )}
 

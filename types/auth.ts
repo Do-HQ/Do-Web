@@ -1,5 +1,5 @@
-import { CustomFile } from "./file";
-import { WorkspaceType } from "./workspace";
+import type { CustomFile } from "./file";
+import type { WorkspaceType } from "./workspace";
 
 export interface UserType {
   email: string;

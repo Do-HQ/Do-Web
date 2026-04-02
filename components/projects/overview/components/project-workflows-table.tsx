@@ -67,9 +67,11 @@ import {
   getTaskStatusLabel,
   getViewChipClass,
   getWorkflowStatusLabel,
+  resolveUpdatedAtLabel,
   resolveMemberById,
 } from "../utils";
 import LoaderComponent from "@/components/shared/loader";
+import { ProjectProgressRing } from "./project-progress-ring";
 
 type ProjectWorkflowsTableProps = {
   projectId: string;
@@ -172,6 +174,29 @@ const TASK_PRIORITY_DOT: Record<
 
 type SortMode = "updated" | "progress" | "name";
 type DensityMode = "compact" | "comfortable";
+type ProgressTone = "good" | "warning" | "danger" | "info";
+
+const PROGRESS_TONE_META: Record<
+  ProgressTone,
+  { label: string; className: string }
+> = {
+  good: {
+    label: "Healthy",
+    className: "text-emerald-600 dark:text-emerald-300",
+  },
+  warning: {
+    label: "Watch",
+    className: "text-amber-600 dark:text-amber-300",
+  },
+  danger: {
+    label: "Risk",
+    className: "text-destructive",
+  },
+  info: {
+    label: "Active",
+    className: "text-primary",
+  },
+};
 
 function handleRowToggle(
   event: MouseEvent<HTMLButtonElement>,
@@ -211,6 +236,7 @@ function renderSubtaskRow(
     dueDate: subtask.dueDate,
     executionState: subtask.executionState,
   });
+  const toneMeta = PROGRESS_TONE_META[tone.tone];
 
   return (
     <TableRow
@@ -220,17 +246,22 @@ function renderSubtaskRow(
         density === "compact" ? "h-8" : "h-9",
       )}
     >
-      <TableCell>
+      <TableCell className="align-top">
         <div className="flex min-w-0 items-center gap-2 pl-12">
           <span className="size-1.5 shrink-0 rounded-full bg-border" />
-          <span className="truncate text-[12px] text-muted-foreground md:text-[12.5px]">
+          <span className="text-[12px] text-muted-foreground break-words whitespace-normal md:text-[12.5px]">
             {subtask.title}
           </span>
         </div>
       </TableCell>
-      <TableCell>{assignee?.name ?? "Unassigned"}</TableCell>
-      <TableCell>
-        <Badge variant="outline" className="font-medium">
+      <TableCell className="max-w-[11rem] break-words whitespace-normal align-top">
+        {assignee?.name ?? "Unassigned"}
+      </TableCell>
+      <TableCell className="align-top">
+        <Badge
+          variant="outline"
+          className="max-w-[11rem] break-words whitespace-normal text-left font-medium"
+        >
           {parentTeam?.name ?? "Inherited"}
         </Badge>
       </TableCell>
@@ -239,22 +270,38 @@ function renderSubtaskRow(
           {getTaskStatusLabel(subtask.status)}
         </Badge>
       </TableCell>
-      <TableCell>
-        <div className="space-y-1">
-          <div
-            className={cn("h-1.5 overflow-hidden rounded-full", tone.trackClass)}
-          >
+      <TableCell className="align-top">
+        <div className="flex items-center gap-2">
+          <ProjectProgressRing
+            value={progress}
+            tone={tone.tone}
+            size={28}
+            strokeWidth={3}
+            textClassName="text-[9px]"
+          />
+          <div className="leading-tight">
+            <div className={cn("text-[11px] font-semibold", tone.textClass)}>
+              {progress}%
+            </div>
             <div
-              className={cn("h-full rounded-full", tone.fillClass)}
-              style={{ width: `${progress}%` }}
-            />
+              className={cn(
+                "text-[10px] uppercase tracking-wide",
+                toneMeta.className,
+              )}
+            >
+              {toneMeta.label}
+            </div>
           </div>
-          <div className={cn("text-[11px]", tone.textClass)}>{progress}%</div>
         </div>
       </TableCell>
-      <TableCell>{formatShortDate(subtask.dueDate)}</TableCell>
-      <TableCell className="text-muted-foreground">
-        {subtask.updatedAt}
+      <TableCell className="break-words whitespace-normal align-top">
+        {formatShortDate(subtask.dueDate)}
+      </TableCell>
+      <TableCell className="text-muted-foreground break-words whitespace-normal align-top">
+        {resolveUpdatedAtLabel(subtask.updatedAt, [
+          subtask.dueDate,
+          subtask.startDate || "",
+        ])}
       </TableCell>
       <TableCell className="text-right">
         <DropdownMenu>
@@ -539,17 +586,16 @@ export function ProjectWorkflowsTable({
 
       {displayedWorkflows.length ? (
         <>
-          <div className="w-full overflow-x-auto">
-          <Table className="min-w-[1060px]">
+          <Table className="table-fixed">
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead className="w-[34%]">Name</TableHead>
-                <TableHead>Owner / Assignee</TableHead>
-                <TableHead>Team</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="w-[18%]">Progress</TableHead>
-                <TableHead>Due</TableHead>
-                <TableHead>Updated</TableHead>
+                <TableHead className="w-[33%]">Name</TableHead>
+                <TableHead className="w-[14%]">Owner / Assignee</TableHead>
+                <TableHead className="w-[14%]">Team</TableHead>
+                <TableHead className="w-[10%]">Status</TableHead>
+                <TableHead className="w-[15%]">Progress</TableHead>
+                <TableHead className="w-[7%]">Due</TableHead>
+                <TableHead className="w-[7%]">Updated</TableHead>
                 <TableHead className="w-10 text-right"> </TableHead>
               </TableRow>
             </TableHeader>
@@ -572,6 +618,7 @@ export function ProjectWorkflowsTable({
                   startDate: workflow.startedAt,
                   dueDate: workflow.targetEndDate,
                 });
+                const workflowToneMeta = PROGRESS_TONE_META[workflowTone.tone];
 
                 return (
                   <Fragment key={workflow.id}>
@@ -586,7 +633,7 @@ export function ProjectWorkflowsTable({
                         onOpenWorkflowDetails(workflow.id);
                       }}
                     >
-                      <TableCell>
+                      <TableCell className="align-top">
                         <div className="flex min-w-0 items-center gap-2">
                           <button
                             type="button"
@@ -617,22 +664,25 @@ export function ProjectWorkflowsTable({
                             )}
                           />
                           <div className="min-w-0">
-                            <div className="truncate text-[13px] font-medium leading-5 md:text-[14px]">
+                            <div className="text-[13px] font-medium leading-5 break-words whitespace-normal md:text-[14px]">
                               {workflow.name}
                             </div>
                             {workflow.description ? (
-                              <div className="text-muted-foreground line-clamp-1 text-[12px] leading-4">
+                              <div className="text-muted-foreground text-[12px] leading-4 break-words whitespace-normal">
                                 {workflow.description}
                               </div>
                             ) : null}
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="max-w-[11rem] break-words whitespace-normal align-top">
                         {workflowOwner?.name ?? "Unassigned"}
                       </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="font-medium">
+                      <TableCell className="align-top">
+                        <Badge
+                          variant="outline"
+                          className="max-w-[11rem] break-words whitespace-normal text-left font-medium"
+                        >
                           {workflowTeam?.name ?? "No team"}
                         </Badge>
                       </TableCell>
@@ -644,32 +694,51 @@ export function ProjectWorkflowsTable({
                           {getWorkflowStatusLabel(workflow.status)}
                         </Badge>
                       </TableCell>
-                      <TableCell>
-                        <div className="space-y-1">
-                          <div
-                            className={cn(
-                              "h-1.5 overflow-hidden rounded-full",
-                              workflowTone.trackClass,
-                            )}
-                          >
+                      <TableCell className="align-top">
+                        <div className="flex items-center gap-2">
+                          <ProjectProgressRing
+                            value={workflow.progress}
+                            tone={workflowTone.tone}
+                            size={34}
+                            strokeWidth={3.5}
+                          />
+                          <div className="leading-tight">
                             <div
                               className={cn(
-                                "h-full rounded-full",
-                                workflowTone.fillClass,
+                                "text-[11px] font-semibold",
+                                workflowTone.textClass,
                               )}
-                              style={{ width: `${workflow.progress}%` }}
-                            />
-                          </div>
-                          <div
-                            className={cn("text-[11px]", workflowTone.textClass)}
-                          >
-                            {workflow.progress}%
+                            >
+                              {workflow.progress}%
+                            </div>
+                            <div
+                              className={cn(
+                                "text-[10px] uppercase tracking-wide",
+                                workflowToneMeta.className,
+                              )}
+                            >
+                              {workflowToneMeta.label}
+                            </div>
                           </div>
                         </div>
                       </TableCell>
-                      <TableCell>{workflow.dueWindow}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {workflow.updatedAt}
+                      <TableCell className="break-words whitespace-normal align-top">
+                        {workflow.dueWindow}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground break-words whitespace-normal align-top">
+                        {resolveUpdatedAtLabel(
+                          workflow.updatedAt,
+                          [
+                            ...workflow.tasks.flatMap((task) => [
+                              task.updatedAt,
+                              ...(task.subtasks || []).map(
+                                (subtask) => subtask.updatedAt,
+                              ),
+                            ]),
+                            workflow.targetEndDate,
+                            workflow.startedAt,
+                          ],
+                        )}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -775,6 +844,7 @@ export function ProjectWorkflowsTable({
                             dueDate: task.dueDate,
                             executionState: task.executionState,
                           });
+                          const taskToneMeta = PROGRESS_TONE_META[taskTone.tone];
 
                           return (
                             <Fragment key={task.id}>
@@ -785,7 +855,7 @@ export function ProjectWorkflowsTable({
                                 )}
                                 onClick={() => onEditTask(workflow.id, task.id)}
                               >
-                                <TableCell>
+                                <TableCell className="align-top">
                                   <div className="flex min-w-0 items-center gap-2 pl-7">
                                     {task.subtasks?.length ? (
                                       <button
@@ -818,18 +888,18 @@ export function ProjectWorkflowsTable({
                                         TASK_PRIORITY_DOT[task.priority],
                                       )}
                                     />
-                                    <span className="truncate text-[12px] font-medium md:text-[12.5px]">
+                                    <span className="text-[12px] font-medium break-words whitespace-normal md:text-[12.5px]">
                                       {task.title}
                                     </span>
                                   </div>
                                 </TableCell>
-                                <TableCell>
+                                <TableCell className="max-w-[11rem] break-words whitespace-normal align-top">
                                   {assignee?.name ?? "Unassigned"}
                                 </TableCell>
-                                <TableCell>
+                                <TableCell className="align-top">
                                   <Badge
                                     variant="outline"
-                                    className="font-medium"
+                                    className="max-w-[11rem] break-words whitespace-normal text-left font-medium"
                                   >
                                     {taskTeam?.name ?? "No team"}
                                   </Badge>
@@ -842,37 +912,49 @@ export function ProjectWorkflowsTable({
                                     {getTaskStatusLabel(task.status)}
                                   </Badge>
                                 </TableCell>
-                                <TableCell>
-                                  <div className="space-y-1">
-                                    <div
-                                      className={cn(
-                                        "h-1.5 overflow-hidden rounded-full",
-                                        taskTone.trackClass,
-                                      )}
-                                    >
+                                <TableCell className="align-top">
+                                  <div className="flex items-center gap-2">
+                                    <ProjectProgressRing
+                                      value={taskProgress}
+                                      tone={taskTone.tone}
+                                      size={30}
+                                      strokeWidth={3}
+                                      textClassName="text-[9px]"
+                                    />
+                                    <div className="leading-tight">
                                       <div
                                         className={cn(
-                                          "h-full rounded-full",
-                                          taskTone.fillClass,
+                                          "text-[11px] font-semibold",
+                                          taskTone.textClass,
                                         )}
-                                        style={{ width: `${taskProgress}%` }}
-                                      />
-                                    </div>
-                                    <div
-                                      className={cn(
-                                        "text-[11px]",
-                                        taskTone.textClass,
-                                      )}
-                                    >
-                                      {taskProgress}%
+                                      >
+                                        {taskProgress}%
+                                      </div>
+                                      <div
+                                        className={cn(
+                                          "text-[10px] uppercase tracking-wide",
+                                          taskToneMeta.className,
+                                        )}
+                                      >
+                                        {taskToneMeta.label}
+                                      </div>
                                     </div>
                                   </div>
                                 </TableCell>
-                                <TableCell>
+                                <TableCell className="break-words whitespace-normal align-top">
                                   {formatShortDate(task.dueDate)}
                                 </TableCell>
-                                <TableCell className="text-muted-foreground">
-                                  {task.updatedAt}
+                                <TableCell className="text-muted-foreground break-words whitespace-normal align-top">
+                                  {resolveUpdatedAtLabel(
+                                    task.updatedAt,
+                                    [
+                                      ...(task.subtasks || []).map(
+                                        (subtask) => subtask.updatedAt,
+                                      ),
+                                      task.dueDate,
+                                      task.startDate || "",
+                                    ],
+                                  )}
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <DropdownMenu>
@@ -971,7 +1053,6 @@ export function ProjectWorkflowsTable({
               })}
             </TableBody>
           </Table>
-          </div>
 
           {pagination ? (
             <div className="flex flex-col gap-2 border-t border-border/25 px-3 py-2 sm:flex-row sm:items-center sm:justify-between md:px-4">

@@ -206,6 +206,105 @@ export function formatShortDate(value: string) {
   }).format(parsed);
 }
 
+export function parseProjectDateValue(value?: string) {
+  const normalized = String(value || "").trim();
+
+  if (!normalized) {
+    return null;
+  }
+
+  const lower = normalized.toLowerCase();
+  const now = Date.now();
+
+  if (lower === "just now") {
+    return now;
+  }
+
+  if (lower === "today") {
+    return new Date().setHours(0, 0, 0, 0);
+  }
+
+  if (lower === "yesterday") {
+    return new Date(Date.now() - 24 * 60 * 60 * 1000).setHours(0, 0, 0, 0);
+  }
+
+  const relativeMatch = lower.match(/^(\d+)\s*([smhdw])\s*ago$/);
+  if (relativeMatch) {
+    const amount = Number(relativeMatch[1]);
+    const unit = relativeMatch[2];
+    const unitMs: Record<string, number> = {
+      s: 1000,
+      m: 60 * 1000,
+      h: 60 * 60 * 1000,
+      d: 24 * 60 * 60 * 1000,
+      w: 7 * 24 * 60 * 60 * 1000,
+    };
+
+    return now - amount * (unitMs[unit] || 0);
+  }
+
+  const parsed = Date.parse(normalized);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+export function formatProjectRelativeDate(value?: string) {
+  const parsed = parseProjectDateValue(value);
+
+  if (parsed === null) {
+    return String(value || "").trim() || "Just now";
+  }
+
+  const elapsedSeconds = Math.max(0, Math.round((Date.now() - parsed) / 1000));
+
+  if (elapsedSeconds < 60) {
+    return "Just now";
+  }
+
+  const minutes = Math.round(elapsedSeconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  const days = Math.round(hours / 24);
+  if (days < 7) {
+    return `${days}d ago`;
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(parsed));
+}
+
+export function resolveUpdatedAtLabel(
+  primaryValue?: string,
+  fallbackValues: string[] = [],
+) {
+  const candidates = [
+    String(primaryValue || "").trim(),
+    ...fallbackValues
+      .map((item) => String(item || "").trim())
+      .filter(Boolean),
+  ].filter(Boolean);
+
+  if (!candidates.length) {
+    return "Just now";
+  }
+
+  const preferred = candidates.find((candidate) => {
+    const lower = candidate.toLowerCase();
+    return lower !== "just now" && parseProjectDateValue(candidate) !== null;
+  });
+
+  const resolved = preferred || candidates[0];
+  return formatProjectRelativeDate(resolved);
+}
+
 export function formatTaskSummary(taskCounts: ProjectTaskCounts) {
   return `${taskCounts.done} done · ${taskCounts.inProgress} in progress · ${taskCounts.blocked} blocked`;
 }
@@ -453,8 +552,7 @@ export function getDefaultSelectedWorkflowId(workflows: ProjectWorkflow[]) {
 }
 
 function getSortableUpdatedTime(value: string) {
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? null : parsed;
+  return parseProjectDateValue(value);
 }
 
 export function sortFlattenedTasks(tasks: FlattenedProjectTask[]) {

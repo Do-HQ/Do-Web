@@ -181,6 +181,7 @@ export type WorkspaceProjectNotificationType =
   | "issue.mentioned"
   | "team.mentioned"
   | "space.mentioned"
+  | "space.call.incoming"
   | "jam.mentioned"
   | "jam.access.approved"
   | "jam.access.rejected"

@@ -15,6 +15,7 @@ import {
   findWorkflowById,
   getDefaultSelectedWorkflowId,
   getWorkflowTimingSummary,
+  resolveUpdatedAtLabel,
 } from "../utils";
 import { ProjectWorkflowDetailSheet } from "./project-workflow-detail-sheet";
 import { ProjectWorkflowDurationChart } from "./project-workflow-duration-chart";
@@ -242,7 +243,20 @@ export function ProjectWorkflowsTab({
                       {workflow.name}
                     </div>
                     <div className="text-muted-foreground text-[11px]">
-                      {workflow.taskCounts.total} tasks • {workflow.updatedAt}
+                      {workflow.taskCounts.total} tasks •{" "}
+                      {resolveUpdatedAtLabel(
+                        workflow.updatedAt,
+                        [
+                          ...workflow.tasks.flatMap((task) => [
+                            task.updatedAt,
+                            ...(task.subtasks || []).map(
+                              (subtask) => subtask.updatedAt,
+                            ),
+                          ]),
+                          workflow.targetEndDate,
+                          workflow.startedAt,
+                        ],
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">

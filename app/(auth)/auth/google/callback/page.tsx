@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import LoaderComponent from "@/components/shared/loader";
 import { getUser } from "@/lib/services/user-service";
 import { resolveUserStartRoute } from "@/lib/helpers/user-preferences";
+import { consumePendingAuthRedirect } from "@/lib/helpers/auth-redirect";
 import useAuthStore from "@/stores/auth";
 import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
 import { toast } from "sonner";
@@ -45,6 +46,12 @@ const GoogleAuthCallbackPage = () => {
 
         setUser(user);
         toast.success("Signed in with Google");
+
+        const pendingRedirect = consumePendingAuthRedirect();
+        if (pendingRedirect) {
+          router.replace(pendingRedirect);
+          return;
+        }
 
         if (!user?.firstName) {
           router.replace(ROUTES.ONBOARDING);

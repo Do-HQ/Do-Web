@@ -27,9 +27,29 @@ const WorkspaceSwitchCard = ({
   loading,
   disabled,
 }: Props) => {
+  const workspaceInitials =
+    String(data?.name || "")
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((segment) => segment[0]?.toUpperCase())
+      .join("") || "WS";
+
   return (
     <Item variant="outline">
-      <ItemMedia>
+      <ItemMedia className="flex items-center gap-3">
+        <Avatar
+          className="hidden sm:flex rounded-md"
+          userCard={{
+            name: data?.name || "Workspace",
+            role: "Workspace",
+            status: "Workspace avatar",
+          }}
+        >
+          <AvatarImage src={data?.logo?.url} alt={data?.name || "Workspace"} />
+          <AvatarFallback className="rounded-md">{workspaceInitials}</AvatarFallback>
+        </Avatar>
         <div className="flex -space-x-2 *:data-[slot=avatar]:ring-1 *:data-[slot=avatar]:ring-border/40">
           {data?.members?.map((d) => {
             return (

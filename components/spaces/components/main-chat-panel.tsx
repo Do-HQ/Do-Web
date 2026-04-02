@@ -1,9 +1,11 @@
 import type React from "react";
-import { Fragment } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import {
   Shapes,
   ImagePlus,
   MessageSquareReply,
+  Phone,
+  Plus,
   Pin,
   SendHorizontal,
 } from "lucide-react";
@@ -18,6 +20,12 @@ import {
   EmptyHeader,
   EmptyMedia,
 } from "@/components/ui/empty";
+import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -39,7 +47,7 @@ import LoaderComponent from "@/components/shared/loader";
 type MainChatPanelProps = {
   activeMessages: SpaceMessage[];
   selectedThreadMessageId: string | null;
-  pinnedMessageIds: string[];
+  anchorMessageId: string | null;
   editingMessageId: string | null;
   editingMessageValue: string;
   composer: string;
@@ -61,6 +69,7 @@ type MainChatPanelProps = {
   onCancelEditingMessage: () => void;
   onStartEditingMessage: (message: SpaceMessage) => void;
   onCopyText: (value: string) => void;
+  onReactToMessage: (messageId: string, emoji: string) => void;
   onTogglePinnedMessage: (messageId: string) => void;
   onForwardMessage: (
     message: Pick<SpaceMessage, "author" | "content" | "attachments">,
@@ -150,10 +159,34 @@ const formatMessageDayLabel = (value: Date | null) => {
   }).format(value);
 };
 
+const QUICK_REACTION_OPTIONS = ["👍", "❤️", "🔥", "🎉", "😂"] as const;
+const EXTENDED_REACTION_OPTIONS = [
+  "👏",
+  "🙌",
+  "🤝",
+  "🙏",
+  "💯",
+  "✅",
+  "🤔",
+  "😮",
+  "😢",
+  "😡",
+  "🚀",
+  "👀",
+  "🎯",
+  "🥳",
+  "💡",
+  "🫡",
+  "😄",
+  "😎",
+  "🤯",
+  "😴",
+] as const;
+
 const MainChatPanel = ({
   activeMessages,
   selectedThreadMessageId,
-  pinnedMessageIds,
+  anchorMessageId,
   editingMessageId,
   editingMessageValue,
   composer,
@@ -175,6 +208,7 @@ const MainChatPanel = ({
   onCancelEditingMessage,
   onStartEditingMessage,
   onCopyText,
+  onReactToMessage,
   onTogglePinnedMessage,
   onForwardMessage,
   onCreateTaskFromMessage,
@@ -189,8 +223,46 @@ const MainChatPanel = ({
   isLoadingOlderMessages = false,
   isMessagesLoading = false,
 }: MainChatPanelProps) => {
+  const messageElementRefs = useRef<Record<string, HTMLElement | null>>({});
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(
+    null,
+  );
   const suggestionsPortalHost =
     typeof document === "undefined" ? undefined : document.body;
+
+  useEffect(() => {
+    if (!highlightedMessageId) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setHighlightedMessageId(null);
+    }, 1600);
+
+    return () => window.clearTimeout(timer);
+  }, [highlightedMessageId]);
+
+  useEffect(() => {
+    if (!anchorMessageId) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const target = messageElementRefs.current[anchorMessageId];
+      if (!target) {
+        return;
+      }
+
+      target.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+
+      setHighlightedMessageId(anchorMessageId);
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [activeMessages, anchorMessageId]);
 
   const mentionInputStyle = {
     control: {
@@ -518,6 +590,107 @@ const MainChatPanel = ({
     );
   };
 
+  const parseCallEventMessage = (content: string) => {
+    const normalized = String(content || "").trim();
+    const match = normalized.match(/^(.+)\sstarted a (voice|video) call\.$/i);
+
+    if (!match) {
+      return null;
+    }
+
+    const starterName = String(match[1] || "A teammate").trim();
+    const modeLabel =
+      String(match[2] || "").toLowerCase() === "voice" ? "Voice" : "Video";
+
+    return {
+      summary: `${starterName} started a ${modeLabel.toLowerCase()} call`,
+      modeLabel,
+    };
+  };
+
+  const parseForwardedMessage = (content: string) => {
+    const normalized = String(content || "");
+    const match = normalized.match(/^Forwarded from (.+?)\n([\s\S]*)$/);
+    if (match) {
+      return {
+        sourceName: String(match[1] || "Unknown").trim(),
+        body: String(match[2] || "").trim(),
+      };
+    }
+
+    const headerOnlyMatch = normalized.match(/^Forwarded from (.+)$/);
+    if (headerOnlyMatch) {
+      return {
+        sourceName: String(headerOnlyMatch[1] || "Unknown").trim(),
+        body: "",
+      };
+    }
+
+    return null;
+  };
+
+  const renderMessageReactions = (message: SpaceMessage) => {
+    const reactions = Array.isArray(message.reactions) ? message.reactions : [];
+    if (!reactions.length) {
+      return null;
+    }
+
+    return (
+      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+        {reactions.map((reaction) => (
+          <button
+            key={`${message.id}:${reaction.emoji}`}
+            type="button"
+            onClick={() => onReactToMessage(message.id, reaction.emoji)}
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[12px] transition-colors",
+              reaction.reacted
+                ? "border-orange-500/55 bg-orange-500/12 text-orange-300"
+                : "border-border/45 bg-muted/25 text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <span className="text-[14px] leading-none">{reaction.emoji}</span>
+            <span className="font-medium">{reaction.count}</span>
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  const renderMoreReactionPicker = (
+    onSelect: (emoji: string) => void,
+    keyPrefix: string,
+  ) => {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex size-7 items-center justify-center rounded-full border border-border/45 bg-background/95 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="More reactions"
+          >
+            <Plus className="size-3.5" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-60 p-1.5">
+          <div className="grid grid-cols-8 gap-1">
+            {EXTENDED_REACTION_OPTIONS.map((emoji) => (
+              <button
+                key={`${keyPrefix}-${emoji}`}
+                type="button"
+                onClick={() => onSelect(emoji)}
+                className="inline-flex size-7 items-center justify-center rounded-md text-[17px] leading-none transition-colors hover:bg-muted"
+                aria-label={`React with ${emoji}`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
+
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div
@@ -552,11 +725,13 @@ const MainChatPanel = ({
                 formatMessageDayLabel(currentMessageDate);
               const threadCount = onGetThreadCount(message.id);
               const isThreadActive = selectedThreadMessageId === message.id;
-              const isPinned = pinnedMessageIds.includes(message.id);
+              const isPinned = Boolean(message.isPinned);
               const isOwnMessage =
                 String(message.author.id || "").trim() ===
                 String(currentUserId || "").trim();
               const jamShareCard = renderJamShareCard(message.content);
+              const callEventMessage = parseCallEventMessage(message.content);
+              const forwardedMessage = parseForwardedMessage(message.content);
               const authorInfo =
                 authorInfoById[String(message.author.id || "")];
               const messageAvatarUrl =
@@ -575,7 +750,16 @@ const MainChatPanel = ({
                       <span className="bg-border h-px flex-1" />
                     </div>
                   ) : null}
-                  <article className="group rounded-md px-2 py-1.5 transition-colors hover:bg-accent/35">
+                  <article
+                    ref={(node) => {
+                      messageElementRefs.current[message.id] = node;
+                    }}
+                    className={cn(
+                      "group rounded-md px-2 py-1.5 transition-colors hover:bg-accent/35",
+                      highlightedMessageId === message.id &&
+                        "ring-1 ring-orange-500/60 bg-orange-500/10",
+                    )}
+                  >
                     <div className="flex items-start gap-2">
                       <Avatar
                         size="sm"
@@ -602,8 +786,50 @@ const MainChatPanel = ({
                       </Avatar>
 
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <p className="text-[13px] font-medium">
+                        <div className="relative max-w-[min(100%,48rem)]">
+                          <div className="absolute top-0 right-0 z-10 inline-flex items-center gap-1 rounded-full border border-border/45 bg-background/95 px-1.5 py-1 shadow-sm opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
+                            {QUICK_REACTION_OPTIONS.map((emoji) => (
+                              <button
+                                key={`${message.id}-hover-${emoji}`}
+                                type="button"
+                                onClick={() => onReactToMessage(message.id, emoji)}
+                                className="inline-flex size-7 items-center justify-center rounded-full text-[17px] leading-none transition-colors hover:bg-muted"
+                                aria-label={`React with ${emoji}`}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                            {renderMoreReactionPicker(
+                              (emoji) => onReactToMessage(message.id, emoji),
+                              `message-more-${message.id}`,
+                            )}
+                            <ChatItemActionsMenu
+                              isPinned={isPinned}
+                              onReplyInThread={() => onOpenThread(message.id)}
+                              onEdit={
+                                isOwnMessage
+                                  ? () => onStartEditingMessage(message)
+                                  : undefined
+                              }
+                              onCopy={() => onCopyText(message.content)}
+                              onTogglePin={() =>
+                                onTogglePinnedMessage(message.id)
+                              }
+                              onForward={() => onForwardMessage(message)}
+                              onCreateTask={() =>
+                                onCreateTaskFromMessage(message)
+                              }
+                              showCreateTask={canCreateTaskFromChat}
+                              onDelete={
+                                isOwnMessage
+                                  ? () => onDeleteMessage(message.id)
+                                  : undefined
+                              }
+                            />
+                          </div>
+
+                        <div className="flex flex-wrap items-center gap-1.5 pr-2 md:pr-24">
+                          <p className="text-foreground text-[13px] font-medium">
                             {message.author.name}
                           </p>
                           {message.author.role === "agent" && (
@@ -665,6 +891,27 @@ const MainChatPanel = ({
                           <>
                             {jamShareCard ? (
                               jamShareCard
+                            ) : callEventMessage ? (
+                              <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-border/45 bg-muted/25 px-2 py-1 text-[12px] font-medium">
+                                <Phone className="size-3.5 text-primary" />
+                                {callEventMessage.summary}
+                              </div>
+                            ) : forwardedMessage ? (
+                              <div className="mt-1.5 space-y-1.5">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <Badge variant="secondary" className="text-[10px]">
+                                    Forwarded
+                                  </Badge>
+                                  <span className="text-muted-foreground text-[11px]">
+                                    From {forwardedMessage.sourceName}
+                                  </span>
+                                </div>
+                                {forwardedMessage.body ? (
+                                  <p className="text-[12.5px] leading-5 whitespace-pre-wrap">
+                                    {renderContentWithMentions(forwardedMessage.body)}
+                                  </p>
+                                ) : null}
+                              </div>
                             ) : (
                               <p className="mt-0.5 text-[12.5px] leading-5 whitespace-pre-wrap">
                                 {renderContentWithMentions(message.content)}
@@ -674,6 +921,7 @@ const MainChatPanel = ({
                         )}
 
                         <AttachmentPreview attachments={message.attachments} />
+                        {renderMessageReactions(message)}
 
                         <div className="mt-1.5 flex flex-wrap items-center gap-1">
                           <Button
@@ -694,32 +942,7 @@ const MainChatPanel = ({
                                 : "Reply"}
                             </span>
                           </Button>
-
-                          <div className="ml-auto opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
-                            <ChatItemActionsMenu
-                              isPinned={isPinned}
-                              onReplyInThread={() => onOpenThread(message.id)}
-                              onEdit={
-                                isOwnMessage
-                                  ? () => onStartEditingMessage(message)
-                                  : undefined
-                              }
-                              onCopy={() => onCopyText(message.content)}
-                              onTogglePin={() =>
-                                onTogglePinnedMessage(message.id)
-                              }
-                              onForward={() => onForwardMessage(message)}
-                              onCreateTask={() =>
-                                onCreateTaskFromMessage(message)
-                              }
-                              showCreateTask={canCreateTaskFromChat}
-                              onDelete={
-                                isOwnMessage
-                                  ? () => onDeleteMessage(message.id)
-                                  : undefined
-                              }
-                            />
-                          </div>
+                        </div>
                         </div>
                       </div>
                     </div>

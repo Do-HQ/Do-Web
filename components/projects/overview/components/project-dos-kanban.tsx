@@ -12,7 +12,12 @@ import {
   type DragOverEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
+import {
+  SortableContext,
+  arrayMove,
+  horizontalListSortingStrategy,
+  sortableKeyboardCoordinates,
+} from "@dnd-kit/sortable";
 import { Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -55,8 +60,10 @@ type ProjectDosKanbanProps = {
   selectedPipeline: ProjectPipelineSummary | null;
   workflowOptions: WorkflowOption[];
   customSections: ProjectKanbanSection[];
+  laneOrder: string[];
   onCreateCustomSection: (label: string, tone: ProjectDosSectionTone) => void;
   onDeleteCustomSection: (sectionId: string) => void;
+  onReorderLanes: (laneOrder: string[]) => void;
   onEditTask: (workflowId: string, taskId: string) => void;
   onCreateTask: (
     workflowId: string,
@@ -183,14 +190,37 @@ function getTaskLaneId(task: FlattenedProjectTask) {
   return task.sectionId || task.status;
 }
 
+const toStatusLaneOrderId = (status: ProjectTaskStatus) => `status:${status}`;
+const toCustomLaneOrderId = (sectionId: string) => `custom:${sectionId}`;
+
+const parseLaneOrderId = (laneOrderId: string) => {
+  if (laneOrderId.startsWith("status:")) {
+    return {
+      kind: "status" as const,
+      laneId: laneOrderId.slice("status:".length),
+    };
+  }
+
+  if (laneOrderId.startsWith("custom:")) {
+    return {
+      kind: "custom" as const,
+      laneId: laneOrderId.slice("custom:".length),
+    };
+  }
+
+  return null;
+};
+
 export function ProjectDosKanban({
   tasks,
   members,
   selectedPipeline,
   workflowOptions,
   customSections,
+  laneOrder,
   onCreateCustomSection,
   onDeleteCustomSection,
+  onReorderLanes,
   onEditTask,
   onCreateTask,
   onMoveTaskToLane,
@@ -207,6 +237,9 @@ export function ProjectDosKanban({
   );
 
   const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [activeLaneOrderId, setActiveLaneOrderId] = useState<string | null>(
+    null,
+  );
   const [overLaneId, setOverLaneId] = useState<string | null>(null);
   const [sectionDialogOpen, setSectionDialogOpen] = useState(false);
 
@@ -231,6 +264,25 @@ export function ProjectDosKanban({
     return nextMap;
   }, [customSections, tasks]);
 
+  const defaultLaneOrder = useMemo(() => {
+    const statusLaneIds = STATUS_COLUMNS.map((column) =>
+      toStatusLaneOrderId(column.status),
+    );
+    const customLaneIds = customSections.map((section) =>
+      toCustomLaneOrderId(section.id),
+    );
+
+    return [...statusLaneIds, ...customLaneIds];
+  }, [customSections]);
+
+  const resolvedLaneOrder = useMemo(() => {
+    const available = new Set(defaultLaneOrder);
+    const normalized = laneOrder.filter((item) => available.has(item));
+    const appended = defaultLaneOrder.filter((item) => !normalized.includes(item));
+
+    return [...normalized, ...appended];
+  }, [defaultLaneOrder, laneOrder]);
+
   const statusLaneTasks = useMemo(() => {
     const next = { ...defaultGroupings };
 
@@ -244,6 +296,13 @@ export function ProjectDosKanban({
   }, [customTaskMap, defaultGroupings]);
 
   const handleDragStart = (event: DragStartEvent) => {
+    const activeData = event.active.data.current;
+
+    if (activeData?.type === "lane") {
+      setActiveLaneOrderId(String(activeData.laneOrderId || event.active.id));
+      return;
+    }
+
     setActiveTaskId(String(event.active.id));
   };
 
@@ -254,10 +313,32 @@ export function ProjectDosKanban({
 
   const resetDragState = () => {
     setActiveTaskId(null);
+    setActiveLaneOrderId(null);
     setOverLaneId(null);
   };
 
   const handleDragEnd = (event: DragEndEvent) => {
+    if (activeLaneOrderId) {
+      const overData = event.over?.data.current;
+      const overLaneOrderId = String(overData?.laneOrderId || "").trim();
+
+      resetDragState();
+
+      if (!overLaneOrderId || overLaneOrderId === activeLaneOrderId) {
+        return;
+      }
+
+      const fromIndex = resolvedLaneOrder.indexOf(activeLaneOrderId);
+      const toIndex = resolvedLaneOrder.indexOf(overLaneOrderId);
+
+      if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) {
+        return;
+      }
+
+      onReorderLanes(arrayMove(resolvedLaneOrder, fromIndex, toIndex));
+      return;
+    }
+
     const target = resolveDropTarget(event.over);
     const draggedTask = activeTask;
 
@@ -309,64 +390,99 @@ export function ProjectDosKanban({
           onDragCancel={resetDragState}
         >
           <ScrollArea className="w-full">
-            <div className="flex min-w-max snap-x snap-mandatory gap-3 p-3">
-              {STATUS_COLUMNS.map((column) => {
-                const columnTasks = statusLaneTasks[column.status];
+            <SortableContext
+              items={resolvedLaneOrder}
+              strategy={horizontalListSortingStrategy}
+            >
+              <div className="flex min-w-max snap-x snap-mandatory gap-3 p-3">
+                {resolvedLaneOrder.map((laneOrderId) => {
+                  const parsed = parseLaneOrderId(laneOrderId);
 
-                return (
-                  <ProjectDosKanbanLane
-                    key={column.status}
-                    laneId={column.status}
-                    label={column.label}
-                    kind="status"
-                    status={column.status}
-                    tasks={columnTasks}
-                    members={members}
-                    selectedPipeline={selectedPipeline}
-                    workflowOptions={workflowOptions}
-                    highlightDropTarget={Boolean(
-                      activeTask &&
-                        overLaneId === column.status &&
-                        getTaskLaneId(activeTask) !== column.status,
-                    )}
-                    surfaceClassName={column.surfaceClassName}
-                    countClassName={column.countClassName}
-                    canCreate
-                    onEditTask={onEditTask}
-                    onCreateTask={(workflowId, defaults) => onCreateTask(workflowId, defaults)}
-                  />
-                );
-              })}
+                  if (!parsed) {
+                    return null;
+                  }
 
-              {customSections.map((section) => {
-                const style = CUSTOM_SECTION_STYLES[section.tone];
-                const sectionTasks = customTaskMap.get(section.id) ?? [];
+                  if (parsed.kind === "status") {
+                    const column = STATUS_COLUMNS.find(
+                      (item) => item.status === parsed.laneId,
+                    );
 
-                return (
-                  <ProjectDosKanbanLane
-                    key={section.id}
-                    laneId={section.id}
-                    label={section.label}
-                    kind="custom"
-                    tasks={sectionTasks}
-                    members={members}
-                    selectedPipeline={selectedPipeline}
-                    workflowOptions={workflowOptions}
-                    highlightDropTarget={Boolean(
-                      activeTask &&
-                        overLaneId === section.id &&
-                        getTaskLaneId(activeTask) !== section.id,
-                    )}
-                    surfaceClassName={style.surfaceClassName}
-                    countClassName={style.countClassName}
-                    canCreate
-                    onEditTask={onEditTask}
-                    onCreateTask={(workflowId, defaults) => onCreateTask(workflowId, defaults)}
-                    onDeleteSection={() => onDeleteCustomSection(section.id)}
-                  />
-                );
-              })}
-            </div>
+                    if (!column) {
+                      return null;
+                    }
+
+                    const columnTasks = statusLaneTasks[column.status];
+
+                    return (
+                      <ProjectDosKanbanLane
+                        key={laneOrderId}
+                        laneId={column.status}
+                        laneOrderId={laneOrderId}
+                        label={column.label}
+                        kind="status"
+                        status={column.status}
+                        tasks={columnTasks}
+                        members={members}
+                        selectedPipeline={selectedPipeline}
+                        workflowOptions={workflowOptions}
+                        highlightDropTarget={Boolean(
+                          activeTask &&
+                            overLaneId === column.status &&
+                            getTaskLaneId(activeTask) !== column.status,
+                        )}
+                        surfaceClassName={column.surfaceClassName}
+                        countClassName={column.countClassName}
+                        canCreate
+                        canReorderLane
+                        onEditTask={onEditTask}
+                        onCreateTask={(workflowId, defaults) =>
+                          onCreateTask(workflowId, defaults)
+                        }
+                      />
+                    );
+                  }
+
+                  const section = customSections.find(
+                    (item) => item.id === parsed.laneId,
+                  );
+
+                  if (!section) {
+                    return null;
+                  }
+
+                  const style = CUSTOM_SECTION_STYLES[section.tone];
+                  const sectionTasks = customTaskMap.get(section.id) ?? [];
+
+                  return (
+                    <ProjectDosKanbanLane
+                      key={laneOrderId}
+                      laneId={section.id}
+                      laneOrderId={laneOrderId}
+                      label={section.label}
+                      kind="custom"
+                      tasks={sectionTasks}
+                      members={members}
+                      selectedPipeline={selectedPipeline}
+                      workflowOptions={workflowOptions}
+                      highlightDropTarget={Boolean(
+                        activeTask &&
+                          overLaneId === section.id &&
+                          getTaskLaneId(activeTask) !== section.id,
+                      )}
+                      surfaceClassName={style.surfaceClassName}
+                      countClassName={style.countClassName}
+                      canCreate
+                      canReorderLane
+                      onEditTask={onEditTask}
+                      onCreateTask={(workflowId, defaults) =>
+                        onCreateTask(workflowId, defaults)
+                      }
+                      onDeleteSection={() => onDeleteCustomSection(section.id)}
+                    />
+                  );
+                })}
+              </div>
+            </SortableContext>
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
         </DndContext>

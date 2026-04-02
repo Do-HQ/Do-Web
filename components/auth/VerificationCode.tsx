@@ -9,17 +9,22 @@ import useAuthStore from "@/stores/auth";
 import { H1, P } from "../ui/typography";
 import useAuth from "@/hooks/use-auth";
 import { resolveUserStartRoute } from "@/lib/helpers/user-preferences";
+import { consumePendingAuthRedirect } from "@/lib/helpers/auth-redirect";
 import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
 
 const VerificationCode = () => {
   // States
   const [code, setCode] = React.useState("");
   const [seconds, setSeconds] = React.useState(60);
+  const [authEmail, setAuthEmail] = React.useState("");
 
   // Router
   const router = useRouter();
   const params = useSearchParams();
   const intent = params.get("intent");
+  const emailFromQuery = String(params.get("email") || "")
+    .trim()
+    .toLowerCase();
 
   // Store
   const { user, setUser } = useAuthStore();
@@ -50,8 +55,15 @@ const VerificationCode = () => {
 
       localStorage.setItem(LOCAL_KEYS.TOKEN, data?.data?.token);
       localStorage.setItem(LOCAL_KEYS.REFRESH_TOKEN, data?.data?.refreshToken);
+      localStorage.removeItem(LOCAL_KEYS.PENDING_AUTH_EMAIL);
 
       setUser(data?.data?.user);
+
+      const pendingRedirect = consumePendingAuthRedirect();
+      if (pendingRedirect) {
+        router.replace(pendingRedirect);
+        return;
+      }
 
       if (!data?.data?.user?.firstName) {
         router.push(ROUTES.ONBOARDING);
@@ -77,15 +89,29 @@ const VerificationCode = () => {
 
   // Handlers
   const handleResend = async () => {
+    if (!authEmail) {
+      toast.error("Missing verification email", {
+        description: "Please return and enter your email again.",
+      });
+      router.replace(ROUTES.SIGN_IN);
+      return;
+    }
     getOTP({
-      email: user?.email as string,
+      email: authEmail,
       intent: intent!,
     });
   };
 
   const handleVerify = async () => {
+    if (!authEmail) {
+      toast.error("Missing verification email", {
+        description: "Please return and enter your email again.",
+      });
+      router.replace(ROUTES.SIGN_IN);
+      return;
+    }
     verifyOtp({
-      email: user?.email as string,
+      email: authEmail,
       code,
       intent: intent!,
     });
@@ -102,6 +128,24 @@ const VerificationCode = () => {
     return () => clearTimeout(timer);
   }, [seconds]);
 
+  useEffect(() => {
+    const emailFromStore = String(user?.email || "").trim().toLowerCase();
+    const emailFromStorage = String(
+      localStorage.getItem(LOCAL_KEYS.PENDING_AUTH_EMAIL) || "",
+    )
+      .trim()
+      .toLowerCase();
+    const resolvedEmail = emailFromStore || emailFromStorage || emailFromQuery;
+
+    if (resolvedEmail) {
+      setAuthEmail(resolvedEmail);
+      localStorage.setItem(LOCAL_KEYS.PENDING_AUTH_EMAIL, resolvedEmail);
+      if (!emailFromStore) {
+        setUser({ email: resolvedEmail });
+      }
+    }
+  }, [emailFromQuery, setUser, user?.email]);
+
   return (
     <>
       <div className="text-center space-y-4">
@@ -111,7 +155,7 @@ const VerificationCode = () => {
 
         <P className="text-muted-foreground font-medium">
           We sent a verification code. Please check your inbox at{" "}
-          <strong className="text-primary/90">{user?.email}</strong>
+          <strong className="text-primary/90">{authEmail || "your email"}</strong>
           <Button
             variant={"link"}
             onClick={handleReturn}
@@ -127,7 +171,7 @@ const VerificationCode = () => {
         <div className="space-y-3">
           <Button
             className="w-full"
-            disabled={isPendingVerifyOtp || code.length < 6}
+            disabled={isPendingVerifyOtp || code.length < 6 || !authEmail}
             onClick={handleVerify}
             loading={isPendingVerifyOtp}
           >

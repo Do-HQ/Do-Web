@@ -12,9 +12,15 @@ type RoomItemsProps = {
   roomEntries: SpaceRoom[];
   activeRoomId: string;
   onPick: (roomId: string) => void;
+  onQuickCall?: (room: SpaceRoom) => void;
 };
 
-const RoomItems = ({ roomEntries, activeRoomId, onPick }: RoomItemsProps) => {
+const RoomItems = ({
+  roomEntries,
+  activeRoomId,
+  onPick,
+  onQuickCall,
+}: RoomItemsProps) => {
   const favorites = useFavoritesStore((state) => state.favorites);
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
   const favoriteKeys = useMemo(
@@ -99,6 +105,21 @@ const RoomItems = ({ roomEntries, activeRoomId, onPick }: RoomItemsProps) => {
               {room.unread}
             </Badge>
           )}
+          {isDirectChat && onQuickCall ? (
+            <button
+              type="button"
+              className="text-muted-foreground hover:text-foreground inline-flex size-6 items-center justify-center rounded-md transition-colors"
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onQuickCall(room);
+              }}
+              title="Start voice call"
+              aria-label="Start voice call"
+            >
+              <Phone className="size-3.5" />
+            </button>
+          ) : null}
         </div>
         <p className="text-muted-foreground mt-1 line-clamp-1 text-[12px]">
           {room.topic}

@@ -3,6 +3,7 @@ import {
   Shapes,
   ImagePlus,
   PanelRightClose,
+  Plus,
   Pin,
   SendHorizontal,
   X,
@@ -11,6 +12,11 @@ import { Mention, MentionsInput } from "react-mentions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { MentionSuggestionRow } from "@/components/shared/mention-suggestion-row";
@@ -52,6 +58,7 @@ type ThreadPanelProps = {
   onCancelEditingReply: () => void;
   onStartEditingReply: (reply: ThreadReply) => void;
   onCopyText: (value: string) => void;
+  onReactToReply: (replyId: string, emoji: string) => void;
   onTogglePinnedReply: (replyId: string) => void;
   onForwardReply: (reply: ThreadReply) => void;
   onCreateTaskFromReply: (reply: ThreadReply) => void;
@@ -88,6 +95,7 @@ const ThreadPanel = ({
   onCancelEditingReply,
   onStartEditingReply,
   onCopyText,
+  onReactToReply,
   onTogglePinnedReply,
   onForwardReply,
   onCreateTaskFromReply,
@@ -98,6 +106,29 @@ const ThreadPanel = ({
   onUploadFromInput,
   onRemoveAttachment,
 }: ThreadPanelProps) => {
+  const quickReactionOptions = ["👍", "❤️", "🔥", "🎉", "😂"] as const;
+  const extendedReactionOptions = [
+    "👏",
+    "🙌",
+    "🤝",
+    "🙏",
+    "💯",
+    "✅",
+    "🤔",
+    "😮",
+    "😢",
+    "😡",
+    "🚀",
+    "👀",
+    "🎯",
+    "🥳",
+    "💡",
+    "🫡",
+    "😄",
+    "😎",
+    "🤯",
+    "😴",
+  ] as const;
   const suggestionsPortalHost =
     typeof document === "undefined" ? undefined : document.body;
 
@@ -419,6 +450,67 @@ const ThreadPanel = ({
       </button>
     );
   };
+
+  const renderReplyReactions = (reply: ThreadReply) => {
+    const reactions = Array.isArray(reply.reactions) ? reply.reactions : [];
+    if (!reactions.length) {
+      return null;
+    }
+
+    return (
+      <div className="mt-1.5 flex flex-wrap items-center gap-1">
+        {reactions.map((reaction) => (
+          <button
+            key={`${reply.id}:${reaction.emoji}`}
+            type="button"
+            onClick={() => onReactToReply(reply.id, reaction.emoji)}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[12px] transition-colors ${
+              reaction.reacted
+                ? "border-orange-500/55 bg-orange-500/12 text-orange-300"
+                : "border-border/45 bg-muted/25 text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <span className="text-[14px] leading-none">{reaction.emoji}</span>
+            <span className="font-medium">{reaction.count}</span>
+          </button>
+        ))}
+      </div>
+    );
+  };
+
+  const renderMoreReactionPicker = (
+    onSelect: (emoji: string) => void,
+    keyPrefix: string,
+  ) => {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="inline-flex size-7 items-center justify-center rounded-full border border-border/45 bg-background/95 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            aria-label="More reactions"
+          >
+            <Plus className="size-3.5" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-60 p-1.5">
+          <div className="grid grid-cols-8 gap-1">
+            {extendedReactionOptions.map((emoji) => (
+              <button
+                key={`${keyPrefix}-${emoji}`}
+                type="button"
+                onClick={() => onSelect(emoji)}
+                className="inline-flex size-7 items-center justify-center rounded-md text-[17px] leading-none transition-colors hover:bg-muted"
+                aria-label={`React with ${emoji}`}
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
   const selectedThreadJamShareCard = selectedThreadMessage
     ? renderJamShareCard(selectedThreadMessage.content)
     : null;
@@ -502,8 +594,42 @@ const ThreadPanel = ({
                 return (
                   <article
                     key={reply.id}
-                    className="group rounded-lg border border-border/35 bg-card/70 px-2.5 py-2 transition-colors hover:bg-card"
+                    className="group relative rounded-lg border border-border/35 bg-card/70 px-2.5 py-2 pt-7 transition-colors hover:bg-card"
                   >
+                    <div className="absolute top-1.5 left-2.5 z-10 inline-flex items-center gap-1 rounded-full border border-border/45 bg-background/95 px-1.5 py-1 shadow-sm opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
+                      {quickReactionOptions.map((emoji) => (
+                        <button
+                          key={`${reply.id}-hover-${emoji}`}
+                          type="button"
+                          onClick={() => onReactToReply(reply.id, emoji)}
+                          className="inline-flex size-7 items-center justify-center rounded-full text-[17px] leading-none transition-colors hover:bg-muted"
+                          aria-label={`React with ${emoji}`}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                      {renderMoreReactionPicker(
+                        (emoji) => onReactToReply(reply.id, emoji),
+                        `reply-more-${reply.id}`,
+                      )}
+                      <ChatItemActionsMenu
+                        isPinned={isPinned}
+                        onEdit={
+                          isOwnReply ? () => onStartEditingReply(reply) : undefined
+                        }
+                        onCopy={() => onCopyText(reply.content)}
+                        onTogglePin={() => onTogglePinnedReply(reply.id)}
+                        onForward={() => onForwardReply(reply)}
+                        onCreateTask={() => onCreateTaskFromReply(reply)}
+                        showCreateTask={canCreateTaskFromChat}
+                        onDelete={
+                          isOwnReply
+                            ? () => onDeleteThreadReply(reply.id)
+                            : undefined
+                        }
+                      />
+                    </div>
+
                     <div className="flex items-center gap-1.5">
                       <Avatar
                         size="sm"
@@ -542,24 +668,6 @@ const ThreadPanel = ({
                           Pinned
                         </Badge>
                       )}
-                      <div className="ml-auto">
-                        <ChatItemActionsMenu
-                          isPinned={isPinned}
-                          onEdit={
-                            isOwnReply ? () => onStartEditingReply(reply) : undefined
-                          }
-                          onCopy={() => onCopyText(reply.content)}
-                          onTogglePin={() => onTogglePinnedReply(reply.id)}
-                          onForward={() => onForwardReply(reply)}
-                          onCreateTask={() => onCreateTaskFromReply(reply)}
-                          showCreateTask={canCreateTaskFromChat}
-                          onDelete={
-                            isOwnReply
-                              ? () => onDeleteThreadReply(reply.id)
-                              : undefined
-                          }
-                        />
-                      </div>
                     </div>
 
                     {editingReplyId === reply.id ? (
@@ -609,6 +717,7 @@ const ThreadPanel = ({
                     )}
 
                     <AttachmentPreview attachments={reply.attachments} />
+                    {renderReplyReactions(reply)}
                   </article>
                 );
               })

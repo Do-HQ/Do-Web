@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,6 +34,7 @@ import useWorkspace from "@/hooks/use-workspace";
 import useWorkspacePortfolio from "@/hooks/use-workspace-portfolio";
 import { useWorkspacePermissions } from "@/hooks/use-workspace-permissions";
 import { cn } from "@/lib/utils";
+import { ROUTES } from "@/utils/constants";
 import type { ApprovalPolicy } from "@/types/portfolio";
 import type {
   WorkspaceGovernanceSettings,
@@ -114,6 +116,7 @@ const SettingsWorkspaces = () => {
   const { user } = useAuthStore();
   const { workspaceId, setWorkspaceId } = useWorkspaceStore();
   const queryClient = useQueryClient();
+  const router = useRouter();
   const { canManageWorkspaceSettings } = useWorkspacePermissions();
   const readOnlyWorkspaceSettings = !canManageWorkspaceSettings;
 
@@ -198,6 +201,7 @@ const SettingsWorkspaces = () => {
     variables,
   } = useSwitchWorkspace({
     onSuccess(data) {
+      router.replace(ROUTES.DASHBOARD);
       setWorkspaceId(data?.data?.workspace?._id);
       queryClient.invalidateQueries({ queryKey: ["user"] });
       queryClient.invalidateQueries({ queryKey: ["get-workspace-detail"] });

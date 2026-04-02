@@ -340,6 +340,7 @@ export interface ProjectOverviewRecord {
   teams: ProjectTeamSummary[];
   heatmap: ProjectHeatmapDay[];
   customSections?: ProjectKanbanSection[];
+  kanbanLaneOrder?: string[];
   assets?: ProjectAsset[];
   workflows: ProjectWorkflow[];
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
@@ -9,19 +9,31 @@ import LoaderComponent from "@/components/shared/loader";
 import { Button } from "@/components/ui/button";
 import useAuthStore from "@/stores/auth";
 import { resolveUserStartRoute } from "@/lib/helpers/user-preferences";
+import { rememberPendingAuthRedirect } from "@/lib/helpers/auth-redirect";
 import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
+import { getUser } from "@/lib/services/user-service";
 
 export default function AcceptInviteClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const token = searchParams.get("token")?.trim() || "";
   const attemptedRef = useRef(false);
-  const { user } = useAuthStore();
+  const [requiresAuth, setRequiresAuth] = useState(false);
+  const { user, setUser } = useAuthStore();
   const { useAcceptWorkspaceInvite } = useWorkspace();
   const acceptInvite = useAcceptWorkspaceInvite();
 
+  const invitePath = `/accept-invite?token=${encodeURIComponent(token)}`;
+  const saveInviteRedirect = useCallback(() => {
+    if (!token) {
+      return;
+    }
+    rememberPendingAuthRedirect(invitePath);
+  }, [invitePath, token]);
+
   const attemptAcceptInvite = useCallback(() => {
     attemptedRef.current = true;
+    setRequiresAuth(false);
 
     const request = acceptInvite.mutateAsync({ token });
 
@@ -33,18 +45,35 @@ export default function AcceptInviteClient() {
     });
 
     return request
-      .then(() => {
+      .then(async () => {
+        const response = await getUser();
+        const nextUser = response?.data?.user;
+
+        if (nextUser) {
+          setUser(nextUser);
+
+          if (!nextUser?.firstName) {
+            router.replace(ROUTES.ONBOARDING);
+            return;
+          }
+
+          if (!nextUser?.currentWorkspaceId) {
+            router.replace(ROUTES.SWITCH_WORKSPACE);
+            return;
+          }
+        }
+
         router.replace(
           resolveUserStartRoute({
-            user,
-            workspaceId: user?.currentWorkspaceId?._id,
+            user: nextUser || user,
+            workspaceId: nextUser?.currentWorkspaceId?._id,
           }),
         );
       })
       .catch(() => {
         attemptedRef.current = false;
       });
-  }, [acceptInvite, router, token, user]);
+  }, [acceptInvite, router, setUser, token, user]);
 
   useEffect(() => {
     if (attemptedRef.current || !token) {
@@ -54,13 +83,47 @@ export default function AcceptInviteClient() {
     const accessToken = localStorage.getItem(LOCAL_KEYS.TOKEN);
 
     if (!accessToken) {
-      localStorage.setItem(LOCAL_KEYS.REDIRECT, `/accept-invite?token=${token}`);
-      router.replace(ROUTES.SIGN_IN);
+      saveInviteRedirect();
+      setRequiresAuth(true);
       return;
     }
 
     void attemptAcceptInvite();
-  }, [attemptAcceptInvite, router, token]);
+  }, [attemptAcceptInvite, saveInviteRedirect, token]);
+
+  if (requiresAuth) {
+    return (
+      <div className="space-y-4 text-center">
+        <div className="text-base font-medium">Accept your workspace invite</div>
+        <p className="text-sm text-muted-foreground">
+          You need a Squircle account to accept this invite. Sign in if you
+          already have one, or sign up and we will accept this invite right
+          after verification.
+        </p>
+        <div className="flex justify-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              saveInviteRedirect();
+              router.replace(ROUTES.SIGN_IN);
+            }}
+          >
+            Sign in
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              saveInviteRedirect();
+              router.replace(ROUTES.SIGN_UP);
+            }}
+          >
+            Sign up
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (!token) {
     return (
@@ -83,6 +146,27 @@ export default function AcceptInviteClient() {
         <p className="text-sm text-muted-foreground">
           Try again once you are signed in, or ask for a fresh invite.
         </p>
+        <div className="flex justify-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => {
+              saveInviteRedirect();
+              router.replace(ROUTES.SIGN_IN);
+            }}
+          >
+            Sign in
+          </Button>
+          <Button
+            type="button"
+            onClick={() => {
+              saveInviteRedirect();
+              router.replace(ROUTES.SIGN_UP);
+            }}
+          >
+            Sign up
+          </Button>
+        </div>
         <Button
           type="button"
           onClick={() => {
