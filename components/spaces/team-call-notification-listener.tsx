@@ -5,12 +5,20 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { getSpacesSocket } from "@/lib/realtime/spaces-socket";
+import {
+  connectProjectNotificationsSocket,
+  type ProjectNotificationEventPayload,
+} from "@/lib/realtime/project-notifications-socket";
 import { ROUTES } from "@/utils/constants";
 
 type IncomingCallPayload = {
   id?: string;
+  workspaceId?: string;
+  roomId?: string;
+  startedAt?: number;
   roomName?: string;
   startedByName?: string;
+  summary?: string;
   route?: string;
 };
 
@@ -138,6 +146,54 @@ const TeamCallNotificationListener = () => {
     [playRingTonePulse, stopRinging],
   );
 
+  const toCallKey = useCallback((payload: IncomingCallPayload) => {
+    const roomId = String(payload?.roomId || "").trim();
+    const startedAt = Number(payload?.startedAt || 0);
+    if (roomId && Number.isFinite(startedAt) && startedAt > 0) {
+      return `${roomId}:${startedAt}`;
+    }
+    return String(payload?.id || "").trim();
+  }, []);
+
+  const notifyIncomingCall = useCallback(
+    (payload: IncomingCallPayload) => {
+      const callKey = toCallKey(payload);
+      if (!callKey) {
+        return;
+      }
+
+      if (seenIncomingCallIdsRef.current.has(callKey)) {
+        return;
+      }
+
+      seenIncomingCallIdsRef.current.add(callKey);
+      if (seenIncomingCallIdsRef.current.size > 300) {
+        const keys = Array.from(seenIncomingCallIdsRef.current);
+        seenIncomingCallIdsRef.current = new Set(keys.slice(keys.length - 120));
+      }
+
+      startRinging(callKey);
+
+      toast(`Incoming call: ${payload.roomName || "Team Call"}`, {
+        description:
+          payload.summary ||
+          `${payload.startedByName || "A teammate"} started a call`,
+        duration: Infinity,
+        action: {
+          label: "Join",
+          onClick: () => {
+            stopRinging(callKey);
+            router.push(payload.route || ROUTES.SPACES_TEAM_CALL);
+          },
+        },
+        onDismiss: () => {
+          stopRinging(callKey);
+        },
+      });
+    },
+    [router, startRinging, stopRinging, toCallKey],
+  );
+
   useEffect(() => {
     const unlockAudio = () => {
       void ensureAudioUnlocked();
@@ -153,51 +209,65 @@ const TeamCallNotificationListener = () => {
   }, [ensureAudioUnlocked]);
 
   useEffect(() => {
-    const socket = getSpacesSocket();
+    const spacesSocket = getSpacesSocket();
+    const projectNotificationsSocket = connectProjectNotificationsSocket();
     const ringingTimers = ringingTimersRef.current;
 
-    if (!socket.connected) {
-      socket.connect();
+    if (!spacesSocket.connected) {
+      spacesSocket.connect();
+    }
+    if (!projectNotificationsSocket.connected) {
+      projectNotificationsSocket.connect();
     }
 
     const handleIncomingCall = (payload: IncomingCallPayload) => {
-      const callId = String(payload?.id || "").trim();
-      if (!callId) {
+      notifyIncomingCall(payload);
+    };
+
+    const handleProjectNotification = (
+      payload: ProjectNotificationEventPayload,
+    ) => {
+      const notification = payload?.notification;
+      if (!notification || String(notification?.type || "") !== "space.call.incoming") {
         return;
       }
 
-      if (seenIncomingCallIdsRef.current.has(callId)) {
-        return;
-      }
+      const metadata =
+        notification.metadata && typeof notification.metadata === "object"
+          ? notification.metadata
+          : {};
 
-      seenIncomingCallIdsRef.current.add(callId);
-      startRinging(callId);
-
-      toast(`Incoming call: ${payload.roomName || "Team Call"}`, {
-        description: `${payload.startedByName || "A teammate"} started a call`,
-        duration: Infinity,
-        action: {
-          label: "Join",
-          onClick: () => {
-            stopRinging(callId);
-            router.push(payload.route || ROUTES.SPACES_TEAM_CALL);
-          },
-        },
-        onDismiss: () => {
-          stopRinging(callId);
-        },
+      notifyIncomingCall({
+        id: String(notification.id || ""),
+        workspaceId: String(notification.workspaceId || ""),
+        roomId: String((metadata as { roomId?: string })?.roomId || ""),
+        startedAt: Number((metadata as { startedAt?: number })?.startedAt || 0),
+        roomName:
+          String((metadata as { roomName?: string })?.roomName || "").trim() ||
+          "Team Call",
+        startedByName: String(notification.actorName || "").trim() || "A teammate",
+        summary: String(notification.summary || "").trim(),
+        route: String(notification.route || "").trim() || ROUTES.SPACES_TEAM_CALL,
       });
     };
 
-    socket.on("team-call:incoming", handleIncomingCall);
+    spacesSocket.on("team-call:incoming", handleIncomingCall);
+    projectNotificationsSocket.on(
+      "project:notification:created",
+      handleProjectNotification,
+    );
 
     return () => {
-      socket.off("team-call:incoming", handleIncomingCall);
+      spacesSocket.off("team-call:incoming", handleIncomingCall);
+      projectNotificationsSocket.off(
+        "project:notification:created",
+        handleProjectNotification,
+      );
       Object.keys(ringingTimers).forEach((callId) => {
         stopRinging(callId);
       });
     };
-  }, [router, startRinging, stopRinging]);
+  }, [notifyIncomingCall, stopRinging]);
 
   return null;
 };

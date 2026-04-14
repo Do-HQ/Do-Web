@@ -16,12 +16,15 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
-  Reply,
+  Pin,
+  PinOff,
+  RotateCcw,
   Search,
   Send,
   Share2,
   Shapes,
   Hash,
+  MessageSquare,
   Users,
   UsersRound,
   X,
@@ -44,7 +47,9 @@ import useAuthStore from "@/stores/auth";
 import useWorkspaceStore from "@/stores/workspace";
 import {
   WorkspaceJamActivityRecord,
-  WorkspaceJamMentionRecord,
+  WorkspaceJamCommentMentionKind,
+  WorkspaceJamCommentMentionRecord,
+  WorkspaceJamCommentThreadRecord,
   WorkspaceJamRecord,
   WorkspaceJamScopeFilter,
   WorkspaceJamVisibility,
@@ -97,6 +102,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+} from "@/components/ui/popover";
 import { MentionSuggestionRow } from "@/components/shared/mention-suggestion-row";
 import LoaderComponent from "../shared/loader";
 
@@ -254,21 +265,23 @@ const formatMentionLabel = (label?: string, fallbackId?: string) => {
   return normalized || String(fallbackId || "").trim();
 };
 
-const toJamMentionPayload = (
+const toJamCommentMentionPayload = (
   mentions: MentionItem[],
-): WorkspaceJamMentionRecord[] => {
-  const byKey = new Map<string, WorkspaceJamMentionRecord>();
+): WorkspaceJamCommentMentionRecord[] => {
+  const byKey = new Map<string, WorkspaceJamCommentMentionRecord>();
 
   mentions.forEach((mention) => {
     const rawId = String(mention?.id || "").trim();
-    const [kind, id] = rawId.split(":");
+    const [rawKind, ...idParts] = rawId.split(":");
+    const kind = String(rawKind || "").trim().toLowerCase();
+    const id = String(idParts.join(":") || "").trim();
 
-    if ((kind !== "user" && kind !== "team") || !id) {
+    if (!["user", "team", "task", "project"].includes(kind) || !id) {
       return;
     }
 
     byKey.set(`${kind}:${id}`, {
-      kind,
+      kind: kind as WorkspaceJamCommentMentionKind,
       id,
       label: formatMentionLabel(mention?.display, id),
     });
@@ -277,13 +290,18 @@ const toJamMentionPayload = (
   return Array.from(byKey.values());
 };
 
-const buildJamMentionChipLabel = (mention: WorkspaceJamMentionRecord) => {
+const buildJamMentionChipLabel = (mention: WorkspaceJamCommentMentionRecord) => {
   const baseLabel = formatMentionLabel(mention.label, mention.id);
-  if (mention.kind === "team") {
+  if (mention.kind === "team" || mention.kind === "project") {
     const teamLabel = baseLabel.startsWith("team:")
       ? baseLabel
-      : `team:${baseLabel}`;
+      : mention.kind === "project"
+        ? `project:${baseLabel}`
+        : `team:${baseLabel}`;
     return `@${teamLabel}`;
+  }
+  if (mention.kind === "task") {
+    return `@task:${baseLabel}`;
   }
 
   return `@${baseLabel}`;
@@ -311,7 +329,7 @@ const getMentionInitials = (value: string, fallback = "U") => {
 type JamMentionSuggestion = {
   id: string | number;
   display?: string;
-  kind?: "user" | "team";
+  kind?: WorkspaceJamCommentMentionKind;
   avatarUrl?: string;
   avatarFallback?: string;
   subtitle?: string;
@@ -384,10 +402,18 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
     useWorkspaceJams,
     useWorkspaceJamDetail,
     useWorkspaceJamShareTargets,
+    useWorkspaceJamCommentThreads,
+    useWorkspaceJamCommentThread,
+    useWorkspaceJamCommentMentionSuggestions,
     useCreateWorkspaceJam,
     useUpdateWorkspaceJam,
     useUpdateWorkspaceJamContent,
-    useCreateWorkspaceJamComment,
+    useCreateWorkspaceJamCommentThread,
+    useAddWorkspaceJamCommentThreadMessage,
+    useUpdateWorkspaceJamCommentThreadMessage,
+    useDeleteWorkspaceJamCommentThreadMessage,
+    useResolveWorkspaceJamCommentThread,
+    useReopenWorkspaceJamCommentThread,
     useShareWorkspaceJam,
     useArchiveWorkspaceJam,
     useUnarchiveWorkspaceJam,
@@ -414,17 +440,38 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   const [createVisibility, setCreateVisibility] =
     React.useState<WorkspaceJamVisibility>("private");
   const [canvasPanelTab, setCanvasPanelTab] = React.useState<
-    "discussion" | "history"
-  >("discussion");
-  const [commentDraftMarkup, setCommentDraftMarkup] = React.useState("");
-  const [commentDraftPlain, setCommentDraftPlain] = React.useState("");
-  const [commentMentions, setCommentMentions] = React.useState<MentionItem[]>(
-    [],
-  );
-  const [activeReplyCommentId, setActiveReplyCommentId] = React.useState("");
+    "comments" | "history"
+  >("comments");
+  const [isCommentMode, setIsCommentMode] = React.useState(false);
+  const [commentThreadStatus, setCommentThreadStatus] = React.useState<
+    "open" | "resolved" | "all"
+  >("open");
+  const [showResolvedPins, setShowResolvedPins] = React.useState(false);
+  const [commentThreadSearch, setCommentThreadSearch] = React.useState("");
+  const [selectedThreadId, setSelectedThreadId] = React.useState("");
+  const [selectedThreadPinViewport, setSelectedThreadPinViewport] =
+    React.useState<{ left: number; top: number } | null>(null);
+  const [pendingThreadPinScene, setPendingThreadPinScene] = React.useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const [pendingThreadPinViewport, setPendingThreadPinViewport] =
+    React.useState<{ left: number; top: number } | null>(null);
+  const [isThreadPopoverOpen, setIsThreadPopoverOpen] = React.useState(false);
+  const [threadDraftMarkup, setThreadDraftMarkup] = React.useState("");
+  const [threadDraftPlain, setThreadDraftPlain] = React.useState("");
+  const [threadDraftMentions, setThreadDraftMentions] = React.useState<
+    MentionItem[]
+  >([]);
   const [replyDraftMarkup, setReplyDraftMarkup] = React.useState("");
   const [replyDraftPlain, setReplyDraftPlain] = React.useState("");
   const [replyMentions, setReplyMentions] = React.useState<MentionItem[]>([]);
+  const [editingMessageId, setEditingMessageId] = React.useState("");
+  const [editingMessageMarkup, setEditingMessageMarkup] = React.useState("");
+  const [editingMessagePlain, setEditingMessagePlain] = React.useState("");
+  const [editingMessageMentions, setEditingMessageMentions] = React.useState<
+    MentionItem[]
+  >([]);
 
   const [renameJamState, setRenameJamState] =
     React.useState<RenameJamState>(defaultRenameState);
@@ -441,11 +488,14 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   const [editAccessRequestMessage, setEditAccessRequestMessage] =
     React.useState("");
   const lastCanvasRefetchKeyRef = React.useRef("");
+  const jamCanvasSurfaceRef = React.useRef<HTMLDivElement | null>(null);
 
   const debouncedListSearch = useDebounce(listSearch, 300);
   const debouncedShareSearch = useDebounce(shareSearch, 250);
+  const debouncedCommentThreadSearch = useDebounce(commentThreadSearch, 250);
   const activeJamFromRoute = routeJamId?.trim() || "";
   const shouldAutoOpenCreateDialog = searchParams?.get("create") === "1";
+  const routeThreadId = String(searchParams?.get("thread") || "").trim();
 
   const workspaceKey = workspaceId ?? "";
   const listParams = React.useMemo(
@@ -616,6 +666,73 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
     return activeJamSnapshot || localDraftSnapshot || null;
   }, [activeJamSnapshot, isCanvasFocusMode, localDraftSnapshot]);
 
+  const jamCommentThreadsQuery = useWorkspaceJamCommentThreads(
+    workspaceKey,
+    activeJamId,
+    {
+      status: "all",
+      search: debouncedCommentThreadSearch,
+      page: 1,
+      limit: 250,
+    },
+    {
+      enabled: !!workspaceKey && !!activeJamId && isCanvasFocusMode,
+    },
+  );
+  const jamCommentThreadsData = jamCommentThreadsQuery.data?.data;
+  const jamCommentThreadSummary = jamCommentThreadsData?.summary || {
+    openThreads: 0,
+    resolvedThreads: 0,
+    totalThreads: 0,
+  };
+  const allJamCommentThreads = React.useMemo<WorkspaceJamCommentThreadRecord[]>(
+    () => jamCommentThreadsData?.threads || [],
+    [jamCommentThreadsData?.threads],
+  );
+  const filteredJamCommentThreads = React.useMemo(() => {
+    const rows = allJamCommentThreads;
+    if (commentThreadStatus === "all") {
+      return rows;
+    }
+    return rows.filter((thread) => thread.status === commentThreadStatus);
+  }, [allJamCommentThreads, commentThreadStatus]);
+  const selectedThreadFromList = React.useMemo(
+    () =>
+      allJamCommentThreads.find(
+        (thread) => String(thread.id || "") === String(selectedThreadId || ""),
+      ) || null,
+    [allJamCommentThreads, selectedThreadId],
+  );
+  const jamCommentThreadDetailQuery = useWorkspaceJamCommentThread(
+    workspaceKey,
+    activeJamId,
+    selectedThreadId,
+    {
+      enabled: !!workspaceKey && !!activeJamId && !!selectedThreadId,
+    },
+  );
+  const selectedJamCommentThread =
+    jamCommentThreadDetailQuery.data?.data?.thread || selectedThreadFromList;
+  const pinnedJamCommentThreads = React.useMemo(
+    () =>
+      allJamCommentThreads.filter(
+        (thread) =>
+          thread.position &&
+          Number.isFinite(Number(thread.position?.x)) &&
+          Number.isFinite(Number(thread.position?.y)),
+      ),
+    [allJamCommentThreads],
+  );
+  const canvasCommentPins = React.useMemo(
+    () =>
+      pinnedJamCommentThreads.map((thread) => ({
+        id: thread.id,
+        status: thread.status,
+        position: thread.position,
+      })),
+    [pinnedJamCommentThreads],
+  );
+
   const shareTargetsQuery = useWorkspaceJamShareTargets(
     workspaceKey,
     {
@@ -640,73 +757,66 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
     () => shareTargetsData?.rooms || [],
     [shareTargetsData?.rooms],
   );
-  const mentionTargetsQuery = useWorkspaceJamShareTargets(
+  const mentionTargetsQuery = useWorkspaceJamCommentMentionSuggestions(
     workspaceKey,
-    { search: "", limit: 250 },
+    activeJamId,
+    { query: "", limit: 280 },
     {
       enabled: !!workspaceKey && !!activeJamId && isCanvasFocusMode,
     },
   );
   const mentionTargetsData = mentionTargetsQuery.data?.data;
-  const mentionTargetUsers = React.useMemo(
-    () => mentionTargetsData?.users || [],
-    [mentionTargetsData?.users],
+  const mentionSuggestionsRaw = React.useMemo(
+    () => mentionTargetsData?.suggestions || [],
+    [mentionTargetsData?.suggestions],
   );
-  const mentionTargetTeams = React.useMemo(
-    () => mentionTargetsData?.teams || [],
-    [mentionTargetsData?.teams],
-  );
-  const mentionUserById = React.useMemo(
+  const mentionEntityByToken = React.useMemo(
     () =>
       new Map(
-        mentionTargetUsers.map((entry) => [
-          String(entry.id),
+        mentionSuggestionsRaw.map((entry) => [
+          `${String(entry.kind || "").trim()}:${String(entry.id || "").trim()}`,
           {
-            name: String(entry.name || ""),
+            name: String(entry.label || ""),
+            kind: entry.kind,
             avatarUrl: entry.avatarUrl || undefined,
             initials:
-              entry.initials ||
-              getMentionInitials(String(entry.name || ""), "U"),
+              entry.avatarFallback ||
+              getMentionInitials(
+                String(entry.label || ""),
+                entry.kind === "project"
+                  ? "PR"
+                  : entry.kind === "task"
+                    ? "TK"
+                    : entry.kind === "team"
+                      ? "T"
+                      : "U",
+              ),
           },
         ]),
       ),
-    [mentionTargetUsers],
-  );
-  const mentionTeamById = React.useMemo(
-    () =>
-      new Map(
-        mentionTargetTeams.map((entry) => [
-          String(entry.id),
-          {
-            name: String(entry.name || ""),
-            initials: getMentionInitials(String(entry.name || ""), "T"),
-          },
-        ]),
-      ),
-    [mentionTargetTeams],
+    [mentionSuggestionsRaw],
   );
   const currentUserId = String(user?._id || "").trim();
   const mentionSuggestions = React.useMemo<JamMentionSuggestion[]>(
-    () => [
-      ...mentionTargetUsers
-        .filter((entry) => String(entry?.id || "") !== currentUserId)
+    () =>
+      mentionSuggestionsRaw
+        .filter((entry) => {
+          if (entry.kind !== "user") {
+            return true;
+          }
+          return String(entry.id || "").trim() !== currentUserId;
+        })
         .map((entry) => ({
-          id: `user:${entry.id}`,
-          display: entry.name,
-          kind: "user" as const,
+          id: `${String(entry.kind || "").trim()}:${String(entry.id || "").trim()}`,
+          display: String(entry.label || ""),
+          kind: entry.kind,
           avatarUrl: entry.avatarUrl || undefined,
-          avatarFallback: entry.initials || getMentionInitials(entry.name, "U"),
-          subtitle: entry.email || "Member",
+          avatarFallback:
+            entry.avatarFallback ||
+            getMentionInitials(String(entry.label || ""), "U"),
+          subtitle: entry.subtitle || "Mention",
         })),
-      ...mentionTargetTeams.map((entry) => ({
-        id: `team:${entry.id}`,
-        display: `team:${entry.name}`,
-        kind: "team" as const,
-        avatarFallback: getMentionInitials(entry.name, "T"),
-        subtitle: "Team",
-      })),
-    ],
-    [currentUserId, mentionTargetTeams, mentionTargetUsers],
+    [currentUserId, mentionSuggestionsRaw],
   );
 
   const renderMentionSuggestion = React.useCallback(
@@ -867,7 +977,15 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   const createJamMutation = useCreateWorkspaceJam();
   const updateJamMutation = useUpdateWorkspaceJam();
   const updateJamContentMutation = useUpdateWorkspaceJamContent();
-  const createJamCommentMutation = useCreateWorkspaceJamComment();
+  const createJamCommentThreadMutation = useCreateWorkspaceJamCommentThread();
+  const addJamCommentThreadMessageMutation =
+    useAddWorkspaceJamCommentThreadMessage();
+  const updateJamCommentThreadMessageMutation =
+    useUpdateWorkspaceJamCommentThreadMessage();
+  const deleteJamCommentThreadMessageMutation =
+    useDeleteWorkspaceJamCommentThreadMessage();
+  const resolveJamCommentThreadMutation = useResolveWorkspaceJamCommentThread();
+  const reopenJamCommentThreadMutation = useReopenWorkspaceJamCommentThread();
   const shareJamMutation = useShareWorkspaceJam();
   const archiveJamMutation = useArchiveWorkspaceJam();
   const unarchiveJamMutation = useUnarchiveWorkspaceJam();
@@ -883,6 +1001,12 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
       }),
       queryClient.invalidateQueries({
         queryKey: ["workspace-jam-detail", workspaceKey],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-jam-comment-threads", workspaceKey],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-jam-comment-thread", workspaceKey],
       }),
     ]);
   }, [queryClient, workspaceKey]);
@@ -1376,53 +1500,18 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
     ],
   );
 
-  const syncJamDetailCache = React.useCallback(
-    (jam: WorkspaceJamRecord | undefined) => {
-      if (!jam || !workspaceKey || !jam.jamId) {
-        return;
-      }
-
-      queryClient.setQueryData(
-        ["workspace-jam-detail", workspaceKey, jam.jamId, true],
-        (previous: unknown) => {
-          if (!previous || typeof previous !== "object") {
-            return previous;
-          }
-
-          const previousResponse = previous as {
-            data?: {
-              message?: string;
-              jam?: WorkspaceJamRecord;
-            };
-          };
-
-          return {
-            ...previousResponse,
-            data: {
-              ...(previousResponse.data || {
-                message: "Retrieved successfully",
-              }),
-              jam,
-            },
-          };
-        },
-      );
-    },
-    [queryClient, workspaceKey],
-  );
-
-  const handleCommentInputChange: OnChangeHandlerFunc = (
+  const handleThreadComposerInputChange: OnChangeHandlerFunc = (
     _event,
     newValue,
     newPlainTextValue,
     mentions,
   ) => {
-    setCommentDraftMarkup(newValue);
-    setCommentDraftPlain(newPlainTextValue);
-    setCommentMentions(mentions);
+    setThreadDraftMarkup(newValue);
+    setThreadDraftPlain(newPlainTextValue);
+    setThreadDraftMentions(mentions);
   };
 
-  const handleReplyInputChange: OnChangeHandlerFunc = (
+  const handleThreadReplyInputChange: OnChangeHandlerFunc = (
     _event,
     newValue,
     newPlainTextValue,
@@ -1433,77 +1522,341 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
     setReplyMentions(mentions);
   };
 
+  const handleThreadEditingInputChange: OnChangeHandlerFunc = (
+    _event,
+    newValue,
+    newPlainTextValue,
+    mentions,
+  ) => {
+    setEditingMessageMarkup(newValue);
+    setEditingMessagePlain(newPlainTextValue);
+    setEditingMessageMentions(mentions);
+  };
+
+  const resetThreadComposer = React.useCallback(() => {
+    setThreadDraftMarkup("");
+    setThreadDraftPlain("");
+    setThreadDraftMentions([]);
+  }, []);
+
   const resetReplyDraft = React.useCallback(() => {
-    setActiveReplyCommentId("");
     setReplyDraftMarkup("");
     setReplyDraftPlain("");
     setReplyMentions([]);
   }, []);
 
-  React.useEffect(() => {
-    setCanvasPanelTab("discussion");
-    setCommentDraftMarkup("");
-    setCommentDraftPlain("");
-    setCommentMentions([]);
-    resetReplyDraft();
-  }, [activeJam?.jamId, resetReplyDraft]);
+  const resetEditDraft = React.useCallback(() => {
+    setEditingMessageId("");
+    setEditingMessageMarkup("");
+    setEditingMessagePlain("");
+    setEditingMessageMentions([]);
+  }, []);
 
-  const handlePostComment = async () => {
-    if (!workspaceKey || !activeJam?.jamId || !commentDraftPlain.trim()) {
+  React.useEffect(() => {
+    setCanvasPanelTab("comments");
+    setCommentThreadStatus("open");
+    setCommentThreadSearch("");
+    setSelectedThreadId("");
+    setSelectedThreadPinViewport(null);
+    setPendingThreadPinScene(null);
+    setPendingThreadPinViewport(null);
+    setIsThreadPopoverOpen(false);
+    setIsCommentMode(false);
+    resetThreadComposer();
+    resetReplyDraft();
+    resetEditDraft();
+  }, [activeJam?.jamId, resetEditDraft, resetReplyDraft, resetThreadComposer]);
+
+  React.useEffect(() => {
+    if (!routeThreadId || !activeJam?.jamId) {
+      return;
+    }
+
+    setSelectedThreadId(routeThreadId);
+    setIsThreadPopoverOpen(true);
+    setCanvasPanelTab("comments");
+  }, [activeJam?.jamId, routeThreadId]);
+
+  React.useEffect(() => {
+    if (!isCanvasFocusMode || !activeJam?.jamId || !activeJam.canEdit) {
+      return;
+    }
+
+    const isEditableTarget = (target: EventTarget | null) => {
+      if (!(target instanceof HTMLElement)) {
+        return false;
+      }
+      if (target.isContentEditable) {
+        return true;
+      }
+      const tag = String(target.tagName || "").toLowerCase();
+      if (["input", "textarea", "select"].includes(tag)) {
+        return true;
+      }
+      return Boolean(target.closest("[contenteditable='true']"));
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (isEditableTarget(event.target)) {
+        return;
+      }
+
+      const key = String(event.key || "").toLowerCase();
+      if (key === "c") {
+        event.preventDefault();
+        setIsCommentMode(true);
+        return;
+      }
+      if (event.key === "Escape") {
+        setIsCommentMode(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeJam?.canEdit, activeJam?.jamId, isCanvasFocusMode]);
+
+  const selectThread = React.useCallback(
+    (threadId: string, options?: { openPopover?: boolean }) => {
+      const nextId = String(threadId || "").trim();
+      if (!nextId) {
+        return;
+      }
+
+      setPendingThreadPinScene(null);
+      setPendingThreadPinViewport(null);
+      setSelectedThreadId(nextId);
+      setCanvasPanelTab("comments");
+      if (options?.openPopover ?? true) {
+        setIsThreadPopoverOpen(true);
+      }
+    },
+    [],
+  );
+
+  const handleCreateThreadAtPosition = React.useCallback(
+    (payload: { scene: { x: number; y: number }; viewport: { left: number; top: number } }) => {
+      if (!activeJam?.canEdit) {
+        return;
+      }
+      setSelectedThreadId("");
+      setPendingThreadPinScene(payload.scene);
+      setPendingThreadPinViewport(payload.viewport);
+      setIsThreadPopoverOpen(true);
+      setCanvasPanelTab("comments");
+      resetThreadComposer();
+    },
+    [activeJam?.canEdit, resetThreadComposer],
+  );
+
+  const handleSubmitNewThreadMessage = React.useCallback(async () => {
+    if (
+      !workspaceKey ||
+      !activeJam?.jamId ||
+      !pendingThreadPinScene ||
+      !threadDraftPlain.trim()
+    ) {
       return;
     }
 
     try {
-      const response = await createJamCommentMutation.mutateAsync({
+      const response = await createJamCommentThreadMutation.mutateAsync({
         workspaceId: workspaceKey,
         jamId: activeJam.jamId,
         payload: {
-          message: commentDraftPlain.trim(),
-          mentions: toJamMentionPayload(commentMentions),
+          body: threadDraftMarkup.trim() || threadDraftPlain.trim(),
+          bodyPlain: threadDraftPlain.trim(),
+          mentions: toJamCommentMentionPayload(threadDraftMentions),
+          position: pendingThreadPinScene,
         },
       });
-
-      syncJamDetailCache(response.data?.jam);
-      setCommentDraftMarkup("");
-      setCommentDraftPlain("");
-      setCommentMentions([]);
-      toast.success("Comment posted");
+      resetThreadComposer();
+      await invalidateJamQueries();
+      const createdThreadId = String(response.data?.thread?.id || "").trim();
+      if (createdThreadId) {
+        selectThread(createdThreadId, { openPopover: true });
+      }
+      toast.success("Comment thread created");
     } catch {
       // handled by hook
     }
-  };
+  }, [
+    activeJam?.jamId,
+    createJamCommentThreadMutation,
+    invalidateJamQueries,
+    pendingThreadPinScene,
+    resetThreadComposer,
+    selectThread,
+    threadDraftMarkup,
+    threadDraftMentions,
+    threadDraftPlain,
+    workspaceKey,
+  ]);
 
-  const handlePostReply = async () => {
+  const handleSubmitReply = React.useCallback(async () => {
     if (
       !workspaceKey ||
       !activeJam?.jamId ||
-      !activeReplyCommentId ||
+      !selectedThreadId ||
       !replyDraftPlain.trim()
     ) {
       return;
     }
 
     try {
-      const response = await createJamCommentMutation.mutateAsync({
+      await addJamCommentThreadMessageMutation.mutateAsync({
         workspaceId: workspaceKey,
         jamId: activeJam.jamId,
+        threadId: selectedThreadId,
         payload: {
-          parentCommentId: activeReplyCommentId,
-          message: replyDraftPlain.trim(),
-          mentions: toJamMentionPayload(replyMentions),
+          body: replyDraftMarkup.trim() || replyDraftPlain.trim(),
+          bodyPlain: replyDraftPlain.trim(),
+          mentions: toJamCommentMentionPayload(replyMentions),
         },
       });
-
-      syncJamDetailCache(response.data?.jam);
       resetReplyDraft();
+      await invalidateJamQueries();
       toast.success("Reply posted");
     } catch {
       // handled by hook
     }
-  };
+  }, [
+    activeJam?.jamId,
+    addJamCommentThreadMessageMutation,
+    invalidateJamQueries,
+    replyDraftMarkup,
+    replyDraftPlain,
+    replyMentions,
+    resetReplyDraft,
+    selectedThreadId,
+    workspaceKey,
+  ]);
+
+  const handleUpdateMessage = React.useCallback(async () => {
+    if (
+      !workspaceKey ||
+      !activeJam?.jamId ||
+      !selectedThreadId ||
+      !editingMessageId ||
+      !editingMessagePlain.trim()
+    ) {
+      return;
+    }
+
+    try {
+      await updateJamCommentThreadMessageMutation.mutateAsync({
+        workspaceId: workspaceKey,
+        jamId: activeJam.jamId,
+        threadId: selectedThreadId,
+        messageId: editingMessageId,
+        payload: {
+          body: editingMessageMarkup.trim() || editingMessagePlain.trim(),
+          bodyPlain: editingMessagePlain.trim(),
+          mentions: toJamCommentMentionPayload(editingMessageMentions),
+        },
+      });
+      resetEditDraft();
+      await invalidateJamQueries();
+      toast.success("Comment updated");
+    } catch {
+      // handled by hook
+    }
+  }, [
+    activeJam?.jamId,
+    editingMessageId,
+    editingMessageMarkup,
+    editingMessageMentions,
+    editingMessagePlain,
+    invalidateJamQueries,
+    resetEditDraft,
+    selectedThreadId,
+    updateJamCommentThreadMessageMutation,
+    workspaceKey,
+  ]);
+
+  const handleDeleteMessage = React.useCallback(
+    async (messageId: string) => {
+      if (!workspaceKey || !activeJam?.jamId || !selectedThreadId || !messageId) {
+        return;
+      }
+
+      try {
+        await deleteJamCommentThreadMessageMutation.mutateAsync({
+          workspaceId: workspaceKey,
+          jamId: activeJam.jamId,
+          threadId: selectedThreadId,
+          messageId,
+        });
+        if (editingMessageId === messageId) {
+          resetEditDraft();
+        }
+        await invalidateJamQueries();
+        toast.success("Comment deleted");
+      } catch {
+        // handled by hook
+      }
+    },
+    [
+      activeJam?.jamId,
+      deleteJamCommentThreadMessageMutation,
+      editingMessageId,
+      invalidateJamQueries,
+      resetEditDraft,
+      selectedThreadId,
+      workspaceKey,
+    ],
+  );
+
+  const handleResolveSelectedThread = React.useCallback(async () => {
+    if (!workspaceKey || !activeJam?.jamId || !selectedThreadId) {
+      return;
+    }
+
+    try {
+      await resolveJamCommentThreadMutation.mutateAsync({
+        workspaceId: workspaceKey,
+        jamId: activeJam.jamId,
+        threadId: selectedThreadId,
+      });
+      await invalidateJamQueries();
+      toast.success("Thread resolved");
+    } catch {
+      // handled by hook
+    }
+  }, [
+    activeJam?.jamId,
+    invalidateJamQueries,
+    resolveJamCommentThreadMutation,
+    selectedThreadId,
+    workspaceKey,
+  ]);
+
+  const handleReopenSelectedThread = React.useCallback(async () => {
+    if (!workspaceKey || !activeJam?.jamId || !selectedThreadId) {
+      return;
+    }
+
+    try {
+      await reopenJamCommentThreadMutation.mutateAsync({
+        workspaceId: workspaceKey,
+        jamId: activeJam.jamId,
+        threadId: selectedThreadId,
+      });
+      await invalidateJamQueries();
+      toast.success("Thread reopened");
+    } catch {
+      // handled by hook
+    }
+  }, [
+    activeJam?.jamId,
+    invalidateJamQueries,
+    reopenJamCommentThreadMutation,
+    selectedThreadId,
+    workspaceKey,
+  ]);
 
   const renderMentionBadges = React.useCallback(
-    (mentions: WorkspaceJamMentionRecord[]) => {
+    (mentions: WorkspaceJamCommentMentionRecord[]) => {
       if (!Array.isArray(mentions) || !mentions.length) {
         return null;
       }
@@ -1512,19 +1865,21 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
         <div className="mt-1.5 flex flex-wrap gap-1">
           {mentions.map((mention, index) => {
             const mentionLabel = formatMentionLabel(mention.label, mention.id);
-            const mentionUser =
-              mention.kind === "user"
-                ? mentionUserById.get(String(mention.id))
-                : undefined;
-            const mentionTeam =
-              mention.kind === "team"
-                ? mentionTeamById.get(String(mention.id))
-                : undefined;
+            const mentionEntity = mentionEntityByToken.get(
+              `${String(mention.kind || "").trim()}:${String(mention.id || "").trim()}`,
+            );
             const fallbackInitials =
-              mention.kind === "team"
-                ? mentionTeam?.initials || getMentionInitials(mentionLabel, "T")
-                : mentionUser?.initials ||
-                  getMentionInitials(mentionLabel, "U");
+              mentionEntity?.initials ||
+              getMentionInitials(
+                mentionLabel,
+                mention.kind === "project"
+                  ? "PR"
+                  : mention.kind === "task"
+                    ? "TK"
+                    : mention.kind === "team"
+                      ? "T"
+                      : "U",
+              );
 
             return (
               <Badge
@@ -1534,7 +1889,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
               >
                 <Avatar className="mr-1 size-3.5">
                   <AvatarImage
-                    src={mentionUser?.avatarUrl}
+                    src={mentionEntity?.avatarUrl}
                     alt={mentionLabel}
                   />
                   <AvatarFallback className="text-[9px] font-medium">
@@ -1548,11 +1903,41 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
         </div>
       );
     },
-    [mentionTeamById, mentionUserById],
+    [mentionEntityByToken],
   );
 
   const jamListLoading =
     !isRoutedCanvasMode && jamsQuery.isLoading && !jamRows.length;
+
+  const selectedThreadMessages = Array.isArray(selectedJamCommentThread?.messages)
+    ? selectedJamCommentThread.messages
+    : [];
+  const selectedThreadCanResolve =
+    Boolean(activeJam?.canEdit) &&
+    Boolean(selectedJamCommentThread?.id) &&
+    selectedJamCommentThread?.status === "open";
+  const selectedThreadCanReopen =
+    Boolean(activeJam?.canEdit) &&
+    Boolean(selectedJamCommentThread?.id) &&
+    selectedJamCommentThread?.status === "resolved";
+
+  const threadPopoverAnchorPosition = React.useMemo(() => {
+    const pin = selectedThreadPinViewport || pendingThreadPinViewport;
+    if (!pin) {
+      return {
+        left: 20,
+        top: 20,
+      };
+    }
+
+    return {
+      left: Math.max(12, Number(pin.left || 0)),
+      top: Math.max(12, Number(pin.top || 0)),
+    };
+  }, [pendingThreadPinViewport, selectedThreadPinViewport]);
+  const isThreadPopoverVisible = Boolean(
+    isThreadPopoverOpen && (selectedJamCommentThread || pendingThreadPinScene),
+  );
 
   return (
     <div
@@ -1706,16 +2091,30 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
             </p>
             <div className="ml-auto flex items-center gap-2">
               {activeJam?.canEdit ? (
-                <Button
-                  data-tour="jam-canvas-snap"
-                  size="sm"
-                  variant={isSnapEnabled ? "secondary" : "outline"}
-                  className="h-8 px-2.5"
-                  onClick={() => setIsSnapEnabled((value) => !value)}
-                >
-                  <Magnet className="size-3.5" />
-                  {isSnapEnabled ? "Snap on" : "Snap off"}
-                </Button>
+                <>
+                  <Button
+                    data-tour="jam-canvas-snap"
+                    size="sm"
+                    variant={isSnapEnabled ? "secondary" : "outline"}
+                    className="h-8 px-2.5"
+                    onClick={() => setIsSnapEnabled((value) => !value)}
+                  >
+                    <Magnet className="size-3.5" />
+                    {isSnapEnabled ? "Snap on" : "Snap off"}
+                  </Button>
+                  <div className="bg-background/85 border-border/55 inline-flex h-8 items-center gap-2 rounded-md border px-2.5">
+                    <MessageSquare className="text-muted-foreground size-3.5" />
+                    <span className="text-[11px] font-medium">Comment mode</span>
+                    <Switch
+                      checked={isCommentMode}
+                      onCheckedChange={(checked) => setIsCommentMode(Boolean(checked))}
+                      aria-label="Toggle comment mode"
+                    />
+                    <kbd className="text-muted-foreground border-border/60 bg-muted/50 rounded border px-1 py-0.5 text-[9px]">
+                      C
+                    </kbd>
+                  </div>
+                </>
               ) : null}
               {activeJam?.canManage &&
               Number(activeJam?.pendingEditAccessRequestCount || 0) > 0 ? (
@@ -1803,6 +2202,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
               <div className="flex h-full min-h-0">
                 <div
                   data-tour="jam-canvas-surface"
+                  ref={jamCanvasSurfaceRef}
                   className="relative min-h-0 flex-1"
                 >
                   <JamCanvas
@@ -1812,11 +2212,342 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                     gridModeEnabled={
                       Boolean(activeJam.canEdit) && isSnapEnabled
                     }
+                    commentModeEnabled={Boolean(activeJam.canEdit) && isCommentMode}
+                    commentPins={canvasCommentPins}
+                    selectedPinId={selectedThreadId}
+                    hideResolvedPins={!showResolvedPins}
                     onSnapshotChange={handleCanvasSnapshotChange}
+                    onCreateCommentPin={(position) =>
+                      void handleCreateThreadAtPosition(position)
+                    }
+                    onSelectCommentPin={(threadId) => {
+                      selectThread(threadId, { openPopover: true });
+                    }}
+                    onSelectedPinViewportChange={(position) => {
+                      setSelectedThreadPinViewport((previous) => {
+                        if (!previous && !position) {
+                          return previous;
+                        }
+                        if (!previous || !position) {
+                          return position;
+                        }
+                        if (
+                          Math.abs(previous.left - position.left) < 0.5 &&
+                          Math.abs(previous.top - position.top) < 0.5
+                        ) {
+                          return previous;
+                        }
+                        return position;
+                      });
+                    }}
                     onRegisterSnapshotGetter={(getter) => {
                       latestCanvasSnapshotGetterRef.current = getter;
                     }}
                   />
+                  {isThreadPopoverVisible ? (
+                    <Popover
+                      open={isThreadPopoverVisible}
+                      onOpenChange={(open) => {
+                        setIsThreadPopoverOpen(open);
+                        if (!open) {
+                          setPendingThreadPinScene(null);
+                          setPendingThreadPinViewport(null);
+                        }
+                      }}
+                    >
+                      <PopoverAnchor asChild>
+                        <div
+                          className="pointer-events-none absolute z-30 h-0 w-0"
+                          style={{
+                            left: `${threadPopoverAnchorPosition.left}px`,
+                            top: `${threadPopoverAnchorPosition.top}px`,
+                          }}
+                        />
+                      </PopoverAnchor>
+                      <PopoverContent
+                        side="right"
+                        align="start"
+                        sideOffset={14}
+                        collisionPadding={12}
+                        className="bg-background/98 border-border/60 z-40 w-[min(92vw,21.5rem)] rounded-lg border p-0 shadow-xl"
+                      >
+                      <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-[12px] font-semibold">
+                            {selectedJamCommentThread
+                              ? selectedJamCommentThread.status === "resolved"
+                                ? "Resolved thread"
+                                : "Open thread"
+                              : "New thread"}
+                          </p>
+                          <p className="text-muted-foreground text-[10px]">
+                            {selectedJamCommentThread
+                              ? selectedJamCommentThread.source === "legacy"
+                                ? "Imported from legacy discussion"
+                                : "Pinned on canvas"
+                              : "Write the first comment for this pin"}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {selectedJamCommentThread && selectedThreadCanResolve ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="secondary"
+                              className="h-7 px-2 text-[10px]"
+                              onClick={() => void handleResolveSelectedThread()}
+                              loading={resolveJamCommentThreadMutation.isPending}
+                            >
+                              <Check className="size-3.5" />
+                              Resolve
+                            </Button>
+                          ) : null}
+                          {selectedJamCommentThread && selectedThreadCanReopen ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="h-7 px-2 text-[10px]"
+                              onClick={() => void handleReopenSelectedThread()}
+                              loading={reopenJamCommentThreadMutation.isPending}
+                            >
+                              <RotateCcw className="size-3.5" />
+                              Reopen
+                            </Button>
+                          ) : null}
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            className="size-7"
+                            onClick={() => {
+                              setIsThreadPopoverOpen(false);
+                              setPendingThreadPinScene(null);
+                              setPendingThreadPinViewport(null);
+                            }}
+                            aria-label="Close thread"
+                            title="Close thread"
+                          >
+                            <X className="size-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+
+                      {selectedJamCommentThread ? (
+                        <>
+                          <ScrollArea className="max-h-[17.5rem] px-3 py-2">
+                            {selectedThreadMessages.length ? (
+                              <div className="space-y-2.5">
+                                {selectedThreadMessages.map((message) => {
+                                  const isMine =
+                                    String(message.createdByUserId || "") === currentUserId;
+                                  const isEditing =
+                                    String(editingMessageId || "") === String(message.id || "");
+
+                                  return (
+                                    <div
+                                      key={message.id}
+                                      className="bg-muted/25 border-border/40 rounded-md border p-2"
+                                    >
+                                      <div className="mb-1 flex items-center justify-between gap-2">
+                                        <p className="truncate text-[11px] font-medium">
+                                          {message.createdBy?.name || "Workspace member"}
+                                        </p>
+                                        <p className="text-muted-foreground text-[10px]">
+                                          {formatRelativeTime(message.createdAt)}
+                                        </p>
+                                      </div>
+                                      {isEditing ? (
+                                        <div className="space-y-1.5">
+                                          <MentionsInput
+                                            value={editingMessageMarkup}
+                                            onChange={handleThreadEditingInputChange}
+                                            placeholder="Update message"
+                                            allowSuggestionsAboveCursor
+                                            className="w-full"
+                                            style={mentionComposerStyle}
+                                            disabled={updateJamCommentThreadMessageMutation.isPending}
+                                          >
+                                            <Mention
+                                              trigger="@"
+                                              data={mentionSuggestions}
+                                              markup="@[__display__](__id__)"
+                                              displayTransform={(_id, display) => `@${display}`}
+                                              renderSuggestion={renderMentionSuggestion}
+                                              appendSpaceOnAdd
+                                            />
+                                          </MentionsInput>
+                                          <div className="flex items-center justify-end gap-1.5">
+                                            <Button
+                                              type="button"
+                                              size="sm"
+                                              variant="ghost"
+                                              className="h-7 px-2 text-[10px]"
+                                              onClick={resetEditDraft}
+                                            >
+                                              Cancel
+                                            </Button>
+                                            <Button
+                                              type="button"
+                                              size="sm"
+                                              className="h-7 px-2 text-[10px]"
+                                              onClick={() => void handleUpdateMessage()}
+                                              disabled={
+                                                updateJamCommentThreadMessageMutation.isPending ||
+                                                !editingMessagePlain.trim()
+                                              }
+                                              loading={updateJamCommentThreadMessageMutation.isPending}
+                                            >
+                                              Save
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <>
+                                          <p className="whitespace-pre-wrap text-[12px]">
+                                            {message.bodyPlain}
+                                          </p>
+                                          {renderMentionBadges(message.mentions || [])}
+                                          {isMine ? (
+                                            <div className="mt-1.5 flex items-center justify-end gap-1">
+                                              <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-6 px-2 text-[10px]"
+                                                onClick={() => {
+                                                  setEditingMessageId(message.id);
+                                                  setEditingMessageMarkup(message.body || message.bodyPlain);
+                                                  setEditingMessagePlain(message.bodyPlain || message.body);
+                                                  const mappedMentions = (message.mentions || []).map((mention) => ({
+                                                    id: `${mention.kind}:${mention.id}`,
+                                                    display: mention.label || mention.id,
+                                                  }));
+                                                  setEditingMessageMentions(
+                                                    mappedMentions as MentionItem[],
+                                                  );
+                                                }}
+                                              >
+                                                <Pencil className="size-3" />
+                                                Edit
+                                              </Button>
+                                              <Button
+                                                type="button"
+                                                size="sm"
+                                                variant="ghost"
+                                                className="h-6 px-2 text-[10px] text-destructive"
+                                                onClick={() => void handleDeleteMessage(message.id)}
+                                                loading={deleteJamCommentThreadMessageMutation.isPending}
+                                              >
+                                                <X className="size-3" />
+                                                Delete
+                                              </Button>
+                                            </div>
+                                          ) : null}
+                                        </>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <p className="text-muted-foreground py-6 text-center text-[11px]">
+                                No messages yet in this thread.
+                              </p>
+                            )}
+                          </ScrollArea>
+
+                          <div className="border-t px-3 py-2">
+                            <MentionsInput
+                              value={replyDraftMarkup}
+                              onChange={handleThreadReplyInputChange}
+                              placeholder="Reply with @mentions"
+                              allowSuggestionsAboveCursor
+                              className="w-full"
+                              style={mentionComposerStyle}
+                              disabled={addJamCommentThreadMessageMutation.isPending}
+                            >
+                              <Mention
+                                trigger="@"
+                                data={mentionSuggestions}
+                                markup="@[__display__](__id__)"
+                                displayTransform={(_id, display) => `@${display}`}
+                                renderSuggestion={renderMentionSuggestion}
+                                appendSpaceOnAdd
+                              />
+                            </MentionsInput>
+                            <div className="mt-1.5 flex items-center justify-end gap-1.5">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 px-2 text-[10px]"
+                                onClick={resetReplyDraft}
+                              >
+                                Clear
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="h-7 px-2 text-[10px]"
+                                onClick={() => void handleSubmitReply()}
+                                disabled={
+                                  addJamCommentThreadMessageMutation.isPending ||
+                                  !replyDraftPlain.trim()
+                                }
+                                loading={addJamCommentThreadMessageMutation.isPending}
+                              >
+                                <Send className="size-3.5" />
+                                Reply
+                              </Button>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="space-y-2 px-3 py-2">
+                          <MentionsInput
+                            value={threadDraftMarkup}
+                            onChange={handleThreadComposerInputChange}
+                            placeholder="Write a comment with @mentions"
+                            allowSuggestionsAboveCursor
+                            className="w-full"
+                            style={mentionComposerStyle}
+                            disabled={createJamCommentThreadMutation.isPending}
+                          >
+                            <Mention
+                              trigger="@"
+                              data={mentionSuggestions}
+                              markup="@[__display__](__id__)"
+                              displayTransform={(_id, display) => `@${display}`}
+                              renderSuggestion={renderMentionSuggestion}
+                              appendSpaceOnAdd
+                            />
+                          </MentionsInput>
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-muted-foreground text-[10px]">
+                              Mention people, tasks, and projects.
+                            </p>
+                            <Button
+                              type="button"
+                              size="sm"
+                              className="h-7 px-2 text-[10px]"
+                              onClick={() => void handleSubmitNewThreadMessage()}
+                              disabled={
+                                createJamCommentThreadMutation.isPending ||
+                                !threadDraftPlain.trim() ||
+                                !pendingThreadPinScene
+                              }
+                              loading={createJamCommentThreadMutation.isPending}
+                            >
+                              <Send className="size-3.5" />
+                              Create thread
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      </PopoverContent>
+                    </Popover>
+                  ) : null}
                   {updateJamContentMutation.isPending ? (
                     <div className="bg-background/80 text-muted-foreground absolute right-3 bottom-3 z-30 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px]">
                       <Loader className="size-3 animate-spin" />
@@ -1835,13 +2566,13 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                     <SheetHeader className="sr-only">
                       <SheetTitle>Jam panel</SheetTitle>
                       <SheetDescription>
-                        Discussion and history for this jam.
+                        Comments and history for this jam.
                       </SheetDescription>
                     </SheetHeader>
                     <Tabs
                       value={canvasPanelTab}
                       onValueChange={(value) =>
-                        setCanvasPanelTab(value as "discussion" | "history")
+                        setCanvasPanelTab(value as "comments" | "history")
                       }
                       className="flex h-full min-h-0 flex-col"
                     >
@@ -1849,10 +2580,18 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                         <div className="flex items-center gap-2">
                           <TabsList className="grid h-8 min-w-0 flex-1 grid-cols-2">
                             <TabsTrigger
-                              value="discussion"
+                              value="comments"
                               className="h-7 text-[11px]"
                             >
-                              Discussion
+                              <span className="inline-flex items-center gap-1">
+                                Comments
+                                <Badge
+                                  variant="secondary"
+                                  className="h-4 px-1 text-[9px]"
+                                >
+                                  {jamCommentThreadSummary.totalThreads}
+                                </Badge>
+                              </span>
                             </TabsTrigger>
                             <TabsTrigger
                               value="history"
@@ -1875,196 +2614,170 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                         </div>
                       </div>
                       <TabsContent
-                        value="discussion"
+                        value="comments"
                         className="mt-0 flex min-h-0 flex-1 flex-col"
                       >
+                        <div className="flex items-center gap-1.5 border-b border-border/40 px-3 py-2">
+                          <div className="relative min-w-0 flex-1">
+                            <Search className="text-muted-foreground pointer-events-none absolute top-2 left-2 size-3.5" />
+                            <Input
+                              value={commentThreadSearch}
+                              onChange={(event) =>
+                                setCommentThreadSearch(event.target.value)
+                              }
+                              placeholder="Search threads"
+                              className="h-7 pl-7 text-[11px]"
+                            />
+                          </div>
+                          <Select
+                            value={commentThreadStatus}
+                            onValueChange={(value) =>
+                              setCommentThreadStatus(
+                                value as "open" | "resolved" | "all",
+                              )
+                            }
+                          >
+                            <SelectTrigger className="h-7 w-[6.8rem] text-[11px]">
+                              <SelectValue placeholder="Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="open">Open</SelectItem>
+                              <SelectItem value="resolved">Resolved</SelectItem>
+                              <SelectItem value="all">All</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                         <ScrollArea className="min-h-0 flex-1 px-3 py-2">
-                          {Array.isArray(activeJam.comments) &&
-                          activeJam.comments.length ? (
-                            <div className="space-y-2.5 pb-3">
-                              {activeJam.comments.map((comment) => (
-                                <div
-                                  key={comment.id}
-                                  className="bg-muted/20 border-border/35 rounded-md border p-2"
-                                >
-                                  <div className="flex items-start gap-2">
-                                    <Avatar className="size-6">
-                                      <AvatarImage
-                                        src={comment.user?.avatarUrl || ""}
-                                        alt={comment.user?.name || "User"}
-                                      />
-                                      <AvatarFallback className="text-[10px]">
-                                        {comment.user?.initials || "U"}
-                                      </AvatarFallback>
-                                    </Avatar>
-                                    <div className="min-w-0 flex-1">
-                                      <div className="flex items-center justify-between gap-2">
+                          <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-border/40 px-2 py-1.5">
+                            <div className="text-[10.5px]">
+                              <p className="font-medium">
+                                {jamCommentThreadSummary.totalThreads} thread
+                                {jamCommentThreadSummary.totalThreads === 1
+                                  ? ""
+                                  : "s"}
+                              </p>
+                              <p className="text-muted-foreground">
+                                {jamCommentThreadSummary.openThreads} open •{" "}
+                                {jamCommentThreadSummary.resolvedThreads} resolved
+                              </p>
+                            </div>
+                            <label className="text-muted-foreground inline-flex cursor-pointer items-center gap-1.5 text-[10px]">
+                              <Checkbox
+                                checked={showResolvedPins}
+                                onCheckedChange={(checked) =>
+                                  setShowResolvedPins(Boolean(checked))
+                                }
+                              />
+                              Show resolved pins
+                            </label>
+                          </div>
+
+                          {jamCommentThreadsQuery.isLoading &&
+                          !allJamCommentThreads.length ? (
+                            <LoaderComponent />
+                          ) : filteredJamCommentThreads.length ? (
+                            <div className="space-y-2 pb-3">
+                              {filteredJamCommentThreads.map((thread) => {
+                                const isSelected =
+                                  String(thread.id || "") ===
+                                  String(selectedThreadId || "");
+                                return (
+                                  <button
+                                    key={thread.id}
+                                    type="button"
+                                    onClick={() =>
+                                      selectThread(thread.id, {
+                                        openPopover: true,
+                                      })
+                                    }
+                                    className={cn(
+                                      "w-full rounded-md border px-2 py-2 text-left transition",
+                                      isSelected
+                                        ? "border-primary/45 bg-primary/5"
+                                        : "border-border/40 hover:bg-muted/40",
+                                    )}
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="min-w-0">
                                         <p className="truncate text-[11px] font-medium">
-                                          {comment.user?.name ||
+                                          {thread.latestMessage?.createdBy?.name ||
+                                            thread.createdBy?.name ||
                                             "Workspace member"}
                                         </p>
-                                        <p className="text-muted-foreground shrink-0 text-[10px]">
-                                          {formatRelativeTime(
-                                            comment.createdAt,
-                                          )}
+                                        <p className="text-muted-foreground mt-0.5 line-clamp-2 text-[10.5px]">
+                                          {thread.latestMessage?.bodyPlain ||
+                                            "Open thread"}
                                         </p>
                                       </div>
-                                      <p className="mt-1 whitespace-pre-wrap text-[12px]">
-                                        {comment.message}
-                                      </p>
-                                      {renderMentionBadges(
-                                        comment.mentions || [],
-                                      )}
-                                      <button
-                                        type="button"
-                                        className="text-muted-foreground hover:text-foreground mt-1 inline-flex items-center gap-1 text-[10.5px]"
-                                        onClick={() => {
-                                          if (
-                                            activeReplyCommentId === comment.id
-                                          ) {
-                                            resetReplyDraft();
-                                          } else {
-                                            setActiveReplyCommentId(comment.id);
-                                            setReplyDraftMarkup("");
-                                            setReplyDraftPlain("");
-                                            setReplyMentions([]);
+                                      <div className="shrink-0 text-right">
+                                        <p className="text-muted-foreground text-[10px]">
+                                          {formatRelativeTime(thread.lastActivityAt)}
+                                        </p>
+                                        <Badge
+                                          variant={
+                                            thread.status === "resolved"
+                                              ? "outline"
+                                              : "secondary"
                                           }
-                                        }}
-                                      >
-                                        <Reply className="size-3" />
-                                        Reply
-                                      </button>
-                                    </div>
-                                  </div>
-                                  {Array.isArray(comment.replies) &&
-                                  comment.replies.length ? (
-                                    <div className="mt-2 space-y-1.5 border-l border-border/35 pl-3">
-                                      {comment.replies.map((reply) => (
-                                        <div
-                                          key={reply.id}
-                                          className="space-y-0.5"
+                                          className="mt-1 h-5 px-1.5 text-[9.5px]"
                                         >
-                                          <div className="flex items-center gap-1.5">
-                                            <p className="text-[10.5px] font-medium">
-                                              {reply.user?.name ||
-                                                "Workspace member"}
-                                            </p>
-                                            <p className="text-muted-foreground text-[10px]">
-                                              {formatRelativeTime(
-                                                reply.createdAt,
-                                              )}
-                                            </p>
-                                          </div>
-                                          <p className="text-[11px]">
-                                            {reply.message}
-                                          </p>
-                                          {renderMentionBadges(
-                                            reply.mentions || [],
-                                          )}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : null}
-                                  {activeReplyCommentId === comment.id ? (
-                                    <div className="mt-2 space-y-1.5 border-t border-border/30 pt-2">
-                                      <MentionsInput
-                                        value={replyDraftMarkup}
-                                        onChange={handleReplyInputChange}
-                                        placeholder="Reply with @mentions"
-                                        allowSuggestionsAboveCursor
-                                        className="w-full"
-                                        style={mentionComposerStyle}
-                                        disabled={
-                                          createJamCommentMutation.isPending
-                                        }
-                                      >
-                                        <Mention
-                                          trigger="@"
-                                          data={mentionSuggestions}
-                                          markup="@[__display__](__id__)"
-                                          displayTransform={(_id, display) =>
-                                            `@${display}`
-                                          }
-                                          renderSuggestion={
-                                            renderMentionSuggestion
-                                          }
-                                          appendSpaceOnAdd
-                                        />
-                                      </MentionsInput>
-                                      <div className="flex items-center justify-end gap-1.5">
-                                        <Button
-                                          type="button"
-                                          size="sm"
-                                          variant="ghost"
-                                          className="h-7 px-2 text-[11px]"
-                                          onClick={resetReplyDraft}
-                                        >
-                                          Cancel
-                                        </Button>
-                                        <Button
-                                          type="button"
-                                          size="sm"
-                                          className="h-7 px-2 text-[11px]"
-                                          onClick={() => void handlePostReply()}
-                                          disabled={
-                                            createJamCommentMutation.isPending ||
-                                            !replyDraftPlain.trim()
-                                          }
-                                          loading={
-                                            createJamCommentMutation.isPending
-                                          }
-                                        >
-                                          <Send className="size-3.5" />
-                                          Reply
-                                        </Button>
+                                          {thread.status}
+                                        </Badge>
                                       </div>
                                     </div>
-                                  ) : null}
-                                </div>
-                              ))}
+                                    <div className="text-muted-foreground mt-1.5 flex items-center gap-2 text-[10px]">
+                                      <span className="inline-flex items-center gap-1">
+                                        <MessageSquare className="size-3" />
+                                        {thread.messageCount}
+                                      </span>
+                                      {thread.position ? (
+                                        <span className="inline-flex items-center gap-1">
+                                          <Pin className="size-3" />
+                                          pinned
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1">
+                                          <PinOff className="size-3" />
+                                          list-only
+                                        </span>
+                                      )}
+                                    </div>
+                                  </button>
+                                );
+                              })}
                             </div>
                           ) : (
                             <div className="text-muted-foreground py-8 text-center text-[11px]">
-                              No comments yet. Start the discussion.
+                              No threads found.
                             </div>
                           )}
                         </ScrollArea>
                         <div className="border-t border-border/35 p-2">
-                          <MentionsInput
-                            value={commentDraftMarkup}
-                            onChange={handleCommentInputChange}
-                            placeholder="Comment with @mentions"
-                            allowSuggestionsAboveCursor
-                            className="w-full"
-                            style={mentionComposerStyle}
-                            disabled={createJamCommentMutation.isPending}
-                          >
-                            <Mention
-                              trigger="@"
-                              data={mentionSuggestions}
-                              markup="@[__display__](__id__)"
-                              displayTransform={(_id, display) => `@${display}`}
-                              renderSuggestion={renderMentionSuggestion}
-                              appendSpaceOnAdd
-                            />
-                          </MentionsInput>
-                          <div className="mt-1.5 flex items-center justify-between gap-1.5">
-                            <p className="text-muted-foreground text-[10px]">
-                              Tag teammates or teams to request feedback.
-                            </p>
+                          <div className="text-muted-foreground mb-1.5 text-[10px]">
+                            Press <span className="font-semibold">C</span> to
+                            enter comment mode, then click the canvas to place a
+                            pin.
+                          </div>
+                          <div className="flex items-center gap-1.5">
                             <Button
                               type="button"
                               size="sm"
-                              className="h-7 px-2 text-[11px]"
-                              onClick={() => void handlePostComment()}
-                              disabled={
-                                createJamCommentMutation.isPending ||
-                                !commentDraftPlain.trim()
-                              }
-                              loading={createJamCommentMutation.isPending}
+                              variant={isCommentMode ? "secondary" : "outline"}
+                              className="h-7 flex-1 px-2 text-[10.5px]"
+                              onClick={() => setIsCommentMode((value) => !value)}
+                              disabled={!activeJam?.canEdit}
                             >
-                              <Send className="size-3.5" />
-                              Send
+                              {isCommentMode ? (
+                                <>
+                                  <Check className="size-3.5" />
+                                  Comment mode on
+                                </>
+                              ) : (
+                                <>
+                                  <MessageSquare className="size-3.5" />
+                                  Enter comment mode
+                                </>
+                              )}
                             </Button>
                           </div>
                         </div>

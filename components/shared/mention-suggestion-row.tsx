@@ -3,7 +3,7 @@ import type React from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
-type MentionSuggestionKind = "user" | "team" | "project";
+type MentionSuggestionKind = "user" | "team" | "project" | "task";
 
 const stripMentionPrefix = (value: string) =>
   String(value || "")
@@ -48,12 +48,24 @@ export const MentionSuggestionRow = ({
   className,
 }: MentionSuggestionRowProps) => {
   const kindLabel =
-    kind === "project" ? "Project" : kind === "team" ? "Team" : "Member";
+    kind === "project"
+      ? "Project"
+      : kind === "task"
+        ? "Task"
+        : kind === "team"
+          ? "Team"
+          : "Member";
   const fallback =
     avatarFallback ||
     deriveInitials(
       label,
-      kind === "project" ? "PR" : kind === "team" ? "TM" : "U",
+      kind === "project"
+        ? "PR"
+        : kind === "task"
+          ? "TK"
+          : kind === "team"
+            ? "TM"
+            : "U",
     );
 
   return (

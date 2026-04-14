@@ -12,6 +12,7 @@ import {
   PanelRightClose,
   PanelRightOpen,
   PhoneOff,
+  UserPlus,
   Users,
   Video,
   VideoOff,
@@ -21,6 +22,16 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
   Sheet,
   SheetContent,
@@ -34,14 +45,20 @@ import {
   getTeamCallSocket,
   joinTeamCallRoom,
   leaveTeamCallRoom,
+  saveTeamCallNote,
   sendTeamCallChatMessage,
   sendTeamCallSignal,
   updateTeamCallParticipantState,
 } from "@/lib/realtime/team-call-socket";
+import { getSpacesSocket } from "@/lib/realtime/spaces-socket";
 import useAuthStore from "@/stores/auth";
 import useWorkspaceStore from "@/stores/workspace";
 import { ROUTES } from "@/utils/constants";
 import { useRouter, useSearchParams } from "next/navigation";
+import { toast } from "sonner";
+import useWorkspace from "@/hooks/use-workspace";
+import useWorkspaceSpace from "@/hooks/use-workspace-space";
+import LoaderComponent from "@/components/shared/loader";
 import CallPanel from "./components/call-panel";
 import type {
   CallChatMessage,
@@ -62,6 +79,28 @@ const ICE_SERVERS: RTCIceServer[] = [
   },
 ];
 
+const AUDIO_CONSTRAINTS: MediaTrackConstraints = {
+  echoCancellation: { ideal: true },
+  noiseSuppression: { ideal: true },
+  autoGainControl: { ideal: true },
+  channelCount: { ideal: 1 },
+  sampleRate: { ideal: 48000 },
+  sampleSize: { ideal: 16 },
+};
+
+const CAMERA_VIDEO_CONSTRAINTS: MediaTrackConstraints = {
+  width: { ideal: 1280, max: 1920 },
+  height: { ideal: 720, max: 1080 },
+  frameRate: { ideal: 24, max: 30 },
+  facingMode: "user",
+};
+
+const SCREEN_VIDEO_CONSTRAINTS: MediaTrackConstraints = {
+  width: { ideal: 1920, max: 2560 },
+  height: { ideal: 1080, max: 1440 },
+  frameRate: { ideal: 24, max: 30 },
+};
+
 const formatChatTime = (isoValue: string) => {
   const date = new Date(isoValue);
 
@@ -79,6 +118,95 @@ const formatChatTime = (isoValue: string) => {
 const shouldInitiatePeer = (localUserId: string, remoteUserId: string) =>
   localUserId.localeCompare(remoteUserId) > 0;
 
+const buildTeamCallRoute = ({
+  roomId,
+  roomName,
+  roomScope,
+  roomKind,
+  directUserId,
+  callMode,
+  startedAt,
+}: {
+  roomId: string;
+  roomName: string;
+  roomScope: string;
+  roomKind?: "direct" | "group" | "project" | "task";
+  directUserId?: string;
+  callMode: "voice" | "video";
+  startedAt: number;
+}) => {
+  const query = new URLSearchParams({
+    roomId: String(roomId || ""),
+    room: String(roomName || "Team Call"),
+    scope: String(roomScope || "team"),
+    roomKind: String(roomKind || "group"),
+    callMode: callMode === "voice" ? "voice" : "video",
+    startedAt: String(startedAt || Date.now()),
+  });
+
+  const normalizedDirectUserId = String(directUserId || "").trim();
+  if (normalizedDirectUserId) {
+    query.set("directUserId", normalizedDirectUserId);
+  }
+
+  return `${ROUTES.SPACES_TEAM_CALL}?${query.toString()}`;
+};
+
+const mentionSlug = (value = "") =>
+  String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+
+const setTrackContentHint = (
+  track: MediaStreamTrack,
+  hint: "speech" | "motion" | "detail",
+) => {
+  if (!("contentHint" in track)) {
+    return;
+  }
+
+  try {
+    track.contentHint = hint;
+  } catch {
+    // Some browsers ignore unsupported hints silently.
+  }
+};
+
+const looksLikeObjectId = (value = "") =>
+  /^[a-f0-9]{24}$/i.test(String(value || "").trim());
+
+const tuneAudioSenderQuality = async (sender: RTCRtpSender) => {
+  if (sender.track?.kind !== "audio") {
+    return;
+  }
+
+  if (!sender.getParameters || !sender.setParameters) {
+    return;
+  }
+
+  try {
+    const params = sender.getParameters();
+    const encodings =
+      Array.isArray(params.encodings) && params.encodings.length > 0
+        ? params.encodings
+        : [{}];
+
+    const nextParams: RTCRtpSendParameters = {
+      ...params,
+      encodings: encodings.map((encoding) => ({
+        ...encoding,
+        maxBitrate: 96000,
+      })),
+    };
+
+    await sender.setParameters(nextParams);
+  } catch {
+    // Browsers may reject unsupported sender parameters.
+  }
+};
+
 const TeamCallPage = () => {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -88,6 +216,19 @@ const TeamCallPage = () => {
   const roomId = String(searchParams.get("roomId") || "").trim();
   const roomName = searchParams.get("room") || "Team Call";
   const roomScope = searchParams.get("scope") || "team";
+  const roomKindParamRaw = String(searchParams.get("roomKind") || "").trim();
+  const roomKind: "direct" | "group" | "project" | "task" =
+    roomKindParamRaw === "direct" ||
+    roomKindParamRaw === "project" ||
+    roomKindParamRaw === "task"
+      ? roomKindParamRaw
+      : "group";
+  const directUserIdParamRaw = String(
+    searchParams.get("directUserId") || "",
+  ).trim();
+  const directUserIdFromQuery = looksLikeObjectId(directUserIdParamRaw)
+    ? directUserIdParamRaw
+    : "";
   const callModeParam = String(searchParams.get("callMode") || "video").trim();
   const callMode: "voice" | "video" =
     callModeParam === "voice" ? "voice" : "video";
@@ -95,14 +236,21 @@ const TeamCallPage = () => {
   const startedAtParam = startedAtParamRaw ? Number(startedAtParamRaw) : NaN;
   const resolvedWorkspaceId =
     workspaceId || String(user?.currentWorkspaceId?._id || "").trim();
+  const workspaceHook = useWorkspace();
+  const spaceHook = useWorkspaceSpace();
 
   const [isMicOn, setIsMicOn] = useState(true);
-  const [isVideoOn, setIsVideoOn] = useState(false);
+  const [isVideoOn] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
   const [isGridView, setIsGridView] = useState(true);
 
   const [isPanelOpenDesktop, setIsPanelOpenDesktop] = useState(true);
   const [isPanelSheetOpen, setIsPanelSheetOpen] = useState(false);
+  const [isAddParticipantOpen, setIsAddParticipantOpen] = useState(false);
+  const [addParticipantSearch, setAddParticipantSearch] = useState("");
+  const [selectedAdditionalMemberIds, setSelectedAdditionalMemberIds] =
+    useState<string[]>([]);
+  const [nextCallGroupName, setNextCallGroupName] = useState("");
   const [activePanelTab, setActivePanelTab] = useState<PanelTab>("people");
 
   const [durationSeconds, setDurationSeconds] = useState(0);
@@ -113,6 +261,7 @@ const TeamCallPage = () => {
 
   const [chatInput, setChatInput] = useState("");
   const [callNote, setCallNote] = useState("");
+  const [isSavingCallNote, setIsSavingCallNote] = useState(false);
   const [callMessages, setCallMessages] = useState<CallChatMessage[]>([]);
 
   const [remoteParticipantsMap, setRemoteParticipantsMap] = useState<
@@ -162,6 +311,122 @@ const TeamCallPage = () => {
     return [localParticipant, ...remoteParticipants];
   }, [localParticipant, remoteParticipantsMap]);
 
+  const callMentionSuggestions = useMemo(() => {
+    const seen = new Set<string>();
+
+    return participants
+      .map((participant) => {
+        const display = String(participant.name || "").trim();
+        const id = mentionSlug(display);
+
+        if (!display || !id || seen.has(id)) {
+          return null;
+        }
+
+        seen.add(id);
+        return {
+          id,
+          display,
+          kind: "user" as const,
+          avatarUrl: participant.avatarUrl,
+          avatarFallback: participant.initials || getInitials(display),
+          subtitle: participant.role || "Member",
+        };
+      })
+      .filter(Boolean) as Array<{
+        id: string;
+        display: string;
+        kind?: "user" | "team" | "project";
+        avatarUrl?: string;
+        avatarFallback?: string;
+        subtitle?: string;
+      }>;
+  }, [participants]);
+
+  const workspacePeopleQuery = workspaceHook.useWorkspacePeople(
+    resolvedWorkspaceId,
+    {
+      page: 1,
+      limit: 200,
+      search: addParticipantSearch,
+    },
+  );
+  const createRoomMutation = spaceHook.useCreateWorkspaceSpaceRoom();
+  const workspacePeople = useMemo(
+    () => workspacePeopleQuery.data?.data?.members || [],
+    [workspacePeopleQuery.data?.data?.members],
+  );
+  const activeParticipantIdSet = useMemo(
+    () =>
+      new Set(
+        participants
+          .map((participant) => String(participant.id || "").trim())
+          .filter(Boolean),
+      ),
+    [participants],
+  );
+  const directCounterpartId = useMemo(() => {
+    if (roomKind !== "direct") {
+      return "";
+    }
+
+    if (directUserIdFromQuery) {
+      return directUserIdFromQuery;
+    }
+
+    const normalizedRoomName = String(roomName || "").trim().toLowerCase();
+    if (!normalizedRoomName) {
+      return "";
+    }
+
+    const matchingMember = workspacePeople.find((member) => {
+      const person = member?.userId;
+      const name =
+        `${person?.firstName || ""} ${person?.lastName || ""}`.trim() ||
+        String(person?.email || "").trim();
+      return String(name || "").trim().toLowerCase() === normalizedRoomName;
+    });
+
+    const fallbackByName = String(matchingMember?.userId?._id || "").trim();
+    return looksLikeObjectId(fallbackByName) ? fallbackByName : "";
+  }, [directUserIdFromQuery, roomKind, roomName, workspacePeople]);
+  const addParticipantOptions = useMemo(() => {
+    const reservedIds = new Set(activeParticipantIdSet);
+    if (directCounterpartId) {
+      reservedIds.add(directCounterpartId);
+    }
+    if (currentUserId) {
+      reservedIds.add(currentUserId);
+    }
+
+    return workspacePeople
+      .map((member) => {
+        const person = member?.userId;
+        const userId = String(person?._id || "").trim();
+        if (!userId || reservedIds.has(userId)) {
+          return null;
+        }
+
+        const fullName =
+          `${person?.firstName || ""} ${person?.lastName || ""}`.trim() ||
+          String(person?.email || "").trim() ||
+          "Member";
+
+        return {
+          id: userId,
+          name: fullName,
+          email: String(person?.email || "").trim(),
+          avatarUrl: String(person?.profilePhoto?.url || "").trim(),
+        };
+      })
+      .filter(Boolean) as Array<{
+      id: string;
+      name: string;
+      email: string;
+      avatarUrl?: string;
+    }>;
+  }, [activeParticipantIdSet, currentUserId, directCounterpartId, workspacePeople]);
+
   const isScreenSharing = Boolean(screenStream);
   const screenSharingParticipant =
     participants.find((participant) => participant.isScreenSharing) || null;
@@ -174,6 +439,20 @@ const TeamCallPage = () => {
   const resolvedMediaError = roomId
     ? mediaError
     : "Missing call room context. Start the call from a chat room.";
+  const canPromoteDirectCall = roomKind === "direct";
+
+  useEffect(() => {
+    if (!isAddParticipantOpen) {
+      return;
+    }
+
+    if (!nextCallGroupName.trim()) {
+      const trimmedRoomName = String(roomName || "").trim();
+      setNextCallGroupName(
+        trimmedRoomName ? `${trimmedRoomName} call` : "Call room",
+      );
+    }
+  }, [isAddParticipantOpen, nextCallGroupName, roomName]);
 
   const upsertRemoteParticipant = useCallback(
     (userId: string, patch: Partial<Participant>) => {
@@ -248,7 +527,9 @@ const TeamCallPage = () => {
 
       const currentAudioTracks = localStreamRef.current?.getAudioTracks() || [];
       currentAudioTracks.forEach((track) => {
-        connection.addTrack(track, localStreamRef.current as MediaStream);
+        setTrackContentHint(track, "speech");
+        const sender = connection.addTrack(track, localStreamRef.current as MediaStream);
+        void tuneAudioSenderQuality(sender);
       });
 
       const currentVideoTrack =
@@ -256,6 +537,10 @@ const TeamCallPage = () => {
         localStreamRef.current?.getVideoTracks()?.[0];
 
       if (currentVideoTrack) {
+        const isScreenTrack =
+          screenStreamRef.current?.getVideoTracks().some((track) => track.id === currentVideoTrack.id) ??
+          false;
+        setTrackContentHint(currentVideoTrack, isScreenTrack ? "detail" : "motion");
         const videoCarrierStream =
           screenStreamRef.current || localStreamRef.current || new MediaStream([currentVideoTrack]);
         connection.addTrack(currentVideoTrack, videoCarrierStream);
@@ -319,6 +604,14 @@ const TeamCallPage = () => {
       screenStreamRef.current?.getVideoTracks()?.[0] ||
       localStreamRef.current?.getVideoTracks()?.[0] ||
       null;
+    if (audioTrack) {
+      setTrackContentHint(audioTrack, "speech");
+    }
+    if (videoTrack) {
+      const isScreenTrack =
+        screenStreamRef.current?.getVideoTracks().some((track) => track.id === videoTrack.id) ?? false;
+      setTrackContentHint(videoTrack, isScreenTrack ? "detail" : "motion");
+    }
 
     peerConnectionsRef.current.forEach((connection, targetUserId) => {
       const senders = connection.getSenders();
@@ -328,8 +621,10 @@ const TeamCallPage = () => {
 
       if (audioSender && audioSender.track !== audioTrack) {
         void audioSender.replaceTrack(audioTrack);
+        void tuneAudioSenderQuality(audioSender);
       } else if (!audioSender && audioTrack && localStreamRef.current) {
-        connection.addTrack(audioTrack, localStreamRef.current);
+        const sender = connection.addTrack(audioTrack, localStreamRef.current);
+        void tuneAudioSenderQuality(sender);
         shouldRenegotiate = true;
       }
 
@@ -552,8 +847,14 @@ const TeamCallPage = () => {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: preferVideo,
-        audio: true,
+        video: preferVideo ? CAMERA_VIDEO_CONSTRAINTS : false,
+        audio: AUDIO_CONSTRAINTS,
+      });
+      stream.getAudioTracks().forEach((track) => {
+        setTrackContentHint(track, "speech");
+      });
+      stream.getVideoTracks().forEach((track) => {
+        setTrackContentHint(track, "motion");
       });
 
       setLocalStream((prev) => {
@@ -717,6 +1018,8 @@ const TeamCallPage = () => {
         id: string;
         authorUserId: string;
         authorName: string;
+        authorInitials?: string;
+        authorAvatarUrl?: string;
         content: string;
         sentAt: string;
       };
@@ -744,6 +1047,8 @@ const TeamCallPage = () => {
             id: message.id,
             authorUserId: message.authorUserId,
             author: message.authorName,
+            authorInitials: message.authorInitials,
+            authorAvatarUrl: message.authorAvatarUrl,
             content: message.content,
             sentAt: formatChatTime(message.sentAt),
           },
@@ -905,8 +1210,11 @@ const TeamCallPage = () => {
 
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
+        video: SCREEN_VIDEO_CONSTRAINTS,
         audio: false,
+      });
+      stream.getVideoTracks().forEach((track) => {
+        setTrackContentHint(track, "detail");
       });
 
       const [videoTrack] = stream.getVideoTracks();
@@ -946,6 +1254,7 @@ const TeamCallPage = () => {
       roomId,
       roomName,
       roomScope,
+      roomKind,
       callMode,
       startedAt,
       isMuted: !isMicOn,
@@ -992,6 +1301,181 @@ const TeamCallPage = () => {
       roomId,
       content: message,
     });
+  };
+
+  const saveCallNoteToChat = async () => {
+    const note = callNote.trim();
+
+    if (!note || !resolvedWorkspaceId || !roomId || isSavingCallNote) {
+      return;
+    }
+
+    setIsSavingCallNote(true);
+
+    try {
+      const response = await saveTeamCallNote({
+        workspaceId: resolvedWorkspaceId,
+        roomId,
+        note,
+        pin: false,
+      });
+
+      if (!response?.ok) {
+        throw new Error(response?.message || "Unable to save note.");
+      }
+
+      setCallNote("");
+      toast.success("Note saved to this call thread.");
+    } catch (error) {
+      const description =
+        error instanceof Error && error.message
+          ? error.message
+          : "Unable to save note.";
+      toast.error(description);
+    } finally {
+      setIsSavingCallNote(false);
+    }
+  };
+
+  const toggleAdditionalMember = (memberId: string) => {
+    const normalizedMemberId = String(memberId || "").trim();
+    if (!normalizedMemberId) {
+      return;
+    }
+
+    setSelectedAdditionalMemberIds((current) =>
+      current.includes(normalizedMemberId)
+        ? current.filter((entry) => entry !== normalizedMemberId)
+        : [...current, normalizedMemberId],
+    );
+  };
+
+  const openAddParticipantDialog = () => {
+    if (!canPromoteDirectCall) {
+      return;
+    }
+
+    setAddParticipantSearch("");
+    setSelectedAdditionalMemberIds([]);
+    setIsAddParticipantOpen(true);
+  };
+
+  const moveCallToGroup = async () => {
+    if (
+      !resolvedWorkspaceId ||
+      !roomId ||
+      !canPromoteDirectCall ||
+      createRoomMutation.isPending
+    ) {
+      return;
+    }
+
+    const extraMemberIds = Array.from(
+      new Set(
+        selectedAdditionalMemberIds
+          .map((memberId) => String(memberId || "").trim())
+          .filter((memberId) => looksLikeObjectId(memberId)),
+      ),
+    );
+
+    if (!extraMemberIds.length) {
+      toast.error("Select at least one teammate to add.");
+      return;
+    }
+
+    const baseParticipantIds = Array.from(
+      new Set([
+        currentUserId,
+        ...Array.from(activeParticipantIdSet),
+        directCounterpartId,
+      ]),
+    ).filter((memberId) => looksLikeObjectId(memberId));
+
+    const groupMemberIds = Array.from(
+      new Set([...baseParticipantIds, ...extraMemberIds]),
+    );
+
+    const groupName =
+      String(nextCallGroupName || "").trim() ||
+      `${String(roomName || "Call").trim()} call`;
+
+    if (groupMemberIds.length < 2) {
+      toast.error("Call room requires at least two members.");
+      return;
+    }
+
+    const createRoomTask = async () => {
+      const response = await createRoomMutation.mutateAsync({
+        workspaceId: resolvedWorkspaceId,
+        payload: {
+          kind: "group",
+          name: groupName,
+          memberUserIds: groupMemberIds,
+        },
+      });
+
+      const nextRoom = response?.data?.room;
+      const nextRoomId = String(nextRoom?.id || "").trim();
+      if (!nextRoomId) {
+        throw new Error("Unable to open call room.");
+      }
+
+      const startedAt = Date.now();
+      const socket = getSpacesSocket();
+      if (!socket.connected) {
+        socket.connect();
+      }
+
+      const callRoute = await new Promise<string>((resolve) => {
+        socket.emit(
+          "team-call:start",
+          {
+            workspaceId: resolvedWorkspaceId,
+            roomId: nextRoomId,
+            roomName: String(nextRoom?.name || groupName),
+            roomScope: String(nextRoom?.scope || "team"),
+            roomKind: "group",
+            callMode,
+            startedAt,
+            startedByName: currentUserName,
+            startedByInitials: getInitials(currentUserName),
+          },
+          (ack?: { ok?: boolean; route?: string }) => {
+            resolve(String(ack?.route || "").trim());
+          },
+        );
+      });
+
+      return {
+        route:
+          callRoute ||
+          buildTeamCallRoute({
+            roomId: nextRoomId,
+            roomName: String(nextRoom?.name || groupName),
+            roomScope: String(nextRoom?.scope || "team"),
+            roomKind: "group",
+            callMode,
+            startedAt,
+          }),
+      };
+    };
+
+    try {
+      const callMigrationTask = createRoomTask();
+      void toast.promise(callMigrationTask, {
+        loading: "Creating call room…",
+        success: "Call moved to a new group room.",
+        error: "Unable to create group call.",
+      });
+      const result = await callMigrationTask;
+
+      setIsAddParticipantOpen(false);
+      setSelectedAdditionalMemberIds([]);
+      setAddParticipantSearch("");
+      router.replace(result.route);
+    } catch {
+      // handled by hook + toast promise
+    }
   };
 
   const renderAudioMeter = (participantId: string, muted: boolean) => {
@@ -1051,7 +1535,7 @@ const TeamCallPage = () => {
                 node.srcObject = participant.stream;
               }
             }}
-            className="h-full w-full object-cover"
+            className="h-full w-full bg-black object-contain"
           />
         ) : (
           <div className="flex h-full items-center justify-center">
@@ -1142,7 +1626,7 @@ const TeamCallPage = () => {
                   node.srcObject = participant.stream;
                 }
               }}
-              className="h-full w-full object-cover"
+              className="h-full w-full bg-black object-contain"
             />
           ) : (
             <Avatar
@@ -1242,7 +1726,7 @@ const TeamCallPage = () => {
         {hasScreenSharing && (
           <article className="relative min-h-0 overflow-hidden rounded-xl border border-primary/30 bg-black/85 shadow-lg sm:col-span-2">
             {featuredParticipant.id === currentUserId && screenStream ? (
-              <video ref={screenVideoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
+              <video ref={screenVideoRef} autoPlay playsInline muted className="h-full w-full bg-black object-contain" />
             ) : featuredParticipant.stream ? (
               <video
                 autoPlay
@@ -1257,7 +1741,7 @@ const TeamCallPage = () => {
                     node.srcObject = featuredParticipant.stream;
                   }
                 }}
-                className="h-full w-full object-cover"
+                className="h-full w-full bg-black object-contain"
               />
             ) : (
               <div className="flex h-full items-center justify-center px-2 text-center">
@@ -1292,7 +1776,7 @@ const TeamCallPage = () => {
           {hasScreenSharing ? (
             <>
               {featuredParticipant.id === currentUserId && screenStream ? (
-                <video ref={screenVideoRef} autoPlay playsInline muted className="h-full w-full object-cover" />
+                <video ref={screenVideoRef} autoPlay playsInline muted className="h-full w-full bg-black object-contain" />
               ) : featuredParticipant.stream ? (
                 <video
                   autoPlay
@@ -1307,7 +1791,7 @@ const TeamCallPage = () => {
                       node.srcObject = featuredParticipant.stream;
                     }
                   }}
-                  className="h-full w-full object-cover"
+                  className="h-full w-full bg-black object-contain"
                 />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center px-3 text-center">
@@ -1336,7 +1820,7 @@ const TeamCallPage = () => {
                   node.srcObject = featuredParticipant.stream;
                 }
               }}
-              className="h-full w-full object-cover"
+              className="h-full w-full bg-black object-contain"
             />
           ) : (
             <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-transparent to-black/35">
@@ -1365,7 +1849,7 @@ const TeamCallPage = () => {
                 autoPlay
                 playsInline
                 muted
-                className="h-full w-full object-cover"
+                className="h-full w-full bg-black object-contain"
               />
             </div>
           )}
@@ -1402,72 +1886,91 @@ const TeamCallPage = () => {
     <>
       <div className="flex h-full min-h-0 w-full flex-1 gap-0 overflow-hidden overscroll-none bg-gradient-to-b from-background via-background to-muted/10 sm:gap-2.5">
         <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-none border border-x-0 border-b-0 bg-card/95 sm:rounded-xl sm:border-x sm:border-b sm:shadow-sm">
-          <div className="shrink-0 border-b px-2.5 py-2 sm:px-3 sm:py-2.5">
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-8 shrink-0 px-2.5 text-[13px]"
-                onClick={handleLeaveToSpaces}
-              >
-                <ArrowLeft className="size-4" />
-                <span className="hidden min-[420px]:inline">Back to Spaces</span>
-              </Button>
+          <div className="shrink-0 border-b bg-card/95 px-2.5 py-2.5 sm:px-3.5">
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 shrink-0 px-2.5 text-[13px]"
+                  onClick={handleLeaveToSpaces}
+                >
+                  <ArrowLeft className="size-4" />
+                  <span className="hidden min-[420px]:inline">Back</span>
+                </Button>
 
-              <p className="max-w-[8.5rem] shrink-0 truncate text-[13px] font-semibold sm:max-w-none">
-                {roomName}
-              </p>
-              <Badge
-                variant="outline"
-                className="hidden shrink-0 text-[11px] capitalize min-[430px]:inline-flex"
-              >
-                {roomScope}
-              </Badge>
-              <Badge variant="secondary" className="shrink-0 text-[11px]">
-                Live {formatDuration(durationSeconds)}
-              </Badge>
+                <div className="hidden h-5 w-px bg-border/70 min-[420px]:block" />
 
-              <Badge
-                variant={localStream ? "outline" : "secondary"}
-                className="hidden shrink-0 text-[11px] sm:inline-flex"
-              >
-                {localStream ? "Connected" : "Limited media"}
-              </Badge>
+                <div className="min-w-0">
+                  <p className="truncate text-[13px] font-semibold sm:text-[14px]">
+                    {roomName}
+                  </p>
+                  <div className="mt-0.5 flex items-center gap-1.5">
+                    <Badge
+                      variant="outline"
+                      className="h-5 rounded-full px-1.5 text-[10px] capitalize"
+                    >
+                      {roomScope}
+                    </Badge>
+                    <p className="text-muted-foreground text-[11px]">
+                      {participants.length} in call
+                    </p>
+                  </div>
+                </div>
+              </div>
 
-              <Badge
-                variant="outline"
-                className="hidden shrink-0 text-[11px] md:inline-flex"
-              >
-                {participants.length} in call
-              </Badge>
+              <div className="ml-auto flex shrink-0 items-center gap-1.5">
+                <Badge variant="secondary" className="h-6 rounded-full px-2 text-[11px]">
+                  Live {formatDuration(durationSeconds)}
+                </Badge>
+                <Badge
+                  variant={localStream ? "outline" : "secondary"}
+                  className="hidden h-6 rounded-full px-2 text-[11px] sm:inline-flex"
+                >
+                  {localStream ? "Connected" : "Limited media"}
+                </Badge>
+                {canPromoteDirectCall ? (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 shrink-0 px-2 text-[12px]"
+                    onClick={openAddParticipantDialog}
+                  >
+                    <UserPlus className="size-4" />
+                    Add person
+                  </Button>
+                ) : null}
 
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-8 shrink-0 px-2.5 text-[13px] lg:ml-auto lg:hidden"
-                onClick={() => setIsPanelSheetOpen(true)}
-              >
-                <MessageSquare className="size-4" />
-                Panel
-              </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-8 shrink-0 px-2 text-[12px] lg:hidden"
+                  onClick={() => setIsPanelSheetOpen(true)}
+                >
+                  <MessageSquare className="size-4" />
+                  Panel
+                </Button>
 
-              <Button
-                size="sm"
-                variant="ghost"
-                className="hidden h-8 shrink-0 px-2.5 text-[13px] lg:flex"
-                onClick={() => setIsPanelOpenDesktop((prev) => !prev)}
-              >
-                {isPanelOpenDesktop ? (
-                  <PanelRightClose className="size-4" />
-                ) : (
-                  <PanelRightOpen className="size-4" />
-                )}
-                Panel
-              </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="hidden h-8 shrink-0 px-2 text-[12px] lg:flex"
+                  onClick={() => setIsPanelOpenDesktop((prev) => !prev)}
+                >
+                  {isPanelOpenDesktop ? (
+                    <PanelRightClose className="size-4" />
+                  ) : (
+                    <PanelRightOpen className="size-4" />
+                  )}
+                  Panel
+                </Button>
+              </div>
             </div>
 
             {resolvedMediaError && (
-              <p className="text-destructive mt-1.5 text-[12px]">{resolvedMediaError}</p>
+              <p className="text-destructive mt-1.5 text-[12px]">
+                {resolvedMediaError}
+              </p>
             )}
           </div>
 
@@ -1571,12 +2074,17 @@ const TeamCallPage = () => {
                 callNote={callNote}
                 chatInput={chatInput}
                 callMessages={callMessages}
+                callMentionSuggestions={callMentionSuggestions}
                 onActivePanelTabChange={setActivePanelTab}
                 onCallNoteChange={setCallNote}
                 onChatInputChange={setChatInput}
                 onSendCallMessage={() => {
                   void sendCallMessage();
                 }}
+                onSaveCallNote={() => {
+                  void saveCallNoteToChat();
+                }}
+                isSavingCallNote={isSavingCallNote}
                 renderAudioMeter={renderAudioMeter}
               />
             </aside>
@@ -1597,17 +2105,124 @@ const TeamCallPage = () => {
             callNote={callNote}
             chatInput={chatInput}
             callMessages={callMessages}
+            callMentionSuggestions={callMentionSuggestions}
             onActivePanelTabChange={setActivePanelTab}
             onCallNoteChange={setCallNote}
             onChatInputChange={setChatInput}
             onSendCallMessage={() => {
               void sendCallMessage();
             }}
+            onSaveCallNote={() => {
+              void saveCallNoteToChat();
+            }}
+            isSavingCallNote={isSavingCallNote}
             onCloseMobile={() => setIsPanelSheetOpen(false)}
             renderAudioMeter={renderAudioMeter}
           />
         </SheetContent>
       </Sheet>
+
+      <Dialog
+        open={isAddParticipantOpen}
+        onOpenChange={(open) => {
+          setIsAddParticipantOpen(open);
+          if (!open) {
+            setSelectedAdditionalMemberIds([]);
+            setAddParticipantSearch("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add people to this call</DialogTitle>
+            <DialogDescription>
+              We will create a new group chat for this call and move everyone there.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-1.5">
+            <p className="text-[12px] font-medium">Group chat name</p>
+            <Input
+              value={nextCallGroupName}
+              onChange={(event) => setNextCallGroupName(event.target.value)}
+              placeholder="Call room name"
+              className="h-9 text-[13px]"
+            />
+          </div>
+
+          <div className="grid gap-1.5">
+            <p className="text-[12px] font-medium">Add teammates</p>
+            <Input
+              value={addParticipantSearch}
+              onChange={(event) => setAddParticipantSearch(event.target.value)}
+              placeholder="Search workspace members"
+              className="h-9 text-[13px]"
+            />
+          </div>
+
+          <div className="max-h-60 space-y-1 overflow-y-auto rounded-md border p-1.5">
+            {workspacePeopleQuery.isLoading ? (
+              <div className="flex min-h-[8rem] items-center justify-center">
+                <LoaderComponent />
+              </div>
+            ) : addParticipantOptions.length ? (
+              addParticipantOptions.map((option) => {
+                const checked = selectedAdditionalMemberIds.includes(option.id);
+                const fallback = getInitials(option.name || "Member");
+
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => toggleAdditionalMember(option.id)}
+                    className="hover:bg-accent flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors"
+                  >
+                    <Checkbox checked={checked} className="size-4" />
+                    <Avatar className="size-6">
+                      <AvatarImage src={option.avatarUrl} alt={option.name} />
+                      <AvatarFallback className="text-[10px]">
+                        {fallback}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="truncate text-[12px] font-medium">
+                        {option.name}
+                      </p>
+                      <p className="text-muted-foreground truncate text-[11px]">
+                        {option.email}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })
+            ) : (
+              <p className="text-muted-foreground px-2 py-3 text-[12px]">
+                No available members to add.
+              </p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsAddParticipantOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                void moveCallToGroup();
+              }}
+              disabled={
+                createRoomMutation.isPending ||
+                selectedAdditionalMemberIds.length === 0
+              }
+            >
+              {createRoomMutation.isPending ? "Moving…" : "Move to group call"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

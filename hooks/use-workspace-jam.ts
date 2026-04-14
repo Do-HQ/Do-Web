@@ -1,24 +1,35 @@
 import useError from "./use-error";
 import {
+  addWorkspaceJamCommentThreadMessage,
   archiveWorkspaceJam,
+  createWorkspaceJamCommentThread,
   createWorkspaceJamComment,
   createWorkspaceJam,
+  deleteWorkspaceJamCommentThreadMessage,
+  getWorkspaceJamCommentMentionSuggestions,
+  getWorkspaceJamCommentThread,
+  getWorkspaceJamCommentThreads,
   getWorkspaceJamDetail,
   getWorkspaceJams,
   getWorkspaceJamShareTargets,
+  reopenWorkspaceJamCommentThread,
+  resolveWorkspaceJamCommentThread,
   requestWorkspaceJamEditAccess,
   reviewWorkspaceJamEditAccessRequest,
   shareWorkspaceJam,
   unarchiveWorkspaceJam,
+  updateWorkspaceJamCommentThreadMessage,
   updateWorkspaceJam,
   updateWorkspaceJamContent,
 } from "@/lib/services/workspace-jam-service";
 import {
   CreateWorkspaceJamCommentRequestBody,
+  CreateWorkspaceJamCommentThreadRequestBody,
   CreateWorkspaceJamRequestBody,
   RequestWorkspaceJamEditAccessRequestBody,
   ReviewWorkspaceJamEditAccessRequestBody,
   ShareWorkspaceJamRequestBody,
+  UpdateWorkspaceJamCommentThreadMessageRequestBody,
   UpdateWorkspaceJamContentRequestBody,
   UpdateWorkspaceJamRequestBody,
   WorkspaceJamListQueryParams,
@@ -89,6 +100,87 @@ const useWorkspaceJam = () => {
       queryFn: async () => {
         try {
           return await getWorkspaceJamShareTargets(workspaceId, params);
+        } catch (error) {
+          handleError(error as AxiosError);
+          throw error;
+        }
+      },
+    });
+  };
+
+  const useWorkspaceJamCommentThreads = (
+    workspaceId: string,
+    jamId: string,
+    params: {
+      status?: "open" | "resolved" | "all";
+      search?: string;
+      page?: number;
+      limit?: number;
+    } = {},
+    options?: { enabled?: boolean },
+  ) => {
+    return useQuery({
+      queryKey: ["workspace-jam-comment-threads", workspaceId, jamId, params],
+      enabled: (options?.enabled ?? true) && !!workspaceId && !!jamId,
+      queryFn: async () => {
+        try {
+          return await getWorkspaceJamCommentThreads({
+            workspaceId,
+            jamId,
+            ...params,
+          });
+        } catch (error) {
+          handleError(error as AxiosError);
+          throw error;
+        }
+      },
+    });
+  };
+
+  const useWorkspaceJamCommentThread = (
+    workspaceId: string,
+    jamId: string,
+    threadId: string,
+    options?: { enabled?: boolean },
+  ) => {
+    return useQuery({
+      queryKey: ["workspace-jam-comment-thread", workspaceId, jamId, threadId],
+      enabled:
+        (options?.enabled ?? true) && !!workspaceId && !!jamId && !!threadId,
+      queryFn: async () => {
+        try {
+          return await getWorkspaceJamCommentThread({
+            workspaceId,
+            jamId,
+            threadId,
+          });
+        } catch (error) {
+          handleError(error as AxiosError);
+          throw error;
+        }
+      },
+    });
+  };
+
+  const useWorkspaceJamCommentMentionSuggestions = (
+    workspaceId: string,
+    jamId: string,
+    params: {
+      query?: string;
+      limit?: number;
+    } = {},
+    options?: { enabled?: boolean },
+  ) => {
+    return useQuery({
+      queryKey: ["workspace-jam-comment-mentions", workspaceId, jamId, params],
+      enabled: (options?.enabled ?? true) && !!workspaceId && !!jamId,
+      queryFn: async () => {
+        try {
+          return await getWorkspaceJamCommentMentionSuggestions({
+            workspaceId,
+            jamId,
+            ...params,
+          });
         } catch (error) {
           handleError(error as AxiosError);
           throw error;
@@ -181,6 +273,112 @@ const useWorkspaceJam = () => {
     });
   };
 
+  const useCreateWorkspaceJamCommentThread = (
+    options?: UseOptions<{
+      workspaceId: string;
+      jamId: string;
+      payload: CreateWorkspaceJamCommentThreadRequestBody;
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: createWorkspaceJamCommentThread,
+      ...options,
+      onError: (error, variables, context, mutation) => {
+        handleError(error as AxiosError);
+        options?.onError?.(error, variables, context, mutation);
+      },
+    });
+  };
+
+  const useAddWorkspaceJamCommentThreadMessage = (
+    options?: UseOptions<{
+      workspaceId: string;
+      jamId: string;
+      threadId: string;
+      payload: CreateWorkspaceJamCommentThreadRequestBody;
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: addWorkspaceJamCommentThreadMessage,
+      ...options,
+      onError: (error, variables, context, mutation) => {
+        handleError(error as AxiosError);
+        options?.onError?.(error, variables, context, mutation);
+      },
+    });
+  };
+
+  const useUpdateWorkspaceJamCommentThreadMessage = (
+    options?: UseOptions<{
+      workspaceId: string;
+      jamId: string;
+      threadId: string;
+      messageId: string;
+      payload: UpdateWorkspaceJamCommentThreadMessageRequestBody;
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: updateWorkspaceJamCommentThreadMessage,
+      ...options,
+      onError: (error, variables, context, mutation) => {
+        handleError(error as AxiosError);
+        options?.onError?.(error, variables, context, mutation);
+      },
+    });
+  };
+
+  const useDeleteWorkspaceJamCommentThreadMessage = (
+    options?: UseOptions<{
+      workspaceId: string;
+      jamId: string;
+      threadId: string;
+      messageId: string;
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: deleteWorkspaceJamCommentThreadMessage,
+      ...options,
+      onError: (error, variables, context, mutation) => {
+        handleError(error as AxiosError);
+        options?.onError?.(error, variables, context, mutation);
+      },
+    });
+  };
+
+  const useResolveWorkspaceJamCommentThread = (
+    options?: UseOptions<{
+      workspaceId: string;
+      jamId: string;
+      threadId: string;
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: resolveWorkspaceJamCommentThread,
+      ...options,
+      onError: (error, variables, context, mutation) => {
+        handleError(error as AxiosError);
+        options?.onError?.(error, variables, context, mutation);
+      },
+    });
+  };
+
+  const useReopenWorkspaceJamCommentThread = (
+    options?: UseOptions<{
+      workspaceId: string;
+      jamId: string;
+      threadId: string;
+    }>,
+  ) => {
+    return useMutation({
+      mutationFn: reopenWorkspaceJamCommentThread,
+      ...options,
+      onError: (error, variables, context, mutation) => {
+        handleError(error as AxiosError);
+        options?.onError?.(error, variables, context, mutation);
+      },
+    });
+  };
+
   const useArchiveWorkspaceJam = (
     options?: UseOptions<{
       workspaceId: string;
@@ -252,10 +450,19 @@ const useWorkspaceJam = () => {
     useWorkspaceJams,
     useWorkspaceJamDetail,
     useWorkspaceJamShareTargets,
+    useWorkspaceJamCommentThreads,
+    useWorkspaceJamCommentThread,
+    useWorkspaceJamCommentMentionSuggestions,
     useCreateWorkspaceJam,
     useUpdateWorkspaceJam,
     useUpdateWorkspaceJamContent,
     useCreateWorkspaceJamComment,
+    useCreateWorkspaceJamCommentThread,
+    useAddWorkspaceJamCommentThreadMessage,
+    useUpdateWorkspaceJamCommentThreadMessage,
+    useDeleteWorkspaceJamCommentThreadMessage,
+    useResolveWorkspaceJamCommentThread,
+    useReopenWorkspaceJamCommentThread,
     useShareWorkspaceJam,
     useArchiveWorkspaceJam,
     useUnarchiveWorkspaceJam,

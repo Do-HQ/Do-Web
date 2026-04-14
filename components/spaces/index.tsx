@@ -9,7 +9,6 @@ import {
   Bell,
   Menu,
   MessageSquareText,
-  PanelRightClose,
   Pin,
   Phone,
   Plus,
@@ -51,6 +50,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   SpaceMessageDeletedEventPayload,
   SpaceMessageEventPayload,
+  getTeamCallRoomStatus,
   getSpacesSocket,
   subscribeWorkspaceSpaces,
   subscribeSpaceRoom,
@@ -130,6 +130,40 @@ const formatChatTimestamp = (value?: string) => {
   }).format(date);
 };
 
+const buildTeamCallRoute = ({
+  roomId,
+  roomName,
+  roomScope,
+  roomKind,
+  directUserId,
+  callMode,
+  startedAt,
+}: {
+  roomId: string;
+  roomName: string;
+  roomScope: string;
+  roomKind?: "direct" | "group" | "project" | "task";
+  directUserId?: string;
+  callMode: "voice" | "video";
+  startedAt: number;
+}) => {
+  const query = new URLSearchParams({
+    roomId: String(roomId || ""),
+    room: String(roomName || "Team Call"),
+    scope: String(roomScope || "team"),
+    roomKind: String(roomKind || "group"),
+    callMode: callMode === "voice" ? "voice" : "video",
+    startedAt: String(startedAt || Date.now()),
+  });
+
+  const normalizedDirectUserId = String(directUserId || "").trim();
+  if (normalizedDirectUserId) {
+    query.set("directUserId", normalizedDirectUserId);
+  }
+
+  return `${ROUTES.SPACES_TEAM_CALL}?${query.toString()}`;
+};
+
 const mentionSlug = (value = "") =>
   String(value || "")
     .toLowerCase()
@@ -177,7 +211,13 @@ const mapRoomToUi = (room: WorkspaceSpaceRoomRecord): SpaceRoom => ({
   topic: String(room.topic || ""),
   avatarUrl: String(room.avatarUrl || "").trim() || undefined,
   avatarFallback: String(room.avatarFallback || "").trim() || undefined,
-  meta: room.meta,
+  meta: {
+    projectId: room.meta?.projectId || null,
+    workflowId: room.meta?.workflowId || null,
+    taskId: room.meta?.taskId || null,
+    customColor: room.meta?.customColor || null,
+    directUserId: room.meta?.directUserId || null,
+  },
 });
 
 const findProjectRootRoom = (rooms: SpaceRoom[], projectId: string) => {
@@ -385,6 +425,15 @@ const SpacesPage = () => {
   const [teamCallWidget, setTeamCallWidget] =
     useState<TeamCallWidgetState | null>(null);
   const [teamCallDurationSeconds, setTeamCallDurationSeconds] = useState(0);
+  const [activeRoomCallStatus, setActiveRoomCallStatus] = useState<{
+    active: boolean;
+    route?: string;
+    startedAt?: number;
+    roomKind?: "direct" | "group" | "project" | "task";
+    directUserId?: string;
+    callMode?: "voice" | "video";
+    participants?: number;
+  } | null>(null);
 
   const [pinnedReplyIds, setPinnedReplyIds] = useState<string[]>([]);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -736,6 +785,7 @@ const SpacesPage = () => {
     rooms,
     hasMoreRooms,
     isLoadingMoreRooms,
+    roomsQuery,
     roomsQuery.fetchNextPage,
     urlProjectId,
     urlRoomId,
@@ -1406,6 +1456,8 @@ const SpacesPage = () => {
   const isActiveCallForRoom =
     Boolean(teamCallWidget?.roomId) &&
     String(teamCallWidget?.roomId || "") === String(activeRoom?.id || "");
+  const hasOngoingCallForActiveRoom = Boolean(activeRoomCallStatus?.active);
+  const activeRoomCallRoute = String(activeRoomCallStatus?.route || "").trim();
 
   useEffect(() => {
     selectedThreadMessageIdRef.current = selectedThreadMessageId;
@@ -1502,6 +1554,69 @@ const SpacesPage = () => {
       window.clearInterval(timer);
     };
   }, [teamCallWidget?.startedAt]);
+
+  useEffect(() => {
+    if (!resolvedWorkspaceId || !activeRoom?.id) {
+      setActiveRoomCallStatus(null);
+      return;
+    }
+
+    let cancelled = false;
+    const roomId = String(activeRoom.id || "").trim();
+
+    const refreshCallStatus = async () => {
+      try {
+        const response = await getTeamCallRoomStatus({
+          workspaceId: resolvedWorkspaceId,
+          roomId,
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        if (!response?.ok || !response?.active || !response?.call) {
+          setActiveRoomCallStatus({
+            active: false,
+          });
+          return;
+        }
+
+        setActiveRoomCallStatus({
+          active: true,
+          route: String(response.call.route || "").trim(),
+          startedAt: Number(response.call.startedAt || Date.now()),
+          roomKind:
+            String(response.call.roomKind || "").trim() === "direct"
+              ? "direct"
+              : String(response.call.roomKind || "").trim() === "project"
+                ? "project"
+                : String(response.call.roomKind || "").trim() === "task"
+                  ? "task"
+                  : "group",
+          directUserId: String(response.call.directUserId || "").trim(),
+          callMode: response.call.callMode === "voice" ? "voice" : "video",
+          participants: Number(response.call.participants || 0),
+        });
+      } catch {
+        if (!cancelled) {
+          setActiveRoomCallStatus({
+            active: false,
+          });
+        }
+      }
+    };
+
+    void refreshCallStatus();
+    const intervalId = window.setInterval(() => {
+      void refreshCallStatus();
+    }, 12_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [activeRoom?.id, resolvedWorkspaceId]);
 
   useEffect(() => {
     if (!resizingPane) {
@@ -1945,25 +2060,98 @@ const SpacesPage = () => {
         roomId: room.id,
         roomName: room.name,
         roomScope: room.scope,
+        roomKind:
+          room.kind === "direct" ||
+          room.kind === "group" ||
+          room.kind === "project" ||
+          room.kind === "task"
+            ? room.kind
+            : "group",
         callMode: mode,
         startedAt,
         startedByName: currentUser.name,
         startedByInitials: currentUser.initials,
+      }, (response?: { ok?: boolean; route?: string; active?: boolean; threadMessageId?: string }) => {
+        if (!response?.ok) {
+          return;
+        }
+
+        if (response?.active) {
+          setActiveRoomCallStatus((prev) => ({
+            active: true,
+            route: String(response.route || "").trim() || prev?.route,
+            startedAt: startedAt,
+            callMode: mode,
+            participants: prev?.participants,
+          }));
+        }
       });
     }
 
-    const query = new URLSearchParams({
-      roomId: room.id,
-      room: room.name,
-      scope: room.scope,
-      callMode: mode,
-      startedAt: String(startedAt),
-    });
-    router.push(`${ROUTES.SPACES_TEAM_CALL}?${query.toString()}`);
+    router.push(
+      buildTeamCallRoute({
+        roomId: room.id,
+        roomName: room.name,
+        roomScope: room.scope,
+        roomKind:
+          room.kind === "direct" ||
+          room.kind === "group" ||
+          room.kind === "project" ||
+          room.kind === "task"
+            ? room.kind
+            : "group",
+        directUserId:
+          room.kind === "direct"
+            ? String(room.meta?.directUserId || "").trim()
+            : "",
+        callMode: mode,
+        startedAt,
+      }),
+    );
   };
 
   const openTeamCall = (mode: "voice" | "video" = "video") => {
     openTeamCallForRoom(activeRoom, mode);
+  };
+
+  const joinOngoingCallForActiveRoom = () => {
+    if (!activeRoom) {
+      return;
+    }
+
+    if (activeRoomCallRoute) {
+      router.push(activeRoomCallRoute);
+      return;
+    }
+
+    router.push(
+      buildTeamCallRoute({
+        roomId: activeRoom.id,
+        roomName: activeRoom.name,
+        roomScope: activeRoom.scope,
+        roomKind:
+          activeRoomCallStatus?.roomKind === "direct" ||
+          activeRoomCallStatus?.roomKind === "project" ||
+          activeRoomCallStatus?.roomKind === "task"
+            ? activeRoomCallStatus.roomKind
+            : activeRoom?.kind === "direct" ||
+                activeRoom?.kind === "project" ||
+                activeRoom?.kind === "task"
+              ? activeRoom.kind
+              : "group",
+        directUserId:
+          activeRoom?.kind === "direct" ||
+          activeRoomCallStatus?.roomKind === "direct"
+            ? String(
+                activeRoomCallStatus?.directUserId ||
+                  activeRoom.meta?.directUserId ||
+                  "",
+              ).trim()
+            : "",
+        callMode: activeRoomCallStatus?.callMode === "voice" ? "voice" : "video",
+        startedAt: Number(activeRoomCallStatus?.startedAt || Date.now()),
+      }),
+    );
   };
 
   const rejoinTeamCall = () => {
@@ -1974,9 +2162,23 @@ const SpacesPage = () => {
     const query = new URLSearchParams({
       room: teamCallWidget.roomName,
       scope: teamCallWidget.roomScope,
+      roomKind:
+        teamCallWidget.roomKind ||
+        (activeRoom?.kind === "direct" ||
+        activeRoom?.kind === "group" ||
+        activeRoom?.kind === "project" ||
+        activeRoom?.kind === "task"
+          ? activeRoom.kind
+          : "group"),
       callMode: teamCallWidget.callMode || "video",
       startedAt: `${teamCallWidget.startedAt}`,
     });
+    if (
+      (teamCallWidget.roomKind || activeRoom?.kind) === "direct" &&
+      activeRoom?.meta?.directUserId
+    ) {
+      query.set("directUserId", String(activeRoom.meta.directUserId).trim());
+    }
     if (teamCallWidget.roomId) {
       query.set("roomId", teamCallWidget.roomId);
     }
@@ -1984,7 +2186,25 @@ const SpacesPage = () => {
   };
 
   const handleStartCall = (mode: "voice" | "video") => {
+    if (hasOngoingCallForActiveRoom) {
+      joinOngoingCallForActiveRoom();
+      return;
+    }
+
     openTeamCallForRoom(activeRoom, mode);
+  };
+
+  const handleJoinCallFromMessage = (route?: string) => {
+    const normalizedRoute = String(route || "").trim();
+
+    if (normalizedRoute) {
+      router.push(normalizedRoute);
+      return;
+    }
+
+    if (hasOngoingCallForActiveRoom) {
+      joinOngoingCallForActiveRoom();
+    }
   };
 
   const attachFiles = (files: FileList, target: "main" | "thread") => {
@@ -3300,36 +3520,39 @@ const SpacesPage = () => {
                 </Button>
 
                 {isPersonalChat ? (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 px-2.5 text-[13px]"
-                      onClick={() => handleStartCall("voice")}
-                    >
-                      <Phone className="size-4" />
-                      {isActiveCallForRoom ? "In Call" : "Voice"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-8 px-2.5 text-[13px]"
-                      onClick={() => handleStartCall("video")}
-                    >
-                      <Video className="size-4" />
-                      Video
-                    </Button>
-                  </>
+                  <Button
+                    size="sm"
+                    variant={hasOngoingCallForActiveRoom ? "default" : "ghost"}
+                    className={cn(
+                      "h-8 px-2.5 text-[13px]",
+                      hasOngoingCallForActiveRoom &&
+                        "bg-orange-500/90 text-white hover:bg-orange-500",
+                    )}
+                    onClick={() => handleStartCall("voice")}
+                  >
+                    <Phone className="size-4" />
+                    {hasOngoingCallForActiveRoom || isActiveCallForRoom
+                      ? "Join Call"
+                      : "Call"}
+                  </Button>
                 ) : (
                   <Button
                     size="sm"
-                    variant="outline"
-                    className="h-8 px-2.5 text-[13px]"
-                    onClick={() => openTeamCall("video")}
+                    variant={hasOngoingCallForActiveRoom ? "default" : "outline"}
+                    className={cn(
+                      "h-8 px-2.5 text-[13px]",
+                      hasOngoingCallForActiveRoom &&
+                        "bg-orange-500/90 text-white hover:bg-orange-500",
+                    )}
+                    onClick={() =>
+                      hasOngoingCallForActiveRoom
+                        ? joinOngoingCallForActiveRoom()
+                        : openTeamCall("video")
+                    }
                     disabled={!activeRoom}
                   >
                     <Video className="size-4" />
-                    Team Call
+                    {hasOngoingCallForActiveRoom ? "Join Call" : "Team Call"}
                   </Button>
                 )}
               </div>
@@ -3396,6 +3619,7 @@ const SpacesPage = () => {
                 )}
               </div>
             )}
+
           </div>
 
           {teamCallWidget && (
@@ -3441,6 +3665,7 @@ const SpacesPage = () => {
               onCreateTaskFromMessage={createTaskFromMessage}
               onDeleteMessage={deleteMessageFromChat}
               onOpenJamFromMessage={openSharedJamFromMessage}
+              onJoinCallFromMessage={handleJoinCallFromMessage}
               onComposerChange={setComposer}
               onSendMessage={handleSendMessage}
               onUploadFromInput={(event) =>

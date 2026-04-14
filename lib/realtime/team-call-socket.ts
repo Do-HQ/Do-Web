@@ -28,6 +28,8 @@ type TeamCallChatMessagePayload = {
   id: string;
   authorUserId: string;
   authorName: string;
+  authorInitials?: string;
+  authorAvatarUrl?: string;
   content: string;
   sentAt: string;
 };
@@ -56,6 +58,16 @@ type TeamCallChatSendAck = {
   ok: boolean;
   message?: string;
   payload?: TeamCallChatMessagePayload;
+};
+
+type TeamCallNoteSaveAck = {
+  ok: boolean;
+  message?: string;
+  payload?: {
+    id: string;
+    content: string;
+    sentAt: string;
+  };
 };
 
 let teamCallSocket: Socket | null = null;
@@ -170,6 +182,26 @@ const sendTeamCallChatMessage = (payload: {
   });
 };
 
+const saveTeamCallNote = (payload: {
+  workspaceId: string;
+  roomId: string;
+  note: string;
+  pin?: boolean;
+}) => {
+  if (!teamCallSocket) {
+    return Promise.resolve<TeamCallNoteSaveAck>({
+      ok: false,
+      message: "Socket is unavailable",
+    });
+  }
+
+  return new Promise<TeamCallNoteSaveAck>((resolve) => {
+    teamCallSocket?.emit("team-call:note:save", payload, (response: TeamCallNoteSaveAck) => {
+      resolve(response);
+    });
+  });
+};
+
 const disconnectTeamCallSocket = () => {
   if (!teamCallSocket) {
     return;
@@ -192,5 +224,6 @@ export {
   sendTeamCallSignal,
   updateTeamCallParticipantState,
   sendTeamCallChatMessage,
+  saveTeamCallNote,
   disconnectTeamCallSocket,
 };

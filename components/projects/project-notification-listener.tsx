@@ -109,6 +109,7 @@ export default function ProjectNotificationListener() {
     ) => {
       const notification = payload?.notification;
       const notificationId = String(notification?.id || "").trim();
+      const notificationType = String(notification?.type || "").trim();
 
       if (!notificationId || seenNotificationIdsRef.current.has(notificationId)) {
         return;
@@ -120,31 +121,31 @@ export default function ProjectNotificationListener() {
         seenNotificationIdsRef.current = new Set(values.slice(values.length - 80));
       }
 
-      toast(notification?.title || "Project update", {
-        description: notification?.summary || "",
-        action:
-          notification?.route
-            ? {
-                label: "View",
-                onClick: () => router.push(notification.route),
-              }
-            : undefined,
-      });
+      if (notificationType !== "space.call.incoming") {
+        toast(notification?.title || "Project update", {
+          description: notification?.summary || "",
+          action:
+            notification?.route
+              ? {
+                  label: "View",
+                  onClick: () => router.push(notification.route),
+                }
+              : undefined,
+        });
 
-      void showBrowserNotification({
-        id: notificationId,
-        title: notification?.title,
-        summary: notification?.summary,
-        route: notification?.route,
-      });
+        void showBrowserNotification({
+          id: notificationId,
+          title: notification?.title,
+          summary: notification?.summary,
+          route: notification?.route,
+        });
+      }
 
       const activeWorkspaceId = String(workspaceId || "").trim();
       if (
         activeWorkspaceId &&
         String(notification?.workspaceId || "") === activeWorkspaceId
       ) {
-        const notificationType = String(notification?.type || "").trim();
-
         queryClient.invalidateQueries({
           predicate: (query) =>
             Array.isArray(query.queryKey) &&

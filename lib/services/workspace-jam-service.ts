@@ -1,11 +1,16 @@
 import {
   CreateWorkspaceJamCommentRequestBody,
+  CreateWorkspaceJamCommentThreadRequestBody,
   CreateWorkspaceJamRequestBody,
   RequestWorkspaceJamEditAccessRequestBody,
   ReviewWorkspaceJamEditAccessRequestBody,
   ShareWorkspaceJamRequestBody,
+  UpdateWorkspaceJamCommentThreadMessageRequestBody,
   UpdateWorkspaceJamContentRequestBody,
   UpdateWorkspaceJamRequestBody,
+  WorkspaceJamCommentMentionSuggestion,
+  WorkspaceJamCommentThreadListResponse,
+  WorkspaceJamCommentThreadRecord,
   WorkspaceJamListQueryParams,
   WorkspaceJamRecord,
   WorkspaceJamShareTargetsResponse,
@@ -21,6 +26,34 @@ const WORKSPACE_JAM_ENDPOINTS = {
     `/workspace/${workspaceId}/jams/${jamId}/content`,
   jamComments: (workspaceId: string, jamId: string) =>
     `/workspace/${workspaceId}/jams/${jamId}/comments`,
+  jamCommentThreads: (workspaceId: string, jamId: string) =>
+    `/workspace/${workspaceId}/jams/${jamId}/comment-threads`,
+  jamCommentThread: (workspaceId: string, jamId: string, threadId: string) =>
+    `/workspace/${workspaceId}/jams/${jamId}/comment-threads/${threadId}`,
+  jamCommentThreadMessages: (
+    workspaceId: string,
+    jamId: string,
+    threadId: string,
+  ) => `/workspace/${workspaceId}/jams/${jamId}/comment-threads/${threadId}/messages`,
+  jamCommentThreadMessage: (
+    workspaceId: string,
+    jamId: string,
+    threadId: string,
+    messageId: string,
+  ) =>
+    `/workspace/${workspaceId}/jams/${jamId}/comment-threads/${threadId}/messages/${messageId}`,
+  jamCommentThreadResolve: (
+    workspaceId: string,
+    jamId: string,
+    threadId: string,
+  ) => `/workspace/${workspaceId}/jams/${jamId}/comment-threads/${threadId}/resolve`,
+  jamCommentThreadReopen: (
+    workspaceId: string,
+    jamId: string,
+    threadId: string,
+  ) => `/workspace/${workspaceId}/jams/${jamId}/comment-threads/${threadId}/reopen`,
+  jamCommentMentions: (workspaceId: string, jamId: string) =>
+    `/workspace/${workspaceId}/jams/${jamId}/comment-mentions`,
   jamShare: (workspaceId: string, jamId: string) =>
     `/workspace/${workspaceId}/jams/${jamId}/share`,
   jamEditAccessRequests: (workspaceId: string, jamId: string) =>
@@ -128,6 +161,177 @@ export const createWorkspaceJamComment = async (data: {
     WORKSPACE_JAM_ENDPOINTS.jamComments(data.workspaceId, data.jamId),
     data.payload,
   );
+};
+
+export const getWorkspaceJamCommentThreads = async (params: {
+  workspaceId: string;
+  jamId: string;
+  status?: "open" | "resolved" | "all";
+  search?: string;
+  page?: number;
+  limit?: number;
+}) => {
+  const {
+    workspaceId,
+    jamId,
+    status = "all",
+    search = "",
+    page = 1,
+    limit = 40,
+  } = params;
+
+  return await axiosInstance.get<WorkspaceJamCommentThreadListResponse>(
+    WORKSPACE_JAM_ENDPOINTS.jamCommentThreads(workspaceId, jamId),
+    {
+      params: {
+        status,
+        search,
+        page,
+        limit,
+      },
+    },
+  );
+};
+
+export const getWorkspaceJamCommentThread = async (params: {
+  workspaceId: string;
+  jamId: string;
+  threadId: string;
+}) => {
+  return await axiosInstance.get<{
+    message: string;
+    thread: WorkspaceJamCommentThreadRecord;
+  }>(
+    WORKSPACE_JAM_ENDPOINTS.jamCommentThread(
+      params.workspaceId,
+      params.jamId,
+      params.threadId,
+    ),
+  );
+};
+
+export const createWorkspaceJamCommentThread = async (params: {
+  workspaceId: string;
+  jamId: string;
+  payload: CreateWorkspaceJamCommentThreadRequestBody;
+}) => {
+  return await axiosInstance.post<{
+    message: string;
+    thread: WorkspaceJamCommentThreadRecord;
+  }>(
+    WORKSPACE_JAM_ENDPOINTS.jamCommentThreads(params.workspaceId, params.jamId),
+    params.payload,
+  );
+};
+
+export const addWorkspaceJamCommentThreadMessage = async (params: {
+  workspaceId: string;
+  jamId: string;
+  threadId: string;
+  payload: CreateWorkspaceJamCommentThreadRequestBody;
+}) => {
+  return await axiosInstance.post<{
+    message: string;
+    thread: WorkspaceJamCommentThreadRecord;
+  }>(
+    WORKSPACE_JAM_ENDPOINTS.jamCommentThreadMessages(
+      params.workspaceId,
+      params.jamId,
+      params.threadId,
+    ),
+    params.payload,
+  );
+};
+
+export const updateWorkspaceJamCommentThreadMessage = async (params: {
+  workspaceId: string;
+  jamId: string;
+  threadId: string;
+  messageId: string;
+  payload: UpdateWorkspaceJamCommentThreadMessageRequestBody;
+}) => {
+  return await axiosInstance.patch<{
+    message: string;
+    thread: WorkspaceJamCommentThreadRecord;
+  }>(
+    WORKSPACE_JAM_ENDPOINTS.jamCommentThreadMessage(
+      params.workspaceId,
+      params.jamId,
+      params.threadId,
+      params.messageId,
+    ),
+    params.payload,
+  );
+};
+
+export const deleteWorkspaceJamCommentThreadMessage = async (params: {
+  workspaceId: string;
+  jamId: string;
+  threadId: string;
+  messageId: string;
+}) => {
+  return await axiosInstance.delete<{
+    message: string;
+    thread: WorkspaceJamCommentThreadRecord;
+  }>(
+    WORKSPACE_JAM_ENDPOINTS.jamCommentThreadMessage(
+      params.workspaceId,
+      params.jamId,
+      params.threadId,
+      params.messageId,
+    ),
+  );
+};
+
+export const resolveWorkspaceJamCommentThread = async (params: {
+  workspaceId: string;
+  jamId: string;
+  threadId: string;
+}) => {
+  return await axiosInstance.post<{
+    message: string;
+    thread: WorkspaceJamCommentThreadRecord;
+  }>(
+    WORKSPACE_JAM_ENDPOINTS.jamCommentThreadResolve(
+      params.workspaceId,
+      params.jamId,
+      params.threadId,
+    ),
+  );
+};
+
+export const reopenWorkspaceJamCommentThread = async (params: {
+  workspaceId: string;
+  jamId: string;
+  threadId: string;
+}) => {
+  return await axiosInstance.post<{
+    message: string;
+    thread: WorkspaceJamCommentThreadRecord;
+  }>(
+    WORKSPACE_JAM_ENDPOINTS.jamCommentThreadReopen(
+      params.workspaceId,
+      params.jamId,
+      params.threadId,
+    ),
+  );
+};
+
+export const getWorkspaceJamCommentMentionSuggestions = async (params: {
+  workspaceId: string;
+  jamId: string;
+  query?: string;
+  limit?: number;
+}) => {
+  return await axiosInstance.get<{
+    message: string;
+    suggestions: WorkspaceJamCommentMentionSuggestion[];
+  }>(WORKSPACE_JAM_ENDPOINTS.jamCommentMentions(params.workspaceId, params.jamId), {
+    params: {
+      query: params.query || "",
+      limit: params.limit ?? 120,
+    },
+  });
 };
 
 export const shareWorkspaceJam = async (data: {

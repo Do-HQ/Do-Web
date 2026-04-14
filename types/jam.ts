@@ -7,6 +7,13 @@ export type WorkspaceJamEditAccessRequestStatus =
   | "approved"
   | "rejected";
 export type WorkspaceJamMentionKind = "user" | "team";
+export type WorkspaceJamCommentMentionKind =
+  | "user"
+  | "team"
+  | "task"
+  | "project";
+export type WorkspaceJamCommentThreadStatus = "open" | "resolved";
+export type WorkspaceJamCommentThreadSource = "pin" | "legacy";
 
 export interface WorkspaceJamUserSummary {
   id: string;
@@ -31,6 +38,71 @@ export interface WorkspaceJamMentionRecord {
   kind: WorkspaceJamMentionKind;
   id: string;
   label: string;
+}
+
+export interface WorkspaceJamCommentMentionRecord {
+  kind: WorkspaceJamCommentMentionKind;
+  id: string;
+  label: string;
+}
+
+export interface WorkspaceJamCommentMessageRecord {
+  id: string;
+  threadId: string;
+  jamId: string;
+  body: string;
+  bodyPlain: string;
+  mentions: WorkspaceJamCommentMentionRecord[];
+  createdByUserId: string;
+  createdBy: WorkspaceJamUserSummary | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+}
+
+export interface WorkspaceJamCommentThreadRecord {
+  id: string;
+  workspaceId: string;
+  jamId: string;
+  status: WorkspaceJamCommentThreadStatus;
+  source: WorkspaceJamCommentThreadSource;
+  legacyCommentId: string;
+  position: { x: number; y: number } | null;
+  createdByUserId: string;
+  createdBy: WorkspaceJamUserSummary | null;
+  resolvedByUserId: string;
+  resolvedBy: WorkspaceJamUserSummary | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  lastActivityAt: string;
+  messageCount: number;
+  participants: string[];
+  latestMessage: WorkspaceJamCommentMessageRecord | null;
+  messages: WorkspaceJamCommentMessageRecord[];
+}
+
+export interface WorkspaceJamCommentThreadSummary {
+  openThreads: number;
+  resolvedThreads: number;
+  totalThreads: number;
+}
+
+export interface WorkspaceJamCommentThreadListResponse {
+  message: string;
+  threads: WorkspaceJamCommentThreadRecord[];
+  summary: WorkspaceJamCommentThreadSummary;
+  pagination: Pagination;
+}
+
+export interface WorkspaceJamCommentMentionSuggestion {
+  kind: WorkspaceJamCommentMentionKind;
+  id: string;
+  token: string;
+  label: string;
+  subtitle: string;
+  avatarUrl?: string;
+  avatarFallback?: string;
 }
 
 export interface WorkspaceJamReplyRecord {
@@ -86,6 +158,7 @@ export interface WorkspaceJamRecord {
   pendingEditAccessRequestCount: number;
   pendingEditAccessRequests: WorkspaceJamEditAccessRequestRecord[];
   commentCount: number;
+  commentThreadSummary?: WorkspaceJamCommentThreadSummary;
   comments: WorkspaceJamCommentRecord[];
   activity: WorkspaceJamActivityRecord[];
   canEdit: boolean;
@@ -177,6 +250,19 @@ export interface CreateWorkspaceJamCommentRequestBody {
   message: string;
   parentCommentId?: string;
   mentions?: WorkspaceJamMentionRecord[];
+}
+
+export interface CreateWorkspaceJamCommentThreadRequestBody {
+  body: string;
+  bodyPlain?: string;
+  mentions?: WorkspaceJamCommentMentionRecord[];
+  position?: { x: number; y: number };
+}
+
+export interface UpdateWorkspaceJamCommentThreadMessageRequestBody {
+  body: string;
+  bodyPlain?: string;
+  mentions?: WorkspaceJamCommentMentionRecord[];
 }
 
 export interface WorkspaceJamsResponse {

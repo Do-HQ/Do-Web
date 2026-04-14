@@ -40,6 +40,7 @@ export interface WorkspaceSpaceRoomRecord {
     workflowId: string | null;
     taskId: string | null;
     customColor: string | null;
+    directUserId?: string | null;
   };
   createdAt: string;
   updatedAt: string;

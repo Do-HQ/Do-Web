@@ -18,6 +18,7 @@ export type SpaceRoom = {
     workflowId?: string | null;
     taskId?: string | null;
     customColor?: string | null;
+    directUserId?: string | null;
   };
 };
 
@@ -120,6 +121,7 @@ export type TeamCallWidgetState = {
   roomId?: string;
   roomName: string;
   roomScope: string;
+  roomKind?: "direct" | "group" | "project" | "task";
   callMode?: "voice" | "video";
   startedAt: number;
   isMuted: boolean;

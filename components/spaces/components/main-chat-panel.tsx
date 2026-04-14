@@ -79,6 +79,7 @@ type MainChatPanelProps = {
   ) => void;
   onDeleteMessage: (messageId: string) => void;
   onOpenJamFromMessage: (jamId: string) => void;
+  onJoinCallFromMessage: (route?: string) => void;
   onComposerChange: (value: string) => void;
   onSendMessage: () => void;
   onUploadFromInput: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -214,6 +215,7 @@ const MainChatPanel = ({
   onCreateTaskFromMessage,
   onDeleteMessage,
   onOpenJamFromMessage,
+  onJoinCallFromMessage,
   onComposerChange,
   onSendMessage,
   onUploadFromInput,
@@ -592,6 +594,42 @@ const MainChatPanel = ({
 
   const parseCallEventMessage = (content: string) => {
     const normalized = String(content || "").trim();
+    const encodedMatch = normalized.match(/^\[CALL_EVENT:([A-Za-z0-9_-]+)\]\s*([\s\S]*)$/i);
+
+    if (encodedMatch) {
+      const encodedPayload = String(encodedMatch[1] || "").trim();
+      const summaryText = String(encodedMatch[2] || "").trim();
+
+      if (encodedPayload) {
+        try {
+          const normalizedBase64 = encodedPayload
+            .replace(/-/g, "+")
+            .replace(/_/g, "/");
+          const padded = normalizedBase64.padEnd(
+            Math.ceil(normalizedBase64.length / 4) * 4,
+            "=",
+          );
+          const decoded = atob(padded);
+          const metadata = JSON.parse(decoded);
+          const modeLabel =
+            String(metadata?.callMode || "").toLowerCase() === "voice"
+              ? "Voice"
+              : "Video";
+
+          return {
+            summary:
+              summaryText ||
+              `${String(metadata?.roomName || "This room")} call is active`,
+            modeLabel,
+            route: String(metadata?.route || "").trim(),
+            threadTitle: String(metadata?.threadTitle || "").trim(),
+          };
+        } catch {
+          // Fall back to legacy parser below.
+        }
+      }
+    }
+
     const match = normalized.match(/^(.+)\sstarted a (voice|video) call\.$/i);
 
     if (!match) {
@@ -605,6 +643,8 @@ const MainChatPanel = ({
     return {
       summary: `${starterName} started a ${modeLabel.toLowerCase()} call`,
       modeLabel,
+      route: "",
+      threadTitle: "",
     };
   };
 
@@ -892,10 +932,16 @@ const MainChatPanel = ({
                             {jamShareCard ? (
                               jamShareCard
                             ) : callEventMessage ? (
-                              <div className="mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-border/45 bg-muted/25 px-2 py-1 text-[12px] font-medium">
+                              <button
+                                type="button"
+                                className="mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-border/45 bg-muted/25 px-2 py-1 text-left text-[12px] font-medium transition-colors hover:bg-muted/45"
+                                onClick={() =>
+                                  onJoinCallFromMessage(callEventMessage.route)
+                                }
+                              >
                                 <Phone className="size-3.5 text-primary" />
                                 {callEventMessage.summary}
-                              </div>
+                              </button>
                             ) : forwardedMessage ? (
                               <div className="mt-1.5 space-y-1.5">
                                 <div className="flex flex-wrap items-center gap-1.5">

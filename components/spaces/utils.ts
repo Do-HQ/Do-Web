@@ -70,6 +70,11 @@ export const parseTeamCallWidget = (
         typeof parsed.roomId === "string") &&
       typeof parsed.roomName === "string" &&
       typeof parsed.roomScope === "string" &&
+      (typeof parsed.roomKind === "undefined" ||
+        parsed.roomKind === "direct" ||
+        parsed.roomKind === "group" ||
+        parsed.roomKind === "project" ||
+        parsed.roomKind === "task") &&
       (typeof parsed.callMode === "undefined" ||
         parsed.callMode === "voice" ||
         parsed.callMode === "video") &&

@@ -33,6 +33,23 @@ type SpaceMentionEventPayload = {
   };
 };
 
+type TeamCallRoomStatusPayload = {
+  ok: boolean;
+  active?: boolean;
+  message?: string;
+  call?: {
+    startedAt: number;
+    roomName: string;
+    roomScope: string;
+    roomKind?: "direct" | "group" | "project" | "task";
+    directUserId?: string;
+    callMode: "voice" | "video";
+    route: string;
+    threadMessageId?: string;
+    participants?: number;
+  } | null;
+};
+
 let spacesSocket: Socket | null = null;
 
 const resolveSocketBaseUrl = () => {
@@ -145,10 +162,28 @@ const unsubscribeWorkspaceSpaces = ({
   });
 };
 
+const getTeamCallRoomStatus = (payload: {
+  workspaceId: string;
+  roomId: string;
+}) => {
+  const socket = getSpacesSocket();
+
+  if (!socket.connected) {
+    socket.connect();
+  }
+
+  return new Promise<TeamCallRoomStatusPayload>((resolve) => {
+    socket.emit("team-call:status:get", payload, (response: TeamCallRoomStatusPayload) => {
+      resolve(response);
+    });
+  });
+};
+
 export type {
   SpaceMessageEventPayload,
   SpaceMessageDeletedEventPayload,
   SpaceMentionEventPayload,
+  TeamCallRoomStatusPayload,
 };
 export {
   getSpacesSocket,
@@ -156,4 +191,5 @@ export {
   subscribeSpaceRoom,
   unsubscribeWorkspaceSpaces,
   unsubscribeSpaceRoom,
+  getTeamCallRoomStatus,
 };
