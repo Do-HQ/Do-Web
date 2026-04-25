@@ -181,6 +181,9 @@ const pricingPlans: PricingPlan[] = [
   },
 ];
 
+const LANDING_ILLUSTRATION_CLASS =
+  "h-full w-full object-contain dark:[filter:brightness(1.14)_contrast(1.08)_saturate(1.04)_drop-shadow(0_0_0.45rem_rgba(255,255,255,0.18))]";
+
 const featureCategories = [
   {
     title: "Planning and delivery",
@@ -905,7 +908,7 @@ export default function Home() {
               alt="Table of Content"
               height={176}
               width={200}
-              className="w-full h-full max-h-100"
+              className={cn(LANDING_ILLUSTRATION_CLASS, "max-h-100")}
             />
 
             <Card className="shadow-none">
@@ -1052,7 +1055,7 @@ export default function Home() {
               alt="Plan and Pricing"
               height={176}
               width={200}
-              className="w-full h-full max-h-100"
+              className={cn(LANDING_ILLUSTRATION_CLASS, "max-h-100")}
             />
 
             <Card className="shadow-none">
@@ -1142,7 +1145,7 @@ export default function Home() {
               alt="Plan and Pricing"
               height={150}
               width={200}
-              className="w-full h-full max-h-80"
+              className={cn(LANDING_ILLUSTRATION_CLASS, "max-h-80")}
             />
 
             <Card className="shadow-none">
@@ -1269,7 +1272,7 @@ export default function Home() {
                 alt="How it works"
                 height={150}
                 width={200}
-                className="w-full h-full max-h-80"
+                className={cn(LANDING_ILLUSTRATION_CLASS, "max-h-80")}
               />
             </ol>
 
@@ -1279,7 +1282,7 @@ export default function Home() {
                 alt="How it works"
                 height={150}
                 width={200}
-                className="w-full h-full max-h-80"
+                className={cn(LANDING_ILLUSTRATION_CLASS, "max-h-80")}
               />
               <Card className="shadow-none">
                 <CardHeader className="space-y-1">
@@ -1372,7 +1375,7 @@ export default function Home() {
               alt="How it works"
               height={150}
               width={200}
-              className="w-full h-full max-h-80"
+              className={cn(LANDING_ILLUSTRATION_CLASS, "max-h-80")}
             />
           </div>
 
@@ -1486,7 +1489,7 @@ export default function Home() {
               alt="How it works"
               height={150}
               width={200}
-              className="w-full h-full max-h-80"
+              className={cn(LANDING_ILLUSTRATION_CLASS, "max-h-80")}
             />
           </div>
 
