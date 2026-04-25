@@ -548,6 +548,8 @@ export default function Home() {
   const findOutMoreRef = useRef<HTMLElement | null>(null);
   const previousScrollTopRef = useRef(0);
   const relockTimeoutRef = useRef<number | null>(null);
+  const previousBodyOverflowRef = useRef<string | null>(null);
+  const previousHtmlOverflowRef = useRef<string | null>(null);
 
   const scrollToSection = useCallback((sectionId: string) => {
     const container = scrollContainerRef.current;
@@ -629,6 +631,88 @@ export default function Home() {
 
     return () => window.clearTimeout(timeoutId);
   }, [router, setUser]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (previousBodyOverflowRef.current === null) {
+      previousBodyOverflowRef.current = document.body.style.overflow || "";
+    }
+    if (previousHtmlOverflowRef.current === null) {
+      previousHtmlOverflowRef.current = document.documentElement.style.overflow || "";
+    }
+
+    if (isHeroLocked) {
+      document.body.style.overflow = "hidden";
+      document.documentElement.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = previousBodyOverflowRef.current;
+      document.documentElement.style.overflow = previousHtmlOverflowRef.current;
+    }
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflowRef.current || "";
+      document.documentElement.style.overflow = previousHtmlOverflowRef.current || "";
+    };
+  }, [isHeroLocked]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !isHeroLocked) {
+      return;
+    }
+
+    const preventScroll = (event: WheelEvent | TouchEvent) => {
+      container.scrollTop = 0;
+      window.scrollTo(0, 0);
+      event.preventDefault();
+    };
+
+    const preventScrollKeys = (event: KeyboardEvent) => {
+      const blockedKeys = new Set([
+        "ArrowDown",
+        "ArrowUp",
+        "PageDown",
+        "PageUp",
+        "Home",
+        "End",
+      ]);
+
+      if (!blockedKeys.has(event.key) && event.key !== " ") {
+        return;
+      }
+
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName;
+      const isInteractive =
+        Boolean(target?.isContentEditable) ||
+        tagName === "INPUT" ||
+        tagName === "TEXTAREA" ||
+        tagName === "SELECT" ||
+        tagName === "BUTTON" ||
+        tagName === "A";
+
+      if (isInteractive) {
+        return;
+      }
+
+      container.scrollTop = 0;
+      window.scrollTo(0, 0);
+      event.preventDefault();
+    };
+
+    window.addEventListener("wheel", preventScroll, { passive: false });
+    window.addEventListener("touchmove", preventScroll, { passive: false });
+    window.addEventListener("keydown", preventScrollKeys, { passive: false });
+
+    return () => {
+      window.removeEventListener("wheel", preventScroll);
+      window.removeEventListener("touchmove", preventScroll);
+      window.removeEventListener("keydown", preventScrollKeys);
+    };
+  }, [isHeroLocked]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
