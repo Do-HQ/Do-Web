@@ -12,7 +12,7 @@ import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Logo from "@/components/shared/logo";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 
 export default function Home() {
   const router = useRouter();
@@ -63,7 +63,7 @@ export default function Home() {
   }
 
   return (
-    <main className="bg-background text-foreground relative flex min-h-[100dvh] w-full overflow-hidden">
+    <main className="bg-background text-foreground relative flex min-h-dvh w-full overflow-hidden">
       <div className="bg-background/35 absolute inset-0" />
 
       <div className="relative z-10 flex w-full flex-col">
@@ -108,7 +108,7 @@ export default function Home() {
               </li>
             </ol>
 
-            <div className="pt-2">
+            <div className="pt-2 flex items-center gap-4">
               <Link
                 href={ROUTES.SIGN_IN}
                 className={cn(
@@ -118,6 +118,16 @@ export default function Home() {
               >
                 Start squircling
                 <ArrowRight />
+              </Link>
+              <Link
+                href={ROUTES.TABLE_OF_CONTENTS}
+                className={cn(
+                  buttonVariants({ size: "default" }),
+                  "h-9 rounded-md px-4 text-[13px] bg-transparent border border-muted text-muted-foreground hover:bg-muted",
+                )}
+              >
+                Table of Contents
+                <ArrowUpRight />
               </Link>
             </div>
           </div>

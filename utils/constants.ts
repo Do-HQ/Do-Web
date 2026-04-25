@@ -22,6 +22,7 @@ export const ROUTES = {
   SWITCH_WORKSPACE: "/workspace/switch",
   CREATE_WORKSPACE: "/workspace/create",
   ONBOARDING: "/onboarding",
+  TABLE_OF_CONTENTS: "/toc",
 };
 
 export const getProjectRoute = (projectId: string) =>
