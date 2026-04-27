@@ -8,7 +8,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, GripVertical, Plus, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -77,6 +77,7 @@ export function ProjectDosKanbanLane({
   onDeleteSection,
 }: ProjectDosKanbanLaneProps) {
   const [expandedTaskIds, setExpandedTaskIds] = useState<string[]>([]);
+  const [showAllTasks, setShowAllTasks] = useState(false);
   const {
     attributes: laneAttributes,
     listeners: laneListeners,
@@ -111,6 +112,8 @@ export function ProjectDosKanbanLane({
       : status
         ? { status, sectionId: undefined }
         : undefined;
+  const visibleTasks = showAllTasks ? tasks : tasks.slice(0, 3);
+  const hiddenCount = Math.max(0, tasks.length - 3);
 
   const renderCreateTrigger = () => {
     if (!canCreate || !onCreateTask) {
@@ -221,12 +224,12 @@ export function ProjectDosKanbanLane({
         </div>
 
         <SortableContext
-          items={tasks.map((task) => task.id)}
+          items={visibleTasks.map((task) => task.id)}
           strategy={verticalListSortingStrategy}
         >
           <div className="flex min-h-16 flex-col gap-2">
-            {tasks.length ? (
-              tasks.map((task) => (
+            {visibleTasks.length ? (
+              visibleTasks.map((task) => (
                 <ProjectDosTaskCard
                   key={task.id}
                   task={task}
@@ -252,6 +255,24 @@ export function ProjectDosKanbanLane({
                 Drop work here or create a new task for this lane.
               </div>
             )}
+
+            {tasks.length > 3 ? (
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-1 rounded-md border border-border/25 bg-background/70 px-2 py-1.5 text-[11px] font-medium text-muted-foreground hover:text-foreground"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setShowAllTasks((current) => !current);
+                }}
+              >
+                <ChevronDown
+                  className={cn("size-3", showAllTasks ? "rotate-180" : "")}
+                />
+                {showAllTasks
+                  ? "Show less tasks"
+                  : `Show ${hiddenCount} more task${hiddenCount > 1 ? "s" : ""}`}
+              </button>
+            ) : null}
           </div>
         </SortableContext>
       </div>

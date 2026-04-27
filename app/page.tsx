@@ -644,22 +644,21 @@ export default function Home() {
       previousBodyOverflowRef.current = document.body.style.overflow || "";
     }
     if (previousHtmlOverflowRef.current === null) {
-      previousHtmlOverflowRef.current = document.documentElement.style.overflow || "";
+      previousHtmlOverflowRef.current =
+        document.documentElement.style.overflow || "";
     }
 
-    if (isHeroLocked) {
-      document.body.style.overflow = "hidden";
-      document.documentElement.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = previousBodyOverflowRef.current;
-      document.documentElement.style.overflow = previousHtmlOverflowRef.current;
-    }
+    // Keep page-level scrolling disabled while landing is mounted.
+    // Scrolling should only happen in the landing container.
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
 
     return () => {
       document.body.style.overflow = previousBodyOverflowRef.current || "";
-      document.documentElement.style.overflow = previousHtmlOverflowRef.current || "";
+      document.documentElement.style.overflow =
+        previousHtmlOverflowRef.current || "";
     };
-  }, [isHeroLocked]);
+  }, []);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -732,12 +731,13 @@ export default function Home() {
     previousScrollTopRef.current = container.scrollTop;
 
     const onScroll = () => {
+      const maxTop = Math.max(container.scrollHeight - container.clientHeight, 0);
       const currentTop = container.scrollTop;
       const isScrollingUp = currentTop < previousScrollTopRef.current;
-      previousScrollTopRef.current = currentTop;
+      previousScrollTopRef.current = Math.min(currentTop, maxTop);
 
       if (isScrollingUp && currentTop <= 16) {
-        container.scrollTo({ top: 0, behavior: "smooth" });
+        container.scrollTop = 0;
 
         if (relockTimeoutRef.current) {
           window.clearTimeout(relockTimeoutRef.current);
@@ -745,7 +745,7 @@ export default function Home() {
 
         relockTimeoutRef.current = window.setTimeout(() => {
           setIsHeroLocked(true);
-        }, 220);
+        }, 140);
       }
     };
 
@@ -755,6 +755,28 @@ export default function Home() {
       if (relockTimeoutRef.current) {
         window.clearTimeout(relockTimeoutRef.current);
       }
+    };
+  }, [isHeroLocked]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || isHeroLocked) {
+      return;
+    }
+
+    const onWheelClampEdges = (event: WheelEvent) => {
+      const maxTop = Math.max(container.scrollHeight - container.clientHeight, 0);
+      const atTop = container.scrollTop <= 0;
+      const atBottom = container.scrollTop >= maxTop - 1;
+
+      if ((atTop && event.deltaY < 0) || (atBottom && event.deltaY > 0)) {
+        event.preventDefault();
+      }
+    };
+
+    container.addEventListener("wheel", onWheelClampEdges, { passive: false });
+    return () => {
+      container.removeEventListener("wheel", onWheelClampEdges);
     };
   }, [isHeroLocked]);
 
@@ -770,10 +792,10 @@ export default function Home() {
     <main
       ref={scrollContainerRef}
       className={cn(
-        "bg-background text-foreground h-[100dvh] w-full overflow-x-hidden",
+        "bg-background text-foreground h-[100dvh] w-full overflow-x-hidden overscroll-y-none",
         isHeroLocked
           ? "overflow-y-hidden"
-          : "overflow-y-auto snap-y snap-mandatory",
+          : "overflow-y-auto snap-y snap-mandatory scroll-smooth",
       )}
     >
       <section className="relative flex min-h-[100dvh] w-full snap-start overflow-hidden">
@@ -911,7 +933,7 @@ export default function Home() {
               className={cn(LANDING_ILLUSTRATION_CLASS, "max-h-100")}
             />
 
-            <Card className="shadow-none">
+            <Card className="shadow-none border-none">
               <CardHeader>
                 <CardTitle className="text-base">Reading guide</CardTitle>
                 <CardDescription>
