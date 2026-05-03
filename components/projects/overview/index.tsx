@@ -97,7 +97,10 @@ function buildDueWindow(startDate: string, targetEndDate: string) {
 }
 
 function normalizeMemberName(value?: string) {
-  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
 }
 
 function getInitialsFromName(value?: string) {
@@ -168,7 +171,9 @@ function syncWorkflowDerivedFields(workflow: ProjectWorkflow): ProjectWorkflow {
   };
 }
 
-function deriveStatusFromSubtasks(subtasks: Array<{ status: ProjectTaskStatus }>) {
+function deriveStatusFromSubtasks(
+  subtasks: Array<{ status: ProjectTaskStatus }>,
+) {
   if (!subtasks.length) {
     return null;
   }
@@ -225,7 +230,9 @@ function alignTaskSubtasksForLaneMove(
   }
 
   if (nextStatus === "blocked") {
-    const hasOpenSubtask = nextSubtasks.some((subtask) => subtask.status !== "done");
+    const hasOpenSubtask = nextSubtasks.some(
+      (subtask) => subtask.status !== "done",
+    );
 
     if (!hasOpenSubtask) {
       nextSubtasks[0] = {
@@ -248,8 +255,11 @@ function alignTaskSubtasksForLaneMove(
   }
 
   if (nextStatus === "in-progress" || nextStatus === "review") {
-    const activeStatus: ProjectTaskStatus = nextStatus === "review" ? "review" : "in-progress";
-    const hasOpenSubtask = nextSubtasks.some((subtask) => subtask.status !== "done");
+    const activeStatus: ProjectTaskStatus =
+      nextStatus === "review" ? "review" : "in-progress";
+    const hasOpenSubtask = nextSubtasks.some(
+      (subtask) => subtask.status !== "done",
+    );
 
     if (!hasOpenSubtask) {
       nextSubtasks[0] = {
@@ -510,7 +520,8 @@ export default function ProjectOverview({
     },
   });
   const { useCreateWorkspaceTaskDependency } = workspacePortfolioHook;
-  const createWorkspaceTaskDependencyMutation = useCreateWorkspaceTaskDependency();
+  const createWorkspaceTaskDependencyMutation =
+    useCreateWorkspaceTaskDependency();
 
   const [activeTab, setActiveTab] = useState<ProjectTabKey>(
     initialTab ?? "overview",
@@ -519,9 +530,13 @@ export default function ProjectOverview({
   const [startDate, setStartDate] = useState("");
   const [riskView, setRiskView] = useState<ProjectRiskKind>("risk");
   const [workflowView, setWorkflowView] = useState<ProjectWorkflowView>("all");
-  const [workflowSortMode, setWorkflowSortMode] = useState<"updated" | "progress" | "name">("updated");
+  const [workflowSortMode, setWorkflowSortMode] = useState<
+    "updated" | "progress" | "name"
+  >("updated");
   const [workflowPage, setWorkflowPage] = useState(1);
-  const [workflowsTabSortMode, setWorkflowsTabSortMode] = useState<"updated" | "progress" | "name">("updated");
+  const [workflowsTabSortMode, setWorkflowsTabSortMode] = useState<
+    "updated" | "progress" | "name"
+  >("updated");
   const [workflowsTabPage, setWorkflowsTabPage] = useState(1);
   const [expandedWorkflowIds, setExpandedWorkflowIds] = useState<string[]>([]);
   const [summaryExpanded, setSummaryExpanded] = useState(true);
@@ -565,7 +580,8 @@ export default function ProjectOverview({
       archived: false,
     },
     {
-      enabled: Boolean(workspaceId) && Boolean(projectId) && activeTab === "workflows",
+      enabled:
+        Boolean(workspaceId) && Boolean(projectId) && activeTab === "workflows",
     },
   );
   const archivedWorkflowListQuery = useWorkspaceProjectWorkflows(
@@ -582,13 +598,17 @@ export default function ProjectOverview({
       archived: true,
     },
     {
-      enabled: Boolean(workspaceId) && Boolean(projectId) && activeTab === "workflows",
+      enabled:
+        Boolean(workspaceId) && Boolean(projectId) && activeTab === "workflows",
     },
   );
 
   const workflowRefreshKey = project
     ? project.workflows
-        .map((workflow) => `${workflow.id}:${workflow.updatedAt}:${workflow.archived ? "1" : "0"}:${workflow.tasks.length}`)
+        .map(
+          (workflow) =>
+            `${workflow.id}:${workflow.updatedAt}:${workflow.archived ? "1" : "0"}:${workflow.tasks.length}`,
+        )
         .join("|")
     : "";
   const refetchWorkflowList = workflowListQuery.refetch;
@@ -771,7 +791,8 @@ export default function ProjectOverview({
         normalizedName,
         email: email.toLowerCase(),
         initials: getInitialsFromName(displayName),
-        avatarUrl: String(userRecord?.profilePhoto?.url || "").trim() || undefined,
+        avatarUrl:
+          String(userRecord?.profilePhoto?.url || "").trim() || undefined,
       };
 
       if (userId) {
@@ -793,184 +814,187 @@ export default function ProjectOverview({
     };
   }, [workspacePeopleQuery.data]);
 
-  const resolvedMembers = useMemo(
-    () => {
-      const baseMembers = Array.isArray(project?.members) ? project.members : [];
-      const memberIdSet = new Set<string>();
+  const resolvedMembers = useMemo(() => {
+    const baseMembers = Array.isArray(project?.members) ? project.members : [];
+    const memberIdSet = new Set<string>();
 
-      for (const member of baseMembers) {
-        const memberId = String(member.id || "").trim();
+    for (const member of baseMembers) {
+      const memberId = String(member.id || "").trim();
 
-        if (memberId) {
-          memberIdSet.add(memberId);
+      if (memberId) {
+        memberIdSet.add(memberId);
+      }
+    }
+
+    for (const team of project?.teams ?? []) {
+      for (const memberId of team.memberIds ?? []) {
+        const normalizedId = String(memberId || "").trim();
+
+        if (normalizedId) {
+          memberIdSet.add(normalizedId);
         }
       }
+    }
 
-      for (const team of project?.teams ?? []) {
-        for (const memberId of team.memberIds ?? []) {
-          const normalizedId = String(memberId || "").trim();
+    for (const workflow of project?.workflows ?? []) {
+      const ownerId = String(workflow.ownerId || "").trim();
 
-          if (normalizedId) {
-            memberIdSet.add(normalizedId);
+      if (ownerId) {
+        memberIdSet.add(ownerId);
+      }
+
+      for (const task of workflow.tasks ?? []) {
+        const assigneeId = String(task.assigneeId || "").trim();
+
+        if (assigneeId) {
+          memberIdSet.add(assigneeId);
+        }
+
+        for (const subtask of task.subtasks ?? []) {
+          const subtaskAssigneeId = String(subtask.assigneeId || "").trim();
+
+          if (subtaskAssigneeId) {
+            memberIdSet.add(subtaskAssigneeId);
           }
         }
       }
+    }
 
-      for (const workflow of project?.workflows ?? []) {
-        const ownerId = String(workflow.ownerId || "").trim();
+    for (const risk of project?.risks ?? []) {
+      const ownerUserId = String(risk.ownerUserId || "").trim();
+      const createdByUserId = String(risk.createdByUserId || "").trim();
+      const resolvedByUserId = String(risk.resolvedByUserId || "").trim();
+      const closedByUserId = String(risk.closedByUserId || "").trim();
 
-        if (ownerId) {
-          memberIdSet.add(ownerId);
-        }
-
-        for (const task of workflow.tasks ?? []) {
-          const assigneeId = String(task.assigneeId || "").trim();
-
-          if (assigneeId) {
-            memberIdSet.add(assigneeId);
-          }
-
-          for (const subtask of task.subtasks ?? []) {
-            const subtaskAssigneeId = String(subtask.assigneeId || "").trim();
-
-            if (subtaskAssigneeId) {
-              memberIdSet.add(subtaskAssigneeId);
-            }
-          }
-        }
+      if (ownerUserId) {
+        memberIdSet.add(ownerUserId);
+      }
+      if (createdByUserId) {
+        memberIdSet.add(createdByUserId);
+      }
+      if (resolvedByUserId) {
+        memberIdSet.add(resolvedByUserId);
+      }
+      if (closedByUserId) {
+        memberIdSet.add(closedByUserId);
       }
 
-      for (const risk of project?.risks ?? []) {
-        const ownerUserId = String(risk.ownerUserId || "").trim();
-        const createdByUserId = String(risk.createdByUserId || "").trim();
-        const resolvedByUserId = String(risk.resolvedByUserId || "").trim();
-        const closedByUserId = String(risk.closedByUserId || "").trim();
+      for (const comment of risk.comments ?? []) {
+        const authorUserId = String(comment.authorUserId || "").trim();
 
-        if (ownerUserId) {
-          memberIdSet.add(ownerUserId);
-        }
-        if (createdByUserId) {
-          memberIdSet.add(createdByUserId);
-        }
-        if (resolvedByUserId) {
-          memberIdSet.add(resolvedByUserId);
-        }
-        if (closedByUserId) {
-          memberIdSet.add(closedByUserId);
-        }
-
-        for (const comment of risk.comments ?? []) {
-          const authorUserId = String(comment.authorUserId || "").trim();
-
-          if (authorUserId) {
-            memberIdSet.add(authorUserId);
-          }
+        if (authorUserId) {
+          memberIdSet.add(authorUserId);
         }
       }
+    }
 
-      const resolved = baseMembers.map((member) => {
-        const memberId = String(member.id || "").trim();
-        const memberName = String(member.name || "").trim();
-        const normalizedMemberName = normalizeMemberName(memberName);
-        const memberAvatar = String(member.avatarUrl || "").trim();
-        const memberInitials = String(member.initials || "").trim();
-        let profile = memberId
-          ? memberProfileIndexes.byAnyId.get(memberId)
-          : undefined;
+    const resolved = baseMembers.map((member) => {
+      const memberId = String(member.id || "").trim();
+      const memberName = String(member.name || "").trim();
+      const normalizedMemberName = normalizeMemberName(memberName);
+      const memberAvatar = String(member.avatarUrl || "").trim();
+      const memberInitials = String(member.initials || "").trim();
+      let profile = memberId
+        ? memberProfileIndexes.byAnyId.get(memberId)
+        : undefined;
 
-        if (
-          profile &&
-          normalizedMemberName &&
-          profile.normalizedName &&
-          profile.normalizedName !== normalizedMemberName &&
-          !profile.normalizedName.includes(normalizedMemberName) &&
-          !normalizedMemberName.includes(profile.normalizedName)
-        ) {
-          profile = undefined;
-        }
+      if (
+        profile &&
+        normalizedMemberName &&
+        profile.normalizedName &&
+        profile.normalizedName !== normalizedMemberName &&
+        !profile.normalizedName.includes(normalizedMemberName) &&
+        !normalizedMemberName.includes(profile.normalizedName)
+      ) {
+        profile = undefined;
+      }
 
-        if (!profile && normalizedMemberName) {
-          profile = memberProfileIndexes.byName.get(normalizedMemberName);
-        }
+      if (!profile && normalizedMemberName) {
+        profile = memberProfileIndexes.byName.get(normalizedMemberName);
+      }
 
-        const shouldUseProfileAvatar =
-          Boolean(profile?.avatarUrl) &&
-          (!memberAvatar ||
-            (Boolean(currentUserAvatarUrl) &&
-              memberAvatar === currentUserAvatarUrl &&
-              Boolean(memberId) &&
-              memberId !== currentUserId));
+      const shouldUseProfileAvatar =
+        Boolean(profile?.avatarUrl) &&
+        (!memberAvatar ||
+          (Boolean(currentUserAvatarUrl) &&
+            memberAvatar === currentUserAvatarUrl &&
+            Boolean(memberId) &&
+            memberId !== currentUserId));
 
-        return {
-          ...member,
-          id: memberId || profile?.userId || profile?.workspaceMemberId || member.id,
-          name: memberName || profile?.name || "Project member",
-          initials:
-            memberInitials ||
-            profile?.initials ||
-            getInitialsFromName(memberName || profile?.name),
-          avatarUrl: shouldUseProfileAvatar
-            ? profile?.avatarUrl
-            : member.avatarUrl || profile?.avatarUrl,
-        };
+      return {
+        ...member,
+        id:
+          memberId ||
+          profile?.userId ||
+          profile?.workspaceMemberId ||
+          member.id,
+        name: memberName || profile?.name || "Project member",
+        initials:
+          memberInitials ||
+          profile?.initials ||
+          getInitialsFromName(memberName || profile?.name),
+        avatarUrl: shouldUseProfileAvatar
+          ? profile?.avatarUrl
+          : member.avatarUrl || profile?.avatarUrl,
+      };
+    });
+
+    const existingIds = new Set(
+      resolved.map((member) => String(member.id || "").trim()).filter(Boolean),
+    );
+
+    for (const memberId of memberIdSet) {
+      if (existingIds.has(memberId)) {
+        continue;
+      }
+
+      const profile = memberProfileIndexes.byAnyId.get(memberId);
+
+      if (!profile) {
+        continue;
+      }
+
+      const canonicalId =
+        profile.userId || profile.workspaceMemberId || memberId;
+
+      if (existingIds.has(canonicalId)) {
+        continue;
+      }
+
+      existingIds.add(canonicalId);
+      resolved.push({
+        id: canonicalId,
+        name: profile.name || "Project member",
+        initials: profile.initials || getInitialsFromName(profile.name),
+        role: "Project member",
+        avatarUrl: profile.avatarUrl,
+        active: true,
+        teamIds:
+          (project?.teams ?? [])
+            .filter((team) =>
+              (team.memberIds ?? []).some(
+                (teamMemberId) =>
+                  String(teamMemberId || "").trim() === memberId ||
+                  String(teamMemberId || "").trim() === profile.userId ||
+                  String(teamMemberId || "").trim() ===
+                    profile.workspaceMemberId,
+              ),
+            )
+            .map((team) => team.id) ?? [],
       });
+    }
 
-      const existingIds = new Set(
-        resolved.map((member) => String(member.id || "").trim()).filter(Boolean),
-      );
-
-      for (const memberId of memberIdSet) {
-        if (existingIds.has(memberId)) {
-          continue;
-        }
-
-        const profile = memberProfileIndexes.byAnyId.get(memberId);
-
-        if (!profile) {
-          continue;
-        }
-
-        const canonicalId = profile.userId || profile.workspaceMemberId || memberId;
-
-        if (existingIds.has(canonicalId)) {
-          continue;
-        }
-
-        existingIds.add(canonicalId);
-        resolved.push({
-          id: canonicalId,
-          name: profile.name || "Project member",
-          initials: profile.initials || getInitialsFromName(profile.name),
-          role: "Project member",
-          avatarUrl: profile.avatarUrl,
-          active: true,
-          teamIds:
-            (project?.teams ?? [])
-              .filter((team) =>
-                (team.memberIds ?? []).some(
-                  (teamMemberId) =>
-                    String(teamMemberId || "").trim() === memberId ||
-                    String(teamMemberId || "").trim() === profile.userId ||
-                    String(teamMemberId || "").trim() === profile.workspaceMemberId,
-                ),
-              )
-              .map((team) => team.id) ?? [],
-        });
-      }
-
-      return resolved;
-    },
-    [
-      currentUserAvatarUrl,
-      currentUserId,
-      memberProfileIndexes.byAnyId,
-      memberProfileIndexes.byName,
-      project?.members,
-      project?.risks,
-      project?.teams,
-      project?.workflows,
-    ],
-  );
+    return resolved;
+  }, [
+    currentUserAvatarUrl,
+    currentUserId,
+    memberProfileIndexes.byAnyId,
+    memberProfileIndexes.byName,
+    project?.members,
+    project?.risks,
+    project?.teams,
+    project?.workflows,
+  ]);
 
   if (!project) {
     return (
@@ -1089,7 +1113,8 @@ export default function ProjectOverview({
 
   const overviewWorkflows =
     workflowListQuery.data?.data?.workflows ?? visibleWorkflows;
-  const overviewWorkflowPagination = workflowListQuery.data?.data?.pagination ?? null;
+  const overviewWorkflowPagination =
+    workflowListQuery.data?.data?.pagination ?? null;
   const workflowsTabWorkflows =
     workflowsTabListQuery.data?.data?.workflows ?? visibleWorkflows;
   const workflowsTabArchivedWorkflows =
@@ -1160,7 +1185,7 @@ export default function ProjectOverview({
     "status:review",
     "status:blocked",
     "status:done",
-    ...((record.customSections ?? []).map((section) => `custom:${section.id}`)),
+    ...(record.customSections ?? []).map((section) => `custom:${section.id}`),
   ];
 
   const resolveKanbanLaneOrder = (record: typeof project) => {
@@ -1316,9 +1341,9 @@ export default function ProjectOverview({
 
   const handleReorderKanbanLanes = async (laneOrder: string[]) => {
     const available = new Set(getDefaultKanbanLaneOrder(project));
-    const normalized = [...new Set(laneOrder.map((item) => String(item || "").trim()))].filter(
-      (item) => Boolean(item) && available.has(item),
-    );
+    const normalized = [
+      ...new Set(laneOrder.map((item) => String(item || "").trim())),
+    ].filter((item) => Boolean(item) && available.has(item));
 
     if (!normalized.length) {
       return;
@@ -1360,7 +1385,9 @@ export default function ProjectOverview({
 
   const openCreateWorkflow = () => {
     if (!canCreateWorkflows) {
-      toast("You do not have permission to create workflows in this workspace.");
+      toast(
+        "You do not have permission to create workflows in this workspace.",
+      );
       return;
     }
 
@@ -1437,7 +1464,11 @@ export default function ProjectOverview({
       return false;
     }
 
-    if (params.teamId && params.teamId !== "all" && task.teamId !== params.teamId) {
+    if (
+      params.teamId &&
+      params.teamId !== "all" &&
+      task.teamId !== params.teamId
+    ) {
       return false;
     }
 
@@ -1474,7 +1505,9 @@ export default function ProjectOverview({
   };
 
   const patchTaskQueryCaches = (
-    updater: (tasks: WorkspaceProjectTaskRecord[]) => WorkspaceProjectTaskRecord[],
+    updater: (
+      tasks: WorkspaceProjectTaskRecord[],
+    ) => WorkspaceProjectTaskRecord[],
   ) => {
     if (!workspaceId) {
       return;
@@ -1555,7 +1588,9 @@ export default function ProjectOverview({
     const existingWorkflow = project?.workflows?.find(
       (workflow) => workflow.id === workflowId,
     );
-    const existingTask = existingWorkflow?.tasks?.find((task) => task.id === taskId);
+    const existingTask = existingWorkflow?.tasks?.find(
+      (task) => task.id === taskId,
+    );
     const nextSubtasks = alignTaskSubtasksForLaneMove(existingTask, nextStatus);
 
     updateProject(projectId, (currentProject) => {
@@ -1643,7 +1678,9 @@ export default function ProjectOverview({
 
   const handleWorkflowSubmit = (values: ProjectWorkflowEditorValues) => {
     if (!canCreateWorkflows) {
-      toast("You do not have permission to manage workflows in this workspace.");
+      toast(
+        "You do not have permission to manage workflows in this workspace.",
+      );
       return;
     }
 
@@ -1749,12 +1786,13 @@ export default function ProjectOverview({
     }
 
     try {
-      const createResponse = await createWorkspaceProjectTaskMutation.mutateAsync({
-        workspaceId,
-        projectId,
-        workflowId: taskSheetState.workflowId,
-        payload,
-      });
+      const createResponse =
+        await createWorkspaceProjectTaskMutation.mutateAsync({
+          workspaceId,
+          projectId,
+          workflowId: taskSheetState.workflowId,
+          payload,
+        });
 
       const createdTaskId = String(createResponse.data?.task?.id || "").trim();
       const nextDependencyTaskIds = [
@@ -1810,7 +1848,9 @@ export default function ProjectOverview({
     workflowName?: string,
   ) => {
     if (!canCreateWorkflows) {
-      toast("You do not have permission to manage workflows in this workspace.");
+      toast(
+        "You do not have permission to manage workflows in this workspace.",
+      );
       return;
     }
 
@@ -1974,7 +2014,7 @@ export default function ProjectOverview({
   };
 
   const handleRiskRecordSynced = (
-    nextRecord: (typeof project) | null | undefined,
+    nextRecord: typeof project | null | undefined,
   ) => {
     if (!nextRecord) {
       return;
@@ -2049,11 +2089,7 @@ export default function ProjectOverview({
       return;
     }
 
-    if (
-      !window.confirm(
-        `Delete "${risk.title}"? This cannot be undone.`,
-      )
-    ) {
+    if (!window.confirm(`Delete "${risk.title}"? This cannot be undone.`)) {
       return;
     }
 
@@ -2080,13 +2116,11 @@ export default function ProjectOverview({
         data-tour="project-shell"
         className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-3 pb-6 md:gap-4"
       >
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-muted-foreground text-[12px] font-medium uppercase tracking-[0.08em]">
-            Project summary
-          </div>
+        <div className="flex items-center gap-3">
           <Button
             type="button"
             variant="ghost"
+            className="ml-auto"
             size="sm"
             onClick={() => setSummaryExpanded((current) => !current)}
           >
@@ -2117,6 +2151,7 @@ export default function ProjectOverview({
               archivePending={updateWorkspaceProjectMutation.isPending}
               canInviteCollaborators={canManageProjectInvites}
               canArchiveProject={canArchiveProjects}
+              canGenerateReports={workspacePermissions.isAdminLike}
             />
 
             <ProjectOverviewStatCards
@@ -2163,13 +2198,17 @@ export default function ProjectOverview({
                 sortMode={workflowSortMode}
                 onSortModeChange={setWorkflowSortMode}
                 pagination={overviewWorkflowPagination}
-                loading={workflowListQuery.isLoading || workflowListQuery.isFetching}
+                loading={
+                  workflowListQuery.isLoading || workflowListQuery.isFetching
+                }
                 onPreviousPage={() =>
                   setWorkflowPage((current) => Math.max(1, current - 1))
                 }
                 onNextPage={() =>
                   setWorkflowPage((current) =>
-                    overviewWorkflowPagination?.hasNextPage ? current + 1 : current,
+                    overviewWorkflowPagination?.hasNextPage
+                      ? current + 1
+                      : current,
                   )
                 }
                 expandedWorkflowIds={expandedWorkflowIds}
@@ -2211,15 +2250,22 @@ export default function ProjectOverview({
               projectId={projectId}
               initialWorkflowId={initialWorkflowId}
               workflows={workflowsTabWorkflows}
-              loading={workflowsTabListQuery.isLoading || workflowsTabListQuery.isFetching}
+              loading={
+                workflowsTabListQuery.isLoading ||
+                workflowsTabListQuery.isFetching
+              }
               archivedWorkflows={workflowsTabArchivedWorkflows}
               sortMode={workflowsTabSortMode}
               onSortModeChange={setWorkflowsTabSortMode}
               pagination={workflowsTabListQuery.data?.data?.pagination ?? null}
-              onPreviousPage={() => setWorkflowsTabPage((current) => Math.max(1, current - 1))}
+              onPreviousPage={() =>
+                setWorkflowsTabPage((current) => Math.max(1, current - 1))
+              }
               onNextPage={() =>
                 setWorkflowsTabPage((current) =>
-                  workflowsTabListQuery.data?.data?.pagination?.hasNextPage ? current + 1 : current,
+                  workflowsTabListQuery.data?.data?.pagination?.hasNextPage
+                    ? current + 1
+                    : current,
                 )
               }
               members={resolvedMembers}
@@ -2270,7 +2316,10 @@ export default function ProjectOverview({
           </div>
         ) : activeTab === "files-assets" ? (
           <div data-tour="project-tab-files-assets">
-            <ProjectFilesAssetsTab project={project} members={resolvedMembers} />
+            <ProjectFilesAssetsTab
+              project={project}
+              members={resolvedMembers}
+            />
           </div>
         ) : activeTab === "risks-issues" ? (
           <div data-tour="project-tab-risks-issues">
@@ -2299,7 +2348,10 @@ export default function ProjectOverview({
           </div>
         ) : activeTab === "agents-automation" ? (
           <div data-tour="project-tab-agents-automation">
-            <ProjectAgentsAutomationTab project={project} members={resolvedMembers} />
+            <ProjectAgentsAutomationTab
+              project={project}
+              members={resolvedMembers}
+            />
           </div>
         ) : (
           <ProjectOverviewPlaceholder kind="coming-soon" label="coming soon" />
@@ -2312,6 +2364,7 @@ export default function ProjectOverview({
           open
           mode={workflowSheetState.mode}
           teams={project.teams}
+          existingWorkflows={project.workflows}
           initialValues={
             workflowSheetState.mode === "edit" && workflowForSheet
               ? {

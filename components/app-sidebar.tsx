@@ -16,7 +16,6 @@ import {
   Search,
   Settings2,
   Store,
-  Sparkles,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { CreateProjectSheet } from "@/components/projects/create-project-sheet";
@@ -24,6 +23,7 @@ import { shouldShowProfileCompletionIndicator } from "@/lib/helpers/profile-comp
 import useWorkspaceProject from "@/hooks/use-workspace-project";
 import { useWorkspacePermissions } from "@/hooks/use-workspace-permissions";
 import { NavFavorites } from "@/components/nav-favorites";
+import { NavAskSquircle } from "@/components/nav-ask-squircle";
 import { NavMain } from "@/components/nav-main";
 import { NavProjects, SidebarProjectNavItem } from "@/components/nav-projects";
 import { NavSecondary } from "@/components/nav-secondary";
@@ -144,12 +144,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         onClick: () => setShowSpotlightSearch(true),
       },
       {
-        title: "Ask Squircle",
-        url: ROUTES.ASK_SQUIRCLE,
-        icon: Sparkles,
-        disabled: true,
-      },
-      {
         title: "Home",
         url: ROUTES.DASHBOARD,
         icon: Home,
@@ -174,17 +168,25 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         icon: FileText,
         isActive: pathname.startsWith(ROUTES.DOCS),
       },
+      // {
+      //   title: "Knowledge Base",
+      //   url: ROUTES.KNOWLEDGE_BASE,
+      //   icon: Library,
+      //   isActive: pathname.startsWith(ROUTES.KNOWLEDGE_BASE),
+      // },
+      // {
+      //   title: "Portfolio",
+      //   url: ROUTES.PORTFOLIO,
+      //   icon: BarChart3,
+      //   isActive: pathname.startsWith(ROUTES.PORTFOLIO),
+      // },
       {
-        title: "Knowledge Base",
-        url: ROUTES.KNOWLEDGE_BASE,
-        icon: Library,
-        isActive: pathname.startsWith(ROUTES.KNOWLEDGE_BASE),
-      },
-      {
-        title: "Portfolio",
-        url: ROUTES.PORTFOLIO,
+        title: "Reports",
+        url: ROUTES.REPORTS,
         icon: BarChart3,
-        isActive: pathname.startsWith(ROUTES.PORTFOLIO),
+        isActive:
+          pathname.startsWith(ROUTES.REPORTS) ||
+          pathname.startsWith(ROUTES.SETTINGS_REPORTS),
       },
       {
         title: "Templates",
@@ -268,6 +270,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarHeader className="shrink-0 border-b border-sidebar-border/50">
         <TeamSwitcher />
         <NavMain items={data.navMain} />
+        <NavAskSquircle />
       </SidebarHeader>
       <SidebarContent className="overflow-hidden">
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">

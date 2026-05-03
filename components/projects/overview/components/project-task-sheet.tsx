@@ -12,6 +12,7 @@ import {
   SquareCheckBig,
   Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   Collapsible,
@@ -46,6 +47,7 @@ import {
 import { cn } from "@/lib/utils";
 import useWorkspaceStore from "@/stores/workspace";
 import useWorkspace from "@/hooks/use-workspace";
+import useWorkspaceAi from "@/hooks/use-workspace-ai";
 import useWorkspaceTeam from "@/hooks/use-workspace-team";
 import useWorkspaceTemplate from "@/hooks/use-workspace-template";
 
@@ -148,9 +150,22 @@ export function ProjectTaskSheet({
   const isCreateMode = mode === "create";
   const { workspaceId } = useWorkspaceStore();
   const { useWorkspacePeople } = useWorkspace();
+  const { useGenerateWorkspaceAiDraft, useWorkspaceAiStatus } = useWorkspaceAi();
   const { useWorkspaceTeamDetail } = useWorkspaceTeam();
   const { useWorkspaceTemplates, useApplyWorkspaceTemplate } =
     useWorkspaceTemplate();
+  const generateDraftMutation = useGenerateWorkspaceAiDraft();
+  const aiStatusQuery = useWorkspaceAiStatus(workspaceId || undefined, {
+    enabled: open,
+  });
+  const aiDisabledReason =
+    aiStatusQuery.data?.data?.available === false
+      ? String(
+          aiStatusQuery.data?.data?.disabledReason ||
+            aiStatusQuery.data?.data?.reason ||
+            "",
+        ).trim() || "AI draft generation is unavailable in this environment."
+      : "";
   const getProjectScopedAssignableMembers = useCallback(
     (nextTeamId: string) => {
       const team = teams.find((item) => item.id === nextTeamId);
@@ -561,35 +576,127 @@ export function ProjectTaskSheet({
     });
   };
 
-  const handleGenerateDraft = () => {
-    const normalized = prompt.toLowerCase();
-    const match = normalized.match(/(\d+)\s+subtasks?/i);
-    const requestedCount = match ? Math.min(Number(match[1]), 5) : 0;
+  const handleGenerateDraft = async () => {
+    if (aiDisabledReason) {
+      toast.error(aiDisabledReason);
+      return;
+    }
 
-    setTitle(
-      normalized.includes("wireframe")
-        ? "Low fidelity wireframes"
-        : normalized.includes("research")
-          ? "Design research study"
-          : `${workflowName} task`,
-    );
-    setPriority(normalized.includes("high") ? "high" : "medium");
-    setStatus("todo");
-    setSectionId("");
-    setDraftReady(true);
-
-    if (requestedCount > 0) {
-      setSubtasksOpen(true);
-      setSubtasks(
-        Array.from({ length: requestedCount }, (_, index) => ({
-          title: `Subtask ${index + 1}`,
-          status: "todo",
-          assigneeId,
+    const request = generateDraftMutation.mutateAsync({
+      workspaceId: workspaceId || undefined,
+      payload: {
+        entityType: "task",
+        description: prompt.trim(),
+        workflowId,
+        context: {
+          workflowName,
           startDate,
           dueDate,
-        })),
+          teams: teams.map((team) => ({ id: team.id, label: team.name })),
+          members: availableAssignees.map((member) => ({
+            id: member.id,
+            label: member.name,
+          })),
+          pipelines: pipelines.map((pipeline) => ({
+            id: pipeline.id,
+            label: pipeline.name,
+          })),
+        },
+      },
+    });
+
+    await toast.promise(request, {
+      loading: "Generating task draft...",
+      success: "Task draft ready to edit.",
+      error: (error: Error) => error?.message || "Unable to generate task draft.",
+    });
+    const response = await request;
+
+    const fields = response?.data?.draft?.fields as
+      | {
+          title?: string;
+          status?: string;
+          priority?: string;
+          teamId?: string;
+          assigneeId?: string;
+          pipelineId?: string;
+          startDate?: string;
+          dueDate?: string;
+          subtasks?: Array<{
+            title?: string;
+            status?: string;
+            assigneeId?: string;
+            startDate?: string;
+            dueDate?: string;
+          }>;
+        }
+      | undefined;
+
+    setTitle(String(fields?.title || "").trim() || `${workflowName} task`);
+    setPriority(
+      PRIORITY_OPTIONS.some((option) => option.value === fields?.priority)
+        ? (fields?.priority as ProjectTaskPriority)
+        : "medium",
+    );
+    setStatus(
+      STATUS_OPTIONS.some((option) => option.value === fields?.status)
+        ? (fields?.status as ProjectTaskStatus)
+        : "todo",
+    );
+
+    const nextTeamId =
+      fields?.teamId && teams.some((teamOption) => teamOption.id === fields.teamId)
+        ? fields.teamId
+        : teamId;
+    if (nextTeamId) {
+      handleTeamChange(nextTeamId);
+    }
+
+    const nextAssigneeId =
+      fields?.assigneeId &&
+      availableAssignees.some((member) => member.id === fields.assigneeId)
+        ? fields.assigneeId
+        : assigneeId;
+    setAssigneeId(nextAssigneeId);
+
+    if (
+      fields?.pipelineId &&
+      pipelines.some((pipelineOption) => pipelineOption.id === fields.pipelineId)
+    ) {
+      setPipelineId(fields.pipelineId);
+    }
+
+    const nextStartDate = String(fields?.startDate || "").trim() || startDate;
+    const nextDueDate = String(fields?.dueDate || "").trim() || dueDate;
+    setStartDate(nextStartDate);
+    setDueDate(nextDueDate);
+
+    const aiSubtasks = Array.isArray(fields?.subtasks) ? fields.subtasks : [];
+    if (aiSubtasks.length) {
+      setSubtasksOpen(true);
+      setSubtasks(
+        aiSubtasks
+          .map((subtask) => ({
+            title: String(subtask?.title || "").trim(),
+            status: STATUS_OPTIONS.some((option) => option.value === subtask?.status)
+              ? (subtask?.status as ProjectTaskStatus)
+              : "todo",
+            assigneeId:
+              subtask?.assigneeId &&
+              availableAssignees.some((member) => member.id === subtask.assigneeId)
+                ? subtask.assigneeId
+                : nextAssigneeId || undefined,
+            startDate: String(subtask?.startDate || "").trim() || nextStartDate,
+            dueDate: String(subtask?.dueDate || "").trim() || nextDueDate,
+          }))
+          .filter((subtask) => subtask.title)
+          .slice(0, 8),
       );
     }
+
+    setSectionId("");
+    setCreateMode("manual");
+    setDraftReady(true);
   };
 
   const handleApplyTaskTemplate = () => {
@@ -666,7 +773,9 @@ export function ProjectTaskSheet({
       prompt={prompt}
       onPromptChange={setPrompt}
       onGenerateDraft={handleGenerateDraft}
-      canGenerate={Boolean(prompt.trim())}
+      canGenerate={Boolean(prompt.trim()) && !aiDisabledReason}
+      aiDisabledReason={aiDisabledReason}
+      isGeneratingDraft={generateDraftMutation.isPending}
       isDraftReady={draftReady}
       helperExamples={[
         "Create a task to design low fidelity wireframes with 3 subtasks",

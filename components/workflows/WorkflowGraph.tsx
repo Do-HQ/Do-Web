@@ -50,7 +50,7 @@ export function WorkflowGraph({
                   key={`${workflow.id}-segment`}
                   className={cn(
                     "relative h-2.5 w-14 overflow-hidden rounded-full border border-border/35 bg-muted/55",
-                    isActiveWorkflow ? "border-orange-500/80" : "",
+                    isActiveWorkflow ? "border-orange-400/75" : "",
                   )}
                   aria-label={`${workflow.name} progress ${workflow.progress}%`}
                 >
@@ -81,7 +81,7 @@ export function WorkflowGraph({
             Late
           </span>
           <span className="inline-flex items-center gap-1">
-            <span className="size-1.5 rounded-full bg-orange-500" aria-hidden="true" />
+            <span className="size-1.5 rounded-full bg-orange-400" aria-hidden="true" />
             Active
           </span>
         </div>
@@ -101,12 +101,12 @@ export function WorkflowGraph({
                       type="button"
                       onClick={() => onSelectWorkflow(workflow.id)}
                       className={cn(
-                        "w-52 rounded-xl border p-2 text-left outline-none focus-visible:outline-none",
+                        "w-52 rounded-xl border border-border/15 p-2 text-left outline-none transition-colors hover:bg-card focus-visible:outline-none",
                         active
-                          ? "border-orange-500/80 shadow-[0_0_0_2px_rgba(249,115,22,0.36)]"
+                          ? "border-orange-400/80 shadow-[0_0_0_2px_rgba(251,146,60,0.34)]"
                           : selected
-                            ? "border-orange-500/45"
-                            : "border-border/25",
+                            ? "border-orange-400/45"
+                            : "",
                         statusMeta.surfaceClass,
                       )}
                     >
@@ -121,8 +121,8 @@ export function WorkflowGraph({
                               className="relative mr-0.5 inline-flex size-2.5"
                               aria-hidden="true"
                             >
-                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-500/70 opacity-80" />
-                              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-orange-500" />
+                              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400/70 opacity-80" />
+                              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-orange-400" />
                             </span>
                           ) : null}
                           {statusMeta.label}

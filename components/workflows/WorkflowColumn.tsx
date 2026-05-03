@@ -67,12 +67,12 @@ export function WorkflowColumn({
   return (
     <article
       className={cn(
-        "w-[15rem] shrink-0 rounded-xl border border-border/20 p-2 outline-none focus-visible:outline-none",
+        "w-[15rem] shrink-0 rounded-xl border border-border/15 p-2 outline-none focus-visible:outline-none transition-colors hover:bg-card",
         statusMeta.surfaceClass,
         isActive
-          ? "border-orange-500/80 shadow-[0_0_0_2px_rgba(249,115,22,0.36)]"
+          ? "border-orange-400/80 shadow-[0_0_0_2px_rgba(251,146,60,0.34)]"
           : "",
-        !isActive && isSelected ? "border-orange-500/45" : "",
+        !isActive && isSelected ? "border-orange-400/45" : "",
       )}
       onClick={onSelect}
       onKeyDown={(event) => {
@@ -91,8 +91,8 @@ export function WorkflowColumn({
             <div className="flex min-w-0 items-center gap-1.5">
               {isActive ? (
                 <span className="relative inline-flex size-2.5 shrink-0" aria-hidden="true">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-500/70 opacity-80" />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-orange-500" />
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400/70 opacity-80" />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-orange-400" />
                 </span>
               ) : null}
               <p className="line-clamp-1 text-[12px] font-semibold leading-5 text-foreground md:text-[13px]">

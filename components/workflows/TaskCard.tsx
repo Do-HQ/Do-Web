@@ -55,7 +55,7 @@ export function TaskCard({
       onClick={onClick}
       className={cn(
         "w-full rounded-xl border border-border/20 bg-card/95 px-2.5 py-2 text-left hover:bg-card",
-        isActive ? "border-orange-500/70 ring-1 ring-orange-500/35" : "",
+        isActive ? "border-orange-400/70 ring-1 ring-orange-400/35" : "",
       )}
     >
       <div className="mb-1.5 flex items-start justify-between gap-2">
@@ -64,7 +64,7 @@ export function TaskCard({
         </p>
         <div className="mt-1 flex items-center gap-1">
           {isActive ? (
-            <Activity className="size-3 animate-pulse text-orange-500" aria-hidden="true" />
+            <Activity className="size-3 animate-pulse text-orange-400" aria-hidden="true" />
           ) : null}
           <span
             className={cn(
@@ -84,10 +84,10 @@ export function TaskCard({
           {statusMeta.label}
         </Badge>
         {task.status === "in-progress" ? (
-          <span className="inline-flex items-center gap-1 rounded-full border border-orange-500/30 bg-orange-500/10 px-1.5 py-0.5 text-[9px] font-medium text-orange-500">
+          <span className="inline-flex items-center gap-1 rounded-full border border-orange-400/30 bg-orange-400/10 px-1.5 py-0.5 text-[9px] font-medium text-orange-500 dark:text-orange-300">
             <span className="relative inline-flex size-1.5" aria-hidden="true">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-500/75 opacity-70" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-orange-500" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400/75 opacity-70" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-orange-400" />
             </span>
             Running
           </span>

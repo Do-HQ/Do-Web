@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 
 import {
   AiCreateMode,
@@ -16,13 +17,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import useWorkspaceAi from "@/hooks/use-workspace-ai";
+import useWorkspaceStore from "@/stores/workspace";
 
-import { ProjectTeamSummary, ProjectWorkflowEditorValues } from "../types";
+import {
+  ProjectTeamSummary,
+  ProjectWorkflow,
+  ProjectWorkflowEditorValues,
+} from "../types";
 
 type ProjectWorkflowSheetProps = {
   open: boolean;
   mode: "create" | "edit";
   teams: ProjectTeamSummary[];
+  existingWorkflows?: ProjectWorkflow[];
   initialValues?: Partial<ProjectWorkflowEditorValues>;
   onOpenChange: (open: boolean) => void;
   onSubmit: (values: ProjectWorkflowEditorValues) => void;
@@ -32,10 +40,25 @@ export function ProjectWorkflowSheet({
   open,
   mode,
   teams,
+  existingWorkflows = [],
   initialValues,
   onOpenChange,
   onSubmit,
 }: ProjectWorkflowSheetProps) {
+  const { workspaceId } = useWorkspaceStore();
+  const { useGenerateWorkspaceAiDraft, useWorkspaceAiStatus } = useWorkspaceAi();
+  const generateDraftMutation = useGenerateWorkspaceAiDraft();
+  const aiStatusQuery = useWorkspaceAiStatus(workspaceId || undefined, {
+    enabled: open,
+  });
+  const aiDisabledReason =
+    aiStatusQuery.data?.data?.available === false
+      ? String(
+          aiStatusQuery.data?.data?.disabledReason ||
+            aiStatusQuery.data?.data?.reason ||
+            "",
+        ).trim() || "AI draft generation is unavailable in this environment."
+      : "";
   const [createMode, setCreateMode] = useState<AiCreateMode>(
     mode === "edit" ? "manual" : "ai",
   );
@@ -44,21 +67,53 @@ export function ProjectWorkflowSheet({
   const [name, setName] = useState(initialValues?.name ?? "");
   const [teamId, setTeamId] = useState(initialValues?.teamId ?? teams[0]?.id ?? "");
 
-  const handleGenerateDraft = () => {
-    const normalized = prompt.toLowerCase();
+  const handleGenerateDraft = async () => {
+    if (aiDisabledReason) {
+      toast.error(aiDisabledReason);
+      return;
+    }
 
-    setName(
-      normalized.includes("design")
-        ? "Design"
-        : normalized.includes("launch")
-          ? "Launch"
-          : normalized.includes("qa")
-            ? "QA"
-            : normalized.includes("development")
-              ? "Development"
-              : "Execution phase",
-    );
+    const request = generateDraftMutation.mutateAsync({
+      workspaceId: workspaceId || undefined,
+      payload: {
+        entityType: "workflow",
+        description: prompt.trim(),
+        context: {
+          workflowName: name,
+          teams: teams.map((team) => ({ id: team.id, label: team.name })),
+          existingWorkflows: existingWorkflows
+            .filter((workflow) => !workflow.archived)
+            .map((workflow) => ({
+              id: workflow.id,
+              label: workflow.name,
+            })),
+        },
+      },
+    });
+
+    await toast.promise(request, {
+      loading: "Generating workflow draft...",
+      success: "Workflow draft ready to edit.",
+      error: (error: Error) => error?.message || "Unable to generate workflow draft.",
+    });
+    const response = await request;
+
+    const fields = response?.data?.draft?.fields as
+      | {
+          name?: string;
+          teamId?: string;
+        }
+      | undefined;
+
+    setName(String(fields?.name || "").trim() || "Execution");
+    if (
+      fields?.teamId &&
+      teams.some((teamOption) => teamOption.id === fields.teamId)
+    ) {
+      setTeamId(fields.teamId);
+    }
     setDraftReady(true);
+    setCreateMode("manual");
   };
 
   const handleSubmit = () => {
@@ -73,13 +128,15 @@ export function ProjectWorkflowSheet({
       open={open}
       onOpenChange={onOpenChange}
       title={mode === "create" ? "Create workflow" : "Edit workflow"}
-      description="Workflows are lightweight. Set a workflow name and owning team. Timeline/progress are inferred from tasks under the workflow."
+      description="Workflows are lightweight. In AI mode we use your existing workflow order to suggest the next logical stage, then you can edit before saving."
       mode={createMode}
       onModeChange={setCreateMode}
       prompt={prompt}
       onPromptChange={setPrompt}
       onGenerateDraft={handleGenerateDraft}
-      canGenerate={Boolean(prompt.trim())}
+      canGenerate={Boolean(prompt.trim()) && !aiDisabledReason}
+      aiDisabledReason={aiDisabledReason}
+      isGeneratingDraft={generateDraftMutation.isPending}
       isDraftReady={draftReady}
       helperExamples={[
         "Create a design workflow for onboarding",

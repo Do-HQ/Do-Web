@@ -94,36 +94,50 @@ export function TaskDetailsDrawer({
             </div>
           </div>
 
-          <div className="space-y-2 rounded-xl border border-border/30 bg-muted/20 p-3 text-sm">
-            <p className="inline-flex items-center gap-2 text-muted-foreground">
-              <PiListChecksDuotone className="size-4" />
-              Workflow: <span className="font-medium text-foreground">{workflow?.name || "-"}</span>
-            </p>
-            <p className="inline-flex items-center gap-2 text-muted-foreground">
-              <PiUserDuotone className="size-4" />
-              Assignee: <span className="font-medium text-foreground">{task?.assignee || "Unassigned"}</span>
-            </p>
-            <p className="inline-flex items-center gap-2 text-muted-foreground">
-              <PiCalendarBlankDuotone className="size-4" />
-              Start:{" "}
-              <span className="font-medium text-foreground">
-                {task?.startDate ? formatShortDate(task.startDate) : "No date"}
-              </span>
-            </p>
-            <p className="inline-flex items-center gap-2 text-muted-foreground">
-              <PiCalendarBlankDuotone className="size-4" />
-              Due:{" "}
-              <span className="font-medium text-foreground">
-                {task?.dueDate ? formatShortDate(task.dueDate) : "No date"}
-              </span>
-            </p>
-            <p className="inline-flex items-center gap-2 text-muted-foreground">
-              <PiFlagPennantDuotone className="size-4" />
-              Priority:{" "}
-              <span className="font-medium capitalize text-foreground">
-                {task?.priority || "low"}
-              </span>
-            </p>
+          <div className="space-y-2.5 rounded-xl border border-border/30 bg-muted/20 p-3 text-sm">
+            <div className="flex items-start gap-2">
+              <PiListChecksDuotone className="mt-0.5 size-4 text-muted-foreground" />
+              <div className="space-y-0.5">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Workflow</p>
+                <p className="font-medium text-foreground">{workflow?.name || "-"}</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <PiUserDuotone className="mt-0.5 size-4 text-muted-foreground" />
+              <div className="space-y-0.5">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Assignee</p>
+                <p className="font-medium text-foreground">{task?.assignee || "Unassigned"}</p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <PiCalendarBlankDuotone className="mt-0.5 size-4 text-muted-foreground" />
+              <div className="space-y-0.5">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Start</p>
+                <p className="font-medium text-foreground">
+                  {task?.startDate ? formatShortDate(task.startDate) : "No date"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <PiCalendarBlankDuotone className="mt-0.5 size-4 text-muted-foreground" />
+              <div className="space-y-0.5">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Due</p>
+                <p className="font-medium text-foreground">
+                  {task?.dueDate ? formatShortDate(task.dueDate) : "No date"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-start gap-2">
+              <PiFlagPennantDuotone className="mt-0.5 size-4 text-muted-foreground" />
+              <div className="space-y-0.5">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Priority</p>
+                <p className="font-medium capitalize text-foreground">{task?.priority || "low"}</p>
+              </div>
+            </div>
           </div>
 
           {workflow?.id && onOpenWorkflowDetails ? (

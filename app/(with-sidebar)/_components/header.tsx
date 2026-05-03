@@ -21,9 +21,10 @@ const routeTitleMap: Record<string, string> = {
   [ROUTES.DOCS]: "Docs",
   [ROUTES.KNOWLEDGE_BASE]: "Knowledge Base",
   [ROUTES.PORTFOLIO]: "Portfolio",
-  [ROUTES.ASK_SQUIRCLE]: "Ask Squircle",
+  [ROUTES.ASK_SQUIRCLE]: "Scribe",
   [ROUTES.SPACES]: "Spaces",
   [ROUTES.SPACES_TEAM_CALL]: "Team Call",
+  [ROUTES.REPORTS]: "Reports",
 };
 
 const Header = () => {
@@ -75,6 +76,10 @@ const Header = () => {
       return "Docs";
     }
 
+    if (pathname.startsWith(`${ROUTES.REPORTS}/`)) {
+      return "Reports";
+    }
+
     return (
       routeTitleMap[pathname] ??
       pathname
@@ -114,7 +119,10 @@ const Header = () => {
       </div>
       <div
         id="app-header-actions-slot"
-        className={cn("ml-auto flex items-center gap-1", !hasActionsSlot && "hidden")}
+        className={cn(
+          "ml-auto flex items-center gap-1",
+          !hasActionsSlot && "hidden",
+        )}
       />
       <div className="px-3">
         <NavActions />

@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 import LoaderComponent from "@/components/shared/loader";
+import {
+  buildBillingRedirectPath,
+  rememberPendingBillingIntent,
+} from "@/lib/helpers/billing-intent";
+import { rememberPendingAuthRedirect } from "@/lib/helpers/auth-redirect";
 import { getUser } from "@/lib/services/user-service";
 import { resolveUserStartRoute } from "@/lib/helpers/user-preferences";
 import useAuthStore from "@/stores/auth";
@@ -117,13 +122,21 @@ type PricingPlan = {
   features: string[];
 };
 
+const PLAN_KEY_TO_WORKSPACE_PLAN = {
+  free: "FREE",
+  pro: "PRO",
+  business: "BUSINESS",
+  enterprise: "ENTERPRISE",
+} as const;
+
 const pricingPlans: PricingPlan[] = [
   {
     key: "free",
-    name: "Free",
-    description: "For individuals and small teams getting started.",
-    price: "$0",
-    cta: "Start free",
+    name: "Starter",
+    description: "For individuals and early teams starting with core workflows.",
+    price: "$6–$8",
+    suffix: "/ member / month",
+    cta: "Start with Starter",
     recommended: false,
     features: [
       "Projects: limited",
@@ -153,7 +166,7 @@ const pricingPlans: PricingPlan[] = [
     name: "Business",
     description:
       "For growing organizations that need controls, integrations, and support.",
-    price: "$29",
+    price: "$12",
     suffix: "/ member / month",
     cta: "Start with Business",
     recommended: false,
@@ -575,6 +588,30 @@ export default function Home() {
   const scrollToFindOutMore = useCallback(() => {
     scrollToSection("find-out-more");
   }, [scrollToSection]);
+
+  const handlePlanSelection = useCallback(
+    (planKey: PricingPlan["key"]) => {
+      const selectedPlan = PLAN_KEY_TO_WORKSPACE_PLAN[planKey];
+      if (!selectedPlan) {
+        return;
+      }
+
+      if (selectedPlan === "ENTERPRISE") {
+        scrollToSection("contact-support");
+        return;
+      }
+
+      const billingPath = buildBillingRedirectPath(selectedPlan);
+      rememberPendingBillingIntent({
+        plan: selectedPlan,
+        source: "landing-pricing",
+        createdAt: new Date().toISOString(),
+      });
+      rememberPendingAuthRedirect(billingPath);
+      router.push(ROUTES.SIGN_IN);
+    },
+    [router, scrollToSection],
+  );
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -1053,9 +1090,10 @@ export default function Home() {
                 </CardContent>
 
                 <CardFooter>
-                  <Link
-                    href={ROUTES.SIGN_IN}
+                  <button
+                    type="button"
                     aria-label={plan.cta}
+                    onClick={() => handlePlanSelection(plan.key)}
                     className={cn(
                       buttonVariants({
                         variant: plan.recommended ? "default" : "outline",
@@ -1065,7 +1103,7 @@ export default function Home() {
                     )}
                   >
                     {plan.cta}
-                  </Link>
+                  </button>
                 </CardFooter>
               </Card>
             ))}
@@ -1084,7 +1122,7 @@ export default function Home() {
               <CardHeader>
                 <CardTitle className="text-base">Plan comparison</CardTitle>
                 <CardDescription>
-                  Free, Pro, Business, and Enterprise capability matrix.
+                  Starter, Pro, Business, and Enterprise capability matrix.
                 </CardDescription>
               </CardHeader>
               <CardContent className="overflow-x-auto">
@@ -1095,7 +1133,7 @@ export default function Home() {
                         Feature
                       </th>
                       <th className="text-foreground border-border/70 border-b px-2 py-2 font-medium">
-                        Free
+                        Starter
                       </th>
                       <th className="text-foreground border-border/70 border-b px-2 py-2 font-medium">
                         Pro

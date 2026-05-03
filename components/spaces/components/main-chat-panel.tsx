@@ -1,6 +1,7 @@
 import type React from "react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import {
+  FileText,
   Shapes,
   ImagePlus,
   MessageSquareReply,
@@ -57,9 +58,12 @@ type MainChatPanelProps = {
   currentUserId: string;
   currentUserAvatarUrl?: string;
   mentionSuggestions: MentionSuggestion[];
+  reportMentionSuggestions: MentionSuggestion[];
   mentionMetaByToken: Record<string, MentionTokenMeta>;
+  reportMetaByToken: Record<string, MentionTokenMeta>;
   authorInfoById: Record<string, SpaceUserInfo>;
   onOpenMentionUser: (userId: string) => void;
+  onOpenReport: (reportId: string) => void;
   messageListRef: React.RefObject<HTMLDivElement | null>;
   mainComposerUploadRef: React.RefObject<HTMLInputElement | null>;
   onGetThreadCount: (messageId: string) => number;
@@ -197,9 +201,12 @@ const MainChatPanel = ({
   currentUserId,
   currentUserAvatarUrl,
   mentionSuggestions,
+  reportMentionSuggestions,
   mentionMetaByToken,
+  reportMetaByToken,
   authorInfoById,
   onOpenMentionUser,
+  onOpenReport,
   messageListRef,
   mainComposerUploadRef,
   onGetThreadCount,
@@ -350,6 +357,10 @@ const MainChatPanel = ({
       return `project:${toTitleCase(base.slice("project ".length).trim())}`;
     }
 
+    if (normalizedToken.startsWith("report-")) {
+      return "Report";
+    }
+
     return toTitleCase(base);
   };
 
@@ -358,7 +369,7 @@ const MainChatPanel = ({
     kind?: MentionTokenMeta["kind"],
   ) => {
     const normalized = String(label || "")
-      .replace(/^(team|project)\s*:/i, "")
+      .replace(/^(team|project|report)\s*:/i, "")
       .trim();
 
     const letters = normalized
@@ -376,6 +387,10 @@ const MainChatPanel = ({
       return "PR";
     }
 
+    if (kind === "report") {
+      return "RP";
+    }
+
     if (kind === "team") {
       return "TM";
     }
@@ -385,7 +400,7 @@ const MainChatPanel = ({
 
   const renderContentWithMentions = (content: string) => {
     const input = String(content || "");
-    const mentionPattern = /@([a-zA-Z0-9][a-zA-Z0-9._-]*)/g;
+    const mentionPattern = /([@#])([a-zA-Z0-9][a-zA-Z0-9._-]*)/g;
     const chunks: React.ReactNode[] = [];
     let lastIndex = 0;
     let match: RegExpExecArray | null = mentionPattern.exec(input);
@@ -393,8 +408,12 @@ const MainChatPanel = ({
     while (match) {
       const mentionStart = match.index;
       const mentionEnd = mentionStart + match[0].length;
-      const token = String(match[1] || "").toLowerCase();
-      const mentionMeta = mentionMetaByToken[token];
+      const symbol = String(match[1] || "@");
+      const token = String(match[2] || "").toLowerCase();
+      const mentionMeta =
+        symbol === "#"
+          ? reportMetaByToken[token]
+          : mentionMetaByToken[token];
 
       if (mentionStart > lastIndex) {
         chunks.push(input.slice(lastIndex, mentionStart));
@@ -402,21 +421,37 @@ const MainChatPanel = ({
 
       if (!mentionMeta) {
         const fallbackLabel = formatMentionFallbackLabel(token);
-        chunks.push(
-          <span
-            key={`mention-fallback-${token}-${mentionStart}`}
-            className="inline-flex items-center gap-1 rounded-md bg-orange-500/12 px-1 py-0.5 text-orange-300"
-          >
-            <Avatar className="size-4">
-              <AvatarFallback className="text-[9px] font-medium">
-                {getMentionAvatarFallback(fallbackLabel)}
-              </AvatarFallback>
-            </Avatar>
-            @{fallbackLabel}
-          </span>,
-        );
+        if (symbol === "#") {
+          chunks.push(
+            <span
+              key={`mention-fallback-${token}-${mentionStart}`}
+              className="inline-flex items-center gap-1 rounded-md bg-orange-500/12 px-1 py-0.5 text-orange-300"
+            >
+              <span className="inline-flex size-4 items-center justify-center rounded-sm bg-orange-500/18">
+                <FileText className="size-2.5" />
+              </span>
+              {symbol}
+              {fallbackLabel}
+            </span>,
+          );
+        } else {
+          chunks.push(
+            <span
+              key={`mention-fallback-${token}-${mentionStart}`}
+              className="inline-flex items-center gap-1 rounded-md bg-orange-500/12 px-1 py-0.5 text-orange-300"
+            >
+              <Avatar className="size-4">
+                <AvatarFallback className="text-[9px] font-medium">
+                  {getMentionAvatarFallback(fallbackLabel)}
+                </AvatarFallback>
+              </Avatar>
+              {symbol}
+              {fallbackLabel}
+            </span>,
+          );
+        }
       } else {
-        const mentionLabel = `@${mentionMeta.label}`;
+        const mentionLabel = `${symbol}${mentionMeta.label}`;
 
         if (mentionMeta.kind === "user" && mentionMeta.user) {
           const mentionAvatarFallback = getMentionAvatarFallback(
@@ -524,6 +559,47 @@ const MainChatPanel = ({
             </Tooltip>,
           );
         } else {
+          if (mentionMeta.kind === "report" && mentionMeta.report?.id) {
+            chunks.push(
+              <Tooltip
+                key={`mention-${token}-${mentionStart}`}
+                delayDuration={100}
+              >
+                <TooltipTrigger asChild>
+                  <button
+                    type="button"
+                    className="inline-flex cursor-pointer items-center gap-1 rounded-md bg-orange-500/12 px-1 py-0.5 text-orange-300 transition-colors hover:bg-orange-500/20"
+                    onClick={() => onOpenReport(mentionMeta.report?.id || "")}
+                  >
+                    <span className="inline-flex size-4 items-center justify-center rounded-sm bg-orange-500/18">
+                      <FileText className="size-2.5" />
+                    </span>
+                    {mentionLabel}
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent
+                  side="top"
+                  align="start"
+                  sideOffset={8}
+                  showArrow={false}
+                  className="w-72 rounded-xl border border-border/60 bg-popover p-3 text-popover-foreground shadow-lg"
+                >
+                  <div className="space-y-1.5">
+                    <p className="truncate text-[13px] font-semibold">
+                      {mentionMeta.report?.title || mentionMeta.label}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {mentionMeta.subtitle || "Workspace report"}
+                    </p>
+                  </div>
+                </TooltipContent>
+              </Tooltip>,
+            );
+            lastIndex = mentionEnd;
+            match = mentionPattern.exec(input);
+            continue;
+          }
+
           const mentionFallback = getMentionAvatarFallback(
             mentionMeta.label,
             mentionMeta.kind,
@@ -1032,7 +1108,7 @@ const MainChatPanel = ({
                 onSendMessage();
               }
             }}
-            placeholder="Message this space... Use @ to mention"
+            placeholder="Message this space... Use @ for people, # for reports"
             style={mentionInputStyle}
             className="min-h-16 max-h-52 rounded-md border border-transparent bg-transparent shadow-none"
             a11ySuggestionsListLabel="Chat mentions"
@@ -1043,6 +1119,14 @@ const MainChatPanel = ({
               trigger="@"
               data={mentionSuggestions}
               markup="@__id__"
+              displayTransform={(_id, display) => display || _id}
+              renderSuggestion={renderMentionSuggestion}
+              appendSpaceOnAdd
+            />
+            <Mention
+              trigger="#"
+              data={reportMentionSuggestions}
+              markup="#__id__"
               displayTransform={(_id, display) => display || _id}
               renderSuggestion={renderMentionSuggestion}
               appendSpaceOnAdd

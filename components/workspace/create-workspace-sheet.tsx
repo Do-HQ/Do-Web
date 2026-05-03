@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { AiCreateMode, AiCreateSheetShell } from "@/components/shared/ai-create-sheet";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import useWorkspaceAi from "@/hooks/use-workspace-ai";
 import { CreateWorkspaceRequestBody } from "@/types/workspace";
 
 type CreateWorkspaceSheetProps = {
@@ -33,19 +35,50 @@ export function CreateWorkspaceSheet({
   const [draftReady, setDraftReady] = useState(false);
   const [name, setName] = useState("");
   const [type, setType] = useState<CreateWorkspaceRequestBody["type"]>("private");
+  const { useGenerateWorkspaceAiDraft, useWorkspaceAiStatus } = useWorkspaceAi();
+  const generateDraftMutation = useGenerateWorkspaceAiDraft();
+  const aiStatusQuery = useWorkspaceAiStatus(undefined, { enabled: open });
+  const aiDisabledReason =
+    aiStatusQuery.data?.data?.available === false
+      ? String(
+          aiStatusQuery.data?.data?.disabledReason ||
+            aiStatusQuery.data?.data?.reason ||
+            "",
+        ).trim() || "AI draft generation is unavailable in this environment."
+      : "";
 
-  const handleGenerateDraft = () => {
-    const normalized = prompt.trim().toLowerCase();
+  const handleGenerateDraft = async () => {
+    if (aiDisabledReason) {
+      toast.error(aiDisabledReason);
+      return;
+    }
 
-    setName(
-      normalized.includes("mobile")
-        ? "Mobile Delivery"
-        : normalized.includes("design")
-          ? "Design Ops"
-          : "New Workspace",
-    );
-    setType(normalized.includes("public") ? "public" : "private");
+    const request = generateDraftMutation.mutateAsync({
+      payload: {
+        entityType: "workspace",
+        description: prompt.trim(),
+      },
+    });
+
+    await toast.promise(request, {
+      loading: "Generating workspace draft...",
+      success: "Workspace draft ready to edit.",
+      error: (error: Error) => error?.message || "Unable to generate workspace draft.",
+    });
+    const response = await request;
+
+    const fields = response?.data?.draft?.fields as
+      | {
+          name?: string;
+          type?: string;
+        }
+      | undefined;
+    const nextName = String(fields?.name || "").trim();
+    const nextType = String(fields?.type || "").trim();
+    setName(nextName || "New Workspace");
+    setType(nextType === "public" ? "public" : "private");
     setDraftReady(true);
+    setMode("manual");
   };
 
   return (
@@ -59,7 +92,9 @@ export function CreateWorkspaceSheet({
       prompt={prompt}
       onPromptChange={setPrompt}
       onGenerateDraft={handleGenerateDraft}
-      canGenerate={Boolean(prompt.trim())}
+      canGenerate={Boolean(prompt.trim()) && !aiDisabledReason}
+      aiDisabledReason={aiDisabledReason}
+      isGeneratingDraft={generateDraftMutation.isPending}
       isDraftReady={draftReady}
       helperExamples={[
         "Create a private workspace for internal mobile delivery",

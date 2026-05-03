@@ -1,4 +1,4 @@
-import type { Message, PromptMode, PromptOption, PromptScope } from "./types";
+import type { PromptMode, PromptOption, PromptScope } from "./types";
 
 export const STARTER_PROMPTS = [
   "Review blocked tasks and suggest the next high-impact moves.",
@@ -18,10 +18,3 @@ export const SCOPE_OPTIONS: Array<PromptOption<PromptScope>> = [
   { label: "Project", value: "project" },
   { label: "Workflow", value: "workflow" },
 ];
-
-export const WELCOME_MESSAGE: Message = {
-  id: "welcome",
-  role: "assistant",
-  content:
-    "Ask me anything about your workspace. I can help with project planning, workflow clarity, and task execution.",
-};

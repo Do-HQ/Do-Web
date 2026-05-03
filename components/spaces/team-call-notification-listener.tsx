@@ -9,6 +9,10 @@ import {
   connectProjectNotificationsSocket,
   type ProjectNotificationEventPayload,
 } from "@/lib/realtime/project-notifications-socket";
+import {
+  armBrowserNotificationPermission,
+  showBrowserNotification,
+} from "@/lib/helpers/browser-notifications";
 import { ROUTES } from "@/utils/constants";
 
 type IncomingCallPayload = {
@@ -190,9 +194,25 @@ const TeamCallNotificationListener = () => {
           stopRinging(callKey);
         },
       });
+
+      void showBrowserNotification({
+        id: callKey,
+        title: `Incoming call: ${payload.roomName || "Team Call"}`,
+        summary:
+          payload.summary ||
+          `${payload.startedByName || "A teammate"} started a call`,
+        route: payload.route || ROUTES.SPACES_TEAM_CALL,
+        tagPrefix: "team-call-incoming",
+        requireInteraction: true,
+      });
     },
     [router, startRinging, stopRinging, toCallKey],
   );
+
+  useEffect(() => {
+    const cleanup = armBrowserNotificationPermission();
+    return cleanup;
+  }, []);
 
   useEffect(() => {
     const unlockAudio = () => {

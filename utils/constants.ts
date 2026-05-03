@@ -13,8 +13,11 @@ export const ROUTES = {
   DOCS: "/docs",
   KNOWLEDGE_BASE: "/knowledge-base",
   PORTFOLIO: "/portfolio",
+  REPORTS: "/reports",
+  SETTINGS_REPORTS: "/settings/reports",
+  SETTINGS_BILLING: "/settings/billing",
   PROJECTS: "/projects",
-  ASK_SQUIRCLE: "/ask-squircle",
+  ASK_SQUIRCLE: "/scribe",
   JAMS: "/jams",
   SPACES: "/spaces",
   SPACES_TEAM_CALL: "/spaces/team-call",
@@ -32,6 +35,7 @@ export const LOCAL_KEYS = {
   REFRESH_TOKEN: "squircle-refresh-token",
   REDIRECT: "squircle-redirect-path",
   PENDING_AUTH_EMAIL: "squircle-pending-auth-email",
+  PENDING_BILLING_INTENT: "squircle-pending-billing-intent",
 };
 
 export const PAGE_LIMIT = 10;

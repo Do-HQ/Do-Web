@@ -60,11 +60,11 @@ export function NavProjects({
     string
   > = {
     "on-track":
-      "bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.12)] animate-pulse",
+      "bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.12)] motion-safe:animate-pulse",
     "at-risk":
-      "bg-primary shadow-[0_0_0_3px_rgba(249,115,22,0.16)] animate-pulse",
+      "bg-primary shadow-[0_0_0_3px_rgba(249,115,22,0.16)] motion-safe:animate-pulse",
     blocked:
-      "bg-amber-500 shadow-[0_0_0_3px_rgba(245,158,11,0.16)] animate-pulse",
+      "bg-amber-500 shadow-[0_0_0_3px_rgba(245,158,11,0.16)] motion-safe:animate-pulse",
     complete: "bg-muted-foreground",
   };
   const displayedProjects = useMemo(() => {
@@ -145,6 +145,9 @@ export function NavProjects({
             const hasOngoingWorkflow = project.pipelines.some(
               (pipeline) => pipeline.status && pipeline.status !== "complete",
             );
+            const projectIndicatorClass = isProjectActive
+              ? "bg-primary shadow-[0_0_0_3px_rgba(249,115,22,0.16)] motion-safe:animate-pulse"
+              : "bg-primary/55";
 
             return (
               <Collapsible
@@ -157,8 +160,13 @@ export function NavProjects({
                       <span className="shrink-0">{project.emoji}</span>
                       <span className="flex min-w-0 items-center gap-1.5">
                         <span className="truncate">{project.name}</span>
-                        {hasOngoingWorkflow ? (
-                          <span className="inline-flex size-1.5 shrink-0 rounded-full bg-primary shadow-[0_0_0_3px_rgba(249,115,22,0.16)] animate-pulse" />
+                        {hasOngoingWorkflow || isProjectActive ? (
+                          <span
+                            className={cn(
+                              "inline-flex size-1.5 shrink-0 rounded-full",
+                              projectIndicatorClass,
+                            )}
+                          />
                         ) : null}
                       </span>
                     </Link>

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
+import { toast } from "sonner";
 
 import { AiCreateMode, AiCreateSheetShell } from "@/components/shared/ai-create-sheet";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
 import useWorkspaceTemplate from "@/hooks/use-workspace-template";
+import useWorkspaceAi from "@/hooks/use-workspace-ai";
 import { useProjectStore } from "@/stores";
 import useWorkspaceStore from "@/stores/workspace";
 import { getProjectRoute } from "@/utils/constants";
@@ -85,6 +87,7 @@ export function CreateProjectSheet({
   const upsertProjectRecord = useProjectStore((state) => state.upsertProjectRecord);
   const { useCreateWorkspaceProject } = useWorkspaceProject();
   const { useWorkspaceTemplates, useApplyWorkspaceTemplate } = useWorkspaceTemplate();
+  const { useGenerateWorkspaceAiDraft, useWorkspaceAiStatus } = useWorkspaceAi();
 
   const [mode, setMode] = useState<AiCreateMode>("ai");
   const [prompt, setPrompt] = useState("");
@@ -102,6 +105,18 @@ export function CreateProjectSheet({
   const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({});
   const [autoAppliedTemplateId, setAutoAppliedTemplateId] = useState("");
   const [templatePanelOpen, setTemplatePanelOpen] = useState(false);
+  const generateDraftMutation = useGenerateWorkspaceAiDraft();
+  const aiStatusQuery = useWorkspaceAiStatus(workspaceId || undefined, {
+    enabled: open,
+  });
+  const aiDisabledReason =
+    aiStatusQuery.data?.data?.available === false
+      ? String(
+          aiStatusQuery.data?.data?.disabledReason ||
+            aiStatusQuery.data?.data?.reason ||
+            "",
+        ).trim() || "AI draft generation is unavailable in this environment."
+      : "";
 
   const templatesQuery = useWorkspaceTemplates(
     workspaceId ?? "",
@@ -258,29 +273,65 @@ export function CreateProjectSheet({
     }
   }, [open, selectedTemplateId, templatePanelOpen]);
 
-  const handleGenerateDraft = () => {
-    const nextName = extractProjectName(prompt) || "New Project";
-    const normalized = prompt.toLowerCase();
+  const handleGenerateDraft = async () => {
+    if (aiDisabledReason) {
+      toast.error(aiDisabledReason);
+      return;
+    }
 
-    setName(
-      nextName
-        .split(" ")
-        .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-        .join(" "),
+    const request = generateDraftMutation.mutateAsync({
+      workspaceId: workspaceId || undefined,
+      payload: {
+        entityType: "project",
+        description: prompt.trim(),
+        context: {
+          workspaceName: "",
+          startDate,
+          dueDate: targetEndDate,
+        },
+      },
+    });
+
+    await toast.promise(request, {
+      loading: "Generating project draft...",
+      success: "Project draft ready to edit.",
+      error: (error: Error) => error?.message || "Unable to generate project draft.",
+    });
+    const response = await request;
+
+    const fields = response?.data?.draft?.fields as
+      | {
+          name?: string;
+          summary?: string;
+          status?: string;
+          initialPipelineTemplate?: string;
+          startDate?: string;
+          targetEndDate?: string;
+        }
+      | undefined;
+
+    const nextName = String(fields?.name || "").trim() || extractProjectName(prompt) || "New Project";
+    setName(nextName);
+    setSummary(String(fields?.summary || "").trim());
+    setStatus(
+      STATUS_OPTIONS.some((option) => option.value === fields?.status)
+        ? (fields?.status as ProjectStatus)
+        : "on-track",
     );
-    setSummary(
-      normalized.includes("launch")
-        ? "AI drafted a launch-oriented project scaffold with a clear delivery range."
-        : "AI drafted a compact project scaffold from your prompt.",
-    );
-    setStatus(normalized.includes("risk") ? "at-risk" : "on-track");
     setInitialPipelineTemplate(
-      normalized.includes("market")
-        ? "marketing"
-        : normalized.includes("ops") || normalized.includes("operation")
-          ? "operations"
-          : "product",
+      PIPELINE_OPTIONS.some(
+        (option) => option.value === fields?.initialPipelineTemplate,
+      )
+        ? (fields?.initialPipelineTemplate as ProjectPipelineTemplateKey)
+        : "product",
     );
+    if (String(fields?.startDate || "").trim()) {
+      setStartDate(String(fields?.startDate).trim());
+    }
+    if (String(fields?.targetEndDate || "").trim()) {
+      setTargetEndDate(String(fields?.targetEndDate).trim());
+    }
+    setMode("manual");
     setDraftReady(true);
   };
 
@@ -337,7 +388,9 @@ export function CreateProjectSheet({
       prompt={prompt}
       onPromptChange={setPrompt}
       onGenerateDraft={handleGenerateDraft}
-      canGenerate={Boolean(prompt.trim())}
+      canGenerate={Boolean(prompt.trim()) && !aiDisabledReason}
+      aiDisabledReason={aiDisabledReason}
+      isGeneratingDraft={generateDraftMutation.isPending}
       isDraftReady={draftReady}
       helperExamples={helperExamples}
       footer={

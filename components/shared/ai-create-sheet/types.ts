@@ -6,7 +6,7 @@ export type AiCreateMode = "ai" | "manual";
 export type AiDraftMeta = {
   prompt: string;
   generatedAt: string;
-  source: "local";
+  source: "local" | "ai" | "fallback";
 };
 
 export type AiCreateSheetShellProps = {
@@ -18,8 +18,10 @@ export type AiCreateSheetShellProps = {
   onModeChange: (mode: AiCreateMode) => void;
   prompt: string;
   onPromptChange: (value: string) => void;
-  onGenerateDraft: () => void;
+  onGenerateDraft: () => void | Promise<void>;
   canGenerate: boolean;
+  aiDisabledReason?: string;
+  isGeneratingDraft?: boolean;
   isDraftReady: boolean;
   helperExamples?: string[];
   children: ReactNode;

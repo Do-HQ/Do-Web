@@ -1,16 +1,20 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   Bell,
   ChevronDown,
+  Coins,
   LogOut,
   Search,
   Settings2,
   UserCircle,
 } from "lucide-react";
 
+import useWorkspaceBilling from "@/hooks/use-workspace-billing";
 import useAuthStore from "@/stores/auth";
+import useWorkspaceStore from "@/stores/workspace";
 import { useAppStore } from "@/stores";
 import LogoutModal from "@/components/modals/logout";
 import { WorkspaceNotificationsPopover } from "@/components/notifications/workspace-notifications-popover";
@@ -28,6 +32,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { InputGroupAddon } from "@/components/ui/input-group";
 import { Kbd } from "@/components/ui/kbd";
+import { ROUTES } from "@/utils/constants";
 
 const getInitials = (firstName?: string, lastName?: string, email?: string) => {
   const first = String(firstName || "").trim();
@@ -50,7 +55,10 @@ const getInitials = (firstName?: string, lastName?: string, email?: string) => {
 };
 
 export function NavActions() {
+  const router = useRouter();
   const { user } = useAuthStore();
+  const { workspaceId } = useWorkspaceStore();
+  const workspaceBilling = useWorkspaceBilling();
   const { setShowSpotlightSearch, setShowSettings, setActiveSetting } =
     useAppStore();
 
@@ -65,6 +73,26 @@ export function NavActions() {
   const userRole = "Workspace member";
   const avatarUrl = String(user?.profilePhoto?.url || "").trim();
   const initials = getInitials(user?.firstName, user?.lastName, userEmail);
+  const normalizedWorkspaceId = String(
+    workspaceId || user?.currentWorkspaceId?._id || "",
+  ).trim();
+
+  const billingSummaryQuery = workspaceBilling.useWorkspaceBillingSummary(
+    normalizedWorkspaceId,
+    undefined,
+    {
+      enabled: !!normalizedWorkspaceId,
+    },
+  );
+  const tokenBalance = Number(
+    billingSummaryQuery.data?.data?.workspace?.tokens?.balance || 0,
+  );
+  const isLowTokenBalance = Boolean(
+    billingSummaryQuery.data?.data?.workspace?.tokens?.isLowBalance,
+  );
+  const planLabel = String(
+    billingSummaryQuery.data?.data?.workspace?.plan || "FREE",
+  ).trim();
 
   const openSettings = React.useCallback(
     (section: string) => {
@@ -94,6 +122,26 @@ export function NavActions() {
             <Kbd>⌘</Kbd>
             <Kbd>K</Kbd>
           </InputGroupAddon>
+        </Button>
+
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="hidden h-9 items-center gap-1.5 px-2.5 text-[12px] sm:inline-flex"
+          title={`${planLabel} · ${tokenBalance.toLocaleString()} tokens`}
+          disabled={!normalizedWorkspaceId}
+          onClick={() => router.push(ROUTES.SETTINGS_BILLING)}
+        >
+          <Coins className="size-3.5" />
+          <span>
+            {billingSummaryQuery.isLoading ? "..." : tokenBalance.toLocaleString()}
+          </span>
+          {isLowTokenBalance ? (
+            <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+              Low
+            </Badge>
+          ) : null}
         </Button>
 
         <WorkspaceNotificationsPopover />

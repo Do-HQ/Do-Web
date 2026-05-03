@@ -69,10 +69,6 @@ const axiosInstance = axios.create({
 
 axiosInstance.interceptors.request.use(
   (axiosConfig) => {
-    if (!navigator.onLine) {
-      throw new Error("Please check your internet connection");
-    }
-
     if (axiosConfig.data instanceof FormData) {
       delete axiosConfig.headers?.["Content-Type"];
     }

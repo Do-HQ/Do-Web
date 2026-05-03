@@ -21,12 +21,12 @@ import {
   MessageCircleQuestion,
   PlusIcon,
   RefreshCcw,
-  Sparkles,
   Star,
   Store,
   StickyNote,
   Workflow,
   type LucideIcon,
+  Gem,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -196,7 +196,11 @@ const CommandSearch = () => {
   });
 
   const templatesSearchQuery = useQuery({
-    queryKey: ["command-search-templates", resolvedWorkspaceId, normalizedQuery],
+    queryKey: [
+      "command-search-templates",
+      resolvedWorkspaceId,
+      normalizedQuery,
+    ],
     enabled: showSpotlightSearch && queryActive && Boolean(resolvedWorkspaceId),
     queryFn: () =>
       getWorkspaceTemplates(resolvedWorkspaceId, {
@@ -220,7 +224,11 @@ const CommandSearch = () => {
   });
 
   const knowledgeBaseSearchQuery = useQuery({
-    queryKey: ["command-search-knowledge-base", resolvedWorkspaceId, normalizedQuery],
+    queryKey: [
+      "command-search-knowledge-base",
+      resolvedWorkspaceId,
+      normalizedQuery,
+    ],
     enabled: showSpotlightSearch && queryActive && Boolean(resolvedWorkspaceId),
     queryFn: () =>
       searchWorkspaceKnowledgeBase(resolvedWorkspaceId, {
@@ -234,7 +242,11 @@ const CommandSearch = () => {
   });
 
   const supportTicketsSearchQuery = useQuery({
-    queryKey: ["command-search-support-tickets", resolvedWorkspaceId, normalizedQuery],
+    queryKey: [
+      "command-search-support-tickets",
+      resolvedWorkspaceId,
+      normalizedQuery,
+    ],
     enabled: showSpotlightSearch && queryActive && Boolean(resolvedWorkspaceId),
     queryFn: () =>
       getWorkspaceSupportTickets(resolvedWorkspaceId, {
@@ -303,8 +315,8 @@ const CommandSearch = () => {
       },
       {
         id: "nav-ask",
-        label: "Ask Squircle",
-        icon: Sparkles,
+        label: "Scribe",
+        icon: Gem,
         hint: "Coming soon",
         disabled: true,
         shortcut: "⌘A",
@@ -330,7 +342,9 @@ const CommandSearch = () => {
         icon: user?.isInternal ? MessageCircleQuestion : LifeBuoy,
         shortcut: "⌥⌘S",
         onSelect: () =>
-          closeAndRoute(user?.isInternal ? ROUTES.SUPPORT_ADMIN : ROUTES.SUPPORT),
+          closeAndRoute(
+            user?.isInternal ? ROUTES.SUPPORT_ADMIN : ROUTES.SUPPORT,
+          ),
       },
       {
         id: "nav-archive",
@@ -455,13 +469,15 @@ const CommandSearch = () => {
     }
 
     const items = projectsSearchQuery.data?.data?.projects ?? [];
-    return dedupeSearchResults(items.map((entry) => ({
-      id: `project:${entry.projectId}`,
-      label: entry.name,
-      href: getProjectRoute(entry.projectId),
-      icon: FolderKanban,
-      hint: entry.status,
-    })));
+    return dedupeSearchResults(
+      items.map((entry) => ({
+        id: `project:${entry.projectId}`,
+        label: entry.name,
+        href: getProjectRoute(entry.projectId),
+        icon: FolderKanban,
+        hint: entry.status,
+      })),
+    );
   }, [projectsSearchQuery.data, queryActive]);
 
   const chatResults = React.useMemo<SearchResultItem[]>(() => {
@@ -470,21 +486,23 @@ const CommandSearch = () => {
     }
 
     const rooms = chatsSearchQuery.data?.data?.rooms ?? [];
-    return dedupeSearchResults(rooms.map((room) => ({
-      id: `chat:${room.id}`,
-      label: room.name,
-      href: `${ROUTES.SPACES}?room=${encodeURIComponent(room.id)}`,
-      icon: Hash,
-      hint:
-        room.kind === "direct"
-          ? "Direct chat"
-          : room.scope === "project"
-            ? "Project chat"
-            : room.scope === "task"
-              ? "Task thread"
-              : `${room.scope} chat`,
-      badge: room.unread > 0 ? `${room.unread} new` : undefined,
-    })));
+    return dedupeSearchResults(
+      rooms.map((room) => ({
+        id: `chat:${room.id}`,
+        label: room.name,
+        href: `${ROUTES.SPACES}?room=${encodeURIComponent(room.id)}`,
+        icon: Hash,
+        hint:
+          room.kind === "direct"
+            ? "Direct chat"
+            : room.scope === "project"
+              ? "Project chat"
+              : room.scope === "task"
+                ? "Task thread"
+                : `${room.scope} chat`,
+        badge: room.unread > 0 ? `${room.unread} new` : undefined,
+      })),
+    );
   }, [chatsSearchQuery.data, queryActive]);
 
   const jamResults = React.useMemo<SearchResultItem[]>(() => {
@@ -493,13 +511,15 @@ const CommandSearch = () => {
     }
 
     const jams = jamsSearchQuery.data?.data?.jams ?? [];
-    return dedupeSearchResults(jams.map((jam) => ({
-      id: `jam:${jam.id}`,
-      label: jam.title,
-      href: `${ROUTES.JAMS}/${jam.id}`,
-      icon: StickyNote,
-      hint: jam.visibility === "workspace" ? "Workspace jam" : "Private jam",
-    })));
+    return dedupeSearchResults(
+      jams.map((jam) => ({
+        id: `jam:${jam.id}`,
+        label: jam.title,
+        href: `${ROUTES.JAMS}/${jam.id}`,
+        icon: StickyNote,
+        hint: jam.visibility === "workspace" ? "Workspace jam" : "Private jam",
+      })),
+    );
   }, [jamsSearchQuery.data, queryActive]);
 
   const templateResults = React.useMemo<SearchResultItem[]>(() => {
@@ -508,13 +528,15 @@ const CommandSearch = () => {
     }
 
     const templates = templatesSearchQuery.data?.data?.templates ?? [];
-    return dedupeSearchResults(templates.map((template) => ({
-      id: `template:${template.id}`,
-      label: template.name,
-      href: ROUTES.TEMPLATES,
-      icon: Store,
-      hint: `${template.kind} template`,
-    })));
+    return dedupeSearchResults(
+      templates.map((template) => ({
+        id: `template:${template.id}`,
+        label: template.name,
+        href: ROUTES.TEMPLATES,
+        icon: Store,
+        hint: `${template.kind} template`,
+      })),
+    );
   }, [queryActive, templatesSearchQuery.data]);
 
   const routeResults = React.useMemo<SearchResultItem[]>(() => {
@@ -608,14 +630,16 @@ const CommandSearch = () => {
     }
 
     const docs = docsSearchQuery.data?.data?.docs ?? [];
-    return dedupeSearchResults(docs.map((doc) => ({
-      id: `doc:${doc.id}`,
-      label: doc.title || "Untitled doc",
-      href: `${ROUTES.DOCS}/${encodeURIComponent(doc.id)}`,
-      icon: FileText,
-      hint: `${doc.category || "general"} • doc`,
-      badge: doc.publishState,
-    })));
+    return dedupeSearchResults(
+      docs.map((doc) => ({
+        id: `doc:${doc.id}`,
+        label: doc.title || "Untitled doc",
+        href: `${ROUTES.DOCS}/${encodeURIComponent(doc.id)}`,
+        icon: FileText,
+        hint: `${doc.category || "general"} • doc`,
+        badge: doc.publishState,
+      })),
+    );
   }, [docsSearchQuery.data, queryActive]);
 
   const knowledgeBaseResults = React.useMemo<SearchResultItem[]>(() => {
@@ -624,19 +648,21 @@ const CommandSearch = () => {
     }
 
     const articles = knowledgeBaseSearchQuery.data?.data?.articles ?? [];
-    return dedupeSearchResults(articles.map((article) => ({
-      id: `kb:${article.id}`,
-      label: article.title,
-      href: article.route || ROUTES.KNOWLEDGE_BASE,
-      icon:
-        article.source === "project"
-          ? FolderKanban
-          : article.source === "curated"
-            ? BookOpen
-            : Library,
-      hint: `${article.category} • knowledge`,
-      badge: `${Math.round(Number(article.confidenceScore || 0) * 100)}%`,
-    })));
+    return dedupeSearchResults(
+      articles.map((article) => ({
+        id: `kb:${article.id}`,
+        label: article.title,
+        href: article.route || ROUTES.KNOWLEDGE_BASE,
+        icon:
+          article.source === "project"
+            ? FolderKanban
+            : article.source === "curated"
+              ? BookOpen
+              : Library,
+        hint: `${article.category} • knowledge`,
+        badge: `${Math.round(Number(article.confidenceScore || 0) * 100)}%`,
+      })),
+    );
   }, [knowledgeBaseSearchQuery.data, queryActive]);
 
   const supportTicketResults = React.useMemo<SearchResultItem[]>(() => {
@@ -645,14 +671,16 @@ const CommandSearch = () => {
     }
 
     const tickets = supportTicketsSearchQuery.data?.data?.tickets ?? [];
-    return dedupeSearchResults(tickets.map((ticket) => ({
-      id: `support:${ticket.id}`,
-      label: ticket.subject,
-      href: `${ROUTES.SUPPORT}/tickets/${encodeURIComponent(ticket.id)}`,
-      icon: LifeBuoy,
-      hint: `${ticket.priority} • ${ticket.status}`,
-      badge: ticket.category,
-    })));
+    return dedupeSearchResults(
+      tickets.map((ticket) => ({
+        id: `support:${ticket.id}`,
+        label: ticket.subject,
+        href: `${ROUTES.SUPPORT}/tickets/${encodeURIComponent(ticket.id)}`,
+        icon: LifeBuoy,
+        hint: `${ticket.priority} • ${ticket.status}`,
+        badge: ticket.category,
+      })),
+    );
   }, [queryActive, supportTicketsSearchQuery.data]);
 
   const localWorkflowTaskRiskResults = React.useMemo<SearchResultItem[]>(() => {
@@ -964,7 +992,10 @@ const CommandSearch = () => {
                       <item.icon />
                       <span>{item.label}</span>
                       {item.badge ? (
-                        <Badge variant="outline" className="ml-auto text-[10px]">
+                        <Badge
+                          variant="outline"
+                          className="ml-auto text-[10px]"
+                        >
                           {item.badge}
                         </Badge>
                       ) : item.hint ? (
@@ -1013,7 +1044,10 @@ const CommandSearch = () => {
                       <item.icon />
                       <span>{item.label}</span>
                       {item.badge ? (
-                        <Badge variant="outline" className="ml-auto text-[10px]">
+                        <Badge
+                          variant="outline"
+                          className="ml-auto text-[10px]"
+                        >
                           {item.badge}
                         </Badge>
                       ) : item.hint ? (

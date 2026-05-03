@@ -8,12 +8,15 @@ import {
   CheckCheck,
   ChevronLeft,
   ChevronRight,
+  Lightbulb,
+  Star,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import useWorkspaceProject from "@/hooks/use-workspace-project";
+import { useProjectStore } from "@/stores";
 import useWorkspaceStore from "@/stores/workspace";
 import { WorkspaceProjectNotificationRecord } from "@/types/project";
 import { cn } from "@/lib/utils";
@@ -50,7 +53,9 @@ const formatNotificationTime = (value: string) => {
   });
 };
 
-const resolveNotificationRoute = (notification: WorkspaceProjectNotificationRecord) => {
+const resolveNotificationRoute = (
+  notification: WorkspaceProjectNotificationRecord,
+) => {
   const route = String(notification?.route || "").trim();
   if (route) {
     return route;
@@ -80,6 +85,7 @@ export function WorkspaceNotificationsPopover() {
   const [page, setPage] = useState(1);
   const limit = 12;
   const activeWorkspaceId = String(workspaceId || "").trim();
+  const projectRecords = useProjectStore((state) => state.projectRecords);
 
   const notificationsQuery = useWorkspaceNotifications(
     activeWorkspaceId,
@@ -116,16 +122,18 @@ export function WorkspaceNotificationsPopover() {
     },
   });
 
-  const markAllNotificationsReadMutation = useMarkAllWorkspaceNotificationsRead({
-    onSuccess: () => {
-      queryClient.invalidateQueries({
-        predicate: (query) =>
-          Array.isArray(query.queryKey) &&
-          query.queryKey[0] === "workspace-notifications" &&
-          query.queryKey[1] === activeWorkspaceId,
-      });
+  const markAllNotificationsReadMutation = useMarkAllWorkspaceNotificationsRead(
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries({
+          predicate: (query) =>
+            Array.isArray(query.queryKey) &&
+            query.queryKey[0] === "workspace-notifications" &&
+            query.queryKey[1] === activeWorkspaceId,
+        });
+      },
     },
-  });
+  );
 
   const notifications = notificationsQuery.data?.data?.notifications ?? [];
   const pagination = notificationsQuery.data?.data?.pagination;
@@ -142,6 +150,96 @@ export function WorkspaceNotificationsPopover() {
       ] as const,
     [],
   );
+
+  const aiSuggestions = useMemo(() => {
+    const projects = Object.values(projectRecords || {});
+    if (!projects.length) {
+      return [];
+    }
+
+    const doneStatuses = new Set(["done", "completed", "complete", "closed"]);
+    const now = Date.now();
+    let blockedCount = 0;
+    let overdueCount = 0;
+    let activeCount = 0;
+    let dueSoonCount = 0;
+
+    projects.forEach((project) => {
+      const workflows = Array.isArray(project?.workflows)
+        ? project.workflows
+        : [];
+      workflows.forEach((workflow) => {
+        const tasks = Array.isArray(workflow?.tasks) ? workflow.tasks : [];
+        tasks.forEach((task) => {
+          const status = String(task?.status || "")
+            .trim()
+            .toLowerCase();
+          const isDone = doneStatuses.has(status);
+          if (!isDone) {
+            activeCount += 1;
+          }
+          if (status === "blocked") {
+            blockedCount += 1;
+          }
+
+          const dueDateMs = new Date(task?.dueDate || "").getTime();
+          if (!Number.isFinite(dueDateMs) || isDone) {
+            return;
+          }
+
+          if (dueDateMs < now) {
+            overdueCount += 1;
+            return;
+          }
+
+          const threeDaysFromNow = now + 3 * 24 * 60 * 60 * 1000;
+          if (dueDateMs <= threeDaysFromNow) {
+            dueSoonCount += 1;
+          }
+        });
+      });
+    });
+
+    const suggestions = [];
+
+    if (blockedCount > 0) {
+      suggestions.push({
+        id: "blocked",
+        title: "Unblock critical work",
+        summary: `${blockedCount} blocked task${blockedCount === 1 ? "" : "s"} need owner follow-up.`,
+        route: ROUTES.REPORTS,
+      });
+    }
+
+    if (overdueCount > 0) {
+      suggestions.push({
+        id: "overdue",
+        title: "Resolve overdue tasks",
+        summary: `${overdueCount} overdue task${overdueCount === 1 ? "" : "s"} could affect delivery dates.`,
+        route: ROUTES.REPORTS,
+      });
+    }
+
+    if (!blockedCount && !overdueCount && dueSoonCount > 0) {
+      suggestions.push({
+        id: "due-soon",
+        title: "Prepare upcoming deadlines",
+        summary: `${dueSoonCount} task${dueSoonCount === 1 ? "" : "s"} are due within 3 days.`,
+        route: ROUTES.REPORTS,
+      });
+    }
+
+    if (!suggestions.length && activeCount > 0) {
+      suggestions.push({
+        id: "active",
+        title: "Keep execution momentum",
+        summary: `${activeCount} active task${activeCount === 1 ? "" : "s"} in progress. Consider a quick status sync.`,
+        route: ROUTES.DASHBOARD,
+      });
+    }
+
+    return suggestions.slice(0, 2);
+  }, [projectRecords]);
 
   const markOneRead = async (notificationId: string) => {
     if (!activeWorkspaceId || !notificationId) {
@@ -257,6 +355,39 @@ export function WorkspaceNotificationsPopover() {
         </div>
 
         <div className="max-h-[22rem] overflow-y-auto">
+          {aiSuggestions.length ? (
+            <div className="border-b border-border/25 px-3 py-2.5">
+              <p className="text-muted-foreground mb-2 text-[10px] font-semibold">
+                AI Suggestions
+              </p>
+              <div className="space-y-1.5">
+                {aiSuggestions.map((suggestion) => (
+                  <button
+                    key={suggestion.id}
+                    type="button"
+                    className="hover:bg-muted/50 flex w-full items-start gap-2.5 rounded-md border border-border/50 px-2.5 py-2 text-left transition-colors"
+                    onClick={() => {
+                      setOpen(false);
+                      router.push(suggestion.route);
+                    }}
+                  >
+                    <span className="bg-primary/10 text-primary mt-0.5 inline-flex size-5 shrink-0 items-center justify-center rounded">
+                      <Star className="size-3.5" />
+                    </span>
+                    <span className="min-w-0 space-y-0.5">
+                      <span className="line-clamp-1 text-[12px] font-medium">
+                        {suggestion.title}
+                      </span>
+                      <span className="text-muted-foreground line-clamp-2 text-[11px]">
+                        {suggestion.summary}
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
           {isLoading && !notifications.length ? (
             <div className="text-muted-foreground px-3 py-4 text-[12px]">
               <LoaderComponent />
@@ -292,9 +423,9 @@ export function WorkspaceNotificationsPopover() {
                     </span>
                     <Badge
                       variant="outline"
-                      className="h-4 rounded-sm px-1 text-[9px] uppercase"
+                      className="h-4 rounded-sm px-1 text-[9px] capitalize"
                     >
-                      {notification.type.replace(/\./g, " ")}
+                      {notification.type.replace(/\./g, " ")?.toLowerCase()}
                     </Badge>
                   </div>
                 </button>

@@ -42,7 +42,12 @@ import { useFavoritesStore } from "@/stores";
 import useWorkspace from "@/hooks/use-workspace";
 import useWorkspaceSpace from "@/hooks/use-workspace-space";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
+import useWorkspaceReports from "@/hooks/use-workspace-reports";
 import useFile from "@/hooks/use-file";
+import {
+  armBrowserNotificationPermission,
+  showBrowserNotification,
+} from "@/lib/helpers/browser-notifications";
 import { recordRecentVisit } from "@/lib/helpers/recent-visits";
 import { getWorkspaceJamDetail } from "@/lib/services/workspace-jam-service";
 import { ROUTES } from "@/utils/constants";
@@ -130,6 +135,38 @@ const formatChatTimestamp = (value?: string) => {
   }).format(date);
 };
 
+const compactSpacesNotificationText = (value: unknown, maxLength = 180) => {
+  const normalized = String(value || "").replace(/\s+/g, " ").trim();
+  if (!normalized) {
+    return "";
+  }
+
+  if (normalized.length <= maxLength) {
+    return normalized;
+  }
+
+  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+};
+
+const buildSpacesMessageRoute = ({
+  roomId,
+  parentMessageId,
+}: {
+  roomId: string;
+  parentMessageId?: string | null;
+}) => {
+  const params = new URLSearchParams({
+    room: String(roomId || "").trim(),
+  });
+
+  const normalizedParentMessageId = String(parentMessageId || "").trim();
+  if (normalizedParentMessageId) {
+    params.set("thread", normalizedParentMessageId);
+  }
+
+  return `${ROUTES.SPACES}?${params.toString()}`;
+};
+
 const buildTeamCallRoute = ({
   roomId,
   roomName,
@@ -173,7 +210,7 @@ const mentionSlug = (value = "") =>
 
 const mentionInitials = (value: string, fallback = "U") => {
   const normalized = String(value || "")
-    .replace(/^(team|project)\s*:/i, "")
+    .replace(/^(team|project|report)\s*:/i, "")
     .trim();
 
   if (!normalized) {
@@ -367,6 +404,7 @@ const SpacesPage = () => {
   const workspaceHook = useWorkspace();
   const spaceHook = useWorkspaceSpace();
   const workspaceProjectHook = useWorkspaceProject();
+  const workspaceReportsHook = useWorkspaceReports();
   const fileHook = useFile();
 
   const resolvedWorkspaceId =
@@ -476,6 +514,8 @@ const SpacesPage = () => {
   const didHydrateRoomFromUrlRef = useRef(false);
   const pendingRoomSyncRef = useRef<string | null>(null);
   const suppressedThreadIdRef = useRef<string | null>(null);
+  const roomNameByIdRef = useRef<Record<string, string>>({});
+  const currentUserIdRef = useRef("");
 
   const workspaceName = user?.currentWorkspaceId?.name ?? "Current Workspace";
   const workspaceSlug = user?.currentWorkspaceId?.slug ?? "workspace";
@@ -497,6 +537,11 @@ const SpacesPage = () => {
     user?.lastName,
     user?.profilePhoto?.url,
   ]);
+
+  useEffect(() => {
+    const cleanup = armBrowserNotificationPermission();
+    return cleanup;
+  }, []);
 
   // Debounce
   const debounced_search = useDebounce(roomQuery, 500);
@@ -530,6 +575,17 @@ const SpacesPage = () => {
       page: 1,
       limit: 200,
       search: "",
+    },
+  );
+  const workspaceReportsQuery = workspaceReportsHook.useWorkspaceReportsList(
+    resolvedWorkspaceId,
+    {
+      page: 1,
+      limit: 80,
+      status: "COMPLETED",
+    },
+    {
+      enabled: Boolean(resolvedWorkspaceId),
     },
   );
 
@@ -569,6 +625,26 @@ const SpacesPage = () => {
       })
       .map(mapRoomToUi);
   }, [roomActivityOverrides, roomsQuery.data?.pages]);
+  const roomNameById = useMemo(() => {
+    const output: Record<string, string> = {};
+    rooms.forEach((room) => {
+      const roomId = String(room.id || "").trim();
+      if (!roomId) {
+        return;
+      }
+
+      output[roomId] = String(room.name || "").trim();
+    });
+    return output;
+  }, [rooms]);
+
+  useEffect(() => {
+    roomNameByIdRef.current = roomNameById;
+  }, [roomNameById]);
+
+  useEffect(() => {
+    currentUserIdRef.current = String(currentUser.id || "").trim();
+  }, [currentUser.id]);
   const bumpRoomActivity = useCallback((roomId: string, at = Date.now()) => {
     const normalizedRoomId = String(roomId || "").trim();
     if (!normalizedRoomId) {
@@ -1231,6 +1307,7 @@ const SpacesPage = () => {
     const byToken: Record<string, MentionTokenMeta> = {};
     const seenIds = new Set<string>();
     const members = workspaceMentionPeopleQuery.data?.data?.members ?? [];
+    const reports = workspaceReportsQuery.data?.data?.reports ?? [];
 
     members.forEach((entry) => {
       const display =
@@ -1379,6 +1456,50 @@ const SpacesPage = () => {
       }
     }
 
+    reports.forEach((report) => {
+      const reportId = String(report?.id || "").trim();
+      const reportTitle = String(report?.title || "").trim();
+      const reportType = String(report?.reportType || "").trim();
+      const token = `report-${reportId}`;
+
+      if (!reportId || !reportTitle || seenIds.has(token)) {
+        return;
+      }
+
+      seenIds.add(token);
+
+      const subtitle = reportType
+        ? `${reportType
+            .toLowerCase()
+            .replace(/_/g, " ")
+            .replace(/\b\w/g, (part) => part.toUpperCase())}${
+            report?.project?.name ? ` · ${String(report.project.name)}` : ""
+          }`
+        : report?.project?.name
+          ? String(report.project.name)
+          : "Report";
+
+      entries.push({
+        id: token,
+        display: reportTitle,
+        kind: "report",
+        avatarFallback: "RP",
+        subtitle,
+      });
+
+      byToken[token] = {
+        token,
+        label: reportTitle,
+        kind: "report",
+        avatarFallback: "RP",
+        subtitle,
+        report: {
+          id: reportId,
+          title: reportTitle,
+        },
+      };
+    });
+
     return {
       suggestions: entries.slice(0, 100),
       byToken,
@@ -1390,10 +1511,30 @@ const SpacesPage = () => {
     activeProjectDetailQuery.data?.data?.project?.record?.teams,
     activeRoom?.name,
     activeRoom?.scope,
+    workspaceReportsQuery.data?.data?.reports,
   ]);
 
   const mentionSuggestions = mentionLookup.suggestions;
   const mentionMetaByToken = mentionLookup.byToken;
+  const atMentionSuggestions = useMemo(
+    () => mentionSuggestions.filter((entry) => entry.kind !== "report"),
+    [mentionSuggestions],
+  );
+  const reportMentionSuggestions = useMemo(
+    () => mentionSuggestions.filter((entry) => entry.kind === "report"),
+    [mentionSuggestions],
+  );
+  const reportMetaByToken = useMemo(() => {
+    const next: Record<string, MentionTokenMeta> = {};
+
+    Object.entries(mentionMetaByToken).forEach(([token, value]) => {
+      if (value?.kind === "report") {
+        next[token] = value;
+      }
+    });
+
+    return next;
+  }, [mentionMetaByToken]);
   const authorInfoById = useMemo<Record<string, SpaceUserInfo>>(() => {
     const infoById: Record<string, SpaceUserInfo> = {};
     const members = workspaceMentionPeopleQuery.data?.data?.members ?? [];
@@ -1783,6 +1924,59 @@ const SpacesPage = () => {
         return;
       }
 
+      const normalizedCurrentUserId = String(currentUserIdRef.current || "").trim();
+      const authorUserId = String(message?.author?.id || "").trim();
+      const isMyMessage =
+        Boolean(normalizedCurrentUserId) &&
+        Boolean(authorUserId) &&
+        authorUserId === normalizedCurrentUserId;
+
+      if (!isMyMessage) {
+        const parentMessageId = String(message?.parentMessageId || "").trim();
+        const isThreadReply = Boolean(parentMessageId);
+        const resolvedRoomName = String(
+          roomNameByIdRef.current[normalizedRoomId] || "",
+        ).trim();
+        const roomIsVisibleToUser =
+          Boolean(resolvedRoomName) ||
+          normalizedRoomId === String(activeRoom?.id || "").trim();
+        if (roomIsVisibleToUser) {
+          const roomName = resolvedRoomName || "Spaces chat";
+          const authorName =
+            String(message?.author?.name || "").trim() || "Teammate";
+          const attachmentCount = Array.isArray(message?.attachments)
+            ? message.attachments.length
+            : 0;
+
+          let notificationSummary = compactSpacesNotificationText(
+            message?.content,
+            200,
+          );
+          if (!notificationSummary) {
+            notificationSummary = attachmentCount
+              ? `${authorName} sent ${attachmentCount} attachment${
+                  attachmentCount === 1 ? "" : "s"
+                }.`
+              : `${authorName} sent a message.`;
+          }
+
+          const notificationTitle = isThreadReply
+            ? `${authorName} replied in ${roomName}`
+            : `${authorName} messaged in ${roomName}`;
+
+          void showBrowserNotification({
+            id: messageId || `${normalizedRoomId}-${Date.now()}`,
+            title: notificationTitle,
+            summary: notificationSummary,
+            route: buildSpacesMessageRoute({
+              roomId: normalizedRoomId,
+              parentMessageId,
+            }),
+            tagPrefix: "spaces-message",
+          });
+        }
+      }
+
       bumpRoomActivity(
         normalizedRoomId,
         resolveIsoTimestamp(String(message?.sentAt || "")),
@@ -1970,7 +2164,12 @@ const SpacesPage = () => {
         });
       }
     };
-  }, [activeRoom?.id, bumpRoomActivity, queryClient, resolvedWorkspaceId]);
+  }, [
+    activeRoom?.id,
+    bumpRoomActivity,
+    queryClient,
+    resolvedWorkspaceId,
+  ]);
 
   useEffect(() => {
     if (!resolvedWorkspaceId || !activeRoom?.id) {
@@ -3282,6 +3481,15 @@ const SpacesPage = () => {
     }
   };
 
+  const openReportFromMention = (reportId: string) => {
+    const normalizedReportId = String(reportId || "").trim();
+    if (!normalizedReportId) {
+      return;
+    }
+
+    router.push(`/reports/${encodeURIComponent(normalizedReportId)}`);
+  };
+
   const openSharedJamFromMessage = useCallback(
     async (jamId: string) => {
       const normalizedJamId = String(jamId || "").trim();
@@ -3646,10 +3854,13 @@ const SpacesPage = () => {
               canCreateTaskFromChat={Boolean(canCreateTaskFromChat)}
               currentUserId={String(currentUser.id || "")}
               currentUserAvatarUrl={currentUser.avatarUrl}
-              mentionSuggestions={mentionSuggestions}
+              mentionSuggestions={atMentionSuggestions}
+              reportMentionSuggestions={reportMentionSuggestions}
               mentionMetaByToken={mentionMetaByToken}
+              reportMetaByToken={reportMetaByToken}
               authorInfoById={authorInfoById}
               onOpenMentionUser={openMentionDirectChat}
+              onOpenReport={openReportFromMention}
               messageListRef={messageListRef}
               mainComposerUploadRef={mainComposerUploadRef}
               onGetThreadCount={getThreadCount}
@@ -3736,10 +3947,13 @@ const SpacesPage = () => {
                   canCreateTaskFromChat={Boolean(canCreateTaskFromChat)}
                   currentUserId={String(currentUser.id || "")}
                   currentUserAvatarUrl={currentUser.avatarUrl}
-                  mentionSuggestions={mentionSuggestions}
+                  mentionSuggestions={atMentionSuggestions}
+                  reportMentionSuggestions={reportMentionSuggestions}
                   mentionMetaByToken={mentionMetaByToken}
+                  reportMetaByToken={reportMetaByToken}
                   authorInfoById={authorInfoById}
                   onOpenMentionUser={openMentionDirectChat}
+                  onOpenReport={openReportFromMention}
                   threadComposerUploadRef={threadComposerUploadRef}
                   threadListRef={threadListRef}
                   onCloseThread={closeThread}
@@ -3873,10 +4087,13 @@ const SpacesPage = () => {
             canCreateTaskFromChat={Boolean(canCreateTaskFromChat)}
             currentUserId={String(currentUser.id || "")}
             currentUserAvatarUrl={currentUser.avatarUrl}
-            mentionSuggestions={mentionSuggestions}
+            mentionSuggestions={atMentionSuggestions}
+            reportMentionSuggestions={reportMentionSuggestions}
             mentionMetaByToken={mentionMetaByToken}
+            reportMetaByToken={reportMetaByToken}
             authorInfoById={authorInfoById}
             onOpenMentionUser={openMentionDirectChat}
+            onOpenReport={openReportFromMention}
             threadComposerUploadRef={threadComposerUploadRef}
             threadListRef={threadListRef}
             onCloseThread={closeThread}

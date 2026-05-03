@@ -60,15 +60,14 @@ export const WORKFLOW_STATUS_META: Record<
     badgeClass:
       "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
     progressClass: "bg-emerald-500",
-    surfaceClass:
-      "bg-gradient-to-b from-emerald-500/8 via-background/95 to-background/90",
+    surfaceClass: "bg-card/95",
   },
   average: {
     label: "Average",
     dotClass: "bg-sky-500",
     badgeClass: "border-sky-500/25 bg-sky-500/10 text-sky-600 dark:text-sky-300",
     progressClass: "bg-sky-500",
-    surfaceClass: "bg-gradient-to-b from-sky-500/8 via-background/95 to-background/90",
+    surfaceClass: "bg-card/95",
   },
   delayed: {
     label: "Delayed",
@@ -76,8 +75,7 @@ export const WORKFLOW_STATUS_META: Record<
     badgeClass:
       "border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-300",
     progressClass: "bg-amber-500",
-    surfaceClass:
-      "bg-gradient-to-b from-amber-500/8 via-background/95 to-background/90",
+    surfaceClass: "bg-card/95",
   },
   late: {
     label: "Late",
@@ -85,8 +83,7 @@ export const WORKFLOW_STATUS_META: Record<
     badgeClass:
       "border-destructive/30 bg-destructive/10 text-destructive dark:text-red-300",
     progressClass: "bg-destructive",
-    surfaceClass:
-      "bg-gradient-to-b from-destructive/8 via-background/95 to-background/90",
+    surfaceClass: "bg-card/95",
   },
 };
 

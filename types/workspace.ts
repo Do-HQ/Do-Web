@@ -127,6 +127,12 @@ export interface WorkspaceType {
   workSchedule?: WorkspaceWorkSchedule;
   knowledgeBase?: WorkspaceKnowledgeBaseSettings;
   onboardingKit?: WorkspaceOnboardingKit;
+  plan?: "FREE" | "PRO" | "BUSINESS" | "ENTERPRISE";
+  tokens?: {
+    balance: number;
+    monthlyAllocation: number;
+    lastRefillDate?: string | null;
+  };
 }
 
 export interface JoinWorkspaceRequestBody {

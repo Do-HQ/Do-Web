@@ -3,9 +3,12 @@
 import { useMemo, useState } from "react";
 import {
   Archive,
+  ChartColumnIncreasing,
   CalendarDays,
+  Check,
   ChevronDown,
   ChevronRight,
+  ChevronsUpDown,
   Copy,
   FolderKanban,
   MessageSquare,
@@ -17,11 +20,15 @@ import {
   Users,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
+import useWorkspaceBilling from "@/hooks/use-workspace-billing";
 import useWorkspace from "@/hooks/use-workspace";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
+import useWorkspaceReports from "@/hooks/use-workspace-reports";
 import useWorkspaceTeam from "@/hooks/use-workspace-team";
+import { AI_DEFAULT_ESTIMATED_COSTS } from "@/lib/helpers/ai-token-cost";
 import { ProjectNotificationsPopover } from "@/components/projects/project-notifications-popover";
 import {
   Avatar,
@@ -32,6 +39,14 @@ import {
 } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from "@/components/ui/command";
 import {
   Dialog,
   DialogContent,
@@ -49,6 +64,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectContent,
@@ -79,6 +99,7 @@ type ProjectOverviewHeaderProps = {
   archivePending?: boolean;
   canInviteCollaborators?: boolean;
   canArchiveProject?: boolean;
+  canGenerateReports?: boolean;
 };
 
 type ProjectMemberWithProfile = ProjectMember & {
@@ -144,7 +165,25 @@ function formatHeaderDueDateLabel(value?: string) {
     day: "numeric",
   });
 
-  return parsed.getTime() < now ? `Overdue since ${formatted}` : `Next due ${formatted}`;
+  return parsed.getTime() < now
+    ? `Overdue since ${formatted}`
+    : `Next due ${formatted}`;
+}
+
+function toDateTimeLocalValue(value: Date) {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const hours = String(parsed.getHours()).padStart(2, "0");
+  const minutes = String(parsed.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
 export function ProjectOverviewHeader({
@@ -158,8 +197,10 @@ export function ProjectOverviewHeader({
   archivePending = false,
   canInviteCollaborators = true,
   canArchiveProject = true,
+  canGenerateReports = false,
 }: ProjectOverviewHeaderProps) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const updateProject = useProjectStore((state) => state.updateProject);
   const workspaceId = useWorkspaceStore((state) => state.workspaceId);
   const { useWorkspacePeople } = useWorkspace();
@@ -168,6 +209,24 @@ export function ProjectOverviewHeader({
     useInviteWorkspaceProjectCollaborators,
     useRemoveWorkspaceProjectCollaborators,
   } = useWorkspaceProject();
+  const workspaceReportsHook = useWorkspaceReports();
+  const workspaceBilling = useWorkspaceBilling();
+  const runProjectReportNowMutation =
+    workspaceReportsHook.useRunWorkspaceProjectReportNow();
+  const billingSummaryQuery = workspaceBilling.useWorkspaceBillingSummary(
+    workspaceId || "",
+    undefined,
+    {
+      enabled: !!workspaceId,
+    },
+  );
+  const estimatedReportTokenCost = AI_DEFAULT_ESTIMATED_COSTS.reportGeneration;
+  const workspaceTokenBalance = Number(
+    billingSummaryQuery.data?.data?.workspace?.tokens?.balance || 0,
+  );
+  const hasInsufficientReportTokens =
+    billingSummaryQuery.isSuccess &&
+    workspaceTokenBalance < estimatedReportTokenCost;
 
   const displayedMembers = visibleMembers.slice(0, 5);
   const extraMembers = Math.max(
@@ -207,6 +266,24 @@ export function ProjectOverviewHeader({
   );
   const [shareAccess, setShareAccess] =
     useState<(typeof ACCESS_OPTIONS)[number]["value"]>("view");
+  const [generateReportOpen, setGenerateReportOpen] = useState(false);
+  const [
+    generateReportRecipientPickerOpen,
+    setGenerateReportRecipientPickerOpen,
+  ] = useState(false);
+  const [generateReportRecipientUserIds, setGenerateReportRecipientUserIds] =
+    useState<string[]>([]);
+  const [generateReportSendEmail, setGenerateReportSendEmail] = useState(true);
+  const [generateReportPeriodStart, setGenerateReportPeriodStart] = useState(
+    () => {
+      const end = new Date();
+      const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+      return toDateTimeLocalValue(start);
+    },
+  );
+  const [generateReportPeriodEnd, setGenerateReportPeriodEnd] = useState(() =>
+    toDateTimeLocalValue(new Date()),
+  );
 
   const nearestDueLabel = useMemo(() => {
     const dueCandidates: string[] = [];
@@ -259,7 +336,9 @@ export function ProjectOverviewHeader({
 
     const nearest = dueCandidates
       .filter((value) => !Number.isNaN(new Date(value).getTime()))
-      .sort((left, right) => new Date(left).getTime() - new Date(right).getTime())[0];
+      .sort(
+        (left, right) => new Date(left).getTime() - new Date(right).getTime(),
+      )[0];
 
     return formatHeaderDueDateLabel(nearest);
   }, [project.milestones, project.workflows, selectedPipeline]);
@@ -309,6 +388,46 @@ export function ProjectOverviewHeader({
 
   const workspaceMembers = workspacePeopleData?.data?.members ?? [];
   const workspaceTeams = workspaceTeamsData?.data?.teams ?? [];
+  const reportRecipientOptions = useMemo(() => {
+    return workspaceMembers
+      .map((entry) => {
+        const user = entry?.userId;
+        const id = String(user?._id || "").trim();
+        const email = String(user?.email || "")
+          .trim()
+          .toLowerCase();
+        const firstName = String(user?.firstName || "").trim();
+        const lastName = String(user?.lastName || "").trim();
+        const label = `${firstName} ${lastName}`.trim() || email;
+
+        if (!id || !email) {
+          return null;
+        }
+
+        return {
+          id,
+          email,
+          label,
+        };
+      })
+      .filter((entry): entry is { id: string; email: string; label: string } =>
+        Boolean(entry),
+      );
+  }, [workspaceMembers]);
+  const reportRecipientOptionMap = useMemo(
+    () => new Map(reportRecipientOptions.map((entry) => [entry.id, entry])),
+    [reportRecipientOptions],
+  );
+  const selectedReportRecipients = useMemo(
+    () =>
+      generateReportRecipientUserIds
+        .map((id) => reportRecipientOptionMap.get(id))
+        .filter(
+          (entry): entry is { id: string; email: string; label: string } =>
+            Boolean(entry),
+        ),
+    [generateReportRecipientUserIds, reportRecipientOptionMap],
+  );
   const assignedTeamIds = useMemo(
     () => new Set(project.teams.map((team) => String(team.id))),
     [project.teams],
@@ -337,14 +456,16 @@ export function ProjectOverviewHeader({
       const firstName = String(user?.firstName || "").trim();
       const lastName = String(user?.lastName || "").trim();
       const email = String(user?.email || "").trim();
-      const name = `${firstName} ${lastName}`.trim() || email || "Project member";
+      const name =
+        `${firstName} ${lastName}`.trim() || email || "Project member";
       const initials =
         name
           .split(/\s+/)
           .slice(0, 2)
           .map((part) => part.charAt(0).toUpperCase())
           .join("") || "U";
-      const avatarUrl = String(user?.profilePhoto?.url || "").trim() || undefined;
+      const avatarUrl =
+        String(user?.profilePhoto?.url || "").trim() || undefined;
 
       map.set(userId, {
         name,
@@ -389,8 +510,10 @@ export function ProjectOverviewHeader({
       map.set(memberId, {
         ...(existing || member),
         ...member,
-        name: member.name || existing?.name || profile?.name || "Project member",
-        initials: member.initials || existing?.initials || profile?.initials || "U",
+        name:
+          member.name || existing?.name || profile?.name || "Project member",
+        initials:
+          member.initials || existing?.initials || profile?.initials || "U",
         avatarUrl:
           member.avatarUrl || existing?.avatarUrl || profile?.avatarUrl,
         email: existing?.email || profile?.email,
@@ -479,6 +602,119 @@ export function ProjectOverviewHeader({
   const handleArchiveProject = async () => {
     await onArchiveProject();
     setArchiveOpen(false);
+  };
+
+  const resetGenerateReportForm = () => {
+    const end = new Date();
+    const start = new Date(end.getTime() - 7 * 24 * 60 * 60 * 1000);
+    setGenerateReportPeriodStart(toDateTimeLocalValue(start));
+    setGenerateReportPeriodEnd(toDateTimeLocalValue(end));
+    setGenerateReportRecipientUserIds([]);
+    setGenerateReportRecipientPickerOpen(false);
+    setGenerateReportSendEmail(true);
+  };
+
+  const toggleGenerateReportRecipient = (userId: string) => {
+    setGenerateReportRecipientUserIds((current) =>
+      current.includes(userId)
+        ? current.filter((entry) => entry !== userId)
+        : [...current, userId],
+    );
+  };
+
+  const handleOpenGenerateReportDialog = () => {
+    resetGenerateReportForm();
+    setGenerateReportOpen(true);
+  };
+
+  const handleGenerateProjectReportNow = async () => {
+    if (!workspaceId || !project.id || !canGenerateReports) {
+      return;
+    }
+
+    if (!generateReportPeriodStart || !generateReportPeriodEnd) {
+      toast("Select both period start and period end.");
+      return;
+    }
+
+    const periodStart = new Date(generateReportPeriodStart);
+    const periodEnd = new Date(generateReportPeriodEnd);
+
+    if (
+      Number.isNaN(periodStart.getTime()) ||
+      Number.isNaN(periodEnd.getTime())
+    ) {
+      toast("Please use valid dates for the report period.");
+      return;
+    }
+
+    if (periodEnd.getTime() <= periodStart.getTime()) {
+      toast("Period end must be after period start.");
+      return;
+    }
+
+    if (hasInsufficientReportTokens) {
+      toast.error("Not enough AI tokens", {
+        description: `This report needs about ${estimatedReportTokenCost.toLocaleString()} tokens, but your workspace has ${workspaceTokenBalance.toLocaleString()} left.`,
+        action: {
+          label: "Open billing",
+          onClick: () => {
+            if (typeof window !== "undefined") {
+              window.location.assign(ROUTES.SETTINGS_BILLING);
+            }
+          },
+        },
+      });
+      return;
+    }
+
+    const request = runProjectReportNowMutation.mutateAsync({
+      workspaceId,
+      projectId: project.id,
+      payload: {
+        reportType: "PROJECT_HEALTH",
+        deliveryChannels: generateReportSendEmail
+          ? ["DASHBOARD", "EMAIL"]
+          : ["DASHBOARD"],
+        periodStart: periodStart.toISOString(),
+        periodEnd: periodEnd.toISOString(),
+        recipientUserIds: generateReportRecipientUserIds,
+        recipients: selectedReportRecipients.map((entry) => entry.email),
+      },
+    });
+
+    void toast.promise(request, {
+      loading: "Generating project report...",
+      success: (payload) => {
+        return payload?.data?.message || "Project report generated.";
+      },
+      error: "We could not generate a project report right now.",
+    });
+
+    let response = null;
+
+    try {
+      response = await request;
+    } catch {
+      return;
+    }
+
+    const reportId = String(response?.data?.report?.id || "").trim();
+
+    await Promise.all([
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-reports", workspaceId],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-report-detail", workspaceId, reportId],
+      }),
+    ]);
+
+    setGenerateReportOpen(false);
+
+    if (reportId) {
+      router.push(`/reports/${encodeURIComponent(reportId)}`);
+    }
   };
 
   const toggleExpandedTeam = (teamId: string) => {
@@ -640,6 +876,16 @@ export function ProjectOverviewHeader({
                     <Share2 className="size-4" />
                     Share
                   </DropdownMenuItem>
+                  <DropdownMenuItem
+                    disabled={
+                      !canGenerateReports ||
+                      runProjectReportNowMutation.isPending
+                    }
+                    onClick={() => handleOpenGenerateReportDialog()}
+                  >
+                    <ChartColumnIncreasing className="size-4" />
+                    Generate report
+                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     variant="destructive"
@@ -682,8 +928,8 @@ export function ProjectOverviewHeader({
                         member.teamIds.length > 1
                           ? `${member.teamIds.length} teams`
                           : member.teamIds.length === 1
-                        ? "1 team"
-                        : "No team",
+                            ? "1 team"
+                            : "No team",
                       status: member.active ? "Active" : "Offline",
                       details: [
                         {
@@ -693,7 +939,10 @@ export function ProjectOverviewHeader({
                       ],
                     }}
                   >
-                    <AvatarImage src={member.avatarUrl || ""} alt={member.name} />
+                    <AvatarImage
+                      src={member.avatarUrl || ""}
+                      alt={member.name}
+                    />
                     <AvatarFallback>{member.initials}</AvatarFallback>
                   </Avatar>
                 ))}
@@ -896,9 +1145,14 @@ export function ProjectOverviewHeader({
 
           <div className="space-y-3">
             <div className="rounded-lg border border-border/40 bg-muted/20 p-3">
-              <div className="mb-2 text-[12px] font-medium">Add workspace team</div>
+              <div className="mb-2 text-[12px] font-medium">
+                Add workspace team
+              </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                <Select value={manageAddTeamId} onValueChange={setManageAddTeamId}>
+                <Select
+                  value={manageAddTeamId}
+                  onValueChange={setManageAddTeamId}
+                >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Select a workspace team" />
                   </SelectTrigger>
@@ -937,9 +1191,8 @@ export function ProjectOverviewHeader({
               {project.teams.length ? (
                 project.teams.map((team) => {
                   const teamId = String(team.id || "");
-                  const teamMembers = (Array.isArray(team.memberIds)
-                    ? team.memberIds
-                    : []
+                  const teamMembers = (
+                    Array.isArray(team.memberIds) ? team.memberIds : []
                   )
                     .map((memberId) => membersById.get(String(memberId)))
                     .filter(
@@ -1013,7 +1266,9 @@ export function ProjectOverviewHeader({
                                     email: member.email,
                                     role: member.role,
                                     team: team.name,
-                                    status: member.active ? "Active" : "Offline",
+                                    status: member.active
+                                      ? "Active"
+                                      : "Offline",
                                     details: [
                                       {
                                         label: "Score",
@@ -1026,7 +1281,9 @@ export function ProjectOverviewHeader({
                                     src={member.avatarUrl || ""}
                                     alt={member.name}
                                   />
-                                  <AvatarFallback>{member.initials}</AvatarFallback>
+                                  <AvatarFallback>
+                                    {member.initials}
+                                  </AvatarFallback>
                                 </Avatar>
                                 <span className="truncate">{member.name}</span>
                               </div>
@@ -1154,6 +1411,169 @@ export function ProjectOverviewHeader({
             <Button type="button" onClick={handleCopyShareLink}>
               <Copy />
               Copy link
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={generateReportOpen} onOpenChange={setGenerateReportOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Generate project report</DialogTitle>
+            <DialogDescription>
+              Choose the report period and who should receive this report.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid gap-2">
+                <Label htmlFor="report-period-start">Period start</Label>
+                <Input
+                  id="report-period-start"
+                  type="datetime-local"
+                  value={generateReportPeriodStart}
+                  onChange={(event) =>
+                    setGenerateReportPeriodStart(event.target.value)
+                  }
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="report-period-end">Period end</Label>
+                <Input
+                  id="report-period-end"
+                  type="datetime-local"
+                  value={generateReportPeriodEnd}
+                  onChange={(event) =>
+                    setGenerateReportPeriodEnd(event.target.value)
+                  }
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Recipients</Label>
+              <Popover
+                open={generateReportRecipientPickerOpen}
+                onOpenChange={setGenerateReportRecipientPickerOpen}
+              >
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    className="h-auto min-h-10 w-full justify-between px-3 py-2"
+                  >
+                    <span
+                      className={cn(
+                        "truncate text-left text-sm",
+                        selectedReportRecipients.length
+                          ? "text-foreground"
+                          : "text-muted-foreground",
+                      )}
+                    >
+                      {selectedReportRecipients.length
+                        ? `${selectedReportRecipients.length} member${selectedReportRecipients.length === 1 ? "" : "s"} selected`
+                        : "Select members to notify about this report"}
+                    </span>
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-60" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  className="w-[var(--radix-popover-trigger-width)] p-0"
+                >
+                  <Command>
+                    <CommandInput placeholder="Search members..." />
+                    <CommandEmpty>No members found.</CommandEmpty>
+                    <CommandGroup className="max-h-56 overflow-auto">
+                      {reportRecipientOptions.map((option) => {
+                        const checked = generateReportRecipientUserIds.includes(
+                          option.id,
+                        );
+
+                        return (
+                          <CommandItem
+                            key={option.id}
+                            onSelect={() =>
+                              toggleGenerateReportRecipient(option.id)
+                            }
+                            className="gap-2"
+                          >
+                            <Check
+                              className={cn(
+                                "size-4",
+                                checked ? "opacity-100" : "opacity-0",
+                              )}
+                            />
+                            <div className="min-w-0">
+                              <p className="truncate text-sm">{option.label}</p>
+                              <p className="text-muted-foreground truncate text-xs">
+                                {option.email}
+                              </p>
+                            </div>
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandGroup>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
+
+            <div className="rounded-md border border-border/60 p-3">
+              <div className="flex items-start gap-3">
+                <Checkbox
+                  id="report-delivery-email"
+                  checked={generateReportSendEmail}
+                  onCheckedChange={(checked) =>
+                    setGenerateReportSendEmail(Boolean(checked))
+                  }
+                />
+                <div className="space-y-1">
+                  <Label htmlFor="report-delivery-email">Send email copy</Label>
+                  <p className="text-muted-foreground text-xs">
+                    Recipients always get in-app notifications. Enable this to
+                    also send the report by email.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs">
+              <p className="text-muted-foreground">
+                Estimated AI usage:{" "}
+                <span className="text-foreground font-medium">
+                  ~{estimatedReportTokenCost.toLocaleString()} tokens
+                </span>
+                {billingSummaryQuery.isSuccess ? (
+                  <>
+                    {" "}
+                    · Workspace balance{" "}
+                    <span className="text-foreground font-medium">
+                      {workspaceTokenBalance.toLocaleString()}
+                    </span>
+                  </>
+                ) : null}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setGenerateReportOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleGenerateProjectReportNow()}
+              disabled={
+                runProjectReportNowMutation.isPending || hasInsufficientReportTokens
+              }
+            >
+              <ChartColumnIncreasing className="size-4" />
+              Generate report (~{estimatedReportTokenCost})
             </Button>
           </DialogFooter>
         </DialogContent>

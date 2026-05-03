@@ -1,13 +1,14 @@
 import type React from "react";
+import { FileText } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
-type MentionSuggestionKind = "user" | "team" | "project" | "task";
+type MentionSuggestionKind = "user" | "team" | "project" | "task" | "report";
 
 const stripMentionPrefix = (value: string) =>
   String(value || "")
-    .replace(/^(team|project)\s*:/i, "")
+    .replace(/^(team|project|report)\s*:/i, "")
     .trim();
 
 const deriveInitials = (value: string, fallback = "U") => {
@@ -50,6 +51,8 @@ export const MentionSuggestionRow = ({
   const kindLabel =
     kind === "project"
       ? "Project"
+      : kind === "report"
+        ? "Report"
       : kind === "task"
         ? "Task"
         : kind === "team"
@@ -61,12 +64,16 @@ export const MentionSuggestionRow = ({
       label,
       kind === "project"
         ? "PR"
+        : kind === "report"
+          ? "RP"
         : kind === "task"
           ? "TK"
           : kind === "team"
             ? "TM"
-            : "U",
+          : "U",
     );
+  const isReport = kind === "report";
+  const displayValue = stripMentionPrefix(label);
 
   return (
     <div
@@ -76,14 +83,20 @@ export const MentionSuggestionRow = ({
         className,
       )}
     >
-      <Avatar className="size-5">
-        {avatarUrl ? <AvatarImage src={avatarUrl} alt={label} /> : null}
-        <AvatarFallback className="text-[10px]">{fallback}</AvatarFallback>
-      </Avatar>
+      {isReport ? (
+        <span className="bg-muted flex size-5 shrink-0 items-center justify-center rounded-md border border-border/60">
+          <FileText className="size-3 text-muted-foreground" />
+        </span>
+      ) : (
+        <Avatar className="size-5">
+          {avatarUrl ? <AvatarImage src={avatarUrl} alt={label} /> : null}
+          <AvatarFallback className="text-[10px]">{fallback}</AvatarFallback>
+        </Avatar>
+      )}
 
       <div className="min-w-0 flex-1">
         <p className="truncate text-[12px] leading-tight">
-          {highlightedLabel || label}
+          {highlightedLabel || displayValue}
         </p>
         <p className="text-muted-foreground truncate text-[10px] leading-tight">
           {subtitle || kindLabel}

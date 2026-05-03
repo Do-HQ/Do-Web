@@ -16,10 +16,11 @@ import {
   GitBranch,
   GraduationCap,
   Layers3,
+  Megaphone,
   MessageCircleMore,
-  Sparkles,
   StickyNote,
   TriangleAlert,
+  X,
 } from "lucide-react";
 
 import useWorkspaceJam from "@/hooks/use-workspace-jam";
@@ -214,7 +215,7 @@ const getDashboardVisitIcon = (kind: DashboardVisitItem["kind"]) => {
   if (kind === "jam") {
     return <StickyNote className="size-3.5" />;
   }
-  return <Sparkles className="size-3.5" />;
+  return <CircleDot className="size-3.5" />;
 };
 
 const getUpcomingTypeMeta = (type: DashboardUpcomingItem["type"]) => {
@@ -285,6 +286,25 @@ const DashboardSection = ({
   </section>
 );
 
+const UPCOMING_FEATURES = [
+  {
+    title: "Smarter AI availability handling",
+    description:
+      "AI actions automatically pause when the model is unavailable, so workflows stay stable across environments.",
+  },
+  {
+    title: "Richer scheduled intelligence",
+    description:
+      "Scheduled briefings are expanding with deeper project signals, blockers, and clearer next-step recommendations.",
+  },
+  {
+    title: "Guided AI drafting everywhere",
+    description:
+      "Workspace, project, workflow, and task drafts will continue getting stronger while remaining fully editable before save.",
+  },
+];
+const UPCOMING_BANNER_DISMISSED_KEY = "sq.dashboard.upcoming.dismissed";
+
 const UserDashboard = () => {
   const { user } = useAuthStore();
   const { workspaceId } = useWorkspaceStore();
@@ -295,6 +315,8 @@ const UserDashboard = () => {
   const [recentVisitHistory, setRecentVisitHistory] = React.useState<
     RecentVisitEntry[]
   >([]);
+  const [isUpcomingBannerVisible, setIsUpcomingBannerVisible] =
+    React.useState(true);
 
   const projectHook = useWorkspaceProject();
   const spaceHook = useWorkspaceSpace();
@@ -305,6 +327,38 @@ const UserDashboard = () => {
     () => String(workspaceId || user?.currentWorkspaceId?._id || "").trim(),
     [workspaceId, user?.currentWorkspaceId?._id],
   );
+  const upcomingDismissKey = React.useMemo(
+    () =>
+      `${UPCOMING_BANNER_DISMISSED_KEY}:${resolvedWorkspaceId || "global"}`,
+    [resolvedWorkspaceId],
+  );
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      const dismissed = window.localStorage.getItem(upcomingDismissKey) === "1";
+      setIsUpcomingBannerVisible(!dismissed);
+    } catch {
+      setIsUpcomingBannerVisible(true);
+    }
+  }, [upcomingDismissKey]);
+
+  const handleDismissUpcomingBanner = React.useCallback(() => {
+    setIsUpcomingBannerVisible(false);
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(upcomingDismissKey, "1");
+    } catch {
+      // no-op
+    }
+  }, [upcomingDismissKey]);
 
   const projectQuery = projectHook.useWorkspaceProjects(
     resolvedWorkspaceId,
@@ -888,6 +942,50 @@ const UserDashboard = () => {
           </div>
         </div>
       </section>
+
+      {isUpcomingBannerVisible ? (
+        <section className="bg-card/70 border-border/55 rounded-xl border p-4">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-start justify-between gap-2">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase text-muted-foreground">
+                <Megaphone className="size-3.5" />
+                Upcoming
+              </div>
+              <h2 className="text-[15px] font-semibold">What to expect next</h2>
+              <p className="text-muted-foreground text-[12px]">
+                Here is a preview of improvements rolling out soon across AI, reporting, and planning.
+              </p>
+            </div>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-foreground size-7"
+              aria-label="Dismiss upcoming features banner"
+              onClick={handleDismissUpcomingBanner}
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+
+          <div className="grid gap-2 md:grid-cols-3">
+            {UPCOMING_FEATURES.map((feature) => (
+              <div
+                key={feature.title}
+                className="bg-background/70 border-border/45 rounded-lg border px-3 py-2.5"
+              >
+                <p className="text-[12px] font-semibold">{feature.title}</p>
+                <p className="text-muted-foreground mt-1 text-[11px] leading-5">
+                  {feature.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+      ) : null}
 
       {onboardingPrompt?.shouldPrompt ? (
         <section className="bg-card/70 border-border/55 rounded-xl border p-4">
