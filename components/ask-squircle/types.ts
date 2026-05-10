@@ -34,3 +34,11 @@ export type ReportMentionMeta = {
   title: string;
   subtitle?: string;
 };
+
+export type ThinkingTraceStep = {
+  id: string;
+  title: string;
+  details: string[];
+  code?: string;
+  timestamp?: string;
+};

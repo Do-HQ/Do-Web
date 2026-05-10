@@ -21,7 +21,6 @@ import {
   CircleSmall,
   Cog,
   FolderInput,
-  GraduationCap,
   Library,
   Shield,
   User2Icon,
@@ -36,7 +35,6 @@ import SettingsWorkspaceSecurity from "../settings/settings-workspace-security";
 import SettingsWorkspaceKnowledgeBase from "../settings/settings-workspace-knowledge-base";
 import SettingsWorkspaceImport from "../settings/settings-workspace-import";
 import SettingsIntegrations from "../settings/settings-integrations";
-import SettingsWorkspaceOnboarding from "../settings/settings-workspace-onboarding";
 
 const workspace = {
   nav: [
@@ -44,7 +42,6 @@ const workspace = {
     { name: "People", icon: UserCog },
     { name: "Teams", icon: Baby },
     { name: "Security", icon: Shield },
-    { name: "Onboarding", icon: GraduationCap },
     { name: "Knowledge Base", icon: Library },
     { name: "Import", icon: FolderInput },
   ],
@@ -77,12 +74,12 @@ const SettingsModal = () => {
       return <SettingsWorkspaces />;
     } else if (id === "overview") {
       return <SettingsWorkspaceOverview />;
+    } else if (id === "onboarding") {
+      return <SettingsWorkspaceOverview />;
     } else if (id === "security") {
       return <SettingsWorkspaceSecurity />;
     } else if (id === "knowledge base") {
       return <SettingsWorkspaceKnowledgeBase />;
-    } else if (id === "onboarding") {
-      return <SettingsWorkspaceOnboarding />;
     } else if (id === "import") {
       return <SettingsWorkspaceImport />;
     } else if (id === "teams") {

@@ -155,11 +155,6 @@ export function NavActions() {
             >
               <Avatar
                 size="sm"
-                userCard={{
-                  name: userName,
-                  email: userEmail,
-                  role: userRole,
-                }}
               >
                 {avatarUrl ? (
                   <AvatarImage src={avatarUrl} alt={userName} />
@@ -175,11 +170,6 @@ export function NavActions() {
               <div className="flex items-center gap-2.5">
                 <Avatar
                   size="default"
-                  userCard={{
-                    name: userName,
-                    email: userEmail,
-                    role: userRole,
-                  }}
                 >
                   {avatarUrl ? (
                     <AvatarImage src={avatarUrl} alt={userName} />

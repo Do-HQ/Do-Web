@@ -250,6 +250,12 @@ body {
   display: none !important;
 }
 
+/* Keep Excalidraw text editor width managed by Excalidraw internals. */
+.jam-excalidraw .excalidraw .textEditorContainer > textarea,
+.jam-excalidraw .excalidraw .excalidraw-textEditorContainer > textarea {
+  min-width: 2ch !important;
+}
+
 .workspace-doc-editor-view .bn-container {
   background: transparent !important;
 }
@@ -264,7 +270,9 @@ body {
   letter-spacing: -0.01em;
 }
 
-.workspace-doc-editor-view .bn-editor .bn-block-outer:has(
+.workspace-doc-editor-view
+  .bn-editor
+  .bn-block-outer:has(
     > .bn-block > .bn-block-content[data-content-type="paragraph"]
   )
   + .bn-block-outer:has(
@@ -273,7 +281,8 @@ body {
   margin-top: 0.42rem !important;
 }
 
-.workspace-doc-editor-view .bn-editor
+.workspace-doc-editor-view
+  .bn-editor
   .bn-block-content[data-content-type="paragraph"]
   .bn-inline-content {
   line-height: 1.62 !important;
@@ -313,4 +322,15 @@ body[data-reduce-motion="true"] *::after {
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
   scroll-behavior: auto !important;
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
 }

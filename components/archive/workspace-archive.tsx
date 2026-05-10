@@ -11,7 +11,7 @@ import {
   FolderKanban,
   GitBranch,
   ListFilter,
-  Loader2,
+  Loader,
   RefreshCw,
   Search,
   Shapes,
@@ -1186,7 +1186,7 @@ function ArchiveRow({
         onClick={onRestore}
         disabled={disabled || pending}
       >
-        {pending ? <Loader2 className="size-3.5 animate-spin" /> : null}
+        {pending ? <Loader className="size-3.5 animate-spin" /> : null}
         Restore
       </Button>
     </div>
@@ -1232,7 +1232,7 @@ function CompactArchiveRow({ row }: { row: PopupArchiveRow }) {
             onClick={row.onRestore}
             disabled={!row.canRestore || row.pending}
           >
-            {row.pending ? <Loader2 className="size-3 animate-spin" /> : null}
+            {row.pending ? <Loader className="size-3 animate-spin" /> : null}
             Restore
           </Button>
         </div>

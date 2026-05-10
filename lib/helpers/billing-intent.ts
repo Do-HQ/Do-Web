@@ -1,7 +1,7 @@
 import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
 
 export type PendingBillingIntent = {
-  plan: "FREE" | "PRO" | "BUSINESS" | "ENTERPRISE";
+  plan: "FREE" | "STARTER" | "PRO" | "BUSINESS" | "ENTERPRISE";
   source?: string;
   createdAt: string;
 };
@@ -36,7 +36,7 @@ export const consumePendingBillingIntent = (): PendingBillingIntent | null => {
     const parsed = JSON.parse(raw) as PendingBillingIntent;
     const plan = String(parsed?.plan || "").toUpperCase();
 
-    if (!["FREE", "PRO", "BUSINESS", "ENTERPRISE"].includes(plan)) {
+    if (!["FREE", "STARTER", "PRO", "BUSINESS", "ENTERPRISE"].includes(plan)) {
       return null;
     }
 

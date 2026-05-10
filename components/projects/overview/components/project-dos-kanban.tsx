@@ -69,7 +69,11 @@ type ProjectDosKanbanProps = {
     workflowId: string,
     defaults?: Partial<ProjectTaskEditorValues>,
   ) => void;
-  onMoveTaskToLane: (workflowId: string, taskId: string, target: ProjectDosLaneTarget) => void;
+  onMoveTaskToLane: (
+    workflowId: string,
+    taskId: string,
+    target: ProjectDosLaneTarget,
+  ) => void;
 };
 
 const STATUS_COLUMNS: Array<{
@@ -81,33 +85,38 @@ const STATUS_COLUMNS: Array<{
   {
     status: "todo",
     label: "To do",
-    surfaceClassName: "bg-gradient-to-b from-slate-500/6 via-background/92 to-background/78",
+    surfaceClassName:
+      "bg-gradient-to-b from-slate-500/6 via-background/92 to-background/78",
     countClassName: "border-border/35 bg-background/85 text-muted-foreground",
   },
   {
     status: "in-progress",
     label: "In progress",
-    surfaceClassName: "bg-gradient-to-b from-primary/10 via-background/92 to-background/78",
+    surfaceClassName:
+      "bg-gradient-to-b from-primary/10 via-background/92 to-background/78",
     countClassName: "border-primary/20 bg-primary/10 text-primary",
   },
   {
     status: "review",
     label: "Review",
-    surfaceClassName: "bg-gradient-to-b from-emerald-500/10 via-background/92 to-background/78",
+    surfaceClassName:
+      "bg-gradient-to-b from-emerald-500/10 via-background/92 to-background/78",
     countClassName:
       "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
   },
   {
     status: "blocked",
     label: "Blocked",
-    surfaceClassName: "bg-gradient-to-b from-amber-500/10 via-background/92 to-background/78",
+    surfaceClassName:
+      "bg-gradient-to-b from-amber-500/10 via-background/92 to-background/78",
     countClassName:
       "border-amber-500/25 bg-amber-500/10 text-amber-600 dark:text-amber-300",
   },
   {
     status: "done",
     label: "Done",
-    surfaceClassName: "bg-gradient-to-b from-zinc-500/8 via-background/92 to-background/78",
+    surfaceClassName:
+      "bg-gradient-to-b from-zinc-500/8 via-background/92 to-background/78",
     countClassName: "border-border/35 bg-background/85 text-muted-foreground",
   },
 ];
@@ -117,28 +126,38 @@ const CUSTOM_SECTION_STYLES: Record<
   { surfaceClassName: string; countClassName: string }
 > = {
   sky: {
-    surfaceClassName: "bg-gradient-to-b from-sky-500/10 via-background/92 to-background/78",
-    countClassName: "border-sky-500/20 bg-sky-500/10 text-sky-600 dark:text-sky-300",
+    surfaceClassName:
+      "bg-gradient-to-b from-sky-500/10 via-background/92 to-background/78",
+    countClassName:
+      "border-sky-500/20 bg-sky-500/10 text-sky-600 dark:text-sky-300",
   },
   violet: {
-    surfaceClassName: "bg-gradient-to-b from-violet-500/10 via-background/92 to-background/78",
+    surfaceClassName:
+      "bg-gradient-to-b from-violet-500/10 via-background/92 to-background/78",
     countClassName:
       "border-violet-500/20 bg-violet-500/10 text-violet-600 dark:text-violet-300",
   },
   cyan: {
-    surfaceClassName: "bg-gradient-to-b from-cyan-500/10 via-background/92 to-background/78",
-    countClassName: "border-cyan-500/20 bg-cyan-500/10 text-cyan-600 dark:text-cyan-300",
+    surfaceClassName:
+      "bg-gradient-to-b from-cyan-500/10 via-background/92 to-background/78",
+    countClassName:
+      "border-cyan-500/20 bg-cyan-500/10 text-cyan-600 dark:text-cyan-300",
   },
   rose: {
-    surfaceClassName: "bg-gradient-to-b from-rose-500/10 via-background/92 to-background/78",
-    countClassName: "border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-300",
+    surfaceClassName:
+      "bg-gradient-to-b from-rose-500/10 via-background/92 to-background/78",
+    countClassName:
+      "border-rose-500/20 bg-rose-500/10 text-rose-600 dark:text-rose-300",
   },
   amber: {
-    surfaceClassName: "bg-gradient-to-b from-amber-500/10 via-background/92 to-background/78",
-    countClassName: "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-300",
+    surfaceClassName:
+      "bg-gradient-to-b from-amber-500/10 via-background/92 to-background/78",
+    countClassName:
+      "border-amber-500/20 bg-amber-500/10 text-amber-600 dark:text-amber-300",
   },
   emerald: {
-    surfaceClassName: "bg-gradient-to-b from-emerald-500/10 via-background/92 to-background/78",
+    surfaceClassName:
+      "bg-gradient-to-b from-emerald-500/10 via-background/92 to-background/78",
     countClassName:
       "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
   },
@@ -243,7 +262,10 @@ export function ProjectDosKanban({
   const [overLaneId, setOverLaneId] = useState<string | null>(null);
   const [sectionDialogOpen, setSectionDialogOpen] = useState(false);
 
-  const defaultGroupings = useMemo(() => getTaskStatusGroupings(tasks), [tasks]);
+  const defaultGroupings = useMemo(
+    () => getTaskStatusGroupings(tasks),
+    [tasks],
+  );
   const activeTask = useMemo(
     () => tasks.find((task) => task.id === activeTaskId) ?? null,
     [activeTaskId, tasks],
@@ -278,7 +300,9 @@ export function ProjectDosKanban({
   const resolvedLaneOrder = useMemo(() => {
     const available = new Set(defaultLaneOrder);
     const normalized = laneOrder.filter((item) => available.has(item));
-    const appended = defaultLaneOrder.filter((item) => !normalized.includes(item));
+    const appended = defaultLaneOrder.filter(
+      (item) => !normalized.includes(item),
+    );
 
     return [...normalized, ...appended];
   }, [defaultLaneOrder, laneOrder]);
@@ -365,7 +389,8 @@ export function ProjectDosKanban({
             <div>
               <div className="text-[13px] font-semibold">Board lanes</div>
               <div className="text-muted-foreground text-[12px] leading-5">
-                Drag tasks between status lanes or park them in custom sections while you work.
+                Drag tasks between status lanes or park them in custom sections
+                while you work.
               </div>
             </div>
 
@@ -427,8 +452,8 @@ export function ProjectDosKanban({
                         workflowOptions={workflowOptions}
                         highlightDropTarget={Boolean(
                           activeTask &&
-                            overLaneId === column.status &&
-                            getTaskLaneId(activeTask) !== column.status,
+                          overLaneId === column.status &&
+                          getTaskLaneId(activeTask) !== column.status,
                         )}
                         surfaceClassName={column.surfaceClassName}
                         countClassName={column.countClassName}
@@ -466,8 +491,8 @@ export function ProjectDosKanban({
                       workflowOptions={workflowOptions}
                       highlightDropTarget={Boolean(
                         activeTask &&
-                          overLaneId === section.id &&
-                          getTaskLaneId(activeTask) !== section.id,
+                        overLaneId === section.id &&
+                        getTaskLaneId(activeTask) !== section.id,
                       )}
                       surfaceClassName={style.surfaceClassName}
                       countClassName={style.countClassName}
@@ -483,7 +508,7 @@ export function ProjectDosKanban({
                 })}
               </div>
             </SortableContext>
-            <ScrollBar orientation="horizontal" />
+            <ScrollBar orientation="horizontal" className="hidden" />
           </ScrollArea>
         </DndContext>
       </section>

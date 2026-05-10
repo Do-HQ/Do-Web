@@ -79,6 +79,16 @@ const PLAN_LIMITS = {
     hasAuditLogs: false,
     hasSso: false,
   },
+  starter: {
+    members: 10,
+    projects: 10,
+    storageGb: 0.5,
+    aiCredits: 0,
+    hasAiProjectManager: false,
+    hasAdvancedAutomation: false,
+    hasAuditLogs: false,
+    hasSso: false,
+  },
   pro: {
     members: "unlimited",
     projects: "unlimited",
@@ -124,6 +134,7 @@ type PricingPlan = {
 
 const PLAN_KEY_TO_WORKSPACE_PLAN = {
   free: "FREE",
+  starter: "STARTER",
   pro: "PRO",
   business: "BUSINESS",
   enterprise: "ENTERPRISE",
@@ -131,11 +142,12 @@ const PLAN_KEY_TO_WORKSPACE_PLAN = {
 
 const pricingPlans: PricingPlan[] = [
   {
-    key: "free",
+    key: "starter",
     name: "Starter",
-    description: "For individuals and early teams starting with core workflows.",
-    price: "$6–$8",
-    suffix: "/ member / month",
+    description:
+      "For individuals and early teams starting with core workflows.",
+    price: "$6",
+    suffix: "/ month",
     cta: "Start with Starter",
     recommended: false,
     features: [
@@ -166,8 +178,8 @@ const pricingPlans: PricingPlan[] = [
     name: "Business",
     description:
       "For growing organizations that need controls, integrations, and support.",
-    price: "$12",
-    suffix: "/ member / month",
+    price: "$24",
+    suffix: "/ month",
     cta: "Start with Business",
     recommended: false,
     features: [
@@ -505,6 +517,8 @@ function IllustrationPlaceholder({
   subtitle,
   className,
 }: IllustrationPlaceholderProps) {
+  // Hooks
+
   return (
     <div
       className={cn(
@@ -768,7 +782,10 @@ export default function Home() {
     previousScrollTopRef.current = container.scrollTop;
 
     const onScroll = () => {
-      const maxTop = Math.max(container.scrollHeight - container.clientHeight, 0);
+      const maxTop = Math.max(
+        container.scrollHeight - container.clientHeight,
+        0,
+      );
       const currentTop = container.scrollTop;
       const isScrollingUp = currentTop < previousScrollTopRef.current;
       previousScrollTopRef.current = Math.min(currentTop, maxTop);
@@ -802,7 +819,10 @@ export default function Home() {
     }
 
     const onWheelClampEdges = (event: WheelEvent) => {
-      const maxTop = Math.max(container.scrollHeight - container.clientHeight, 0);
+      const maxTop = Math.max(
+        container.scrollHeight - container.clientHeight,
+        0,
+      );
       const atTop = container.scrollTop <= 0;
       const atBottom = container.scrollTop >= maxTop - 1;
 
@@ -936,10 +956,10 @@ export default function Home() {
                     type="button"
                     aria-label={item.label}
                     onClick={() => scrollToSection(item.targetId)}
-                    className="group w-full py-4 text-left"
+                    className="group w-full py-3 text-left"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="text-muted-foreground min-w-9 text-xs font-medium tracking-[0.16em] uppercase">
+                      <span className="text-muted-foreground min-w-9 text-xs font-medium uppercase">
                         {item.chapter}
                       </span>
                       <div className="min-w-0 flex-1">

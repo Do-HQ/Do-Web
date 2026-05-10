@@ -37,9 +37,22 @@ export const useFavoritesStore = create<FavoritesStore>()(
       setWorkspaceScope: (workspaceId) =>
         set((state) => {
           const scopeKey = toWorkspaceScopeKey(workspaceId);
+          const scopedFavorites = state.favoritesByWorkspace[scopeKey];
+          const nextFavorites = scopedFavorites || [];
+
+          if (state.activeWorkspaceKey === scopeKey) {
+            if (state.favorites === nextFavorites) {
+              return state;
+            }
+
+            if (!scopedFavorites && state.favorites.length === 0) {
+              return state;
+            }
+          }
+
           return {
             activeWorkspaceKey: scopeKey,
-            favorites: state.favoritesByWorkspace[scopeKey] || [],
+            favorites: nextFavorites,
           };
         }),
       addFavorite: (item) =>

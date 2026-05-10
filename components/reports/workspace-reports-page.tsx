@@ -148,7 +148,9 @@ const WorkspaceReportsPage = () => {
     return false;
   };
 
-  const syncSingleReportInListCache = (nextReport: Record<string, unknown> | undefined) => {
+  const syncSingleReportInListCache = (
+    nextReport: Record<string, unknown> | undefined,
+  ) => {
     if (!nextReport || typeof nextReport !== "object") {
       return;
     }
@@ -309,7 +311,7 @@ const WorkspaceReportsPage = () => {
 
   const filterBar = (
     <Card className="border-none shadow-none">
-      <CardContent className="flex flex-wrap justify-end gap-2.5">
+      <CardContent className="flex flex-wrap justify-start gap-2.5">
         <div className="w-full space-y-1.5 sm:w-[11rem]">
           <Label className="text-xs">Type</Label>
           <Select value={reportType} onValueChange={setReportType}>

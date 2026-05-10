@@ -10,6 +10,7 @@ import {
   ListChecks,
   ListTodo,
   MoreHorizontal,
+  Shapes,
   ShieldAlert,
   Star,
   StarOff,
@@ -62,6 +63,7 @@ export function NavFavorites({
   > = {
     chat: Hash,
     doc: BookText,
+    jam: Shapes,
     workflow: GitBranch,
     task: ListTodo,
     subtask: ListChecks,

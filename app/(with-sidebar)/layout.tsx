@@ -88,6 +88,70 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         kind: "doc",
         href: `${ROUTES.DOCS}/${encodeURIComponent(docId)}`,
       });
+      return;
+    }
+
+    if (pathname === ROUTES.ASK_SQUIRCLE) {
+      recordRecentVisit({
+        workspaceId: scopedWorkspaceId,
+        key: "scribe:home",
+        kind: "scribe",
+        href: ROUTES.ASK_SQUIRCLE,
+      });
+      return;
+    }
+
+    if (pathname === ROUTES.REPORTS) {
+      recordRecentVisit({
+        workspaceId: scopedWorkspaceId,
+        key: "report:index",
+        kind: "report",
+        href: ROUTES.REPORTS,
+      });
+      return;
+    }
+
+    if (pathname.startsWith(`${ROUTES.REPORTS}/`)) {
+      const reportId = decodeURIComponent(
+        pathname.slice(`${ROUTES.REPORTS}/`.length).split("/")[0] || "",
+      ).trim();
+
+      if (!reportId) {
+        return;
+      }
+
+      recordRecentVisit({
+        workspaceId: scopedWorkspaceId,
+        key: `report:${reportId}`,
+        kind: "report",
+        href: `${ROUTES.REPORTS}/${encodeURIComponent(reportId)}`,
+      });
+      return;
+    }
+
+    if (pathname === ROUTES.SETTINGS_REPORTS) {
+      recordRecentVisit({
+        workspaceId: scopedWorkspaceId,
+        key: "schedule:index",
+        kind: "schedule",
+        href: ROUTES.SETTINGS_REPORTS,
+      });
+      return;
+    }
+
+    if (pathname.startsWith(`${ROUTES.SETTINGS_REPORTS}/`)) {
+      const scheduleId = decodeURIComponent(
+        pathname.slice(`${ROUTES.SETTINGS_REPORTS}/`.length).split("/")[0] || "",
+      ).trim();
+
+      recordRecentVisit({
+        workspaceId: scopedWorkspaceId,
+        key: scheduleId ? `schedule:${scheduleId}` : "schedule:index",
+        kind: "schedule",
+        href: scheduleId
+          ? `${ROUTES.SETTINGS_REPORTS}/${encodeURIComponent(scheduleId)}`
+          : ROUTES.SETTINGS_REPORTS,
+      });
     }
   }, [pathname, workspaceId]);
 

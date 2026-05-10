@@ -74,11 +74,6 @@ export function TeamSwitcher() {
             <SidebarMenuButton className="w-full px-1.5">
               <Avatar
                 size="sm"
-                userCard={{
-                  name: currentWorkspaceName,
-                  role: "Workspace",
-                  status: "Current workspace",
-                }}
               >
                 <AvatarImage
                   src={user?.currentWorkspaceId?.logo?.url}
@@ -126,14 +121,6 @@ export function TeamSwitcher() {
                 >
                   <Avatar
                     size="sm"
-                    userCard={{
-                      name: team?.name || "Workspace",
-                      role: "Workspace",
-                      status:
-                        workspaceId === team?._id
-                          ? "Current workspace"
-                          : "Available",
-                    }}
                   >
                     <AvatarImage
                       src={team?.logo?.url}

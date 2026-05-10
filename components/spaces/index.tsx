@@ -105,7 +105,10 @@ const messageQueryParams = {
   limit: 30,
 } as const;
 
-type ForwardMessageSource = Pick<SpaceMessage, "author" | "content" | "attachments">;
+type ForwardMessageSource = Pick<
+  SpaceMessage,
+  "author" | "content" | "attachments"
+>;
 
 const formatChatTimestamp = (value?: string) => {
   if (!value) {
@@ -136,7 +139,9 @@ const formatChatTimestamp = (value?: string) => {
 };
 
 const compactSpacesNotificationText = (value: unknown, maxLength = 180) => {
-  const normalized = String(value || "").replace(/\s+/g, " ").trim();
+  const normalized = String(value || "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!normalized) {
     return "";
   }
@@ -1005,7 +1010,9 @@ const SpacesPage = () => {
         }
 
         const serverReactions = serverReactionByMessageId.get(messageId) || [];
-        if (reactionSignature(reactions) === reactionSignature(serverReactions)) {
+        if (
+          reactionSignature(reactions) === reactionSignature(serverReactions)
+        ) {
           delete next[messageId];
           hasChange = true;
         }
@@ -1034,7 +1041,9 @@ const SpacesPage = () => {
           return;
         }
 
-        if (Boolean(isPinned) === Boolean(serverPinnedByMessageId.get(messageId))) {
+        if (
+          Boolean(isPinned) === Boolean(serverPinnedByMessageId.get(messageId))
+        ) {
           delete next[messageId];
           hasChange = true;
         }
@@ -1154,7 +1163,8 @@ const SpacesPage = () => {
   const deleteMessageMutation = spaceHook.useDeleteWorkspaceSpaceMessage();
   const toggleMessageReactionMutation =
     spaceHook.useToggleWorkspaceSpaceMessageReaction();
-  const toggleMessagePinMutation = spaceHook.useToggleWorkspaceSpaceMessagePin();
+  const toggleMessagePinMutation =
+    spaceHook.useToggleWorkspaceSpaceMessagePin();
   const createThreadReplyMutation =
     spaceHook.useCreateWorkspaceSpaceThreadReply();
   const markReadMutation = spaceHook.useMarkWorkspaceSpaceRoomRead();
@@ -1172,35 +1182,32 @@ const SpacesPage = () => {
     activeRoom?.scope === "task";
 
   const keepUpCount = keepUpBadgeQuery.data?.data?.pagination?.total ?? 0;
-  const pinnedMessages = useMemo(
-    () => {
-      const pinnedById = new Map<string, SpaceMessage>();
+  const pinnedMessages = useMemo(() => {
+    const pinnedById = new Map<string, SpaceMessage>();
 
-      (pinnedMessagesQuery.data?.data?.messages || [])
-        .map(mapMessageToUi)
-        .forEach((message) => {
-          pinnedById.set(message.id, message);
-        });
-
-      activeMessages.forEach((message) => {
-        if (message.isPinned) {
-          pinnedById.set(message.id, message);
-          return;
-        }
-
-        if (pinnedById.has(message.id)) {
-          pinnedById.delete(message.id);
-        }
+    (pinnedMessagesQuery.data?.data?.messages || [])
+      .map(mapMessageToUi)
+      .forEach((message) => {
+        pinnedById.set(message.id, message);
       });
 
-      return Array.from(pinnedById.values()).sort((left, right) => {
-        const rightTs = resolveIsoTimestamp(right.pinnedAt || right.sentAtRaw);
-        const leftTs = resolveIsoTimestamp(left.pinnedAt || left.sentAtRaw);
-        return rightTs - leftTs;
-      });
-    },
-    [activeMessages, pinnedMessagesQuery.data?.data?.messages],
-  );
+    activeMessages.forEach((message) => {
+      if (message.isPinned) {
+        pinnedById.set(message.id, message);
+        return;
+      }
+
+      if (pinnedById.has(message.id)) {
+        pinnedById.delete(message.id);
+      }
+    });
+
+    return Array.from(pinnedById.values()).sort((left, right) => {
+      const rightTs = resolveIsoTimestamp(right.pinnedAt || right.sentAtRaw);
+      const leftTs = resolveIsoTimestamp(left.pinnedAt || left.sentAtRaw);
+      return rightTs - leftTs;
+    });
+  }, [activeMessages, pinnedMessagesQuery.data?.data?.messages]);
   const pinnedMessagesCount = pinnedMessages.length;
   const featuredPinnedMessage = pinnedMessages[0] || null;
   const keepUpItems = useMemo(
@@ -1292,7 +1299,8 @@ const SpacesPage = () => {
           subtitle,
           kind: "group",
           avatarUrl: room.avatarUrl,
-          avatarFallback: room.avatarFallback || mentionInitials(room.name, "SP"),
+          avatarFallback:
+            room.avatarFallback || mentionInitials(room.name, "SP"),
         });
       });
 
@@ -1924,7 +1932,9 @@ const SpacesPage = () => {
         return;
       }
 
-      const normalizedCurrentUserId = String(currentUserIdRef.current || "").trim();
+      const normalizedCurrentUserId = String(
+        currentUserIdRef.current || "",
+      ).trim();
       const authorUserId = String(message?.author?.id || "").trim();
       const isMyMessage =
         Boolean(normalizedCurrentUserId) &&
@@ -2164,12 +2174,7 @@ const SpacesPage = () => {
         });
       }
     };
-  }, [
-    activeRoom?.id,
-    bumpRoomActivity,
-    queryClient,
-    resolvedWorkspaceId,
-  ]);
+  }, [activeRoom?.id, bumpRoomActivity, queryClient, resolvedWorkspaceId]);
 
   useEffect(() => {
     if (!resolvedWorkspaceId || !activeRoom?.id) {
@@ -2254,37 +2259,46 @@ const SpacesPage = () => {
         socket.connect();
       }
 
-      socket.emit("team-call:start", {
-        workspaceId: resolvedWorkspaceId,
-        roomId: room.id,
-        roomName: room.name,
-        roomScope: room.scope,
-        roomKind:
-          room.kind === "direct" ||
-          room.kind === "group" ||
-          room.kind === "project" ||
-          room.kind === "task"
-            ? room.kind
-            : "group",
-        callMode: mode,
-        startedAt,
-        startedByName: currentUser.name,
-        startedByInitials: currentUser.initials,
-      }, (response?: { ok?: boolean; route?: string; active?: boolean; threadMessageId?: string }) => {
-        if (!response?.ok) {
-          return;
-        }
+      socket.emit(
+        "team-call:start",
+        {
+          workspaceId: resolvedWorkspaceId,
+          roomId: room.id,
+          roomName: room.name,
+          roomScope: room.scope,
+          roomKind:
+            room.kind === "direct" ||
+            room.kind === "group" ||
+            room.kind === "project" ||
+            room.kind === "task"
+              ? room.kind
+              : "group",
+          callMode: mode,
+          startedAt,
+          startedByName: currentUser.name,
+          startedByInitials: currentUser.initials,
+        },
+        (response?: {
+          ok?: boolean;
+          route?: string;
+          active?: boolean;
+          threadMessageId?: string;
+        }) => {
+          if (!response?.ok) {
+            return;
+          }
 
-        if (response?.active) {
-          setActiveRoomCallStatus((prev) => ({
-            active: true,
-            route: String(response.route || "").trim() || prev?.route,
-            startedAt: startedAt,
-            callMode: mode,
-            participants: prev?.participants,
-          }));
-        }
-      });
+          if (response?.active) {
+            setActiveRoomCallStatus((prev) => ({
+              active: true,
+              route: String(response.route || "").trim() || prev?.route,
+              startedAt: startedAt,
+              callMode: mode,
+              participants: prev?.participants,
+            }));
+          }
+        },
+      );
     }
 
     router.push(
@@ -2347,7 +2361,8 @@ const SpacesPage = () => {
                   "",
               ).trim()
             : "",
-        callMode: activeRoomCallStatus?.callMode === "voice" ? "voice" : "video",
+        callMode:
+          activeRoomCallStatus?.callMode === "voice" ? "voice" : "video",
         startedAt: Number(activeRoomCallStatus?.startedAt || Date.now()),
       }),
     );
@@ -2952,7 +2967,11 @@ const SpacesPage = () => {
   };
 
   const handleSubmitForwardMessage = async () => {
-    if (!resolvedWorkspaceId || !forwardMessageSource || !selectedForwardTargetId) {
+    if (
+      !resolvedWorkspaceId ||
+      !forwardMessageSource ||
+      !selectedForwardTargetId
+    ) {
       return;
     }
 
@@ -3125,15 +3144,13 @@ const SpacesPage = () => {
   };
 
   const togglePinnedMessage = async (messageId: string) => {
-    if (
-      !resolvedWorkspaceId ||
-      !activeRoom ||
-      !messageId
-    ) {
+    if (!resolvedWorkspaceId || !activeRoom || !messageId) {
       return;
     }
 
-    const targetMessage = activeMessages.find((entry) => entry.id === messageId);
+    const targetMessage = activeMessages.find(
+      (entry) => entry.id === messageId,
+    );
     if (!targetMessage) {
       return;
     }
@@ -3172,12 +3189,16 @@ const SpacesPage = () => {
   };
 
   const getPinnedMessagePreview = (message: SpaceMessage) => {
-    const normalized = String(message.content || "").replace(/\s+/g, " ").trim();
+    const normalized = String(message.content || "")
+      .replace(/\s+/g, " ")
+      .trim();
     if (!normalized) {
       return "Pinned message";
     }
 
-    return normalized.length > 120 ? `${normalized.slice(0, 120)}...` : normalized;
+    return normalized.length > 120
+      ? `${normalized.slice(0, 120)}...`
+      : normalized;
   };
 
   const openPinnedMessage = (messageId: string) => {
@@ -3193,15 +3214,13 @@ const SpacesPage = () => {
   };
 
   const reactToMessage = async (messageId: string, emoji: string) => {
-    if (
-      !resolvedWorkspaceId ||
-      !activeRoom ||
-      !messageId
-    ) {
+    if (!resolvedWorkspaceId || !activeRoom || !messageId) {
       return;
     }
 
-    const targetMessage = activeMessages.find((entry) => entry.id === messageId);
+    const targetMessage = activeMessages.find(
+      (entry) => entry.id === messageId,
+    );
     if (!targetMessage) {
       return;
     }
@@ -3366,15 +3385,13 @@ const SpacesPage = () => {
   };
 
   const reactToThreadReply = async (replyId: string, emoji: string) => {
-    if (
-      !resolvedWorkspaceId ||
-      !activeRoom ||
-      !replyId
-    ) {
+    if (!resolvedWorkspaceId || !activeRoom || !replyId) {
       return;
     }
 
-    const targetReply = activeThreadReplies.find((entry) => entry.id === replyId);
+    const targetReply = activeThreadReplies.find(
+      (entry) => entry.id === replyId,
+    );
     if (!targetReply) {
       return;
     }
@@ -3746,7 +3763,9 @@ const SpacesPage = () => {
                 ) : (
                   <Button
                     size="sm"
-                    variant={hasOngoingCallForActiveRoom ? "default" : "outline"}
+                    variant={
+                      hasOngoingCallForActiveRoom ? "default" : "outline"
+                    }
                     className={cn(
                       "h-8 px-2.5 text-[13px]",
                       hasOngoingCallForActiveRoom &&
@@ -3803,7 +3822,7 @@ const SpacesPage = () => {
             )}
 
             {activeRoom && featuredPinnedMessage && (
-              <div className="mt-2 flex items-center gap-2 rounded-md border border-border/40 bg-muted/20 px-2 py-1.5">
+              <div className="mt-2 flex items-center gap-2 rounded-md py-1.5">
                 <Badge variant="outline" className="text-[10px]">
                   <Pin className="size-3.5" />
                   {pinnedMessagesCount}
@@ -3827,7 +3846,6 @@ const SpacesPage = () => {
                 )}
               </div>
             )}
-
           </div>
 
           {teamCallWidget && (
@@ -3896,13 +3914,9 @@ const SpacesPage = () => {
                     <MessageSquareText className="size-4 text-primary/85" />
                   </EmptyMedia>
                   <EmptyDescription className="text-center text-[12px]">
-                    {roomsQuery.isLoading ? (
-                      <LoaderComponent />
-                    ) : hasRooms ? (
-                      "Select a space to start chatting."
-                    ) : (
-                      "No spaces yet. Create a direct chat or group to begin."
-                    )}
+                    {hasRooms
+                      ? "Select a space to start chatting."
+                      : "No spaces yet. Create a direct chat or group to begin."}
                   </EmptyDescription>
                 </EmptyHeader>
               </Empty>
@@ -4397,7 +4411,9 @@ const SpacesPage = () => {
         }
         selectedTargetId={selectedForwardTargetId}
         targetOptions={forwardTargetOptions}
-        isSubmitting={createMessageMutation.isPending || createRoomMutation.isPending}
+        isSubmitting={
+          createMessageMutation.isPending || createRoomMutation.isPending
+        }
         onSearchChange={setForwardSearch}
         onSelectTarget={setSelectedForwardTargetId}
         onSubmit={handleSubmitForwardMessage}

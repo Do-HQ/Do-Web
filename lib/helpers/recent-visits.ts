@@ -1,4 +1,11 @@
-export type RecentVisitKind = "project" | "space" | "jam" | "doc";
+export type RecentVisitKind =
+  | "project"
+  | "space"
+  | "jam"
+  | "doc"
+  | "report"
+  | "schedule"
+  | "scribe";
 
 export type RecentVisitEntry = {
   key: string;
@@ -54,7 +61,10 @@ const readRecentVisitsRaw = (): RecentVisitEntry[] => {
           kind !== "project" &&
           kind !== "space" &&
           kind !== "jam" &&
-          kind !== "doc"
+          kind !== "doc" &&
+          kind !== "report" &&
+          kind !== "schedule" &&
+          kind !== "scribe"
         ) {
           return null;
         }

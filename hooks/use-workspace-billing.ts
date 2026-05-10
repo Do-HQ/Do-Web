@@ -10,6 +10,7 @@ import {
   listWorkspaceBillingPlans,
   purchaseWorkspaceTokens,
   subscribeWorkspaceBillingPlan,
+  syncWorkspaceBillingCheckoutSession,
 } from "@/lib/services/workspace-billing-service";
 
 const useWorkspaceBilling = () => {
@@ -141,6 +142,15 @@ const useWorkspaceBilling = () => {
     });
   };
 
+  const useSyncWorkspaceBillingCheckoutSession = () => {
+    return useMutation({
+      mutationFn: syncWorkspaceBillingCheckoutSession,
+      onError: (error) => {
+        handleError(error as AxiosError);
+      },
+    });
+  };
+
   return {
     useWorkspaceBillingPlans,
     useWorkspaceBillingSummary,
@@ -149,6 +159,7 @@ const useWorkspaceBilling = () => {
     useSubscribeWorkspaceBillingPlan,
     useChangeWorkspaceBillingPlan,
     usePurchaseWorkspaceTokens,
+    useSyncWorkspaceBillingCheckoutSession,
   };
 };
 

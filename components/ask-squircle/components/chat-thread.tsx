@@ -1,23 +1,24 @@
 import {
   CornerDownRight,
   Copy,
-  Lightbulb,
   Quote,
   Reply,
   Gem,
   Star,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import MessageMarkdown from "./message-markdown";
-import type { Message, ReportMentionMeta } from "../types";
+import type { Message, ReportMentionMeta, ThinkingTraceStep } from "../types";
 
 type ChatThreadProps = {
   messages: Message[];
   isLoading?: boolean;
   isThinking: boolean;
+  thinkingTrace?: ThinkingTraceStep[];
   starterPrompts: string[];
   activeReplyToMessageId?: string;
   activeQuotedMessageId?: string;
@@ -34,6 +35,7 @@ const ChatThread = ({
   messages,
   isLoading = false,
   isThinking,
+  thinkingTrace = [],
   starterPrompts,
   activeReplyToMessageId,
   activeQuotedMessageId,
@@ -193,8 +195,48 @@ const ChatThread = ({
               <Gem className="size-3.5" />
               Scribe is thinking...
             </div>
-            <div className="rounded-md bg-card px-3.5 py-3">
-              <div className="space-y-2">
+            <div className="rounded-md px-3.5 py-3">
+              <div className="space-y-2.5">
+                {thinkingTrace.length ? (
+                  <div className="space-y-1.5">
+                    <p className="text-[10px] text-muted-foreground">
+                      Reasoning trace
+                    </p>
+                    {thinkingTrace.slice(-4).map((step, index, traceList) => {
+                      const isCurrent = index === traceList.length - 1;
+                      const details = Array.isArray(step.details)
+                        ? step.details.filter(Boolean).slice(0, 6)
+                        : [];
+
+                      return (
+                        <details
+                          key={step.id}
+                          open={isCurrent}
+                          className="group rounded-md border border-border/60 bg-muted/20 px-2.5 py-2"
+                        >
+                          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-foreground marker:content-none">
+                            <Loader2
+                              className={cn(
+                                "size-3",
+                                isCurrent ? "animate-spin" : "opacity-60",
+                              )}
+                            />
+                            <span>{step.title}</span>
+                          </summary>
+                          {details.length ? (
+                            <div className="mt-2 space-y-1 pl-4 text-[10px] text-muted-foreground">
+                              {details.map((detail, detailIndex) => (
+                                <p key={`${step.id}-detail-${detailIndex + 1}`}>
+                                  • {detail}
+                                </p>
+                              ))}
+                            </div>
+                          ) : null}
+                        </details>
+                      );
+                    })}
+                  </div>
+                ) : null}
                 <div className="bg-muted h-3 w-5/12 animate-pulse rounded" />
                 <div className="bg-muted h-3 w-11/12 animate-pulse rounded" />
                 <div className="bg-muted h-3 w-8/12 animate-pulse rounded" />

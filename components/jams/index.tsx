@@ -23,6 +23,7 @@ import {
   Send,
   Share2,
   Shapes,
+  Star,
   Hash,
   MessageSquare,
   Users,
@@ -45,6 +46,7 @@ import useWorkspaceJam from "@/hooks/use-workspace-jam";
 import { useDebounce } from "@/hooks/use-debounce";
 import useAuthStore from "@/stores/auth";
 import useWorkspaceStore from "@/stores/workspace";
+import { useFavoritesStore } from "@/stores";
 import {
   WorkspaceJamActivityRecord,
   WorkspaceJamCommentMentionKind,
@@ -423,6 +425,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
 
   const [listSearch, setListSearch] = React.useState("");
   const [scope, setScope] = React.useState<WorkspaceJamScopeFilter>("all");
+  const [favoritesOnly, setFavoritesOnly] = React.useState(false);
   const [showArchived, setShowArchived] = React.useState(false);
   const isRoutedCanvasMode = Boolean(routeJamId && routeJamId.trim());
   const [activeJamId, setActiveJamId] = React.useState(
@@ -489,6 +492,11 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
     React.useState("");
   const lastCanvasRefetchKeyRef = React.useRef("");
   const jamCanvasSurfaceRef = React.useRef<HTMLDivElement | null>(null);
+  const setFavoritesWorkspaceScope = useFavoritesStore(
+    (state) => state.setWorkspaceScope,
+  );
+  const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
+  const isFavorite = useFavoritesStore((state) => state.isFavorite);
 
   const debouncedListSearch = useDebounce(listSearch, 300);
   const debouncedShareSearch = useDebounce(shareSearch, 250);
@@ -514,9 +522,31 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
     enabled: !!workspaceKey && !isRoutedCanvasMode,
   });
 
-  const jamRows = React.useMemo<WorkspaceJamRecord[]>(
+  const allJamRows = React.useMemo<WorkspaceJamRecord[]>(
     () => jamsQuery.data?.data?.jams || [],
     [jamsQuery.data?.data?.jams],
+  );
+
+  React.useEffect(() => {
+    setFavoritesWorkspaceScope(workspaceKey || null);
+  }, [setFavoritesWorkspaceScope, workspaceKey]);
+
+  const getJamFavoriteKey = React.useCallback(
+    (jamId: string) => `jam:${workspaceKey}:${String(jamId || "").trim()}`,
+    [workspaceKey],
+  );
+
+  const isJamFavorite = React.useCallback(
+    (jamId: string) => isFavorite(getJamFavoriteKey(jamId)),
+    [getJamFavoriteKey, isFavorite],
+  );
+
+  const jamRows = React.useMemo<WorkspaceJamRecord[]>(
+    () =>
+      favoritesOnly
+        ? allJamRows.filter((jam) => isJamFavorite(jam.jamId))
+        : allJamRows,
+    [allJamRows, favoritesOnly, isJamFavorite],
   );
 
   React.useEffect(() => {
@@ -547,6 +577,22 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
     const nextJamId = jamRows[0]?.jamId || "";
     setActiveJamId(nextJamId);
   }, [activeJamId, isRoutedCanvasMode, jamRows]);
+
+  const toggleJamFavorite = React.useCallback(
+    (jam: WorkspaceJamRecord) => {
+      if (!workspaceKey || !jam?.jamId) {
+        return;
+      }
+      toggleFavorite({
+        key: getJamFavoriteKey(jam.jamId),
+        type: "jam",
+        label: String(jam.title || "Untitled jam"),
+        href: `${ROUTES.JAMS}/${encodeURIComponent(String(jam.jamId || ""))}`,
+        subtitle: String(jam.description || "").trim(),
+      });
+    },
+    [getJamFavoriteKey, toggleFavorite, workspaceKey],
+  );
 
   React.useEffect(() => {
     if (!isCanvasFocusMode) {
@@ -1907,7 +1953,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   );
 
   const jamListLoading =
-    !isRoutedCanvasMode && jamsQuery.isLoading && !jamRows.length;
+    !isRoutedCanvasMode && jamsQuery.isLoading && !allJamRows.length;
 
   const selectedThreadMessages = Array.isArray(selectedJamCommentThread?.messages)
     ? selectedJamCommentThread.messages
@@ -1999,6 +2045,16 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
               </div>
               <Button
                 type="button"
+                variant={favoritesOnly ? "secondary" : "outline"}
+                size="sm"
+                className="h-8 px-2.5 text-[11px]"
+                onClick={() => setFavoritesOnly((value) => !value)}
+              >
+                <Star className="size-3.5" />
+                {favoritesOnly ? "Favorites" : "Favorite"}
+              </Button>
+              <Button
+                type="button"
                 variant={showArchived ? "secondary" : "outline"}
                 size="sm"
                 className="h-8 px-2.5 text-[11px]"
@@ -2043,6 +2099,8 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                           onRename={() => openRenameDialog(jam)}
                           onShare={() => openShareDialog(jam.jamId)}
                           onToggleArchive={() => handleArchiveToggle(jam)}
+                          isFavorited={isJamFavorite(jam.jamId)}
+                          onToggleFavorite={() => toggleJamFavorite(jam)}
                           onRequestEditAccess={() => {
                             setActiveJamId(jam.jamId);
                             setRequestEditAccessJamId(jam.jamId);
@@ -2057,10 +2115,13 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                   <Empty className="border-border/40 h-full rounded-lg border border-dashed p-4">
                     <EmptyHeader className="gap-1">
                       <Brush className="text-muted-foreground size-5" />
-                      <EmptyTitle className="text-sm">No jams yet</EmptyTitle>
+                      <EmptyTitle className="text-sm">
+                        {favoritesOnly ? "No favorite jams yet" : "No jams yet"}
+                      </EmptyTitle>
                       <EmptyDescription className="text-[12px]">
-                        Create your first jamboard to sketch ideas, flows, and
-                        plans.
+                        {favoritesOnly
+                          ? "Favorite a jam to pin it for quick access."
+                          : "Create your first jamboard to sketch ideas, flows, and plans."}
                       </EmptyDescription>
                     </EmptyHeader>
                     <Button
@@ -2090,6 +2151,32 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
               {activeJam?.title || "Jam"}
             </p>
             <div className="ml-auto flex items-center gap-2">
+              {activeJam ? (
+                <Button
+                  size="icon"
+                  variant="outline"
+                  className="size-8"
+                  onClick={() => toggleJamFavorite(activeJam)}
+                  aria-label={
+                    isJamFavorite(activeJam.jamId)
+                      ? "Remove jam from favorites"
+                      : "Add jam to favorites"
+                  }
+                  title={
+                    isJamFavorite(activeJam.jamId)
+                      ? "Favorited"
+                      : "Add to favorites"
+                  }
+                >
+                  <Star
+                    className={cn(
+                      "size-3.5",
+                      isJamFavorite(activeJam.jamId) &&
+                        "fill-current text-amber-500",
+                    )}
+                  />
+                </Button>
+              ) : null}
               {activeJam?.canEdit ? (
                 <>
                   <Button
@@ -2758,6 +2845,12 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                             enter comment mode, then click the canvas to place a
                             pin.
                           </div>
+                          <div className="text-muted-foreground mb-1.5 text-[10px]">
+                            In canvas text, use{" "}
+                            <span className="font-semibold">@name</span> or{" "}
+                            <span className="font-semibold">@team:team-name</span>{" "}
+                            to notify teammates.
+                          </div>
                           <div className="flex items-center gap-1.5">
                             <Button
                               type="button"
@@ -3186,20 +3279,24 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
 type JamListCardProps = {
   jam: WorkspaceJamRecord;
   isActive: boolean;
+  isFavorited: boolean;
   onOpen: () => void;
   onRename: () => void;
   onShare: () => void;
   onToggleArchive: () => void;
+  onToggleFavorite: () => void;
   onRequestEditAccess: () => void;
 };
 
 const JamListCard = ({
   jam,
   isActive,
+  isFavorited,
   onOpen,
   onRename,
   onShare,
   onToggleArchive,
+  onToggleFavorite,
   onRequestEditAccess,
 }: JamListCardProps) => {
   return (
@@ -3245,6 +3342,15 @@ const JamListCard = ({
                   Archived
                 </Badge>
               ) : null}
+              {isFavorited ? (
+                <Badge
+                  variant="secondary"
+                  className="h-5 bg-amber-500/12 px-1.5 text-[8.5px] text-amber-700 dark:text-amber-300"
+                >
+                  <Star className="mr-1 size-2.5 fill-current" />
+                  Favorite
+                </Badge>
+              ) : null}
             </div>
           </div>
 
@@ -3283,6 +3389,10 @@ const JamListCard = ({
             <DropdownMenuItem onClick={onOpen} className="text-[12px]">
               <Eye className="size-3.5" />
               Open canvas
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={onToggleFavorite} className="text-[12px]">
+              <Star className={cn("size-3.5", isFavorited ? "fill-current" : "")} />
+              {isFavorited ? "Remove favorite" : "Add favorite"}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={onShare}

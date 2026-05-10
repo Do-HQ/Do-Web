@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -83,7 +83,7 @@ const parsePlanFromValue = (value: string): WorkspacePlan | "" => {
   const normalized = String(value || "")
     .trim()
     .toUpperCase();
-  if (["FREE", "PRO", "BUSINESS", "ENTERPRISE"].includes(normalized)) {
+  if (["FREE", "STARTER", "PRO", "BUSINESS", "ENTERPRISE"].includes(normalized)) {
     return normalized as WorkspacePlan;
   }
 
@@ -104,6 +104,7 @@ const WorkspaceBillingPage = () => {
   >("30d");
   const [checkoutWizardOpen, setCheckoutWizardOpen] = useState(false);
   const [wizardPlan, setWizardPlan] = useState<WorkspacePlan | "">("");
+  const handledCheckoutSyncKeysRef = useRef<Set<string>>(new Set());
 
   const plansQuery = workspaceBilling.useWorkspaceBillingPlans(
     normalizedWorkspaceId,
@@ -149,6 +150,9 @@ const WorkspaceBillingPage = () => {
 
   const subscribeMutation = workspaceBilling.useSubscribeWorkspaceBillingPlan();
   const purchaseMutation = workspaceBilling.usePurchaseWorkspaceTokens();
+  const syncCheckoutMutation =
+    workspaceBilling.useSyncWorkspaceBillingCheckoutSession();
+  const syncCheckoutSession = syncCheckoutMutation.mutateAsync;
 
   const isAdminLike = permissions.isAdminLike;
   const canManageBilling = isAdminLike;
@@ -159,6 +163,17 @@ const WorkspaceBillingPage = () => {
   const ledger = ledgerQuery.data?.data?.ledger || [];
 
   const currentPlan = (summary?.workspace?.plan || "FREE") as WorkspacePlan;
+  const checkoutStatus = useMemo(
+    () =>
+      String(searchParams?.get("checkout") || "")
+        .trim()
+        .toLowerCase(),
+    [searchParams],
+  );
+  const checkoutSessionId = useMemo(
+    () => String(searchParams?.get("session_id") || "").trim(),
+    [searchParams],
+  );
 
   const sortedPlans = useMemo(() => {
     const map = new Map(plans.map((entry) => [entry.key, entry]));
@@ -182,29 +197,79 @@ const WorkspaceBillingPage = () => {
     ]);
   }, [normalizedWorkspaceId, queryClient]);
 
-  useEffect(() => {
-    const checkoutStatus = String(searchParams?.get("checkout") || "")
-      .trim()
-      .toLowerCase();
-    if (!checkoutStatus || !normalizedWorkspaceId) {
-      return;
-    }
-
-    if (checkoutStatus === "success") {
-      toast.success("Checkout completed. Syncing billing state...");
-      void invalidateBillingData();
-    } else if (checkoutStatus === "cancel") {
-      toast.message("Checkout canceled.");
-    }
-
+  const clearCheckoutQueryParams = useCallback(() => {
     const nextQuery = new URLSearchParams(searchParams?.toString() || "");
     nextQuery.delete("checkout");
     nextQuery.delete("plan");
     nextQuery.delete("autostart");
     nextQuery.delete("source");
+    nextQuery.delete("session_id");
     const nextSuffix = nextQuery.toString() ? `?${nextQuery.toString()}` : "";
     router.replace(`${ROUTES.SETTINGS_BILLING}${nextSuffix}`);
-  }, [invalidateBillingData, normalizedWorkspaceId, router, searchParams]);
+  }, [router, searchParams]);
+
+  useEffect(() => {
+    if (!checkoutStatus || !normalizedWorkspaceId) {
+      return;
+    }
+
+    const syncKey = [
+      normalizedWorkspaceId,
+      checkoutStatus,
+      checkoutSessionId || "no-session",
+    ].join(":");
+
+    if (handledCheckoutSyncKeysRef.current.has(syncKey)) {
+      return;
+    }
+    handledCheckoutSyncKeysRef.current.add(syncKey);
+
+    // Strip checkout params immediately to prevent repeated effects/toasts while syncing.
+    clearCheckoutQueryParams();
+
+    const sync = async () => {
+      if (checkoutStatus === "success") {
+        if (checkoutSessionId) {
+          const syncPromise = syncCheckoutSession({
+            workspaceId: normalizedWorkspaceId,
+            sessionId: checkoutSessionId,
+          });
+          await toast.promise(syncPromise, {
+            loading: "Checkout completed. Finalizing billing...",
+            success: (response) => {
+              const syncedPlan =
+                response?.data?.workspace?.plan || response?.data?.result?.plan;
+              const syncedBalance = response?.data?.workspace?.tokens?.balance;
+
+              if (syncedPlan && Number.isFinite(Number(syncedBalance))) {
+                return `Billing synced. ${syncedPlan} plan active with ${Number(syncedBalance).toLocaleString()} tokens.`;
+              }
+              if (syncedPlan) {
+                return `Billing synced. ${syncedPlan} plan is now active.`;
+              }
+
+              return "Billing synced successfully.";
+            },
+            error: "Checkout completed, but billing sync failed.",
+          });
+        } else {
+          toast.success("Checkout completed.");
+        }
+        await invalidateBillingData();
+      } else if (checkoutStatus === "cancel") {
+        toast.message("Checkout canceled.");
+      }
+    };
+
+    void sync();
+  }, [
+    checkoutSessionId,
+    checkoutStatus,
+    clearCheckoutQueryParams,
+    invalidateBillingData,
+    normalizedWorkspaceId,
+    syncCheckoutSession,
+  ]);
 
   useEffect(() => {
     const requestedPlan = parsePlanFromValue(
@@ -232,7 +297,7 @@ const WorkspaceBillingPage = () => {
     }
 
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const successUrl = `${origin}${ROUTES.SETTINGS_BILLING}?checkout=success`;
+    const successUrl = `${origin}${ROUTES.SETTINGS_BILLING}?checkout=success&session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${origin}${ROUTES.SETTINGS_BILLING}?checkout=cancel`;
 
     const requestPromise = subscribeMutation.mutateAsync({
@@ -274,7 +339,7 @@ const WorkspaceBillingPage = () => {
     }
 
     const origin = typeof window !== "undefined" ? window.location.origin : "";
-    const successUrl = `${origin}${ROUTES.SETTINGS_BILLING}?checkout=success`;
+    const successUrl = `${origin}${ROUTES.SETTINGS_BILLING}?checkout=success&session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${origin}${ROUTES.SETTINGS_BILLING}?checkout=cancel`;
 
     const requestPromise = purchaseMutation.mutateAsync({
@@ -341,9 +406,11 @@ const WorkspaceBillingPage = () => {
             </CardHeader>
             <CardContent className="space-y-3 text-sm">
               <div className="flex items-center gap-2">
-                <Badge>{summary?.workspace?.plan || "FREE"}</Badge>
-                <Badge variant="outline">
-                  {summary?.subscription?.status || "INACTIVE"}
+                <Badge className="capitalize">
+                  {summary?.workspace?.plan?.toLowerCase() || "Free"}
+                </Badge>
+                <Badge variant="outline" className="capitalize">
+                  {summary?.subscription?.status?.toLowerCase() || "Inactive"}
                 </Badge>
               </div>
               <p className="text-muted-foreground">
@@ -409,7 +476,7 @@ const WorkspaceBillingPage = () => {
         </Card>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr] items-start">
         <Card className="border-border/70">
           <CardHeader>
             <CardTitle className="text-base">Plans</CardTitle>
@@ -584,8 +651,8 @@ const WorkspaceBillingPage = () => {
                       key={row.feature}
                       className="flex items-center justify-between rounded-md border border-border/60 px-2.5 py-2 text-sm"
                     >
-                      <span className="text-muted-foreground">
-                        {row.feature.replace(/_/g, " ")}
+                      <span className="text-muted-foreground capitalize">
+                        {row.feature.replace(/_/g, " ")?.toLowerCase()}
                       </span>
                       <span className="font-medium">
                         {Number(row.netTokens || 0).toLocaleString()}
@@ -634,9 +701,11 @@ const WorkspaceBillingPage = () => {
                   className="flex items-center justify-between rounded-md border border-border/60 px-2.5 py-2 text-xs"
                 >
                   <div className="min-w-0 pr-2">
-                    <p className="truncate font-medium">{entry.action}</p>
-                    <p className="text-muted-foreground truncate">
-                      {entry.feature.replace(/_/g, " ")} ·{" "}
+                    <p className="truncate font-medium capitalize">
+                      {entry.action?.toLowerCase()}
+                    </p>
+                    <p className="text-muted-foreground truncate capitalize">
+                      {entry.feature.replace(/_/g, " ")?.toLowerCase()} ·{" "}
                       {formatDateTime(entry.createdAt)}
                     </p>
                   </div>
@@ -672,7 +741,7 @@ const WorkspaceBillingPage = () => {
           <div className="rounded-md border border-border/70 bg-muted/20 px-3 py-3 text-sm">
             <div className="mb-1 flex items-center gap-2 font-medium">
               <Coins className="size-4" />
-              Billing wizard
+              Billing & Subscriptions
             </div>
             <p className="text-muted-foreground text-xs leading-5">
               Subscription controls feature tier and monthly allocation. Token

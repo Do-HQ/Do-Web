@@ -43,7 +43,6 @@ const SettingsSideBar = ({ workspace, profile }: Props) => {
     if (
       normalized.includes("automation") ||
       normalized === "security" ||
-      normalized === "onboarding" ||
       normalized === "import"
     ) {
       return isAdminLike;

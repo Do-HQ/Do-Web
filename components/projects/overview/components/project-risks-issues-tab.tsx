@@ -367,7 +367,8 @@ export function ProjectRisksIssuesTab({
           display: member.name,
           kind: "user" as const,
           avatarUrl: member.avatarUrl,
-          avatarFallback: member.initials || getMentionInitials(member.name, "U"),
+          avatarFallback:
+            member.initials || getMentionInitials(member.name, "U"),
           subtitle: member.role || "Member",
         })),
       ...teams.map((team) => ({
@@ -602,7 +603,14 @@ export function ProjectRisksIssuesTab({
     setDraft(toRiskDraft(target));
     resetCommentDraft();
     setEditorOpen(true);
-  }, [editorOpen, initialRiskId, onViewChange, resetCommentDraft, view, visibleItems]);
+  }, [
+    editorOpen,
+    initialRiskId,
+    onViewChange,
+    resetCommentDraft,
+    view,
+    visibleItems,
+  ]);
 
   const handleSave = async () => {
     if (dialogMode === "view") {
@@ -905,7 +913,10 @@ export function ProjectRisksIssuesTab({
   };
 
   return (
-    <div data-tour="project-risks-shell" className="flex flex-col gap-3 md:gap-4">
+    <div
+      data-tour="project-risks-shell"
+      className="flex flex-col gap-3 md:gap-4"
+    >
       <section className="rounded-xl border border-border/35 bg-card/75 shadow-xs">
         <div
           data-tour="project-risks-controls"
@@ -1001,7 +1012,10 @@ export function ProjectRisksIssuesTab({
         {risksQuery.isLoading ? (
           <LoaderComponent />
         ) : visibleItems.length ? (
-          <div data-tour="project-risks-list" className="divide-y divide-border/20">
+          <div
+            data-tour="project-risks-list"
+            className="divide-y divide-border/20"
+          >
             {visibleItems.map((item) => {
               const Icon = item.kind === "risk" ? TriangleAlert : ShieldAlert;
               const nextStatus =
@@ -1032,8 +1046,8 @@ export function ProjectRisksIssuesTab({
                         <Badge
                           variant="outline"
                           className={cn(
-                            "h-4 px-1.5 text-[10px]",
-                            RISK_BADGE_CLASSES[item.severity],
+                            "h-4 px-1.5 text-[10px] capitalize",
+                            RISK_BADGE_CLASSES[item.severity]?.toLowerCase(),
                           )}
                         >
                           {item.severity}
@@ -1092,13 +1106,19 @@ export function ProjectRisksIssuesTab({
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => toggleRiskFavorite(item)}>
-                          {favoriteKeySet.has(`${item.kind}:${projectId}:${item.id}`) ? (
+                        <DropdownMenuItem
+                          onClick={() => toggleRiskFavorite(item)}
+                        >
+                          {favoriteKeySet.has(
+                            `${item.kind}:${projectId}:${item.id}`,
+                          ) ? (
                             <StarOff className="size-3.5" />
                           ) : (
                             <Star className="size-3.5" />
                           )}
-                          {favoriteKeySet.has(`${item.kind}:${projectId}:${item.id}`)
+                          {favoriteKeySet.has(
+                            `${item.kind}:${projectId}:${item.id}`,
+                          )
                             ? "Remove favorite"
                             : "Add to favorites"}
                         </DropdownMenuItem>
@@ -1441,9 +1461,13 @@ export function ProjectRisksIssuesTab({
                         ownerLabelMap.get(comment.authorUserId) ||
                         "Project member";
                       const commentAuthorInitials =
-                        comment.authorInitials || commentAuthor?.initials || "U";
+                        comment.authorInitials ||
+                        commentAuthor?.initials ||
+                        "U";
                       const commentAuthorAvatar =
-                        commentAuthor?.avatarUrl || comment.authorAvatarUrl || "";
+                        commentAuthor?.avatarUrl ||
+                        comment.authorAvatarUrl ||
+                        "";
 
                       return (
                         <div
@@ -1456,16 +1480,22 @@ export function ProjectRisksIssuesTab({
                               userCard={{
                                 name: commentAuthorName,
                                 role: commentAuthor?.role,
-                                status: new Date(comment.createdAt).toLocaleString(),
+                                status: new Date(
+                                  comment.createdAt,
+                                ).toLocaleString(),
                               }}
                             >
                               <AvatarImage
                                 src={commentAuthorAvatar}
                                 alt={commentAuthorName}
                               />
-                              <AvatarFallback>{commentAuthorInitials}</AvatarFallback>
+                              <AvatarFallback>
+                                {commentAuthorInitials}
+                              </AvatarFallback>
                             </Avatar>
-                            <span className="font-medium">{commentAuthorName}</span>
+                            <span className="font-medium">
+                              {commentAuthorName}
+                            </span>
                             <span className="text-muted-foreground">
                               {new Date(comment.createdAt).toLocaleString()}
                             </span>

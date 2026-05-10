@@ -1,11 +1,15 @@
-import OnboardingRouteGate from "@/components/onboarding/onboarding-route-gate";
+import { redirect } from "next/navigation";
 import type { Metadata } from "next";
+
+import { ROUTES } from "@/utils/constants";
 
 export const metadata: Metadata = {
   title: "Onboarding",
-  description: "Create your profile and workspace",
+  description: "Onboarding is currently disabled.",
 };
 
-const OnboardingPage = () => <OnboardingRouteGate />;
+const OnboardingPage = () => {
+  redirect(ROUTES.DASHBOARD);
+};
 
 export default OnboardingPage;

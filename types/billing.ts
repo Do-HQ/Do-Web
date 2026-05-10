@@ -104,6 +104,33 @@ export type WorkspaceTokenPurchaseCheckoutResponse = {
   checkoutUrl: string;
 };
 
+export type WorkspaceBillingCheckoutSyncResponse = {
+  message: string;
+  ok: boolean;
+  sessionId: string;
+  checkoutKind: "subscription" | "token_topup";
+  result: {
+    processed?: boolean;
+    skipped?: boolean;
+    duplicate?: boolean;
+    workspaceId?: string;
+    plan?: WorkspacePlan;
+    status?: string;
+    tokensAdded?: number;
+    balanceAfter?: number;
+    reason?: string;
+  };
+  workspace?: {
+    id: string;
+    plan: WorkspacePlan;
+    tokens: {
+      balance: number;
+      monthlyAllocation: number;
+      lastRefillDate: string | null;
+    };
+  };
+};
+
 export type WorkspaceTokenUsageResponse = {
   message: string;
   range: "7d" | "30d" | "90d" | "180d" | "365d";

@@ -31,7 +31,9 @@ export function PipelineView({
   onSelectTask,
 }: PipelineViewProps) {
   const selectedWorkflow =
-    workflows.find((workflow) => workflow.id === selectedWorkflowId) ?? workflows[0] ?? null;
+    workflows.find((workflow) => workflow.id === selectedWorkflowId) ??
+    workflows[0] ??
+    null;
 
   return (
     <section data-tour="project-workflows-chart" className="space-y-3">
@@ -82,8 +84,8 @@ export function PipelineView({
           ) : null}
         </div>
 
-        <div className="overflow-x-auto pb-1">
-          <div className="flex min-w-max items-start gap-2 pr-2">
+        <div className="overflow-x-auto pb-1 no-scrollbar scrollbar-hide snap-x snap-mandatory scroll-smooth">
+          <div className="flex min-w-max items-start gap-2 pr-2 ">
             {workflows.map((workflow) => (
               <WorkflowColumn
                 key={workflow.id}

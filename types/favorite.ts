@@ -1,6 +1,7 @@
 export type FavoriteItemType =
   | "chat"
   | "doc"
+  | "jam"
   | "workflow"
   | "task"
   | "subtask"

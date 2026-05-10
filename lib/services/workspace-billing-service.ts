@@ -1,6 +1,7 @@
 import axiosInstance from ".";
 import {
   WorkspaceBillingCheckoutResponse,
+  WorkspaceBillingCheckoutSyncResponse,
   WorkspaceBillingPlansResponse,
   WorkspaceBillingSummaryResponse,
   WorkspaceTokenLedgerResponse,
@@ -14,6 +15,8 @@ const WORKSPACE_BILLING_ENDPOINTS = {
   summary: (workspaceId: string) => `/workspace/${workspaceId}/billing/summary`,
   subscribe: (workspaceId: string) => `/workspace/${workspaceId}/billing/subscribe`,
   changePlan: (workspaceId: string) => `/workspace/${workspaceId}/billing/change-plan`,
+  syncCheckout: (workspaceId: string) =>
+    `/workspace/${workspaceId}/billing/checkout/sync`,
   purchaseTokens: (workspaceId: string) => `/workspace/${workspaceId}/tokens/purchase`,
   tokenUsage: (workspaceId: string) => `/workspace/${workspaceId}/tokens/usage`,
   tokenLedger: (workspaceId: string) => `/workspace/${workspaceId}/tokens/ledger`,
@@ -84,6 +87,18 @@ export const purchaseWorkspaceTokens = async (data: {
       packId: data.packId,
       successUrl: data.successUrl,
       cancelUrl: data.cancelUrl,
+    },
+  );
+};
+
+export const syncWorkspaceBillingCheckoutSession = async (data: {
+  workspaceId: string;
+  sessionId: string;
+}) => {
+  return await axiosInstance.post<WorkspaceBillingCheckoutSyncResponse>(
+    WORKSPACE_BILLING_ENDPOINTS.syncCheckout(data.workspaceId),
+    {
+      sessionId: data.sessionId,
     },
   );
 };

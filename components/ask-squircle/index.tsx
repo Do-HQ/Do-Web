@@ -25,6 +25,7 @@ import type {
   PromptScope,
   ReportMentionMeta,
   ReportMentionSuggestion,
+  ThinkingTraceStep,
 } from "./types";
 import {
   buildQuoteBlock,
@@ -54,6 +55,7 @@ const AskSquirclePage = () => {
   const [scope, setScope] = useState<PromptScope>("workspace");
   const [attachments, setAttachments] = useState<string[]>([]);
   const [isThinking, setIsThinking] = useState(false);
+  const [thinkingTrace, setThinkingTrace] = useState<ThinkingTraceStep[]>([]);
   const [pendingMessage, setPendingMessage] = useState<Message | null>(null);
   const [streamingAssistantMessage, setStreamingAssistantMessage] =
     useState<Message | null>(null);
@@ -562,7 +564,86 @@ const AskSquirclePage = () => {
     setPrompt("");
     setAttachments([]);
     setIsThinking(true);
+    setThinkingTrace([
+      {
+        id: "thinking-read-prompt",
+        title: "Understanding your prompt",
+        details: [
+          "Preparing workspace-safe reasoning trace",
+          "Checking whether deterministic facts can answer directly",
+        ],
+        code: "read-prompt",
+        timestamp: new Date().toISOString(),
+      },
+    ]);
     let streamAcknowledged = false;
+    let hasStreamedDelta = false;
+
+    const pushThinkingStep = (step: {
+      title: string;
+      code?: string;
+      details?: string[];
+      timestamp?: string;
+    }) => {
+      const normalizedTitle = String(step?.title || "").trim();
+      if (!normalizedTitle) {
+        return;
+      }
+
+      const normalizedCode = String(step?.code || "").trim().toLowerCase();
+      const normalizedDetails = Array.isArray(step?.details)
+        ? step.details
+            .map((entry) => String(entry || "").trim())
+            .filter(Boolean)
+            .slice(0, 6)
+        : [];
+
+      setThinkingTrace((current) => {
+        const existingIndex = normalizedCode
+          ? current.findIndex(
+              (entry) =>
+                String(entry.code || "").trim().toLowerCase() ===
+                normalizedCode,
+            )
+          : -1;
+
+        if (existingIndex >= 0) {
+          const updated = [...current];
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            title: normalizedTitle,
+            details: normalizedDetails.length
+              ? normalizedDetails
+              : updated[existingIndex].details,
+            timestamp:
+              String(step?.timestamp || "").trim() ||
+              updated[existingIndex].timestamp,
+          };
+          return updated.slice(-8);
+        }
+
+        const lastStep = current[current.length - 1];
+        if (
+          lastStep &&
+          String(lastStep.title || "").trim() === normalizedTitle &&
+          !normalizedCode
+        ) {
+          return current;
+        }
+
+        const deduped = [
+          ...current,
+          {
+            id: `${normalizedCode || "trace"}-${Date.now()}-${current.length + 1}`,
+            title: normalizedTitle,
+            details: normalizedDetails,
+            code: normalizedCode || undefined,
+            timestamp: String(step?.timestamp || "").trim() || new Date().toISOString(),
+          },
+        ];
+        return deduped.slice(-8);
+      });
+    };
 
     try {
       await streamWorkspaceAiChatMessage({
@@ -572,6 +653,14 @@ const AskSquirclePage = () => {
         onEvent: (event) => {
           if (event.type === "ack") {
             streamAcknowledged = true;
+            pushThinkingStep({
+              title: "Preparing your response",
+              code: "prepare-response",
+              details: [
+                "Prompt accepted and persisted to chat history",
+                "Starting assistant response pipeline",
+              ],
+            });
             const acknowledgedUserMessage = event.payload?.userMessage;
             if (acknowledgedUserMessage) {
               setPendingMessage(acknowledgedUserMessage);
@@ -579,10 +668,31 @@ const AskSquirclePage = () => {
             return;
           }
 
+          if (event.type === "status") {
+            pushThinkingStep({
+              title: event.payload?.text || "",
+              code: event.payload?.code,
+              details: event.payload?.details || [],
+              timestamp: event.payload?.timestamp,
+            });
+            return;
+          }
+
           if (event.type === "delta") {
             const delta = String(event.delta || "");
             if (!delta) {
               return;
+            }
+            if (!hasStreamedDelta) {
+              hasStreamedDelta = true;
+              pushThinkingStep({
+                title: "Writing response",
+                code: "writing-response",
+                details: [
+                  "First response tokens received",
+                  "Assembling final answer in real time",
+                ],
+              });
             }
 
             setStreamingAssistantMessage((current) => {
@@ -617,6 +727,14 @@ const AskSquirclePage = () => {
           }
 
           if (event.type === "done") {
+            pushThinkingStep({
+              title: "Done",
+              code: "done",
+              details: [
+                "Response finalized and saved to chat",
+                "Usage telemetry captured",
+              ],
+            });
             const assistantMessage = event.payload?.assistantMessage;
             if (assistantMessage) {
               setStreamingAssistantMessage(assistantMessage);
@@ -681,6 +799,7 @@ const AskSquirclePage = () => {
         setPrompt(rawPrompt.trim());
         setPendingMessage(null);
         setStreamingAssistantMessage(null);
+        setThinkingTrace([]);
         showTokenInsufficientToast(
           (
             error as {
@@ -707,6 +826,7 @@ const AskSquirclePage = () => {
           setQuotedReference(null);
           setPendingMessage(null);
           setStreamingAssistantMessage(null);
+          setThinkingTrace([]);
 
           await Promise.all([
             queryClient.invalidateQueries({
@@ -747,11 +867,12 @@ const AskSquirclePage = () => {
           setPrompt(rawPrompt.trim());
           setPendingMessage(null);
           setStreamingAssistantMessage(null);
+          setThinkingTrace([]);
         }
       } else {
         console.error("AI stream interrupted after ack", error);
 
-        setStreamingAssistantMessage(null);
+        setThinkingTrace([]);
 
         toast.error(
           (error as Error)?.message ||
@@ -772,6 +893,7 @@ const AskSquirclePage = () => {
       }
     } finally {
       setIsThinking(false);
+      setThinkingTrace([]);
     }
   };
 
@@ -791,11 +913,12 @@ const AskSquirclePage = () => {
           ref={chatContainerRef}
           className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
-          <div className="mx-auto w-full max-w-4xl px-4 py-5 md:px-6 md:py-6">
+          <div className="mx-auto w-full max-w-4xl px-4 pb-5 md:px-6 md:py-6 ">
             <ChatThread
               messages={messages}
               isLoading={isChatLoading}
               isThinking={isThinking && !streamingAssistantMessage?.content}
+              thinkingTrace={thinkingTrace}
               starterPrompts={STARTER_PROMPTS}
               activeReplyToMessageId={replyReference?.messageId}
               activeQuotedMessageId={quotedReference?.messageId}
@@ -812,7 +935,7 @@ const AskSquirclePage = () => {
           </div>
         </div>
 
-        <footer className="border-t border-border/60 px-3 py-3 md:px-6 md:py-4">
+        <footer className="px-3 pb-3 md:px-6 md:pb-4 ">
           <div className="mx-auto w-full max-w-4xl">
             <PromptComposer
               prompt={prompt}

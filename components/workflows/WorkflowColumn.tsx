@@ -57,7 +57,8 @@ export function WorkflowColumn({
     });
   }, [workflow.tasks]);
   const inferredRunningTaskId = useMemo(
-    () => orderedTasks.find((task) => task.status === "in-progress")?.id ?? null,
+    () =>
+      orderedTasks.find((task) => task.status === "in-progress")?.id ?? null,
     [orderedTasks],
   );
   const effectiveActiveTaskId = activeTaskId ?? inferredRunningTaskId;
@@ -67,7 +68,7 @@ export function WorkflowColumn({
   return (
     <article
       className={cn(
-        "w-[15rem] shrink-0 rounded-xl border border-border/15 p-2 outline-none focus-visible:outline-none transition-colors hover:bg-card",
+        "w-[15rem] shrink-0 rounded-xl border border-border/15 p-2 outline-none focus-visible:outline-none transition-colors hover:bg-card snap-start",
         statusMeta.surfaceClass,
         isActive
           ? "border-orange-400/80 shadow-[0_0_0_2px_rgba(251,146,60,0.34)]"
@@ -90,7 +91,10 @@ export function WorkflowColumn({
           <div className="min-w-0 space-y-1">
             <div className="flex min-w-0 items-center gap-1.5">
               {isActive ? (
-                <span className="relative inline-flex size-2.5 shrink-0" aria-hidden="true">
+                <span
+                  className="relative inline-flex size-2.5 shrink-0"
+                  aria-hidden="true"
+                >
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400/70 opacity-80" />
                   <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-orange-400" />
                 </span>
@@ -101,7 +105,10 @@ export function WorkflowColumn({
             </div>
             <Badge
               variant="outline"
-              className={cn("h-5 rounded-full px-1.5 text-[10px] font-medium", statusMeta.badgeClass)}
+              className={cn(
+                "h-5 rounded-full px-1.5 text-[10px] font-medium",
+                statusMeta.badgeClass,
+              )}
             >
               {statusMeta.label}
             </Badge>
@@ -127,13 +134,17 @@ export function WorkflowColumn({
               style={{ width: `${workflow.progress}%` }}
             />
           </div>
-          <p className="text-[11px] font-medium text-muted-foreground">{workflow.progress}% complete</p>
+          <p className="text-[11px] font-medium text-muted-foreground">
+            {workflow.progress}% complete
+          </p>
         </div>
 
         <div className="inline-flex max-w-full items-center gap-1 text-[11px] text-muted-foreground">
           <Users className="size-3.5 shrink-0" />
           <span className="truncate">
-            {workflow.teams.length ? workflow.teams.join(" · ") : "No team assigned"}
+            {workflow.teams.length
+              ? workflow.teams.join(" · ")
+              : "No team assigned"}
           </span>
         </div>
       </div>
@@ -165,12 +176,11 @@ export function WorkflowColumn({
             }}
           >
             <ChevronDown
-              className={cn(
-                "size-3",
-                expanded ? "rotate-180" : "",
-              )}
+              className={cn("size-3", expanded ? "rotate-180" : "")}
             />
-            {expanded ? "Show less tasks" : `Show ${hiddenCount} more task${hiddenCount > 1 ? "s" : ""}`}
+            {expanded
+              ? "Show less tasks"
+              : `Show ${hiddenCount} more task${hiddenCount > 1 ? "s" : ""}`}
           </button>
         ) : null}
       </div>

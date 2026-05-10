@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
@@ -103,7 +103,7 @@ export function CreateProjectSheet({
     useState<ProjectPipelineTemplateKey>("product");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({});
-  const [autoAppliedTemplateId, setAutoAppliedTemplateId] = useState("");
+  const autoAppliedTemplateIdRef = useRef("");
   const [templatePanelOpen, setTemplatePanelOpen] = useState(false);
   const generateDraftMutation = useGenerateWorkspaceAiDraft();
   const aiStatusQuery = useWorkspaceAiStatus(workspaceId || undefined, {
@@ -215,21 +215,23 @@ export function CreateProjectSheet({
 
   useEffect(() => {
     if (!open) {
-      setAutoAppliedTemplateId("");
+      autoAppliedTemplateIdRef.current = "";
       return;
     }
 
-    if (!initialTemplateId) {
+    if (!initialTemplateId || !workspaceId) {
       return;
     }
 
-    setSelectedTemplateId(initialTemplateId);
+    if (selectedTemplateId !== initialTemplateId) {
+      setSelectedTemplateId(initialTemplateId);
+    }
 
-    if (!workspaceId || autoAppliedTemplateId === initialTemplateId) {
+    if (autoAppliedTemplateIdRef.current === initialTemplateId) {
       return;
     }
 
-    setAutoAppliedTemplateId(initialTemplateId);
+    autoAppliedTemplateIdRef.current = initialTemplateId;
     applyTemplateMutation.mutate({
       workspaceId,
       templateId: initialTemplateId,
@@ -239,15 +241,17 @@ export function CreateProjectSheet({
     });
   }, [
     applyTemplateMutation,
-    autoAppliedTemplateId,
     initialTemplateId,
     open,
+    selectedTemplateId,
     workspaceId,
   ]);
 
   useEffect(() => {
     if (!selectedTemplatePlaceholders.length) {
-      setTemplateVariables({});
+      setTemplateVariables((current) =>
+        Object.keys(current).length ? {} : current,
+      );
       return;
     }
 
@@ -258,7 +262,17 @@ export function CreateProjectSheet({
         next[placeholder] = current[placeholder] ?? "";
       });
 
-      return next;
+      const currentKeys = Object.keys(current);
+      const nextKeys = Object.keys(next);
+      if (currentKeys.length !== nextKeys.length) {
+        return next;
+      }
+
+      const hasChanged = nextKeys.some(
+        (key) => String(current[key] ?? "") !== String(next[key] ?? ""),
+      );
+
+      return hasChanged ? next : current;
     });
   }, [selectedTemplatePlaceholders]);
 

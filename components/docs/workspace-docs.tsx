@@ -117,7 +117,19 @@ const DEFAULT_DOC_CONTENT = [
     content: "",
   },
 ];
-const DOC_AUTOSAVE_DELAY_MS = 5000;
+const DOC_AUTOSAVE_DELAY_MS = 8000;
+const DOC_PENDING_SAVE_CACHE_KEY = "workspace-doc:pending-save";
+
+const getPendingDocSaveCacheKey = (workspaceId: string, docId: string) =>
+  `${DOC_PENDING_SAVE_CACHE_KEY}:${workspaceId}:${docId}`;
+
+const getContentSignature = (value: unknown) => {
+  try {
+    return JSON.stringify(value ?? []);
+  } catch {
+    return "";
+  }
+};
 
 const DOC_SCOPE_META: Record<
   DocsViewScope,
@@ -299,8 +311,30 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
     workspaceId: string;
     docId: string;
   } | null>(null);
+  const isFlushingRef = useRef(false);
+  const rerunFlushRef = useRef(false);
+  const lastDocsListInvalidationRef = useRef(0);
   const flushPendingSavesRef = useRef<() => Promise<void>>(async () => {});
+  const lastPersistedContentSignatureRef = useRef("");
+  const pendingContentSignatureRef = useRef("");
   const [recentDocIds, setRecentDocIds] = useState<string[]>([]);
+
+  const persistPendingContentToLocalCache = useCallback(() => {
+    const context = pendingSaveContextRef.current;
+    const pendingContent = pendingContentRef.current;
+    if (!context || pendingContent === null || typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        getPendingDocSaveCacheKey(context.workspaceId, context.docId),
+        JSON.stringify(pendingContent),
+      );
+    } catch {
+      // best effort
+    }
+  }, []);
 
   const [confirmAction, setConfirmAction] = useState<ConfirmActionState>({
     open: false,
@@ -449,7 +483,67 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
     setAssignedTeamIds(selectedDoc.assignedTeamIds || []);
     setAssignedProjectIds(selectedDoc.assignedProjectIds || []);
     setSaveState("idle");
+    lastPersistedContentSignatureRef.current = getContentSignature(
+      selectedDoc.content || [],
+    );
+    pendingContentSignatureRef.current = "";
   }, [selectedDoc?.id]);
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      !workspaceId ||
+      !selectedDoc?.id ||
+      !selectedDoc.canEdit
+    ) {
+      return;
+    }
+
+    const cacheKey = getPendingDocSaveCacheKey(workspaceId, selectedDoc.id);
+    const raw = window.localStorage.getItem(cacheKey);
+    if (!raw) {
+      return;
+    }
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        window.localStorage.removeItem(cacheKey);
+        return;
+      }
+
+      const nextSignature = getContentSignature(parsed);
+      if (
+        !nextSignature ||
+        nextSignature === lastPersistedContentSignatureRef.current
+      ) {
+        window.localStorage.removeItem(cacheKey);
+        return;
+      }
+
+      pendingSaveContextRef.current = {
+        workspaceId,
+        docId: selectedDoc.id,
+      };
+      pendingContentRef.current = parsed;
+      pendingContentSignatureRef.current = nextSignature;
+      setSaveState("saving");
+      void flushPendingSavesRef.current()
+        .then(() => {
+          const hasPending =
+            pendingContentRef.current !== null ||
+            Object.keys(pendingMetaUpdatesRef.current).length > 0;
+          if (!hasPending) {
+            window.localStorage.removeItem(cacheKey);
+          }
+        })
+        .catch(() => {
+          // Keep cached draft so it can retry on next open.
+        });
+    } catch {
+      window.localStorage.removeItem(cacheKey);
+    }
+  }, [selectedDoc?.id, selectedDoc?.canEdit, workspaceId]);
 
   useEffect(() => {
     if (!selectedDoc?.id) {
@@ -508,6 +602,7 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
 
   useEffect(() => {
     return () => {
+      persistPendingContentToLocalCache();
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
       }
@@ -519,7 +614,7 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
       }
       void flushPendingSavesRef.current();
     };
-  }, []);
+  }, [persistPendingContentToLocalCache]);
 
   useEffect(() => {
     if (!workspaceId) {
@@ -585,6 +680,55 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
     [queryClient, workspaceId],
   );
 
+  const updateDocListQueryCaches = useCallback(
+    (
+      doc: WorkspaceDocRecord,
+      scopedWorkspaceId: string = workspaceId || "",
+    ) => {
+      if (!scopedWorkspaceId) {
+        return;
+      }
+
+      queryClient.setQueriesData(
+        {
+          queryKey: ["workspace-docs", scopedWorkspaceId],
+        },
+        (current: unknown) => {
+          if (!current || typeof current !== "object") {
+            return current;
+          }
+
+          const response = current as {
+            data?: { docs?: WorkspaceDocRecord[] };
+          };
+          const docs = Array.isArray(response?.data?.docs)
+            ? response.data.docs
+            : null;
+
+          if (!docs) {
+            return current;
+          }
+
+          return {
+            ...(current as Record<string, unknown>),
+            data: {
+              ...(response.data || {}),
+              docs: docs.map((entry) =>
+                String(entry?.id || "").trim() === String(doc?.id || "").trim()
+                  ? {
+                      ...entry,
+                      ...doc,
+                    }
+                  : entry,
+              ),
+            },
+          };
+        },
+      );
+    },
+    [queryClient, workspaceId],
+  );
+
   const setSavedState = useCallback(() => {
     setSaveState("saved");
     if (saveStateTimerRef.current) {
@@ -596,6 +740,11 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
   }, []);
 
   const flushPendingSaves = useCallback(async () => {
+    if (isFlushingRef.current) {
+      rerunFlushRef.current = true;
+      return;
+    }
+
     const context = pendingSaveContextRef.current;
     const hasMetaUpdates =
       Object.keys(pendingMetaUpdatesRef.current).length > 0;
@@ -605,11 +754,15 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
       return;
     }
 
+    isFlushingRef.current = true;
+
     const queuedMetaUpdates = { ...pendingMetaUpdatesRef.current };
     const queuedContent = pendingContentRef.current;
+    const queuedContentSignature = pendingContentSignatureRef.current;
 
     pendingMetaUpdatesRef.current = {};
     pendingContentRef.current = null;
+    pendingContentSignatureRef.current = "";
 
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
@@ -637,11 +790,35 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
       const nextDoc = response?.data?.doc;
       if (nextDoc) {
         updateDocQueryCache(nextDoc, context.workspaceId);
+        updateDocListQueryCaches(nextDoc, context.workspaceId);
+        lastPersistedContentSignatureRef.current = getContentSignature(
+          nextDoc.content || queuedContent || [],
+        );
+      } else if (queuedContent !== null) {
+        lastPersistedContentSignatureRef.current =
+          queuedContentSignature || getContentSignature(queuedContent);
       }
 
-      queryClient.invalidateQueries({
-        queryKey: ["workspace-docs", context.workspaceId],
-      });
+      const now = Date.now();
+      if (
+        Object.keys(queuedMetaUpdates).length > 0 ||
+        now - lastDocsListInvalidationRef.current > 25_000
+      ) {
+        lastDocsListInvalidationRef.current = now;
+        queryClient.invalidateQueries({
+          queryKey: ["workspace-docs", context.workspaceId],
+        });
+      }
+
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.removeItem(
+            getPendingDocSaveCacheKey(context.workspaceId, context.docId),
+          );
+        } catch {
+          // best effort
+        }
+      }
 
       setSavedState();
 
@@ -658,10 +835,34 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
       };
       if (queuedContent !== null && pendingContentRef.current === null) {
         pendingContentRef.current = queuedContent;
+        pendingContentSignatureRef.current =
+          queuedContentSignature || getContentSignature(queuedContent);
+      }
+      if (typeof window !== "undefined" && queuedContent !== null) {
+        try {
+          window.localStorage.setItem(
+            getPendingDocSaveCacheKey(context.workspaceId, context.docId),
+            JSON.stringify(queuedContent),
+          );
+        } catch {
+          // best effort
+        }
       }
       setSaveState("error");
+    } finally {
+      isFlushingRef.current = false;
+      if (rerunFlushRef.current) {
+        rerunFlushRef.current = false;
+        void flushPendingSaves();
+      }
     }
-  }, [queryClient, setSavedState, updateDocMutation, updateDocQueryCache]);
+  }, [
+    queryClient,
+    setSavedState,
+    updateDocMutation,
+    updateDocQueryCache,
+    updateDocListQueryCaches,
+  ]);
 
   useEffect(() => {
     flushPendingSavesRef.current = flushPendingSaves;
@@ -896,31 +1097,60 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
       return;
     }
 
+    const nextSignature = getContentSignature(nextContent);
+    if (!nextSignature) {
+      return;
+    }
+
+    if (nextSignature === pendingContentSignatureRef.current) {
+      return;
+    }
+
+    if (
+      nextSignature === lastPersistedContentSignatureRef.current &&
+      Object.keys(pendingMetaUpdatesRef.current).length === 0
+    ) {
+      return;
+    }
+
     pendingSaveContextRef.current = {
       workspaceId,
       docId: selectedDoc.id,
     };
     pendingContentRef.current = nextContent;
+    pendingContentSignatureRef.current = nextSignature;
 
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
     }
 
-    setSaveState("saving");
-
     saveTimerRef.current = setTimeout(() => {
+      setSaveState("saving");
       void flushPendingSaves();
     }, DOC_AUTOSAVE_DELAY_MS);
   };
 
   useEffect(() => {
     return () => {
+      persistPendingContentToLocalCache();
       void flushPendingSavesRef.current();
     };
-  }, [selectedDoc?.id]);
+  }, [persistPendingContentToLocalCache, selectedDoc?.id]);
 
   useEffect(() => {
     const handlePageHide = () => {
+      const context = pendingSaveContextRef.current;
+      const hasPending =
+        pendingContentRef.current !== null ||
+        Object.keys(pendingMetaUpdatesRef.current).length > 0;
+      if (
+        context &&
+        hasPending &&
+        typeof window !== "undefined" &&
+        pendingContentRef.current !== null
+      ) {
+        persistPendingContentToLocalCache();
+      }
       void flushPendingSavesRef.current();
     };
 
@@ -937,7 +1167,7 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
       window.removeEventListener("pagehide", handlePageHide);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [persistPendingContentToLocalCache]);
 
   const openConfirm = (type: ConfirmActionType, doc: WorkspaceDocRecord) => {
     setConfirmAction({

@@ -3,9 +3,13 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
+  CircleDot,
   Clock3,
   FileClock,
+  Mail,
+  MoreHorizontal,
   Pause,
+  PanelsTopLeft,
   Play,
   Plus,
   Rocket,
@@ -19,15 +23,17 @@ import useWorkspaceReports from "@/hooks/use-workspace-reports";
 import { useWorkspacePermissions } from "@/hooks/use-workspace-permissions";
 import { AI_DEFAULT_ESTIMATED_COSTS } from "@/lib/helpers/ai-token-cost";
 import useWorkspaceStore from "@/stores/workspace";
+import type { WorkspaceReportSchedule } from "@/types/reports";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Empty,
   EmptyContent,
@@ -51,6 +57,43 @@ const formatDateTime = (value?: string | null) => {
   }
 
   return parsed.toLocaleString();
+};
+
+const formatFrequencyValue = (
+  frequency: string,
+  customIntervalMinutes?: number,
+) => {
+  const normalized = String(frequency || "")
+    .trim()
+    .toUpperCase();
+  if (normalized === "CUSTOM" && Number(customIntervalMinutes) > 0) {
+    const minutes = Number(customIntervalMinutes);
+    return `Every ${minutes} min`;
+  }
+
+  return normalized
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/^\w/, (value) => value.toUpperCase());
+};
+
+const formatChannelsValue = (channels: string[]) => {
+  if (!Array.isArray(channels) || channels.length < 1) {
+    return "Dashboard";
+  }
+
+  return channels
+    .map((entry) => {
+      const normalized = String(entry || "")
+        .trim()
+        .toUpperCase();
+      if (normalized === "EMAIL") {
+        return "Email";
+      }
+      return "Dashboard";
+    })
+    .filter(Boolean)
+    .join(" + ");
 };
 
 const WorkspaceReportSchedulesPage = () => {
@@ -130,6 +173,73 @@ const WorkspaceReportSchedulesPage = () => {
     ]);
   };
 
+  const handleRunNowSchedule = async (schedule: WorkspaceReportSchedule) => {
+    if (!ensureReportTokenBudget()) {
+      return;
+    }
+
+    const request = runNowMutation.mutateAsync({
+      workspaceId: normalizedWorkspaceId,
+      scheduleId: schedule.id,
+    });
+
+    try {
+      await toast.promise(request, {
+        loading: "Generating report now...",
+        success: (response) =>
+          response?.data?.message || "Report generation queued successfully.",
+        error: "We could not run this schedule right now.",
+      });
+      await invalidateAll();
+    } catch {
+      // Error handled by toast + mutation error handler.
+    }
+  };
+
+  const handleToggleSchedule = async (schedule: WorkspaceReportSchedule) => {
+    const request = toggleMutation.mutateAsync({
+      workspaceId: normalizedWorkspaceId,
+      scheduleId: schedule.id,
+      isActive: !schedule.isActive,
+    });
+
+    try {
+      await toast.promise(request, {
+        loading: schedule.isActive
+          ? "Pausing schedule..."
+          : "Resuming schedule...",
+        success: (response) =>
+          response?.data?.message || "Schedule updated successfully.",
+        error: "We could not update this schedule.",
+      });
+      await invalidateAll();
+    } catch {
+      // Error handled by toast + mutation error handler.
+    }
+  };
+
+  const handleDeleteSchedule = async (schedule: WorkspaceReportSchedule) => {
+    if (!window.confirm("Delete this report schedule?")) {
+      return;
+    }
+
+    const request = deleteMutation.mutateAsync({
+      workspaceId: normalizedWorkspaceId,
+      scheduleId: schedule.id,
+    });
+
+    try {
+      await toast.promise(request, {
+        loading: "Deleting schedule...",
+        success: "Schedule deleted successfully.",
+        error: "We could not delete this schedule.",
+      });
+      await invalidateAll();
+    } catch {
+      // Error handled by toast + mutation error handler.
+    }
+  };
+
   if (!permissions.isAdminLike) {
     return (
       <Empty className="border-border/70 bg-card w-full border">
@@ -165,11 +275,11 @@ const WorkspaceReportSchedulesPage = () => {
       </div>
 
       {schedulesQuery.isLoading ? (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="space-y-3">
           {Array.from({ length: 4 }).map((_, index) => (
             <Skeleton
               key={`schedule-skeleton-${index}`}
-              className="h-44 w-full"
+              className="h-28 w-full"
             />
           ))}
         </div>
@@ -193,164 +303,144 @@ const WorkspaceReportSchedulesPage = () => {
           </EmptyContent>
         </Empty>
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="space-y-3">
           {schedules.map((schedule) => (
-            <Card key={schedule.id} className="border-border/70">
-              <CardHeader className="space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="space-y-1">
-                    <CardTitle className="text-base leading-6">
-                      {schedule.reportName}
-                    </CardTitle>
-                    <CardDescription>
-                      {formatReportTypeLabel(schedule.reportType)}
-                    </CardDescription>
+            <Card key={schedule.id} className="border-border/70 w-full">
+              <CardContent className="px-3 py-3 sm:px-4">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <CircleDot
+                        className={`size-4 ${
+                          schedule.isActive
+                            ? "text-emerald-500"
+                            : "text-muted-foreground"
+                        }`}
+                      />
+                      <p className="truncate text-sm font-semibold">
+                        {schedule.reportName}
+                      </p>
+                      <Badge
+                        variant={schedule.isActive ? "default" : "secondary"}
+                        className="h-5 px-1.5 text-[10px]"
+                      >
+                        {schedule.isActive ? "Active" : "Paused"}
+                      </Badge>
+                    </div>
+                    <div className="text-muted-foreground mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                      <span>{formatReportTypeLabel(schedule.reportType)}</span>
+                      <span>
+                        {formatFrequencyValue(
+                          schedule.frequency,
+                          schedule.customIntervalMinutes,
+                        )}{" "}
+                        at {schedule.timeOfDay} ({schedule.timezone})
+                      </span>
+                      <span>
+                        {schedule.project?.name
+                          ? `Project: ${schedule.project.name}`
+                          : "Workspace-wide"}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid gap-1 text-xs sm:grid-cols-2 lg:grid-cols-4">
+                      <p className="text-muted-foreground">
+                        Next run:{" "}
+                        <span className="text-foreground">
+                          {formatDateTime(schedule.nextRunAt)}
+                        </span>
+                      </p>
+                      <p className="text-muted-foreground">
+                        Last run:{" "}
+                        <span className="text-foreground">
+                          {formatDateTime(schedule.lastRunAt)}
+                        </span>
+                      </p>
+                      <p className="text-muted-foreground">
+                        Recipients:{" "}
+                        <span className="text-foreground">
+                          {(
+                            schedule.recipientUserIds ||
+                            schedule.recipients ||
+                            []
+                          ).length || 0}
+                        </span>
+                      </p>
+                      <p className="text-muted-foreground flex items-center gap-1">
+                        {Array.isArray(schedule.deliveryChannels) &&
+                        schedule.deliveryChannels.includes("EMAIL") ? (
+                          <Mail className="size-3.5" />
+                        ) : (
+                          <PanelsTopLeft className="size-3.5" />
+                        )}
+                        <span className="text-foreground">
+                          {formatChannelsValue(schedule.deliveryChannels)}
+                        </span>
+                      </p>
+                    </div>
                   </div>
-                  <Badge variant={schedule.isActive ? "default" : "secondary"}>
-                    {schedule.isActive ? "Active" : "Paused"}
-                  </Badge>
-                </div>
-              </CardHeader>
 
-              <CardContent className="space-y-3">
-                <div className="text-muted-foreground grid grid-cols-2 gap-2 text-xs">
-                  <p>
-                    Frequency:{" "}
-                    <span className="text-foreground">
-                      {schedule.frequency}
-                    </span>
-                  </p>
-                  <p>
-                    Time:{" "}
-                    <span className="text-foreground">
-                      {schedule.timeOfDay}
-                    </span>
-                  </p>
-                  <p>
-                    Last run:{" "}
-                    <span className="text-foreground">
-                      {formatDateTime(schedule.lastRunAt)}
-                    </span>
-                  </p>
-                  <p>
-                    Next run:{" "}
-                    <span className="text-foreground">
-                      {formatDateTime(schedule.nextRunAt)}
-                    </span>
-                  </p>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={isBusy}
-                    onClick={async () => {
-                      if (!ensureReportTokenBudget()) {
-                        return;
-                      }
-
-                      const request = runNowMutation.mutateAsync({
-                        workspaceId: normalizedWorkspaceId,
-                        scheduleId: schedule.id,
-                      });
-
-                      try {
-                        await toast.promise(request, {
-                          loading: "Generating report now...",
-                          success: (response) =>
-                            response?.data?.message ||
-                            "Report generation queued successfully.",
-                          error: "We could not run this schedule right now.",
-                        });
-                        await invalidateAll();
-                      } catch {
-                        // Error handled by toast + mutation error handler.
-                      }
-                    }}
-                  >
-                    <Rocket className="mr-1.5 size-3.5" />
-                    Run now · ~{estimatedReportTokenCost}
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={isBusy}
-                    onClick={async () => {
-                      const request = toggleMutation.mutateAsync({
-                        workspaceId: normalizedWorkspaceId,
-                        scheduleId: schedule.id,
-                        isActive: !schedule.isActive,
-                      });
-
-                      try {
-                        await toast.promise(request, {
-                          loading: schedule.isActive
-                            ? "Pausing schedule..."
-                            : "Resuming schedule...",
-                          success: (response) =>
-                            response?.data?.message ||
-                            "Schedule updated successfully.",
-                          error: "We could not update this schedule.",
-                        });
-                        await invalidateAll();
-                      } catch {
-                        // Error handled by toast + mutation error handler.
-                      }
-                    }}
-                  >
-                    {schedule.isActive ? (
-                      <Pause className="mr-1.5 size-3.5" />
-                    ) : (
-                      <Play className="mr-1.5 size-3.5" />
-                    )}
-                    {schedule.isActive ? "Pause" : "Resume"}
-                  </Button>
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      router.push(
-                        `/settings/reports/${encodeURIComponent(schedule.id)}`,
-                      )
-                    }
-                  >
-                    <Clock3 className="mr-1.5 size-3.5" />
-                    Edit
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-destructive"
-                    disabled={isBusy}
-                    onClick={async () => {
-                      if (!window.confirm("Delete this report schedule?")) {
-                        return;
-                      }
-
-                      const request = deleteMutation.mutateAsync({
-                        workspaceId: normalizedWorkspaceId,
-                        scheduleId: schedule.id,
-                      });
-
-                      try {
-                        await toast.promise(request, {
-                          loading: "Deleting schedule...",
-                          success: "Schedule deleted successfully.",
-                          error: "We could not delete this schedule.",
-                        });
-                        await invalidateAll();
-                      } catch {
-                        // Error handled by toast + mutation error handler.
-                      }
-                    }}
-                  >
-                    <Trash2 className="mr-1.5 size-3.5" />
-                    Delete
-                  </Button>
+                  <div className="flex items-center xl:justify-end">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="size-8"
+                          aria-label="Schedule actions"
+                          disabled={isBusy}
+                        >
+                          <MoreHorizontal className="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-56">
+                        <DropdownMenuItem
+                          disabled={isBusy}
+                          onSelect={() => {
+                            void handleRunNowSchedule(schedule);
+                          }}
+                        >
+                          <Rocket className="mr-1.5 size-3.5" />
+                          Run now · ~{estimatedReportTokenCost}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={isBusy}
+                          onSelect={() => {
+                            void handleToggleSchedule(schedule);
+                          }}
+                        >
+                          {schedule.isActive ? (
+                            <Pause className="mr-1.5 size-3.5" />
+                          ) : (
+                            <Play className="mr-1.5 size-3.5" />
+                          )}
+                          {schedule.isActive
+                            ? "Pause schedule"
+                            : "Resume schedule"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onSelect={() =>
+                            router.push(
+                              `/settings/reports/${encodeURIComponent(schedule.id)}`,
+                            )
+                          }
+                        >
+                          <Clock3 className="mr-1.5 size-3.5" />
+                          Edit schedule
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          disabled={isBusy}
+                          className="text-destructive focus:text-destructive"
+                          onSelect={() => {
+                            void handleDeleteSchedule(schedule);
+                          }}
+                        >
+                          <Trash2 className="mr-1.5 size-3.5" />
+                          Delete schedule
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
               </CardContent>
             </Card>

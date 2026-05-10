@@ -261,6 +261,15 @@ export type WorkspaceAiSendMessageStreamEvent =
       };
     }
   | {
+      type: "status";
+      payload: {
+        text: string;
+        code?: string;
+        timestamp?: string;
+        details?: string[];
+      };
+    }
+  | {
       type: "delta";
       delta: string;
     }

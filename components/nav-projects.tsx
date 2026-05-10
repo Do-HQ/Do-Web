@@ -146,7 +146,7 @@ export function NavProjects({
               (pipeline) => pipeline.status && pipeline.status !== "complete",
             );
             const projectIndicatorClass = isProjectActive
-              ? "bg-primary shadow-[0_0_0_3px_rgba(249,115,22,0.16)] motion-safe:animate-pulse"
+              ? "bg-primary shadow-[0_0_0_3px_rgba(249,115,22,0.16)]"
               : "bg-primary/55";
 
             return (
@@ -161,12 +161,24 @@ export function NavProjects({
                       <span className="flex min-w-0 items-center gap-1.5">
                         <span className="truncate">{project.name}</span>
                         {hasOngoingWorkflow || isProjectActive ? (
-                          <span
-                            className={cn(
-                              "inline-flex size-1.5 shrink-0 rounded-full",
-                              projectIndicatorClass,
-                            )}
-                          />
+                          isProjectActive ? (
+                            <span className="relative inline-flex size-2 shrink-0">
+                              <span className="absolute inset-0 rounded-full bg-primary/45 motion-safe:animate-ping" />
+                              <span
+                                className={cn(
+                                  "relative inline-flex size-2 rounded-full",
+                                  projectIndicatorClass,
+                                )}
+                              />
+                            </span>
+                          ) : (
+                            <span
+                              className={cn(
+                                "inline-flex size-1.5 shrink-0 rounded-full",
+                                projectIndicatorClass,
+                              )}
+                            />
+                          )
                         ) : null}
                       </span>
                     </Link>
