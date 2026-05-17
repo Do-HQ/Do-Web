@@ -28,6 +28,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import StandupAiAvailabilityNote from "./standup-ai-availability-note";
 import { formatStandupDateTime } from "./standup-utils";
 
 const sourceFields: Array<[keyof StandupSettings, string, string]> = [
@@ -176,6 +177,8 @@ const WorkspaceStandupSettingsPage = () => {
           <Save className="size-4" /> Save changes
         </Button>
       </div>
+
+      <StandupAiAvailabilityNote workspaceId={normalizedWorkspaceId} />
 
       <Card className="rounded-lg border-border/70">
         <CardHeader>

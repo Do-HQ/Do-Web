@@ -26,6 +26,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { recordRecentVisit } from "@/lib/helpers/recent-visits";
 import { ROUTES } from "@/utils/constants";
+import StandupAiAvailabilityNote from "./standup-ai-availability-note";
 import { formatStandupDateTime, statusClassName } from "./standup-utils";
 import { cn } from "@/lib/utils";
 
@@ -124,6 +125,8 @@ const WorkspaceStandupsPage = () => {
           </Link>
         </div>
       </div>
+
+      <StandupAiAvailabilityNote workspaceId={normalizedWorkspaceId} />
 
       {current ? (
         <div className="grid gap-3 md:grid-cols-4">

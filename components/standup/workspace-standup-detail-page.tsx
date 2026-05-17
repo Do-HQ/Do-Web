@@ -37,6 +37,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { recordRecentVisit } from "@/lib/helpers/recent-visits";
 import { ROUTES } from "@/utils/constants";
+import StandupAiAvailabilityNote from "./standup-ai-availability-note";
 import {
   formatStandupDateTime,
   humanize,
@@ -256,6 +257,7 @@ const WorkspaceStandupDetailPage = ({ sessionId }: { sessionId: string }) => {
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-4 p-4">
+      <StandupAiAvailabilityNote workspaceId={normalizedWorkspaceId} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <Link href={ROUTES.STANDUPS}>

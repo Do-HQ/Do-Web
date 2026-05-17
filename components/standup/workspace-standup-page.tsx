@@ -31,6 +31,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { recordRecentVisit } from "@/lib/helpers/recent-visits";
 import { cn } from "@/lib/utils";
+import StandupAiAvailabilityNote from "./standup-ai-availability-note";
 import { formatStandupDateTime, humanize } from "./standup-utils";
 
 const answerForQuestion = (answers: StandupAnswer[], questionId: string) =>
@@ -315,6 +316,7 @@ const WorkspaceStandupPage = () => {
     );
     return (
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-4 p-4">
+        <StandupAiAvailabilityNote workspaceId={normalizedWorkspaceId} />
         <Card className="border-border/70">
           <CardContent className="p-5">
             <div className="flex items-start gap-3">
@@ -441,7 +443,8 @@ const WorkspaceStandupPage = () => {
 
   if (!hasStarted) {
     return (
-      <div className="mx-auto flex w-full max-w-4xl p-4  max-h-60">
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-3 p-4">
+        <StandupAiAvailabilityNote workspaceId={normalizedWorkspaceId} />
         <Card className="w-full overflow-hidden border-border/70 ">
           <CardContent className="grid gap-5 p-5 md:grid-cols-[1fr_0.75fr]">
             <div className="space-y-4">
@@ -481,6 +484,7 @@ const WorkspaceStandupPage = () => {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-3 p-4">
+      <StandupAiAvailabilityNote workspaceId={normalizedWorkspaceId} />
       <div className="flex items-center justify-between gap-4">
         <div>
           <p className="text-xs text-muted-foreground">Standup</p>

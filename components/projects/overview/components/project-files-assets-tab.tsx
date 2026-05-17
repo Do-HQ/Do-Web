@@ -2,11 +2,13 @@
 
 import { useMemo, useRef, useState } from "react";
 import {
+  BookOpen,
   Cloud,
   Code2,
   Copy,
   Download,
   Eye,
+  ExternalLink,
   FileText,
   Image as ImageIcon,
   MoreHorizontal,
@@ -24,8 +26,10 @@ import { useProjectStore } from "@/stores";
 import useWorkspaceStore from "@/stores/workspace";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
 import useWorkspaceGoogleDrive from "@/hooks/use-workspace-google-drive";
+import useWorkspaceDoc from "@/hooks/use-workspace-doc";
 import useFile from "@/hooks/use-file";
 import type { CustomFile } from "@/types/file";
+import type { WorkspaceDocRecord } from "@/types/doc";
 import type { WorkspaceGoogleDriveFileRecord } from "@/types/integration";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -142,6 +146,10 @@ function isTextPreviewAsset(asset: ProjectAsset) {
   }
 
   return TEXT_PREVIEW_EXTENSIONS.has(getAssetExtension(asset.name));
+}
+
+function isWorkspaceDocAsset(asset: ProjectAsset) {
+  return asset.source === "workspace-doc" || Boolean(asset.docId);
 }
 
 function getOfficePreviewUrl(url: string) {
@@ -296,6 +304,31 @@ function AssetPreviewPanel({ asset, onDownload }: AssetPreviewPanelProps) {
     },
   });
 
+  if (isWorkspaceDocAsset(asset)) {
+    return (
+      <div className="flex h-[72vh] items-center justify-center rounded-lg border border-border/20 bg-background px-6 text-center">
+        <div className="mx-auto max-w-md">
+          <div className="mx-auto flex size-11 items-center justify-center rounded-lg bg-muted">
+            <BookOpen className="size-5 text-primary" />
+          </div>
+          <div className="mt-3 text-[15px] font-semibold">{asset.name}</div>
+          <div className="text-muted-foreground mt-2 text-[12px] leading-5">
+            {asset.summary ||
+              "This is a workspace document attached to this project."}
+          </div>
+          {asset.url ? (
+            <a href={asset.url} target="_blank" rel="noreferrer">
+              <Button type="button" size="sm" className="mt-4">
+                <ExternalLink />
+                Open document
+              </Button>
+            </a>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   if (asset.source === "google-drive" && asset.thumbnailUrl) {
     return (
       <img
@@ -436,6 +469,7 @@ export function ProjectFilesAssetsTab({
   const { workspaceId } = useWorkspaceStore();
   const { useUpdateWorkspaceProject } = useWorkspaceProject();
   const workspaceGoogleDriveHook = useWorkspaceGoogleDrive();
+  const workspaceDocHook = useWorkspaceDoc();
   const { useUploadAsset, useDeleteAsset } = useFile();
   const upsertProjectRecord = useProjectStore(
     (state) => state.upsertProjectRecord,
@@ -452,6 +486,7 @@ export function ProjectFilesAssetsTab({
   });
   const uploadAssetMutation = useUploadAsset();
   const deleteAssetMutation = useDeleteAsset();
+  const updateWorkspaceDocMutation = workspaceDocHook.useUpdateWorkspaceDoc();
   const googleDriveIntegrationQuery =
     workspaceGoogleDriveHook.useWorkspaceGoogleDriveIntegration(
       workspaceId || "",
@@ -468,12 +503,17 @@ export function ProjectFilesAssetsTab({
   const [sendAsset, setSendAsset] = useState<ProjectAsset | null>(null);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [driveImportOpen, setDriveImportOpen] = useState(false);
+  const [workspaceDocImportOpen, setWorkspaceDocImportOpen] = useState(false);
   const [sendTarget, setSendTarget] = useState<string>(SEND_TARGETS[0]);
   const [sendNote, setSendNote] = useState("");
   const [uploadFileValue, setUploadFileValue] = useState<File | null>(null);
   const [driveSearch, setDriveSearch] = useState("");
   const [selectedDriveFileId, setSelectedDriveFileId] = useState("");
+  const [workspaceDocSearch, setWorkspaceDocSearch] = useState("");
+  const [selectedWorkspaceDocId, setSelectedWorkspaceDocId] = useState("");
   const [driveLinkedTaskId, setDriveLinkedTaskId] = useState(NO_LINKED_TASK_VALUE);
+  const [workspaceDocLinkedTaskId, setWorkspaceDocLinkedTaskId] =
+    useState(NO_LINKED_TASK_VALUE);
   const [uploadLinkedTaskId, setUploadLinkedTaskId] =
     useState(NO_LINKED_TASK_VALUE);
   const [replacingAsset, setReplacingAsset] = useState<ProjectAsset | null>(
@@ -499,9 +539,29 @@ export function ProjectFilesAssetsTab({
     () => googleDriveFilesQuery.data?.data?.files ?? [],
     [googleDriveFilesQuery.data?.data?.files],
   );
+  const workspaceDocsQuery = workspaceDocHook.useWorkspaceDocs(
+    workspaceId || "",
+    {
+      page: 1,
+      limit: 50,
+      search: workspaceDocSearch,
+      archived: false,
+    },
+    {
+      enabled: Boolean(workspaceId) && workspaceDocImportOpen,
+    },
+  );
+  const workspaceDocs = useMemo(
+    () => workspaceDocsQuery.data?.data?.docs ?? [],
+    [workspaceDocsQuery.data?.data?.docs],
+  );
   const selectedDriveFile = useMemo(
     () => driveFiles.find((file) => file.id === selectedDriveFileId) || null,
     [driveFiles, selectedDriveFileId],
+  );
+  const selectedWorkspaceDoc = useMemo(
+    () => workspaceDocs.find((doc) => doc.id === selectedWorkspaceDocId) || null,
+    [selectedWorkspaceDocId, workspaceDocs],
   );
 
   const visibleAssets = useMemo(() => {
@@ -516,8 +576,15 @@ export function ProjectFilesAssetsTab({
         return true;
       }
 
-      return [asset.name, asset.linkedTask, asset.uploadedBy, asset.type]
-        .filter(Boolean)
+      return [
+        asset.name,
+        asset.linkedTask,
+        asset.uploadedBy,
+        asset.type,
+        asset.summary,
+        asset.source,
+      ]
+        .filter((value): value is string => typeof value === "string" && Boolean(value))
         .some((value) => value.toLowerCase().includes(normalized));
     });
   }, [assets, search, typeFilter]);
@@ -607,6 +674,35 @@ export function ProjectFilesAssetsTab({
     } satisfies ProjectAsset;
   };
 
+  const buildWorkspaceDocProjectAsset = (
+    doc: WorkspaceDocRecord,
+    linkedTaskId: string,
+  ) => {
+    const linkedTask = linkedTasks.find((task) => task.id === linkedTaskId);
+
+    return {
+      id: `asset-doc-${doc.id}`,
+      source: "workspace-doc",
+      docId: doc.id,
+      name: doc.title || "Untitled document",
+      type: "Document",
+      url: `/docs/${doc.id}`,
+      summary: doc.summary || "",
+      mimeType: "text/x-squircle-doc",
+      resourceType: "document",
+      uploadedBy:
+        doc.updatedBy?.name ||
+        doc.createdBy?.name ||
+        "Workspace member",
+      uploadedById: doc.updatedBy?.id || doc.createdBy?.id || "",
+      uploadedAt: formatUploadDateLabel(doc.updatedAt || doc.lastEditedAt),
+      linkedTask: linkedTask?.title ?? "Unlinked",
+      linkedTaskId: linkedTask?.id,
+      fileSize: "Workspace doc",
+      folder: "workspace-docs",
+    } satisfies ProjectAsset;
+  };
+
   const handleOpenDriveImport = () => {
     if (!workspaceId) {
       toast("Open this project from a workspace to import cloud files.");
@@ -645,6 +741,71 @@ export function ProjectFilesAssetsTab({
     setSelectedDriveFileId("");
     setDriveLinkedTaskId(NO_LINKED_TASK_VALUE);
     setDriveImportOpen(false);
+  };
+
+  const handleAttachWorkspaceDoc = async () => {
+    if (!selectedWorkspaceDoc) {
+      toast("Select a workspace document to attach.");
+      return;
+    }
+
+    if (
+      assets.some(
+        (asset) =>
+          String(asset.docId || "") === selectedWorkspaceDoc.id ||
+          asset.id === `asset-doc-${selectedWorkspaceDoc.id}`,
+      )
+    ) {
+      toast("This document is already attached to the project.");
+      return;
+    }
+
+    const linkedTaskId =
+      workspaceDocLinkedTaskId === NO_LINKED_TASK_VALUE
+        ? ""
+        : workspaceDocLinkedTaskId;
+    const importedAsset = buildWorkspaceDocProjectAsset(
+      selectedWorkspaceDoc,
+      linkedTaskId,
+    );
+
+    const attachPromise = (async () => {
+      await persistAssets([importedAsset, ...assets], {
+        loading: "Attaching workspace document...",
+        success: "Workspace document attached to this project.",
+        error: "We could not attach that workspace document.",
+      });
+
+      if (selectedWorkspaceDoc.canEdit && workspaceId) {
+        const nextProjectIds = Array.from(
+          new Set([...(selectedWorkspaceDoc.assignedProjectIds || []), project.id]),
+        );
+
+        await updateWorkspaceDocMutation
+          .mutateAsync({
+            workspaceId,
+            docId: selectedWorkspaceDoc.id,
+            updates: {
+              assignedProjectIds: nextProjectIds,
+            },
+          })
+          .catch(() => {
+            toast(
+              "The doc was attached here, but its project assignment could not be updated.",
+            );
+          });
+      }
+    })();
+
+    try {
+      await attachPromise;
+      setSelectedWorkspaceDocId("");
+      setWorkspaceDocLinkedTaskId(NO_LINKED_TASK_VALUE);
+      setWorkspaceDocImportOpen(false);
+      void workspaceDocsQuery.refetch();
+    } catch {
+      // persistAssets already surfaced the failure.
+    }
   };
 
   const handleUpload = async () => {
@@ -880,6 +1041,16 @@ export function ProjectFilesAssetsTab({
                   type="button"
                   variant="outline"
                   size="sm"
+                  onClick={() => setWorkspaceDocImportOpen(true)}
+                >
+                  <BookOpen />
+                  Workspace doc
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
                   onClick={handleOpenDriveImport}
                   disabled={!googleDriveConnected}
                 >
@@ -915,6 +1086,9 @@ export function ProjectFilesAssetsTab({
                         <span>{asset.type}</span>
                         {asset.source === "google-drive" ? (
                           <span>Google Drive</span>
+                        ) : null}
+                        {isWorkspaceDocAsset(asset) ? (
+                          <span>Workspace doc</span>
                         ) : null}
                         <span>{asset.fileSize}</span>
                         <span>{asset.uploadedBy}</span>
@@ -977,6 +1151,11 @@ export function ProjectFilesAssetsTab({
                                   Drive
                                 </Badge>
                               ) : null}
+                              {isWorkspaceDocAsset(asset) ? (
+                                <Badge variant="secondary" className="font-medium">
+                                  Doc
+                                </Badge>
+                              ) : null}
                             </div>
                           </TableCell>
                           <TableCell>{asset.fileSize}</TableCell>
@@ -1022,8 +1201,14 @@ export function ProjectFilesAssetsTab({
                                 <DropdownMenuItem
                                   onClick={() => handleDownload(asset)}
                                 >
-                                  <Download />
-                                  Download
+                                  {isWorkspaceDocAsset(asset) ? (
+                                    <ExternalLink />
+                                  ) : (
+                                    <Download />
+                                  )}
+                                  {isWorkspaceDocAsset(asset)
+                                    ? "Open doc"
+                                    : "Download"}
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                   onClick={() => {
@@ -1126,6 +1311,12 @@ export function ProjectFilesAssetsTab({
                   <span className="text-muted-foreground">Linked task:</span>{" "}
                   {viewerAsset.linkedTask}
                 </div>
+                {viewerAsset.summary ? (
+                  <div className="text-[12px] leading-5">
+                    <span className="text-muted-foreground">Summary:</span>{" "}
+                    {viewerAsset.summary}
+                  </div>
+                ) : null}
                 <div className="pt-2 space-y-2">
                   <Button
                     type="button"
@@ -1134,8 +1325,12 @@ export function ProjectFilesAssetsTab({
                     className="w-full"
                     onClick={() => handleDownload(viewerAsset)}
                   >
-                    <Download />
-                    Download
+                    {isWorkspaceDocAsset(viewerAsset) ? (
+                      <ExternalLink />
+                    ) : (
+                      <Download />
+                    )}
+                    {isWorkspaceDocAsset(viewerAsset) ? "Open" : "Download"}
                   </Button>
                   <Button
                     type="button"
@@ -1275,6 +1470,156 @@ export function ProjectFilesAssetsTab({
               }
             >
               Upload file
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={workspaceDocImportOpen}
+        onOpenChange={setWorkspaceDocImportOpen}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Attach workspace document</DialogTitle>
+            <DialogDescription>
+              Choose an existing Squircle doc and keep it visible from this
+              project.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3">
+            <div className="grid gap-2">
+              <Label htmlFor="workspace-doc-search">Search docs</Label>
+              <Input
+                id="workspace-doc-search"
+                value={workspaceDocSearch}
+                onChange={(event) => setWorkspaceDocSearch(event.target.value)}
+                placeholder="Search by title or summary"
+                className="h-9"
+              />
+            </div>
+
+            <div className="max-h-72 overflow-auto rounded-md border border-border/25">
+              {workspaceDocsQuery.isLoading || workspaceDocsQuery.isFetching ? (
+                <div className="p-4">
+                  <LoaderComponent />
+                </div>
+              ) : workspaceDocs.length ? (
+                <div className="divide-y divide-border/20">
+                  {workspaceDocs.map((doc) => {
+                    const active = selectedWorkspaceDocId === doc.id;
+                    const alreadyAttached = assets.some(
+                      (asset) =>
+                        String(asset.docId || "") === doc.id ||
+                        asset.id === `asset-doc-${doc.id}`,
+                    );
+
+                    return (
+                      <button
+                        key={doc.id}
+                        type="button"
+                        className={`flex w-full items-start justify-between gap-3 px-3 py-2 text-left transition ${
+                          active ? "bg-muted/50" : "hover:bg-muted/30"
+                        }`}
+                        onClick={() => setSelectedWorkspaceDocId(doc.id)}
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate text-[12.5px] font-medium">
+                            {doc.title}
+                          </div>
+                          <div className="text-muted-foreground mt-0.5 line-clamp-2 text-[11px]">
+                            {doc.summary || "Workspace document"}
+                          </div>
+                          <div className="text-muted-foreground mt-1 flex flex-wrap gap-1.5 text-[10.5px]">
+                            <span>{doc.publishState}</span>
+                            <span>Updated {formatUploadDateLabel(doc.updatedAt)}</span>
+                            {doc.assignedProjectIds.includes(project.id) ? (
+                              <span>Already assigned to this project</span>
+                            ) : null}
+                          </div>
+                        </div>
+                        <Badge
+                          variant={
+                            active || alreadyAttached ? "default" : "outline"
+                          }
+                          className="h-6 shrink-0"
+                        >
+                          {alreadyAttached
+                            ? "Attached"
+                            : active
+                              ? "Selected"
+                              : "Select"}
+                        </Badge>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="px-4 py-6">
+                  <Empty className="border-0 p-0 md:p-0">
+                    <EmptyHeader>
+                      <EmptyMedia variant="icon">
+                        <BookOpen className="size-4 text-primary/85" />
+                      </EmptyMedia>
+                      <EmptyDescription className="text-[12px]">
+                        No workspace documents found for this search.
+                      </EmptyDescription>
+                    </EmptyHeader>
+                  </Empty>
+                </div>
+              )}
+            </div>
+
+            <div className="grid gap-2">
+              <Label>Linked task</Label>
+              <Select
+                value={workspaceDocLinkedTaskId}
+                onValueChange={setWorkspaceDocLinkedTaskId}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Optional task link" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={NO_LINKED_TASK_VALUE}>
+                    No linked task
+                  </SelectItem>
+                  {linkedTasks.map((task) => (
+                    <SelectItem key={task.id} value={task.id}>
+                      {task.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {selectedWorkspaceDoc && !selectedWorkspaceDoc.canEdit ? (
+              <p className="rounded-md border border-border/50 bg-muted/25 px-3 py-2 text-[11px] text-muted-foreground">
+                You can attach this doc to the project list, but only the owner
+                or an admin can update the document&apos;s project assignment.
+              </p>
+            ) : null}
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setWorkspaceDocImportOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleAttachWorkspaceDoc()}
+              disabled={
+                !selectedWorkspaceDoc ||
+                updateWorkspaceProjectMutation.isPending ||
+                updateWorkspaceDocMutation.isPending ||
+                workspaceDocsQuery.isFetching
+              }
+            >
+              Attach document
             </Button>
           </DialogFooter>
         </DialogContent>
