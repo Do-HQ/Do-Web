@@ -129,7 +129,7 @@ export function NavActions() {
           size="sm"
           variant="outline"
           className="hidden h-9 items-center gap-1.5 px-2.5 text-[12px] sm:inline-flex"
-          title={`${planLabel} · ${tokenBalance.toLocaleString()} tokens`}
+          title={`${planLabel} · ${tokenBalance.toLocaleString()} credits`}
           disabled={!normalizedWorkspaceId}
           onClick={() => router.push(ROUTES.SETTINGS_BILLING)}
         >

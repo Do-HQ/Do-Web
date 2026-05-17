@@ -11,6 +11,7 @@ import {
   CircleDot,
   CircleDotDashed,
   Clock3,
+  ClipboardCheck,
   FilePenLine,
   FolderKanban,
   Gem,
@@ -65,7 +66,7 @@ import { Separator } from "@/components/ui/separator";
 
 type DashboardVisitItem = {
   key: string;
-  kind: "project" | "space" | "jam" | "doc" | "report" | "schedule" | "scribe";
+  kind: "project" | "space" | "jam" | "doc" | "report" | "schedule" | "scribe" | "standup" | "standup-session";
   title: string;
   subtitle: string;
   href: string;
@@ -225,6 +226,9 @@ const getDashboardVisitIcon = (kind: DashboardVisitItem["kind"]) => {
   }
   if (kind === "scribe") {
     return <Gem className="size-3.5" />;
+  }
+  if (kind === "standup" || kind === "standup-session") {
+    return <ClipboardCheck className="size-3.5" />;
   }
   return <CircleDot className="size-3.5" />;
 };
@@ -799,6 +803,17 @@ const UserDashboard = () => {
             title: "Scribe",
             subtitle: "Ask questions about your workspace",
             href: ROUTES.ASK_SQUIRCLE,
+            updatedAt: entry.visitedAt,
+          };
+        }
+
+        if (entry.kind === "standup" || entry.kind === "standup-session") {
+          return {
+            key: entry.key,
+            kind: entry.kind,
+            title: entry.kind === "standup" ? "Standup" : "Standup session",
+            subtitle: entry.kind === "standup" ? "Your async check-in" : "Workspace standup responses",
+            href: entry.href,
             updatedAt: entry.visitedAt,
           };
         }

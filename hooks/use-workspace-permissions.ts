@@ -38,6 +38,7 @@ export const useWorkspacePermissions = () => {
     ).trim();
   const userId = String(user?._id || "").trim();
   const inferredRole: WorkspaceRole | null = ownerId && ownerId === userId ? "owner" : null;
+  const hasWorkspaceAccess = Boolean(activeWorkspaceMembership || inferredRole);
   const currentRole: WorkspaceRole = activeWorkspaceMembership?.role || inferredRole || "member";
   const isOwner = currentRole === "owner";
   const isAdmin = currentRole === "admin";
@@ -60,6 +61,7 @@ export const useWorkspacePermissions = () => {
     workspace,
     governance,
     role: currentRole,
+    hasWorkspaceAccess,
     isOwner,
     isAdmin,
     isAdminLike,

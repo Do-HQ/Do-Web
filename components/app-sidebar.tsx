@@ -5,6 +5,7 @@ import {
   Archive,
   BarChart3,
   Calendar,
+  ClipboardCheck,
   FileText,
   FolderKanban,
   Home,
@@ -188,6 +189,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           pathname.startsWith(ROUTES.REPORTS) ||
           pathname.startsWith(ROUTES.SETTINGS_REPORTS),
       },
+      ...(workspacePermissions.hasWorkspaceAccess
+        ? [
+            {
+              title: "Standup",
+              url: workspacePermissions.isAdminLike ? ROUTES.STANDUPS : ROUTES.STANDUP,
+              icon: ClipboardCheck,
+              isActive:
+                pathname.startsWith(ROUTES.STANDUPS) ||
+                pathname.startsWith(ROUTES.STANDUP) ||
+                pathname.startsWith(ROUTES.SETTINGS_STANDUP),
+            },
+          ]
+        : []),
       {
         title: "Templates",
         url: ROUTES.TEMPLATES,

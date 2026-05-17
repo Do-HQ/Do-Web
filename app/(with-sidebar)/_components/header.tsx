@@ -25,6 +25,9 @@ const routeTitleMap: Record<string, string> = {
   [ROUTES.SPACES]: "Spaces",
   [ROUTES.SPACES_TEAM_CALL]: "Team Call",
   [ROUTES.REPORTS]: "Reports",
+  [ROUTES.STANDUP]: "Standup",
+  [ROUTES.STANDUPS]: "Standups",
+  [ROUTES.SETTINGS_STANDUP]: "Standup Settings",
 };
 
 const Header = () => {
@@ -78,6 +81,10 @@ const Header = () => {
 
     if (pathname.startsWith(`${ROUTES.REPORTS}/`)) {
       return "Reports";
+    }
+
+    if (pathname.startsWith(`${ROUTES.STANDUPS}/`)) {
+      return "Standups";
     }
 
     return (

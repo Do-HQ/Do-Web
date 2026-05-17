@@ -5,7 +5,9 @@ export type RecentVisitKind =
   | "doc"
   | "report"
   | "schedule"
-  | "scribe";
+  | "scribe"
+  | "standup"
+  | "standup-session";
 
 export type RecentVisitEntry = {
   key: string;
@@ -64,7 +66,9 @@ const readRecentVisitsRaw = (): RecentVisitEntry[] => {
           kind !== "doc" &&
           kind !== "report" &&
           kind !== "schedule" &&
-          kind !== "scribe"
+          kind !== "scribe" &&
+          kind !== "standup" &&
+          kind !== "standup-session"
         ) {
           return null;
         }

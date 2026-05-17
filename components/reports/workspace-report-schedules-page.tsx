@@ -147,8 +147,8 @@ const WorkspaceReportSchedulesPage = () => {
       return true;
     }
 
-    toast.error("Not enough AI tokens", {
-      description: `This action needs about ${estimatedReportTokenCost.toLocaleString()} tokens, but your workspace has ${tokenBalance.toLocaleString()} left.`,
+    toast.error("Not enough AI credits", {
+      description: `This action needs about ${estimatedReportTokenCost.toLocaleString()} credits, but your workspace has ${tokenBalance.toLocaleString()} left.`,
       action: {
         label: "Open billing",
         onClick: () => {
@@ -400,7 +400,7 @@ const WorkspaceReportSchedulesPage = () => {
                           }}
                         >
                           <Rocket className="mr-1.5 size-3.5" />
-                          Run now · ~{estimatedReportTokenCost}
+                          Run now · ~{estimatedReportTokenCost} credits
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           disabled={isBusy}

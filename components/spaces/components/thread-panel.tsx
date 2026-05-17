@@ -3,6 +3,7 @@ import {
   FileText,
   Shapes,
   ImagePlus,
+  Loader2,
   PanelRightClose,
   Plus,
   Pin,
@@ -43,6 +44,7 @@ type ThreadPanelProps = {
   editingReplyValue: string;
   threadComposer: string;
   threadAttachments: ChatAttachment[];
+  isThreadRepliesLoading?: boolean;
   canSendThreadReply: boolean;
   canCreateTaskFromChat: boolean;
   currentUserId: string;
@@ -83,6 +85,7 @@ const ThreadPanel = ({
   editingReplyValue,
   threadComposer,
   threadAttachments,
+  isThreadRepliesLoading = false,
   canSendThreadReply,
   canCreateTaskFromChat,
   currentUserId,
@@ -647,7 +650,12 @@ const ThreadPanel = ({
             ref={threadListRef}
             className="h-0 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-2 py-2 sm:px-3 sm:py-2.5"
           >
-            {activeThreadReplies.length === 0 ? (
+            {isThreadRepliesLoading ? (
+              <div className="text-muted-foreground flex min-h-[9rem] flex-col items-center justify-center gap-2 text-[12px]">
+                <Loader2 className="size-4 animate-spin" />
+                Loading thread...
+              </div>
+            ) : activeThreadReplies.length === 0 ? (
               <p className="text-muted-foreground text-[13px]">
                 No replies yet. Start the thread.
               </p>

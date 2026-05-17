@@ -242,7 +242,7 @@ const WorkspaceBillingPage = () => {
               const syncedBalance = response?.data?.workspace?.tokens?.balance;
 
               if (syncedPlan && Number.isFinite(Number(syncedBalance))) {
-                return `Billing synced. ${syncedPlan} plan active with ${Number(syncedBalance).toLocaleString()} tokens.`;
+                return `Billing synced. ${syncedPlan} plan active with ${Number(syncedBalance).toLocaleString()} credits.`;
               }
               if (syncedPlan) {
                 return `Billing synced. ${syncedPlan} plan is now active.`;
@@ -350,9 +350,9 @@ const WorkspaceBillingPage = () => {
     });
 
     await toast.promise(requestPromise, {
-      loading: "Preparing token checkout...",
+      loading: "Preparing credit checkout...",
       success: (result) => result?.data?.message || "Checkout created.",
-      error: "We could not start token purchase.",
+      error: "We could not start credit purchase.",
     });
     const response = await requestPromise;
 
@@ -377,7 +377,7 @@ const WorkspaceBillingPage = () => {
             Plan & Billing
           </h1>
           <p className="text-muted-foreground text-sm">
-            Manage your workspace subscription and shared AI token wallet.
+            Manage your workspace subscription and shared AI credits.
           </p>
         </div>
         <Button
@@ -426,7 +426,7 @@ const WorkspaceBillingPage = () => {
 
           <Card className="border-border/70">
             <CardHeader>
-              <CardTitle className="text-base">AI token wallet</CardTitle>
+              <CardTitle className="text-base">AI credit wallet</CardTitle>
               <CardDescription>
                 Shared workspace balance for Scribe, reports, and draft
                 generation.
@@ -440,7 +440,7 @@ const WorkspaceBillingPage = () => {
                   ).toLocaleString()}
                 </span>
                 <span className="text-muted-foreground pb-1 text-xs">
-                  tokens remaining
+                  credits remaining
                 </span>
               </div>
               <p className="text-muted-foreground text-sm">
@@ -448,7 +448,7 @@ const WorkspaceBillingPage = () => {
                 {Number(
                   summary?.workspace?.tokens?.monthlyAllocation || 0,
                 ).toLocaleString()}{" "}
-                tokens
+                credits
               </p>
               <p className="text-muted-foreground text-sm">
                 Last refill:{" "}
@@ -456,7 +456,7 @@ const WorkspaceBillingPage = () => {
               </p>
               {summary?.workspace?.tokens?.isLowBalance ? (
                 <div className="rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-700 dark:text-amber-300">
-                  Low token balance. Top up now to avoid AI action blocks.
+                  Low credit balance. Top up now to keep AI actions available.
                 </div>
               ) : null}
             </CardContent>
@@ -469,7 +469,7 @@ const WorkspaceBillingPage = () => {
           <CardContent className="py-3">
             <div className="text-muted-foreground flex items-start gap-2 text-sm">
               <ShieldCheck className="mt-0.5 size-4" />
-              Workspace owners and admins can manage plan upgrades and token
+              Workspace owners and admins can manage plan upgrades and credit
               top-ups. You can still view usage and wallet status here.
             </div>
           </CardContent>
@@ -523,7 +523,7 @@ const WorkspaceBillingPage = () => {
 
                       <p className="text-muted-foreground mb-3 text-xs">
                         {Number(plan.monthlyAllocation || 0).toLocaleString()}{" "}
-                        tokens / month
+                        credits / month
                       </p>
                       {plan.checkoutMode === "subscription" &&
                       !hasCheckoutConfig ? (
@@ -561,9 +561,9 @@ const WorkspaceBillingPage = () => {
 
         <Card className="border-border/70">
           <CardHeader>
-            <CardTitle className="text-base">Top up tokens</CardTitle>
+            <CardTitle className="text-base">Top up credits</CardTitle>
             <CardDescription>
-              Buy one-time token packs for extra AI usage.
+              Buy one-time credit packs for extra AI usage.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2.5">
@@ -603,7 +603,7 @@ const WorkspaceBillingPage = () => {
               <div>
                 <CardTitle className="text-base">Usage analytics</CardTitle>
                 <CardDescription>
-                  Track personal and team AI token consumption.
+                  Track personal and team AI credit usage.
                 </CardDescription>
               </div>
               <div className="w-28">
@@ -641,7 +641,7 @@ const WorkspaceBillingPage = () => {
                   </p>
                   <p className="mt-1 text-xl font-semibold">
                     {Number(usage?.myUsage?.netTokens || 0).toLocaleString()}{" "}
-                    tokens
+                    credits
                   </p>
                 </div>
 
@@ -686,9 +686,9 @@ const WorkspaceBillingPage = () => {
 
         <Card className="border-border/70">
           <CardHeader>
-            <CardTitle className="text-base">Recent ledger</CardTitle>
+            <CardTitle className="text-base">Recent credit activity</CardTitle>
             <CardDescription>
-              Latest token reserve, reconcile, refund, and top-up records.
+              Latest credit reservations, refunds, adjustments, and top-ups.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
@@ -744,7 +744,7 @@ const WorkspaceBillingPage = () => {
               Billing & Subscriptions
             </div>
             <p className="text-muted-foreground text-xs leading-5">
-              Subscription controls feature tier and monthly allocation. Token
+              Subscription controls feature tier and monthly allocation. Credit
               packs can be purchased any time for additional AI usage.
             </p>
           </div>
@@ -779,7 +779,7 @@ const WorkspaceBillingPage = () => {
           <CardContent className="py-8">
             <div className="text-muted-foreground flex items-start gap-2 text-sm">
               <AlertCircle className="mt-0.5 size-4" />
-              Select a workspace to manage plan and token settings.
+              Select a workspace to manage plan and credit settings.
             </div>
           </CardContent>
         </Card>

@@ -75,7 +75,7 @@ export function AiCreateSheetShell({
   const hasInsufficientTokens =
     hasTokenSnapshot && tokenBalance < safeEstimatedTokenCost;
   const tokenGuardReason = hasInsufficientTokens
-    ? `This draft needs about ${safeEstimatedTokenCost.toLocaleString()} tokens, but your workspace has ${tokenBalance.toLocaleString()}.`
+    ? `This draft needs about ${safeEstimatedTokenCost.toLocaleString()} credits, but your workspace has ${tokenBalance.toLocaleString()}.`
     : "";
   const resolvedDisabledReason = aiDisabledReason || tokenGuardReason;
   const canGenerateWithTokenGuard = canGenerate && !hasInsufficientTokens;

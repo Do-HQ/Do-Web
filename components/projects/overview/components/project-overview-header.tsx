@@ -654,8 +654,8 @@ export function ProjectOverviewHeader({
     }
 
     if (hasInsufficientReportTokens) {
-      toast.error("Not enough AI tokens", {
-        description: `This report needs about ${estimatedReportTokenCost.toLocaleString()} tokens, but your workspace has ${workspaceTokenBalance.toLocaleString()} left.`,
+      toast.error("Not enough AI credits", {
+        description: `This report needs about ${estimatedReportTokenCost.toLocaleString()} credits, but your workspace has ${workspaceTokenBalance.toLocaleString()} left.`,
         action: {
           label: "Open billing",
           onClick: () => {
@@ -1543,7 +1543,7 @@ export function ProjectOverviewHeader({
               <p className="text-muted-foreground">
                 Estimated AI usage:{" "}
                 <span className="text-foreground font-medium">
-                  ~{estimatedReportTokenCost.toLocaleString()} tokens
+                  ~{estimatedReportTokenCost.toLocaleString()} credits
                 </span>
                 {billingSummaryQuery.isSuccess ? (
                   <>
@@ -1573,7 +1573,7 @@ export function ProjectOverviewHeader({
               }
             >
               <ChartColumnIncreasing className="size-4" />
-              Generate report (~{estimatedReportTokenCost})
+              Generate report (~{estimatedReportTokenCost} credits)
             </Button>
           </DialogFooter>
         </DialogContent>

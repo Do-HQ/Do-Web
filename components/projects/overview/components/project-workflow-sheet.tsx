@@ -33,7 +33,8 @@ type ProjectWorkflowSheetProps = {
   existingWorkflows?: ProjectWorkflow[];
   initialValues?: Partial<ProjectWorkflowEditorValues>;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (values: ProjectWorkflowEditorValues) => void;
+  onSubmit: (values: ProjectWorkflowEditorValues) => void | Promise<void>;
+  isSubmitting?: boolean;
 };
 
 export function ProjectWorkflowSheet({
@@ -44,6 +45,7 @@ export function ProjectWorkflowSheet({
   initialValues,
   onOpenChange,
   onSubmit,
+  isSubmitting = false,
 }: ProjectWorkflowSheetProps) {
   const { workspaceId } = useWorkspaceStore();
   const { useGenerateWorkspaceAiDraft, useWorkspaceAiStatus } = useWorkspaceAi();
@@ -147,8 +149,19 @@ export function ProjectWorkflowSheet({
           <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="button" onClick={handleSubmit} disabled={!name.trim() || !teamId}>
-            {mode === "create" ? "Create workflow" : "Save workflow"}
+          <Button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!name.trim() || !teamId || isSubmitting}
+            loading={isSubmitting}
+          >
+            {isSubmitting
+              ? mode === "create"
+                ? "Creating..."
+                : "Saving..."
+              : mode === "create"
+                ? "Create workflow"
+                : "Save workflow"}
           </Button>
         </div>
       }

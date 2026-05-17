@@ -29,9 +29,9 @@ const useError = () => {
       const estimateLabel =
         requiredTokens > 0 ? requiredTokens.toLocaleString() : "this amount of";
       const balanceLabel = currentBalance.toLocaleString();
-      const description = `This action needs about ${estimateLabel} tokens. Your workspace has ${balanceLabel} available${plan ? ` on ${plan}` : ""}.`;
+      const description = `This action needs about ${estimateLabel} credits. Your workspace has ${balanceLabel} available${plan ? ` on ${plan}` : ""}.`;
 
-      toast.error("Not enough AI tokens", {
+      toast.error("Not enough AI credits", {
         description,
         action: {
           label: "Open billing",

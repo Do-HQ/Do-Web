@@ -69,7 +69,7 @@ export function AiPromptSection({
 
       {showEstimate ? (
         <div className="text-muted-foreground text-[11px]">
-          Est. {estimatedTokenCost.toLocaleString()} tokens
+          Est. {estimatedTokenCost.toLocaleString()} credits
           {hasBalance ? ` · ${tokenBalance.toLocaleString()} left` : ""}
         </div>
       ) : null}

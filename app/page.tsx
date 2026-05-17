@@ -1328,8 +1328,8 @@ export default function Home() {
                 <li key={item.step}>
                   <Card className="shadow-none">
                     <CardHeader>
-                      <div className="flex items-start gap-3">
-                        <span className="text-muted-foreground min-w-9 pt-0.5 text-xs font-medium tracking-[0.16em] uppercase">
+                      <div className="flex items-start gap-2">
+                        <span className="text-muted-foreground min-w-9 pt-0.5 text-xs font-medium uppercase">
                           {item.step}
                         </span>
                         <div className="space-y-1">

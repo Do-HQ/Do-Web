@@ -984,6 +984,11 @@ const SpacesPage = () => {
     selectedThreadMessage?.id,
     serverThreadReplies,
   ]);
+  const isThreadRepliesLoading = Boolean(
+    selectedThreadMessage?.id &&
+      (threadRepliesQuery.isLoading ||
+        (threadRepliesQuery.isFetching && !serverThreadReplies.length)),
+  );
 
   useEffect(() => {
     if (!Object.keys(optimisticReactionsByMessageId).length) {
@@ -3957,6 +3962,7 @@ const SpacesPage = () => {
                   editingReplyValue={editingReplyValue}
                   threadComposer={threadComposer}
                   threadAttachments={threadAttachments}
+                  isThreadRepliesLoading={isThreadRepliesLoading}
                   canSendThreadReply={canSendThreadReply}
                   canCreateTaskFromChat={Boolean(canCreateTaskFromChat)}
                   currentUserId={String(currentUser.id || "")}
@@ -4097,6 +4103,7 @@ const SpacesPage = () => {
             editingReplyValue={editingReplyValue}
             threadComposer={threadComposer}
             threadAttachments={threadAttachments}
+            isThreadRepliesLoading={isThreadRepliesLoading}
             canSendThreadReply={canSendThreadReply}
             canCreateTaskFromChat={Boolean(canCreateTaskFromChat)}
             currentUserId={String(currentUser.id || "")}

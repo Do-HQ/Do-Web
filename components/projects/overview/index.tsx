@@ -88,6 +88,11 @@ type WorkflowArchiveDialogState = {
   workflowName?: string;
 } | null;
 
+type WorkflowDeleteDialogState = {
+  workflowId: string;
+  workflowName?: string;
+} | null;
+
 function buildDueWindow(startDate: string, targetEndDate: string) {
   if (!startDate || !targetEndDate) {
     return "No date range";
@@ -545,6 +550,8 @@ export default function ProjectOverview({
   const [taskSheetState, setTaskSheetState] = useState<TaskSheetState>(null);
   const [workflowArchiveDialogState, setWorkflowArchiveDialogState] =
     useState<WorkflowArchiveDialogState>(null);
+  const [workflowDeleteDialogState, setWorkflowDeleteDialogState] =
+    useState<WorkflowDeleteDialogState>(null);
   const canManageProjectInvites = workspacePermissions.canManageProjectInvites;
   const canArchiveProjects = workspacePermissions.canArchiveProjects;
   const canCreateWorkflows = workspacePermissions.canCreateWorkflows;
@@ -1676,7 +1683,7 @@ export default function ProjectOverview({
     );
   };
 
-  const handleWorkflowSubmit = (values: ProjectWorkflowEditorValues) => {
+  const handleWorkflowSubmit = async (values: ProjectWorkflowEditorValues) => {
     if (!canCreateWorkflows) {
       toast(
         "You do not have permission to manage workflows in this workspace.",
@@ -1706,36 +1713,42 @@ export default function ProjectOverview({
     }
 
     if (workflowSheetState?.mode === "edit" && workflowSheetState.workflowId) {
-      updateWorkspaceProjectWorkflowMutation.mutate(
-        {
-          workspaceId,
-          projectId,
-          workflowId: workflowSheetState.workflowId,
-          updates: payload,
-        },
-        {
-          onSuccess: () => {
-            toast("Workflow updated.");
-            setWorkflowSheetState(null);
-          },
-        },
-      );
+      const request = updateWorkspaceProjectWorkflowMutation.mutateAsync({
+        workspaceId,
+        projectId,
+        workflowId: workflowSheetState.workflowId,
+        updates: payload,
+      });
+
+      try {
+        await toast.promise(request, {
+          loading: "Updating workflow...",
+          success: "Workflow updated.",
+          error: "Could not update workflow.",
+        });
+        setWorkflowSheetState(null);
+      } catch {
+        // Mutation hook handles the detailed error surface.
+      }
       return;
     }
 
-    createWorkspaceProjectWorkflowMutation.mutate(
-      {
-        workspaceId,
-        projectId,
-        payload,
-      },
-      {
-        onSuccess: () => {
-          toast("Workflow created.");
-          setWorkflowSheetState(null);
-        },
-      },
-    );
+    const request = createWorkspaceProjectWorkflowMutation.mutateAsync({
+      workspaceId,
+      projectId,
+      payload,
+    });
+
+    try {
+      await toast.promise(request, {
+        loading: "Creating workflow...",
+        success: "Workflow created.",
+        error: "Could not create workflow.",
+      });
+      setWorkflowSheetState(null);
+    } catch {
+      // Mutation hook handles the detailed error surface.
+    }
   };
 
   const handleTaskSubmit = async (values: ProjectTaskEditorValues) => {
@@ -1884,26 +1897,10 @@ export default function ProjectOverview({
     }
 
     if (label === "Delete workflow") {
-      if (
-        !window.confirm(
-          `Delete ${workflowName ?? "this workflow"}? This cannot be undone.`,
-        )
-      ) {
-        return;
-      }
-
-      deleteWorkspaceProjectWorkflowMutation.mutate(
-        {
-          workspaceId,
-          projectId,
-          workflowId,
-        },
-        {
-          onSuccess: () => {
-            toast(`Workflow deleted: ${workflowName ?? "Workflow"}`);
-          },
-        },
-      );
+      setWorkflowDeleteDialogState({
+        workflowId,
+        workflowName,
+      });
       return;
     }
 
@@ -1931,6 +1928,31 @@ export default function ProjectOverview({
         },
       },
     );
+  };
+
+  const handleConfirmDeleteWorkflow = async () => {
+    if (!workspaceId || !workflowDeleteDialogState?.workflowId) {
+      setWorkflowDeleteDialogState(null);
+      return;
+    }
+
+    const workflowName = workflowDeleteDialogState.workflowName;
+    const request = deleteWorkspaceProjectWorkflowMutation.mutateAsync({
+      workspaceId,
+      projectId,
+      workflowId: workflowDeleteDialogState.workflowId,
+    });
+
+    try {
+      await toast.promise(request, {
+        loading: "Deleting workflow...",
+        success: `Workflow deleted: ${workflowName ?? "Workflow"}`,
+        error: "Could not delete workflow.",
+      });
+      setWorkflowDeleteDialogState(null);
+    } catch {
+      // Mutation hook handles the detailed error surface.
+    }
   };
 
   const handleTaskAction = (
@@ -2386,6 +2408,10 @@ export default function ProjectOverview({
             }
           }}
           onSubmit={handleWorkflowSubmit}
+          isSubmitting={
+            createWorkspaceProjectWorkflowMutation.isPending ||
+            updateWorkspaceProjectWorkflowMutation.isPending
+          }
         />
       ) : null}
 
@@ -2480,6 +2506,46 @@ export default function ProjectOverview({
               onClick={handleConfirmArchiveWorkflow}
             >
               Archive workflow
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(workflowDeleteDialogState)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setWorkflowDeleteDialogState(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete workflow</DialogTitle>
+            <DialogDescription>
+              Delete{" "}
+              <span className="font-medium text-foreground">
+                {workflowDeleteDialogState?.workflowName ?? "this workflow"}
+              </span>
+              ? This removes the workflow and its tasks from this project.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setWorkflowDeleteDialogState(null)}
+              disabled={deleteWorkspaceProjectWorkflowMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              loading={deleteWorkspaceProjectWorkflowMutation.isPending}
+              onClick={handleConfirmDeleteWorkflow}
+            >
+              Delete workflow
             </Button>
           </DialogFooter>
         </DialogContent>

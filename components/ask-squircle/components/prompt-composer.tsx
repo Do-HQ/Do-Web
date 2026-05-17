@@ -184,7 +184,7 @@ const PromptComposer = ({
 
       {disabledReason ? (
         <div className="rounded-md border border-amber-500/35 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-700 dark:text-amber-300">
-          {disabledReason || "Scribe is currently unavailable in this environment."}
+          {disabledReason || "Scribe is currently unavailable."}
         </div>
       ) : null}
 
@@ -305,7 +305,7 @@ const PromptComposer = ({
         <div className="ml-auto flex items-center gap-1">
           {estimatedTokenCost > 0 ? (
             <p className="text-muted-foreground hidden items-center gap-1 text-[11px] lg:flex">
-              Est. {estimatedTokenCost.toLocaleString()} tokens
+              Est. {estimatedTokenCost.toLocaleString()} credits
               {tokenBalance > 0 ? ` · ${tokenBalance.toLocaleString()} left` : ""}
             </p>
           ) : null}

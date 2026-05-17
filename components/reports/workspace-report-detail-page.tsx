@@ -171,8 +171,8 @@ const WorkspaceReportDetailPage = ({
       return true;
     }
 
-    toast.error("Not enough AI tokens", {
-      description: `This action needs about ${estimatedReportTokenCost.toLocaleString()} tokens, but your workspace has ${workspaceTokenBalance.toLocaleString()} left.`,
+    toast.error("Not enough AI credits", {
+      description: `This action needs about ${estimatedReportTokenCost.toLocaleString()} credits, but your workspace has ${workspaceTokenBalance.toLocaleString()} left.`,
       action: {
         label: "Open billing",
         onClick: () => {
@@ -830,7 +830,7 @@ const WorkspaceReportDetailPage = ({
                   }}
                 >
                   <RefreshCcw className="mr-1.5 size-3.5" />
-                  Regenerate (~{estimatedReportTokenCost})
+                  Regenerate (~{estimatedReportTokenCost} credits)
                 </Button>
 
                 <Button

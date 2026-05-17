@@ -759,6 +759,11 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   );
   const selectedJamCommentThread =
     jamCommentThreadDetailQuery.data?.data?.thread || selectedThreadFromList;
+  const isSelectedThreadDetailLoading = Boolean(
+    selectedThreadId &&
+      jamCommentThreadDetailQuery.isLoading &&
+      !jamCommentThreadDetailQuery.data?.data?.thread,
+  );
   const pinnedJamCommentThreads = React.useMemo(
     () =>
       allJamCommentThreads.filter(
@@ -2423,7 +2428,12 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                       {selectedJamCommentThread ? (
                         <>
                           <ScrollArea className="max-h-[17.5rem] px-3 py-2">
-                            {selectedThreadMessages.length ? (
+                            {isSelectedThreadDetailLoading ? (
+                              <div className="text-muted-foreground flex min-h-[8rem] flex-col items-center justify-center gap-2 text-[11px]">
+                                <Loader className="size-4 animate-spin" />
+                                Loading conversation...
+                              </div>
+                            ) : selectedThreadMessages.length ? (
                               <div className="space-y-2.5">
                                 {selectedThreadMessages.map((message) => {
                                   const isMine =

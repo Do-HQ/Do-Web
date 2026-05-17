@@ -494,8 +494,8 @@ const AskSquirclePage = () => {
       requiredTokens > 0 ? requiredTokens.toLocaleString() : "the required";
     const balanceLabel = currentBalance.toLocaleString();
 
-    toast.error("Not enough AI tokens", {
-      description: `This message needs about ${requiredLabel} tokens. Your workspace has ${balanceLabel}${plan ? ` on ${plan}` : ""}.`,
+    toast.error("Not enough AI credits", {
+      description: `This message needs about ${requiredLabel} credits. Your workspace has ${balanceLabel}${plan ? ` on ${plan}` : ""}.`,
       action: {
         label: "Open billing",
         onClick: () => router.push(ROUTES.SETTINGS_BILLING),
@@ -689,7 +689,7 @@ const AskSquirclePage = () => {
                 title: "Writing response",
                 code: "writing-response",
                 details: [
-                  "First response tokens received",
+                  "First words received",
                   "Assembling final answer in real time",
                 ],
               });
@@ -960,7 +960,7 @@ const AskSquirclePage = () => {
               disableAiActions={isAiUnavailable}
               disabledReason={
                 hasKnownInsufficientTokens
-                  ? `Low token balance. This prompt needs about ${estimatedMessageCost.toLocaleString()} tokens.`
+                  ? `Low credit balance. This prompt needs about ${estimatedMessageCost.toLocaleString()} credits.`
                   : aiDisabledReason
               }
               estimatedTokenCost={estimatedMessageCost}

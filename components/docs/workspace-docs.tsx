@@ -117,7 +117,7 @@ const DEFAULT_DOC_CONTENT = [
     content: "",
   },
 ];
-const DOC_AUTOSAVE_DELAY_MS = 8000;
+const DOC_AUTOSAVE_DELAY_MS = 5000;
 const DOC_PENDING_SAVE_CACHE_KEY = "workspace-doc:pending-save";
 
 const getPendingDocSaveCacheKey = (workspaceId: string, docId: string) =>
@@ -317,6 +317,11 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
   const flushPendingSavesRef = useRef<() => Promise<void>>(async () => {});
   const lastPersistedContentSignatureRef = useRef("");
   const pendingContentSignatureRef = useRef("");
+  const [restoredDraft, setRestoredDraft] = useState<{
+    docId: string;
+    content: unknown[];
+    signature: string;
+  } | null>(null);
   const [recentDocIds, setRecentDocIds] = useState<string[]>([]);
 
   const persistPendingContentToLocalCache = useCallback(() => {
@@ -487,6 +492,7 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
       selectedDoc.content || [],
     );
     pendingContentSignatureRef.current = "";
+    setRestoredDraft(null);
   }, [selectedDoc?.id]);
 
   useEffect(() => {
@@ -527,6 +533,11 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
       };
       pendingContentRef.current = parsed;
       pendingContentSignatureRef.current = nextSignature;
+      setRestoredDraft({
+        docId: selectedDoc.id,
+        content: parsed,
+        signature: nextSignature,
+      });
       setSaveState("saving");
       void flushPendingSavesRef.current()
         .then(() => {
@@ -535,6 +546,9 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
             Object.keys(pendingMetaUpdatesRef.current).length > 0;
           if (!hasPending) {
             window.localStorage.removeItem(cacheKey);
+            setRestoredDraft((current) =>
+              current?.docId === selectedDoc.id ? null : current,
+            );
           }
         })
         .catch(() => {
@@ -820,6 +834,9 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
         }
       }
 
+      setRestoredDraft((current) =>
+        current?.docId === context.docId ? null : current,
+      );
       setSavedState();
 
       const stillHasMeta =
@@ -1124,8 +1141,9 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
       clearTimeout(saveTimerRef.current);
     }
 
+    setSaveState("saving");
+
     saveTimerRef.current = setTimeout(() => {
-      setSaveState("saving");
       void flushPendingSaves();
     }, DOC_AUTOSAVE_DELAY_MS);
   };
@@ -1161,10 +1179,12 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
     };
 
     window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("beforeunload", handlePageHide);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("beforeunload", handlePageHide);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [persistPendingContentToLocalCache]);
@@ -2463,9 +2483,13 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
               >
                 <div className="mx-auto w-full max-w-[58rem]">
                   <WorkspaceDocEditor
-                    key={selectedDoc.id}
+                    key={`${selectedDoc.id}:${restoredDraft?.docId === selectedDoc.id ? restoredDraft.signature : "persisted"}`}
                     docId={selectedDoc.id}
-                    initialContent={selectedDoc.content || []}
+                    initialContent={
+                      restoredDraft?.docId === selectedDoc.id
+                        ? restoredDraft.content
+                        : selectedDoc.content || []
+                    }
                     editable={selectedDoc.canEdit}
                     onContentChange={scheduleContentSave}
                     immersive
