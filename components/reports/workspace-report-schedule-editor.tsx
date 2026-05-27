@@ -15,6 +15,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Skeleton } from "@/components/ui/skeleton";
 import WorkspaceReportScheduleForm from "./workspace-report-schedule-form";
 import type { CreateWorkspaceReportScheduleRequestBody } from "@/types/reports";
+import { AppHeaderSlot } from "@/components/layout/app-header-slot";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
 type WorkspaceReportScheduleEditorProps = {
   scheduleId?: string;
@@ -69,6 +78,9 @@ const WorkspaceReportScheduleEditor = ({
   }, [projectsQuery.data?.data?.projects]);
 
   const initialValue = scheduleQuery.data?.data?.schedule;
+  const headerTitle = isEditMode
+    ? String(initialValue?.reportName || "Schedule settings").trim()
+    : "New schedule";
   const recipientOptions = useMemo(() => {
     const members = membersQuery.data?.data?.members || [];
 
@@ -101,6 +113,22 @@ const WorkspaceReportScheduleEditor = ({
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4">
+      <AppHeaderSlot targetId="app-header-title-slot">
+        <Breadcrumb>
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              <BreadcrumbLink href="/settings/reports">Reports</BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage className="line-clamp-1 max-w-[16rem] sm:max-w-[24rem]">
+                {headerTitle}
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
+      </AppHeaderSlot>
+
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h1 className="text-xl font-semibold tracking-tight">

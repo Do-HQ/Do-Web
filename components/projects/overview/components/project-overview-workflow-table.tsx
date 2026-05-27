@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment } from "react";
 import {
   Archive,
   ArrowUpDown,
@@ -9,7 +9,6 @@ import {
   Pencil,
   Plus,
   PlusSquare,
-  Rows3,
   Star,
   StarOff,
   Trash2,
@@ -153,7 +152,6 @@ const WORKFLOW_DOT: Record<ProjectWorkflow["status"], string> = {
 };
 
 type SortMode = "updated" | "progress" | "name";
-type DensityMode = "compact" | "comfortable";
 
 type QuickFilterMode = "all" | "active" | "at-risk" | "completed";
 
@@ -189,7 +187,6 @@ export function ProjectOverviewWorkflowTable({
   const favorites = useFavoritesStore((state) => state.favorites);
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
   const selectedTeam = teams.find((team) => team.id === selectedTeamId) ?? null;
-  const [density, setDensity] = useState<DensityMode>("compact");
 
   const quickFilterMode: QuickFilterMode = view;
   const hasScopedFilters =
@@ -209,7 +206,10 @@ export function ProjectOverviewWorkflowTable({
     });
   };
 
-  const toggleTaskFavorite = (workflow: ProjectWorkflow, task: ProjectWorkflow["tasks"][number]) => {
+  const toggleTaskFavorite = (
+    workflow: ProjectWorkflow,
+    task: ProjectWorkflow["tasks"][number],
+  ) => {
     toggleFavorite({
       key: `task:${projectId}:${workflow.id}:${task.id}`,
       type: "task",
@@ -232,7 +232,7 @@ export function ProjectOverviewWorkflowTable({
               {displayedWorkflows.length === 1 ? "" : "s"}
               {selectedPipeline
                 ? ` • ${selectedPipeline.name}`
-                : " • All pipelines"}
+                : " • All workflows"}
               {selectedTeam ? ` • ${selectedTeam.name}` : ""}
             </div>
           </div>
@@ -376,37 +376,6 @@ export function ProjectOverviewWorkflowTable({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant={density === "compact" ? "ghost" : "outline"}
-                  size="icon-sm"
-                  aria-label="Change density"
-                  className={cn(
-                    density !== "compact" &&
-                      "border-primary/20 bg-primary/5 text-primary",
-                  )}
-                >
-                  <Rows3 />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuCheckboxItem
-                  checked={density === "compact"}
-                  onCheckedChange={() => setDensity("compact")}
-                >
-                  Compact
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={density === "comfortable"}
-                  onCheckedChange={() => setDensity("comfortable")}
-                >
-                  Comfortable
-                </DropdownMenuCheckboxItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
             <Button
               type="button"
               variant="outline"
@@ -456,10 +425,7 @@ export function ProjectOverviewWorkflowTable({
                 <Fragment key={workflow.id}>
                   <TableRow
                     className={cn(
-                      "bg-background/40",
-                      density === "compact"
-                        ? "h-10 [&>td]:py-2"
-                        : "h-12 [&>td]:py-2.5",
+                      "h-10 bg-background/40 [&>td]:py-2",
                     )}
                   >
                     <TableCell className="align-top">
@@ -536,7 +502,9 @@ export function ProjectOverviewWorkflowTable({
                             style={{ width: `${workflow.progress}%` }}
                           />
                         </div>
-                        <div className={cn("text-[11px]", workflowTone.textClass)}>
+                        <div
+                          className={cn("text-[11px]", workflowTone.textClass)}
+                        >
                           {workflow.progress}%
                         </div>
                       </div>
@@ -545,19 +513,16 @@ export function ProjectOverviewWorkflowTable({
                       {workflow.dueWindow}
                     </TableCell>
                     <TableCell className="text-muted-foreground break-words whitespace-normal align-top">
-                      {resolveUpdatedAtLabel(
-                        workflow.updatedAt,
-                        [
-                          ...workflow.tasks.flatMap((task) => [
-                            task.updatedAt,
-                            ...(task.subtasks || []).map(
-                              (subtask) => subtask.updatedAt,
-                            ),
-                          ]),
-                          workflow.targetEndDate,
-                          workflow.startedAt,
-                        ],
-                      )}
+                      {resolveUpdatedAtLabel(workflow.updatedAt, [
+                        ...workflow.tasks.flatMap((task) => [
+                          task.updatedAt,
+                          ...(task.subtasks || []).map(
+                            (subtask) => subtask.updatedAt,
+                          ),
+                        ]),
+                        workflow.targetEndDate,
+                        workflow.startedAt,
+                      ])}
                     </TableCell>
                     <TableCell className="text-right">
                       <DropdownMenu>
@@ -657,10 +622,7 @@ export function ProjectOverviewWorkflowTable({
                           <TableRow
                             key={task.id}
                             className={cn(
-                              "bg-muted/10",
-                              density === "compact"
-                                ? "h-9 [&>td]:py-1.5"
-                                : "h-10 [&>td]:py-2",
+                              "h-9 bg-muted/10 [&>td]:py-1.5",
                             )}
                           >
                             <TableCell className="align-top">
@@ -720,7 +682,12 @@ export function ProjectOverviewWorkflowTable({
                                     style={{ width: `${taskProgress}%` }}
                                   />
                                 </div>
-                                <div className={cn("text-[11px]", taskTone.textClass)}>
+                                <div
+                                  className={cn(
+                                    "text-[11px]",
+                                    taskTone.textClass,
+                                  )}
+                                >
                                   {taskProgress}%
                                 </div>
                               </div>
@@ -729,16 +696,13 @@ export function ProjectOverviewWorkflowTable({
                               {formatShortDate(task.dueDate)}
                             </TableCell>
                             <TableCell className="text-muted-foreground break-words whitespace-normal align-top">
-                              {resolveUpdatedAtLabel(
-                                task.updatedAt,
-                                [
-                                  ...(task.subtasks || []).map(
-                                    (subtask) => subtask.updatedAt,
-                                  ),
-                                  task.dueDate,
-                                  task.startDate || "",
-                                ],
-                              )}
+                              {resolveUpdatedAtLabel(task.updatedAt, [
+                                ...(task.subtasks || []).map(
+                                  (subtask) => subtask.updatedAt,
+                                ),
+                                task.dueDate,
+                                task.startDate || "",
+                              ])}
                             </TableCell>
                             <TableCell className="text-right">
                               <DropdownMenu>

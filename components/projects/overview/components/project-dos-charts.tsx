@@ -1,7 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
   Empty,
   EmptyDescription,
@@ -37,14 +36,6 @@ type TimelineBuildResult = {
   tickDivisions: number;
   todayOffset: number | null;
 };
-
-type TimelineZoom = "compact" | "balanced" | "expanded";
-
-const ZOOM_OPTIONS: Array<{ value: TimelineZoom; label: string }> = [
-  { value: "compact", label: "Compact" },
-  { value: "balanced", label: "Balanced" },
-  { value: "expanded", label: "Expanded" },
-];
 
 const BAR_STYLES = {
   todo: "bg-slate-500/75",
@@ -105,44 +96,19 @@ function getFallbackSpanDays(task: FlattenedProjectTask) {
   }
 }
 
-function getTimelineScale(zoom: TimelineZoom) {
-  switch (zoom) {
-    case "compact":
-      return { pxPerDay: 14, minWidth: 560 };
-    case "expanded":
-      return { pxPerDay: 28, minWidth: 760 };
-    default:
-      return { pxPerDay: 20, minWidth: 640 };
-  }
+function getTimelineScale() {
+  return { pxPerDay: 24, minWidth: 760 };
 }
 
-function getTickStepDays(totalDays: number, zoom: TimelineZoom) {
-  if (zoom === "expanded") {
-    if (totalDays > 84) return 14;
-    if (totalDays > 42) return 7;
-    if (totalDays > 16) return 3;
-    return 1;
-  }
-
-  if (zoom === "compact") {
-    if (totalDays > 140) return 28;
-    if (totalDays > 70) return 14;
-    if (totalDays > 32) return 7;
-    if (totalDays > 16) return 3;
-    return 1;
-  }
-
-  if (totalDays > 120) return 21;
-  if (totalDays > 56) return 14;
+function getTickStepDays(totalDays: number) {
+  if (totalDays > 84) return 14;
+  if (totalDays > 42) return 7;
   if (totalDays > 28) return 7;
-  if (totalDays > 14) return 3;
+  if (totalDays > 16) return 3;
   return 1;
 }
 
-function buildTimelineRows(
-  tasks: FlattenedProjectTask[],
-  zoom: TimelineZoom,
-): TimelineBuildResult {
+function buildTimelineRows(tasks: FlattenedProjectTask[]): TimelineBuildResult {
   if (!tasks.length) {
     return {
       rows: [],
@@ -179,9 +145,9 @@ function buildTimelineRows(
     baseRows[0].end,
   );
   const totalDays = Math.max(1, dayDiff(minStart, maxEnd) + 1);
-  const scale = getTimelineScale(zoom);
+  const scale = getTimelineScale();
   const chartWidth = Math.max(scale.minWidth, totalDays * scale.pxPerDay);
-  const tickStepDays = getTickStepDays(totalDays, zoom);
+  const tickStepDays = getTickStepDays(totalDays);
 
   const ticks: Date[] = [];
   for (let offset = 0; offset < totalDays; offset += tickStepDays) {
@@ -223,8 +189,7 @@ function buildTimelineRows(
 }
 
 export function ProjectDosCharts({ tasks, onEditTask }: ProjectDosChartsProps) {
-  const [zoom, setZoom] = useState<TimelineZoom>("balanced");
-  const timeline = useMemo(() => buildTimelineRows(tasks, zoom), [tasks, zoom]);
+  const timeline = useMemo(() => buildTimelineRows(tasks), [tasks]);
 
   return (
     <section className="overflow-hidden rounded-xl border border-border/35 bg-card/75 shadow-xs">
@@ -240,25 +205,6 @@ export function ProjectDosCharts({ tasks, onEditTask }: ProjectDosChartsProps) {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <div className="bg-muted/80 inline-flex rounded-md p-0.5">
-              {ZOOM_OPTIONS.map((option) => (
-                <Button
-                  key={option.value}
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setZoom(option.value)}
-                  className={cn(
-                    "h-7 px-2 text-[11px]",
-                    zoom === option.value
-                      ? "bg-background text-foreground shadow-xs"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {option.label}
-                </Button>
-              ))}
-            </div>
             <Badge variant="outline" className="text-[11px]">
               {timeline.rows.length}/{tasks.length} tasks
             </Badge>
@@ -275,14 +221,16 @@ export function ProjectDosCharts({ tasks, onEditTask }: ProjectDosChartsProps) {
 
       {timeline.rows.length ? (
         <ScrollArea className="w-full">
-          <div className="min-w-max p-3">
-            <div className="grid grid-cols-[15.5rem_auto] items-end gap-3 px-1 pb-2">
+          <div className="min-w-full p-3">
+            <div
+              className="grid min-w-full grid-cols-[15.5rem_minmax(0,1fr)] items-end gap-3 px-1 pb-2"
+              style={{ minWidth: timeline.chartWidth + 260 }}
+            >
               <div className="text-muted-foreground text-[11px] font-medium uppercase tracking-[0.08em]">
                 Task
               </div>
               <div
                 className="grid items-center gap-2 text-[11px] font-medium text-muted-foreground"
-                style={{ width: `${timeline.chartWidth}px` }}
               >
                 <div
                   className="grid gap-0"
@@ -305,7 +253,8 @@ export function ProjectDosCharts({ tasks, onEditTask }: ProjectDosChartsProps) {
                   key={row.task.id}
                   type="button"
                   onClick={() => onEditTask(row.task.workflowId, row.task.id)}
-                  className="group grid w-full grid-cols-[15.5rem_auto] items-center gap-3 rounded-lg bg-background/70 px-1.5 py-1.5 text-left transition-colors hover:bg-muted/15"
+                  className="group grid min-w-full grid-cols-[15.5rem_minmax(0,1fr)] items-center gap-3 rounded-lg bg-background/70 px-1.5 py-1.5 text-left transition-colors hover:bg-muted/15"
+                  style={{ minWidth: timeline.chartWidth + 260 }}
                 >
                   <div className="rounded-md px-2 py-1.5 transition-colors group-hover:bg-background/85">
                     <div className="truncate text-[12px] font-medium leading-5">
@@ -323,7 +272,6 @@ export function ProjectDosCharts({ tasks, onEditTask }: ProjectDosChartsProps) {
 
                   <div
                     className="rounded-md px-2 py-1 transition-colors group-hover:bg-background/85"
-                    style={{ width: `${timeline.chartWidth}px` }}
                   >
                     <div className="relative h-6 overflow-hidden rounded-md border border-border/25 bg-muted/30">
                       <div

@@ -452,7 +452,7 @@ const WorkspaceReportDetailPage = ({
       </AppHeaderSlot>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
+        <div className="space-y-1 w-full">
           <Button
             variant="ghost"
             size="sm"
@@ -484,7 +484,7 @@ const WorkspaceReportDetailPage = ({
                 maxLength={180}
                 disabled={renameMutation.isPending}
                 placeholder="Untitled report"
-                className="h-auto border-none min-w-150 bg-transparent px-0 text-xl font-semibold tracking-tight shadow-none dark:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
+                className="h-auto border-none min-w-full bg-transparent px-0 text-xl font-semibold tracking-tight shadow-none dark:bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
               />
             ) : (
               report.title

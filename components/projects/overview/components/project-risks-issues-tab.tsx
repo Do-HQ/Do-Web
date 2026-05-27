@@ -117,6 +117,7 @@ type RiskDraft = {
   state: ProjectRiskState;
   teamId?: string;
   pipelineId?: string;
+  createdByUserId?: string;
 };
 
 type RiskDialogMode = "create" | "view" | "edit";
@@ -220,6 +221,7 @@ function toRiskDraft(item: ProjectRisk): RiskDraft {
     state: item.state || "open",
     teamId: item.teamId,
     pipelineId: item.pipelineId,
+    createdByUserId: item.createdByUserId,
   };
 }
 
@@ -323,16 +325,16 @@ export function ProjectRisksIssuesTab({
 
   const selectedRisk = detailRisk || draft;
   const selectedRiskCreatorId = String(
-    detailRisk?.createdByUserId ||
-      detailRisk?.ownerUserId ||
-      draft.ownerUserId ||
-      "",
+    detailRisk?.createdByUserId || draft.createdByUserId || "",
+  ).trim();
+  const selectedRiskOwnerId = String(
+    detailRisk?.ownerUserId || draft.ownerUserId || "",
   ).trim();
   const canEditSelectedRisk =
     dialogMode === "create" ||
     (Boolean(currentUserId) &&
-      Boolean(selectedRiskCreatorId) &&
-      selectedRiskCreatorId === currentUserId);
+      (selectedRiskCreatorId === currentUserId ||
+        selectedRiskOwnerId === currentUserId));
   const isClosed = (selectedRisk?.state || "open") === "closed";
   const isViewMode = dialogMode === "view";
   const isReadOnly = isClosed || isViewMode || !canEditSelectedRisk;
@@ -441,11 +443,13 @@ export function ProjectRisksIssuesTab({
   const canEditRiskItem = (
     item: Pick<ProjectRisk, "createdByUserId" | "ownerUserId">,
   ) => {
-    const creatorId = String(
-      item?.createdByUserId || item?.ownerUserId || "",
-    ).trim();
+    const creatorId = String(item?.createdByUserId || "").trim();
+    const ownerUserId = String(item?.ownerUserId || "").trim();
 
-    return Boolean(currentUserId && creatorId && creatorId === currentUserId);
+    return Boolean(
+      currentUserId &&
+        (creatorId === currentUserId || ownerUserId === currentUserId),
+    );
   };
 
   useEffect(() => {
@@ -618,7 +622,7 @@ export function ProjectRisksIssuesTab({
     }
 
     if (!canEditSelectedRisk) {
-      toast("Only the creator can edit this record.");
+      toast("Only the creator or assigned owner can edit this record.");
       return;
     }
 
@@ -693,7 +697,7 @@ export function ProjectRisksIssuesTab({
     }
 
     if (!canEditRiskItem(item)) {
-      toast("Only the creator can edit this record.");
+      toast("Only the creator or assigned owner can edit this record.");
       return;
     }
 
@@ -724,7 +728,7 @@ export function ProjectRisksIssuesTab({
     }
 
     if (!canEditRiskItem(item)) {
-      toast("Only the creator can resolve this record.");
+      toast("Only the creator or assigned owner can resolve this record.");
       return;
     }
 
@@ -752,7 +756,7 @@ export function ProjectRisksIssuesTab({
     }
 
     if (!canEditRiskItem(item)) {
-      toast("Only the creator can close this record.");
+      toast("Only the creator or assigned owner can close this record.");
       return;
     }
 
@@ -780,7 +784,7 @@ export function ProjectRisksIssuesTab({
     }
 
     if (!canEditRiskItem(item)) {
-      toast("Only the creator can delete this record.");
+      toast("Only the creator or assigned owner can delete this record.");
       return;
     }
 

@@ -59,21 +59,23 @@ export type TaskChartSummary = {
 export const PROJECT_TABS: { key: ProjectTabKey; label: string }[] = [
   { key: "overview", label: "Overview" },
   { key: "workflows", label: "Workflows" },
-  { key: "dos", label: "Do's" },
+  { key: "dos", label: "Tasks" },
   { key: "files-assets", label: "Files & Assets" },
   { key: "risks-issues", label: "Risks & Issues" },
   { key: "secrets", label: "Secrets" },
 ];
 
-export const HEATMAP_LEVEL_CLASSES: Record<ProjectHeatmapDay["level"], string> = {
-  low: "bg-primary/8 border-primary/10",
-  medium: "bg-primary/18 border-primary/20",
-  high: "bg-primary/28 border-primary/30",
-};
+export const HEATMAP_LEVEL_CLASSES: Record<ProjectHeatmapDay["level"], string> =
+  {
+    low: "bg-primary/8 border-primary/10",
+    medium: "bg-primary/18 border-primary/20",
+    high: "bg-primary/28 border-primary/30",
+  };
 
 export const RISK_BADGE_CLASSES: Record<ProjectRiskSeverity, string> = {
   low: "border-border bg-muted/40 text-muted-foreground",
-  medium: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300",
+  medium:
+    "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300",
   high: "border-primary/30 bg-primary/10 text-primary",
 };
 
@@ -287,9 +289,7 @@ export function resolveUpdatedAtLabel(
 ) {
   const candidates = [
     String(primaryValue || "").trim(),
-    ...fallbackValues
-      .map((item) => String(item || "").trim())
-      .filter(Boolean),
+    ...fallbackValues.map((item) => String(item || "").trim()).filter(Boolean),
   ].filter(Boolean);
 
   if (!candidates.length) {
@@ -375,7 +375,8 @@ export function getWorkflowLoadSummary(
   }
 
   const average =
-    weeklyLoad.reduce((total, item) => total + item.average, 0) / weeklyLoad.length;
+    weeklyLoad.reduce((total, item) => total + item.average, 0) /
+    weeklyLoad.length;
 
   if (average >= 2.2) {
     return {
@@ -400,7 +401,9 @@ export function getWorkflowLoadSummary(
   };
 }
 
-export function getTaskCompletionSummary(tasks: ProjectWorkflow["tasks"]) : ProjectTaskCounts {
+export function getTaskCompletionSummary(
+  tasks: ProjectWorkflow["tasks"],
+): ProjectTaskCounts {
   return {
     total: tasks.length,
     done: tasks.filter((task) => task.status === "done").length,
@@ -424,7 +427,9 @@ export function getSubtaskCompletionSummary(
   };
 }
 
-function summarizeWorkflowTasks(tasks: ProjectWorkflow["tasks"]): ProjectTaskCounts {
+function summarizeWorkflowTasks(
+  tasks: ProjectWorkflow["tasks"],
+): ProjectTaskCounts {
   return getTaskCompletionSummary(tasks);
 }
 
@@ -504,10 +509,16 @@ export function getWorkflowTimingSummary(
   const today = new Date();
 
   return workflows.map((workflow) => {
-    const plannedDays = getDayDistance(workflow.startedAt, workflow.targetEndDate);
+    const plannedDays = getDayDistance(
+      workflow.startedAt,
+      workflow.targetEndDate,
+    );
     const elapsedSource = workflow.completedAt ?? today;
     const elapsedDays = getDayDistance(workflow.startedAt, elapsedSource);
-    const clampedElapsed = Math.max(1, Math.min(elapsedDays, Math.max(plannedDays, elapsedDays)));
+    const clampedElapsed = Math.max(
+      1,
+      Math.min(elapsedDays, Math.max(plannedDays, elapsedDays)),
+    );
     const varianceDays = workflow.completedAt
       ? elapsedDays - plannedDays
       : getDayDistance(workflow.startedAt, today) - plannedDays;
@@ -529,7 +540,10 @@ export function getWorkflowTimingSummary(
       elapsedDays: clampedElapsed,
       varianceDays,
       status,
-      fill: Math.max(10, Math.min(Math.round((clampedElapsed / plannedDays) * 100), 100)),
+      fill: Math.max(
+        10,
+        Math.min(Math.round((clampedElapsed / plannedDays) * 100), 100),
+      ),
     };
   });
 }
@@ -560,7 +574,8 @@ export function sortFlattenedTasks(tasks: FlattenedProjectTask[]) {
     .map((task, index) => ({ task, index }))
     .sort((left, right) => {
       const dueDifference =
-        new Date(left.task.dueDate).getTime() - new Date(right.task.dueDate).getTime();
+        new Date(left.task.dueDate).getTime() -
+        new Date(right.task.dueDate).getTime();
 
       if (dueDifference !== 0) {
         return dueDifference;
@@ -569,7 +584,11 @@ export function sortFlattenedTasks(tasks: FlattenedProjectTask[]) {
       const leftUpdated = getSortableUpdatedTime(left.task.updatedAt);
       const rightUpdated = getSortableUpdatedTime(right.task.updatedAt);
 
-      if (leftUpdated !== null && rightUpdated !== null && leftUpdated !== rightUpdated) {
+      if (
+        leftUpdated !== null &&
+        rightUpdated !== null &&
+        leftUpdated !== rightUpdated
+      ) {
         return rightUpdated - leftUpdated;
       }
 
@@ -634,7 +653,8 @@ export function flattenProjectTasks(
         updatedAt: task.updatedAt,
         subtaskCount: task.subtasks?.length ?? 0,
         subtaskDoneCount:
-          task.subtasks?.filter((subtask) => subtask.status === "done").length ?? 0,
+          task.subtasks?.filter((subtask) => subtask.status === "done")
+            .length ?? 0,
         subtasks: task.subtasks ?? [],
         sectionId: task.sectionId,
         progress: getTaskRowProgress(task),
@@ -684,7 +704,9 @@ export function getFilteredTaskRows(
   return tasks;
 }
 
-export function getTaskChartSummary(tasks: FlattenedProjectTask[]): TaskChartSummary {
+export function getTaskChartSummary(
+  tasks: FlattenedProjectTask[],
+): TaskChartSummary {
   const total = tasks.length;
   const completed = tasks.filter((task) => task.status === "done").length;
   const blocked = tasks.filter((task) => task.status === "blocked").length;
@@ -710,7 +732,10 @@ export function getTaskChartSummary(tasks: FlattenedProjectTask[]): TaskChartSum
     };
   });
 
-  const workflowMap = new Map<string, { workflowName: string; total: number; done: number }>();
+  const workflowMap = new Map<
+    string,
+    { workflowName: string; total: number; done: number }
+  >();
 
   tasks.forEach((task) => {
     const current = workflowMap.get(task.workflowId) ?? {
@@ -727,13 +752,15 @@ export function getTaskChartSummary(tasks: FlattenedProjectTask[]): TaskChartSum
     workflowMap.set(task.workflowId, current);
   });
 
-  const throughput = Array.from(workflowMap.entries()).map(([workflowId, value]) => ({
-    workflowId,
-    workflowName: value.workflowName,
-    total: value.total,
-    done: value.done,
-    fill: value.total ? Math.round((value.done / value.total) * 100) : 0,
-  }));
+  const throughput = Array.from(workflowMap.entries()).map(
+    ([workflowId, value]) => ({
+      workflowId,
+      workflowName: value.workflowName,
+      total: value.total,
+      done: value.done,
+      fill: value.total ? Math.round((value.done / value.total) * 100) : 0,
+    }),
+  );
 
   return {
     total,
@@ -747,22 +774,23 @@ export function getTaskChartSummary(tasks: FlattenedProjectTask[]): TaskChartSum
 }
 
 export function getCalendarTaskMap(tasks: FlattenedProjectTask[]) {
-  return sortFlattenedTasks(tasks).reduce<Record<string, FlattenedProjectTask[]>>(
-    (accumulator, task) => {
-      const key = task.dueDate;
+  return sortFlattenedTasks(tasks).reduce<
+    Record<string, FlattenedProjectTask[]>
+  >((accumulator, task) => {
+    const key = task.dueDate;
 
-      if (!accumulator[key]) {
-        accumulator[key] = [];
-      }
+    if (!accumulator[key]) {
+      accumulator[key] = [];
+    }
 
-      accumulator[key].push(task);
-      return accumulator;
-    },
-    {},
-  );
+    accumulator[key].push(task);
+    return accumulator;
+  }, {});
 }
 
-export function getSubtaskProgressLabel(task: Pick<FlattenedProjectTask, "subtaskCount" | "subtaskDoneCount">) {
+export function getSubtaskProgressLabel(
+  task: Pick<FlattenedProjectTask, "subtaskCount" | "subtaskDoneCount">,
+) {
   if (!task.subtaskCount) {
     return "No subtasks";
   }
@@ -860,7 +888,10 @@ function getTimelineProgress(startDate?: string, dueDate?: string) {
     return 100;
   }
 
-  return Math.max(0, Math.min(100, Math.round(((now - start) / (end - start)) * 100)));
+  return Math.max(
+    0,
+    Math.min(100, Math.round(((now - start) / (end - start)) * 100)),
+  );
 }
 
 function getTimedProgress({
@@ -877,7 +908,8 @@ function getTimedProgress({
   }
 
   const statusProgress = getStatusFallbackProgress(status);
-  const elapsedProgress = getTimelineProgress(startDate, dueDate) ?? statusProgress;
+  const elapsedProgress =
+    getTimelineProgress(startDate, dueDate) ?? statusProgress;
   const blended = Math.round(statusProgress * 0.6 + elapsedProgress * 0.4);
   const band = getStatusProgressBand(status);
 
@@ -963,11 +995,17 @@ export function getTaskExecutionState(task: {
     return "complete";
   }
 
-  if (task.subtasks?.length && task.subtasks.every((subtask) => subtask.status === "done")) {
+  if (
+    task.subtasks?.length &&
+    task.subtasks.every((subtask) => subtask.status === "done")
+  ) {
     return "complete";
   }
 
-  if (!isValidProjectDate(task.startDate) || !isValidProjectDate(task.dueDate)) {
+  if (
+    !isValidProjectDate(task.startDate) ||
+    !isValidProjectDate(task.dueDate)
+  ) {
     return task.status === "todo" ? "not-started" : "running";
   }
 
@@ -1015,8 +1053,10 @@ export function getTaskRowProgress(
 
   if (task.subtasks?.length) {
     return Math.round(
-      task.subtasks.reduce((total, subtask) => total + getTaskRowProgress(subtask), 0) /
-        task.subtasks.length,
+      task.subtasks.reduce(
+        (total, subtask) => total + getTaskRowProgress(subtask),
+        0,
+      ) / task.subtasks.length,
     );
   }
 

@@ -1,4 +1,6 @@
+import { Children, isValidElement } from "react"
 import { cva, type VariantProps } from "class-variance-authority"
+import { Inbox } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
@@ -15,7 +17,19 @@ function Empty({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function EmptyHeader({ className, ...props }: React.ComponentProps<"div">) {
+function EmptyHeader({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"div">) {
+  const hasMedia = Children.toArray(children).some(
+    (child) =>
+      isValidElement(child) &&
+      (child.type === EmptyMedia ||
+        (child.props as { "data-slot"?: string })?.["data-slot"] ===
+          "empty-icon"),
+  )
+
   return (
     <div
       data-slot="empty-header"
@@ -24,7 +38,14 @@ function EmptyHeader({ className, ...props }: React.ComponentProps<"div">) {
         className
       )}
       {...props}
-    />
+    >
+      {!hasMedia ? (
+        <EmptyMedia variant="icon">
+          <Inbox className="size-4 text-muted-foreground" />
+        </EmptyMedia>
+      ) : null}
+      {children}
+    </div>
   )
 }
 

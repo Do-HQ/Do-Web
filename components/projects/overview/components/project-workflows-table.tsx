@@ -1,4 +1,4 @@
-import { Fragment, MouseEvent, useState } from "react";
+import { Fragment, MouseEvent } from "react";
 import {
   Archive,
   ArrowUpDown,
@@ -10,7 +10,6 @@ import {
   Pencil,
   Plus,
   PlusSquare,
-  Rows3,
   Star,
   StarOff,
   Trash2,
@@ -173,7 +172,6 @@ const TASK_PRIORITY_DOT: Record<
 };
 
 type SortMode = "updated" | "progress" | "name";
-type DensityMode = "compact" | "comfortable";
 type ProgressTone = "good" | "warning" | "danger" | "info";
 
 const PROGRESS_TONE_META: Record<
@@ -212,7 +210,6 @@ function renderSubtaskRow(
   subtask: ProjectWorkflowSubtask,
   parentTeam: ProjectTeamSummary | undefined,
   members: ProjectMember[],
-  density: DensityMode,
   canManageWorkflowActions: boolean,
   onEditSubtask: (
     workflowId: string,
@@ -239,13 +236,7 @@ function renderSubtaskRow(
   const toneMeta = PROGRESS_TONE_META[tone.tone];
 
   return (
-    <TableRow
-      key={subtask.id}
-      className={cn(
-        "bg-muted/5 [&>td]:py-1",
-        density === "compact" ? "h-8" : "h-9",
-      )}
-    >
+    <TableRow key={subtask.id} className="h-8 bg-muted/5 [&>td]:py-1">
       <TableCell className="align-top">
         <div className="flex min-w-0 items-center gap-2 pl-12">
           <span className="size-1.5 shrink-0 rounded-full bg-border" />
@@ -379,7 +370,6 @@ export function ProjectWorkflowsTable({
   const favorites = useFavoritesStore((state) => state.favorites);
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
   const selectedTeam = teams.find((team) => team.id === selectedTeamId) ?? null;
-  const [density, setDensity] = useState<DensityMode>("compact");
   const displayedWorkflows = workflows;
   const favoriteKeySet = new Set(favorites.map((item) => item.key));
 
@@ -538,33 +528,6 @@ export function ProjectWorkflowsTable({
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Change density"
-                >
-                  <Rows3 />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuCheckboxItem
-                  checked={density === "compact"}
-                  onCheckedChange={() => setDensity("compact")}
-                >
-                  Compact density
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={density === "comfortable"}
-                  onCheckedChange={() => setDensity("comfortable")}
-                >
-                  Comfortable density
-                </DropdownMenuCheckboxItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
             <Button
               type="button"
               variant="outline"
@@ -624,8 +587,7 @@ export function ProjectWorkflowsTable({
                   <Fragment key={workflow.id}>
                     <TableRow
                       className={cn(
-                        "cursor-pointer bg-background/50 [&>td]:py-2",
-                        density === "compact" ? "h-10" : "h-12",
+                        "h-10 cursor-pointer bg-background/50 [&>td]:py-2",
                         workflowSelected && "bg-muted/35",
                       )}
                       onClick={() => {
@@ -713,11 +675,11 @@ export function ProjectWorkflowsTable({
                             </div>
                             <div
                               className={cn(
-                                "text-[10px] uppercase tracking-wide",
+                                "text-[10px] capitalize tracking-wide",
                                 workflowToneMeta.className,
                               )}
                             >
-                              {workflowToneMeta.label}
+                              {workflowToneMeta.label?.toLowerCase()}
                             </div>
                           </div>
                         </div>
@@ -726,19 +688,16 @@ export function ProjectWorkflowsTable({
                         {workflow.dueWindow}
                       </TableCell>
                       <TableCell className="text-muted-foreground break-words whitespace-normal align-top">
-                        {resolveUpdatedAtLabel(
-                          workflow.updatedAt,
-                          [
-                            ...workflow.tasks.flatMap((task) => [
-                              task.updatedAt,
-                              ...(task.subtasks || []).map(
-                                (subtask) => subtask.updatedAt,
-                              ),
-                            ]),
-                            workflow.targetEndDate,
-                            workflow.startedAt,
-                          ],
-                        )}
+                        {resolveUpdatedAtLabel(workflow.updatedAt, [
+                          ...workflow.tasks.flatMap((task) => [
+                            task.updatedAt,
+                            ...(task.subtasks || []).map(
+                              (subtask) => subtask.updatedAt,
+                            ),
+                          ]),
+                          workflow.targetEndDate,
+                          workflow.startedAt,
+                        ])}
                       </TableCell>
                       <TableCell className="text-right">
                         <DropdownMenu>
@@ -844,14 +803,14 @@ export function ProjectWorkflowsTable({
                             dueDate: task.dueDate,
                             executionState: task.executionState,
                           });
-                          const taskToneMeta = PROGRESS_TONE_META[taskTone.tone];
+                          const taskToneMeta =
+                            PROGRESS_TONE_META[taskTone.tone];
 
                           return (
                             <Fragment key={task.id}>
                               <TableRow
                                 className={cn(
-                                  "bg-muted/10 cursor-pointer [&>td]:py-1.5",
-                                  density === "compact" ? "h-9" : "h-10",
+                                  "h-9 cursor-pointer bg-muted/10 [&>td]:py-1.5",
                                 )}
                                 onClick={() => onEditTask(workflow.id, task.id)}
                               >
@@ -945,16 +904,13 @@ export function ProjectWorkflowsTable({
                                   {formatShortDate(task.dueDate)}
                                 </TableCell>
                                 <TableCell className="text-muted-foreground break-words whitespace-normal align-top">
-                                  {resolveUpdatedAtLabel(
-                                    task.updatedAt,
-                                    [
-                                      ...(task.subtasks || []).map(
-                                        (subtask) => subtask.updatedAt,
-                                      ),
-                                      task.dueDate,
-                                      task.startDate || "",
-                                    ],
-                                  )}
+                                  {resolveUpdatedAtLabel(task.updatedAt, [
+                                    ...(task.subtasks || []).map(
+                                      (subtask) => subtask.updatedAt,
+                                    ),
+                                    task.dueDate,
+                                    task.startDate || "",
+                                  ])}
                                 </TableCell>
                                 <TableCell className="text-right">
                                   <DropdownMenu>
@@ -1037,7 +993,6 @@ export function ProjectWorkflowsTable({
                                       subtask,
                                       taskTeam,
                                       members,
-                                      density,
                                       canManageWorkflowActions,
                                       onEditSubtask,
                                       onSubtaskAction,

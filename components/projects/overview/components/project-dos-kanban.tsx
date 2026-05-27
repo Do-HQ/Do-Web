@@ -18,10 +18,11 @@ import {
   horizontalListSortingStrategy,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
-import { Plus } from "lucide-react";
+import { Maximize2, Minimize2, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { cn } from "@/lib/utils";
 
 import {
   FlattenedProjectTask,
@@ -74,6 +75,8 @@ type ProjectDosKanbanProps = {
     taskId: string,
     target: ProjectDosLaneTarget,
   ) => void;
+  isExpanded?: boolean;
+  onToggleExpanded?: () => void;
 };
 
 const STATUS_COLUMNS: Array<{
@@ -243,6 +246,8 @@ export function ProjectDosKanban({
   onEditTask,
   onCreateTask,
   onMoveTaskToLane,
+  isExpanded = false,
+  onToggleExpanded,
 }: ProjectDosKanbanProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -383,7 +388,12 @@ export function ProjectDosKanban({
 
   return (
     <>
-      <section className="overflow-hidden rounded-xl border border-border/35 bg-card/75 shadow-xs">
+      <section
+        className={cn(
+          "overflow-hidden rounded-xl border border-border/35 bg-card/75 shadow-xs",
+          isExpanded && "flex h-full min-h-0 flex-col",
+        )}
+      >
         <div className="border-b border-border/20 px-3 py-2.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
@@ -394,15 +404,28 @@ export function ProjectDosKanban({
               </div>
             </div>
 
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setSectionDialogOpen(true)}
-            >
-              <Plus />
-              Section
-            </Button>
+            <div className="flex items-center gap-2">
+              {onToggleExpanded ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={onToggleExpanded}
+                >
+                  {isExpanded ? <Minimize2 /> : <Maximize2 />}
+                  {isExpanded ? "Collapse" : "Expand"}
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSectionDialogOpen(true)}
+              >
+                <Plus />
+                Section
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -414,12 +437,17 @@ export function ProjectDosKanban({
           onDragEnd={handleDragEnd}
           onDragCancel={resetDragState}
         >
-          <ScrollArea className="w-full">
+          <ScrollArea className={cn("w-full", isExpanded && "min-h-0 flex-1")}>
             <SortableContext
               items={resolvedLaneOrder}
               strategy={horizontalListSortingStrategy}
             >
-              <div className="flex min-w-max snap-x snap-mandatory gap-3 p-3">
+              <div
+                className={cn(
+                  "flex min-w-max snap-x snap-mandatory gap-3 p-3",
+                  isExpanded && "min-h-[calc(100dvh-9.5rem)]",
+                )}
+              >
                 {resolvedLaneOrder.map((laneOrderId) => {
                   const parsed = parseLaneOrderId(laneOrderId);
 

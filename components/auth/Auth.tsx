@@ -20,7 +20,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "../ui/collapsible";
-import { FaGoogle } from "react-icons/fa";
+import { FaGithub, FaGoogle } from "react-icons/fa";
 
 interface Props {
   mode?: "signup" | "login";
@@ -28,8 +28,9 @@ interface Props {
 
 const Auth = ({ mode }: Props) => {
   const [isGoogleRedirecting, setIsGoogleRedirecting] = useState(false);
-  const [googleOptionsOpen, setGoogleOptionsOpen] = useState(true);
-  const hasShownGoogleErrorRef = useRef(false);
+  const [isGithubRedirecting, setIsGithubRedirecting] = useState(false);
+  const [socialOptionsOpen, setSocialOptionsOpen] = useState(true);
+  const hasShownSocialErrorRef = useRef(false);
   const searchParams = useSearchParams();
 
   // Validation
@@ -94,16 +95,41 @@ const Auth = ({ mode }: Props) => {
     );
   };
 
-  useEffect(() => {
-    const googleError = String(searchParams.get("googleError") || "").trim();
+  const handleGithubContinue = () => {
+    const baseApiUrl = String(config.BASE_API_URL || "")
+      .trim()
+      .replace(/\/+$/, "");
 
-    if (!googleError || hasShownGoogleErrorRef.current) {
+    if (!baseApiUrl) {
+      toast.error("GitHub sign-in is not available yet", {
+        description: "Please use email sign-in while we finish setup.",
+      });
       return;
     }
 
-    hasShownGoogleErrorRef.current = true;
-    toast.error("Google sign-in failed", {
-      description: googleError,
+    setIsGithubRedirecting(true);
+    const intent = mode === "signup" ? "signup" : "login";
+    window.location.assign(
+      `${baseApiUrl}/auth/github/start?intent=${encodeURIComponent(intent)}`,
+    );
+  };
+
+  useEffect(() => {
+    const googleError = String(searchParams.get("googleError") || "").trim();
+    const githubError = String(searchParams.get("githubError") || "").trim();
+    const providerError = googleError
+      ? { provider: "Google", description: googleError }
+      : githubError
+        ? { provider: "GitHub", description: githubError }
+        : null;
+
+    if (!providerError || hasShownSocialErrorRef.current) {
+      return;
+    }
+
+    hasShownSocialErrorRef.current = true;
+    toast.error(`${providerError.provider} sign-in failed`, {
+      description: providerError.description,
     });
   }, [searchParams]);
 
@@ -160,8 +186,8 @@ const Auth = ({ mode }: Props) => {
         </div>
 
         <Collapsible
-          open={googleOptionsOpen}
-          onOpenChange={setGoogleOptionsOpen}
+          open={socialOptionsOpen}
+          onOpenChange={setSocialOptionsOpen}
           className="space-y-2"
         >
           <CollapsibleTrigger asChild>
@@ -173,7 +199,7 @@ const Auth = ({ mode }: Props) => {
               <ChevronDown
                 size={14}
                 className={`transition-transform duration-200 ${
-                  googleOptionsOpen ? "rotate-180" : ""
+                  socialOptionsOpen ? "rotate-180" : ""
                 }`}
               />
             </button>
@@ -184,6 +210,7 @@ const Auth = ({ mode }: Props) => {
               type="button"
               variant="outline"
               className="w-full"
+              disabled={isGithubRedirecting}
               loading={isGoogleRedirecting}
               onClick={handleGoogleContinue}
             >
@@ -191,6 +218,19 @@ const Auth = ({ mode }: Props) => {
               {mode === "signup"
                 ? "Sign up with Google"
                 : "Sign in with Google"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={isGoogleRedirecting}
+              loading={isGithubRedirecting}
+              onClick={handleGithubContinue}
+            >
+              <FaGithub size={16} />
+              {mode === "signup"
+                ? "Sign up with GitHub"
+                : "Sign in with GitHub"}
             </Button>
           </CollapsibleContent>
         </Collapsible>

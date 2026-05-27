@@ -38,6 +38,7 @@ import {
   getViewChipClass,
   resolveSelectedTeam,
 } from "../utils";
+import { cn } from "@/lib/utils";
 import { ProjectDosCharts } from "./project-dos-charts";
 import { ProjectDosKanban, ProjectDosLaneTarget } from "./project-dos-kanban";
 import { ProjectDosTable } from "./project-dos-table";
@@ -177,6 +178,7 @@ export function ProjectDosTab({
   const [statusFilter, setStatusFilter] =
     useState<ProjectDosStatusFilter>("all");
   const [assigneeScope, setAssigneeScope] = useState<TaskAssigneeScope>("all");
+  const [kanbanExpanded, setKanbanExpanded] = useState(false);
   const autoOpenedTaskRef = useRef(false);
 
   const selectedTeam = resolveSelectedTeam(project, selectedTeamId);
@@ -209,7 +211,10 @@ export function ProjectDosTab({
 
   const scopedTasks = useMemo(() => {
     const taskRecords = taskListQuery.data?.data?.tasks;
-    const fallbackScopedTasks = getFilteredTaskRows(fallbackTasks, statusFilter);
+    const fallbackScopedTasks = getFilteredTaskRows(
+      fallbackTasks,
+      statusFilter,
+    );
 
     if (Array.isArray(taskRecords)) {
       const serverScopedTasks = mapTasksToFlattenedRows(taskRecords);
@@ -266,6 +271,12 @@ export function ProjectDosTab({
     setView("table");
     onEditTask(targetTask.workflowId, targetTask.id);
   }, [initialTaskId, onEditTask, visibleTasks]);
+
+  useEffect(() => {
+    if (view !== "kanban" && kanbanExpanded) {
+      setKanbanExpanded(false);
+    }
+  }, [kanbanExpanded, view]);
 
   const visibleWorkflowOptions = useMemo(
     () =>
@@ -338,14 +349,14 @@ export function ProjectDosTab({
           <div className="space-y-2">
             <div>
               <div className="text-[14px] font-semibold md:text-[15px]">
-                Task workspace
+                Tasks
               </div>
               <div className="text-muted-foreground text-[12px] leading-5">
                 {visibleTasks.length} visible task
                 {visibleTasks.length === 1 ? "" : "s"}
                 {selectedPipeline
                   ? ` • ${selectedPipeline.name}`
-                  : " • All pipelines"}
+                  : " • All workflows"}
                 {selectedTeam ? ` • ${selectedTeam.name}` : ""}
               </div>
             </div>
@@ -427,21 +438,33 @@ export function ProjectDosTab({
       </section>
 
       {view === "kanban" ? (
-        <div data-tour="project-dos-kanban">
-          <ProjectDosKanban
-            tasks={visibleTasks}
-            members={members}
-            selectedPipeline={selectedPipeline}
-            workflowOptions={visibleWorkflowOptions}
-            customSections={project.customSections ?? []}
-            laneOrder={project.kanbanLaneOrder ?? []}
-            onCreateCustomSection={onCreateCustomSection}
-            onDeleteCustomSection={onDeleteCustomSection}
-            onReorderLanes={onReorderKanbanLanes}
-            onEditTask={onEditTask}
-            onCreateTask={onCreateTask}
-            onMoveTaskToLane={handleMoveTaskToLane}
-          />
+        <div
+          data-tour="project-dos-kanban"
+          className={cn(
+            kanbanExpanded &&
+              "fixed inset-0 z-50 flex h-[100dvh] w-screen flex-col bg-background p-3 md:p-4",
+          )}
+        >
+          <div className={cn(kanbanExpanded && "flex min-h-0 flex-1 flex-col")}>
+            <ProjectDosKanban
+              tasks={visibleTasks}
+              members={members}
+              selectedPipeline={selectedPipeline}
+              workflowOptions={visibleWorkflowOptions}
+              customSections={project.customSections ?? []}
+              laneOrder={project.kanbanLaneOrder ?? []}
+              onCreateCustomSection={onCreateCustomSection}
+              onDeleteCustomSection={onDeleteCustomSection}
+              onReorderLanes={onReorderKanbanLanes}
+              onEditTask={onEditTask}
+              onCreateTask={onCreateTask}
+              onMoveTaskToLane={handleMoveTaskToLane}
+              isExpanded={kanbanExpanded}
+              onToggleExpanded={() =>
+                setKanbanExpanded((current) => !current)
+              }
+            />
+          </div>
         </div>
       ) : null}
 

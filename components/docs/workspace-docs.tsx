@@ -131,6 +131,54 @@ const getContentSignature = (value: unknown) => {
   }
 };
 
+const getBlockText = (value: unknown): string => {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((entry) => getBlockText(entry)).join(" ");
+  }
+
+  if (!value || typeof value !== "object") {
+    return "";
+  }
+
+  const record = value as Record<string, unknown>;
+  const props =
+    record.props && typeof record.props === "object"
+      ? (record.props as Record<string, unknown>)
+      : {};
+  const blockType = String(record.type || "").trim();
+  if (blockType && blockType !== "paragraph") {
+    const propText = ["url", "src", "href", "name", "title"]
+      .map((key) => String(props[key] || "").trim())
+      .filter(Boolean)
+      .join(" ");
+    return `${blockType} ${propText}`.trim();
+  }
+
+  return [
+    record.text,
+    record.content,
+    record.children,
+  ]
+    .map((entry) => getBlockText(entry))
+    .join(" ");
+};
+
+const isMeaningfulDocContent = (value: unknown) => {
+  if (!Array.isArray(value) || value.length === 0) {
+    return false;
+  }
+
+  return value.some((block) => getBlockText(block).trim().length > 0);
+};
+
 const DOC_SCOPE_META: Record<
   DocsViewScope,
   {
@@ -518,6 +566,14 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
         return;
       }
 
+      if (
+        !isMeaningfulDocContent(parsed) &&
+        isMeaningfulDocContent(selectedDoc.content)
+      ) {
+        window.localStorage.removeItem(cacheKey);
+        return;
+      }
+
       const nextSignature = getContentSignature(parsed);
       if (
         !nextSignature ||
@@ -663,6 +719,35 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
     return [...current, normalized];
   };
 
+  const getCacheSafeDoc = useCallback(
+    (doc: WorkspaceDocRecord, previousDoc?: WorkspaceDocRecord | null) => {
+      if (isMeaningfulDocContent(doc.content)) {
+        return doc;
+      }
+
+      const pendingContext = pendingSaveContextRef.current;
+      const pendingContent =
+        pendingContext?.docId === doc.id ? pendingContentRef.current : null;
+
+      if (pendingContent && isMeaningfulDocContent(pendingContent)) {
+        return {
+          ...doc,
+          content: pendingContent,
+        };
+      }
+
+      if (previousDoc?.content && isMeaningfulDocContent(previousDoc.content)) {
+        return {
+          ...doc,
+          content: previousDoc.content,
+        };
+      }
+
+      return doc;
+    },
+    [],
+  );
+
   const updateDocQueryCache = useCallback(
     (
       doc: WorkspaceDocRecord,
@@ -682,16 +767,20 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
                 };
               }
             | undefined,
-        ) => ({
-          ...(previous || {}),
-          data: {
-            ...(previous?.data || {}),
-            doc,
-          },
-        }),
+        ) => {
+          const safeDoc = getCacheSafeDoc(doc, previous?.data?.doc || null);
+
+          return {
+            ...(previous || {}),
+            data: {
+              ...(previous?.data || {}),
+              doc: safeDoc,
+            },
+          };
+        },
       );
     },
-    [queryClient, workspaceId],
+    [getCacheSafeDoc, queryClient, workspaceId],
   );
 
   const updateDocListQueryCaches = useCallback(
@@ -729,10 +818,13 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
               ...(response.data || {}),
               docs: docs.map((entry) =>
                 String(entry?.id || "").trim() === String(doc?.id || "").trim()
-                  ? {
-                      ...entry,
-                      ...doc,
-                    }
+                  ? getCacheSafeDoc(
+                      {
+                        ...entry,
+                        ...doc,
+                      },
+                      entry,
+                    )
                   : entry,
               ),
             },
@@ -740,7 +832,7 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
         },
       );
     },
-    [queryClient, workspaceId],
+    [getCacheSafeDoc, queryClient, workspaceId],
   );
 
   const setSavedState = useCallback(() => {
@@ -774,6 +866,17 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
     const queuedContent = pendingContentRef.current;
     const queuedContentSignature = pendingContentSignatureRef.current;
 
+    if (typeof window !== "undefined" && queuedContent !== null) {
+      try {
+        window.localStorage.setItem(
+          getPendingDocSaveCacheKey(context.workspaceId, context.docId),
+          JSON.stringify(queuedContent),
+        );
+      } catch {
+        // best effort
+      }
+    }
+
     pendingMetaUpdatesRef.current = {};
     pendingContentRef.current = null;
     pendingContentSignatureRef.current = "";
@@ -805,8 +908,13 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
       if (nextDoc) {
         updateDocQueryCache(nextDoc, context.workspaceId);
         updateDocListQueryCaches(nextDoc, context.workspaceId);
+        const persistedContent =
+          isMeaningfulDocContent(nextDoc.content) ||
+          !isMeaningfulDocContent(queuedContent)
+            ? nextDoc.content || []
+            : queuedContent || [];
         lastPersistedContentSignatureRef.current = getContentSignature(
-          nextDoc.content || queuedContent || [],
+          persistedContent,
         );
       } else if (queuedContent !== null) {
         lastPersistedContentSignatureRef.current =
@@ -885,10 +993,22 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
     flushPendingSavesRef.current = flushPendingSaves;
   }, [flushPendingSaves]);
 
+  const navigateAfterDraftSave = useCallback(
+    (href: string) => {
+      persistPendingContentToLocalCache();
+      void flushPendingSavesRef.current();
+      router.push(href);
+    },
+    [persistPendingContentToLocalCache, router],
+  );
+
   const handleCreateDoc = async () => {
     if (!workspaceId) {
       return;
     }
+
+    persistPendingContentToLocalCache();
+    await flushPendingSavesRef.current();
 
     const request = createDocMutation.mutateAsync({
       workspaceId,
@@ -907,7 +1027,7 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
           queryKey: ["workspace-docs", workspaceId],
         });
         if (docId) {
-          router.push(`/docs/${docId}`);
+          navigateAfterDraftSave(`/docs/${docId}`);
         }
         return "Document created";
       },
@@ -919,6 +1039,9 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
     if (!workspaceId) {
       return;
     }
+
+    persistPendingContentToLocalCache();
+    await flushPendingSavesRef.current();
 
     const request = createDocMutation.mutateAsync({
       workspaceId,
@@ -946,7 +1069,7 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
           queryKey: ["workspace-docs", workspaceId],
         });
         if (docId) {
-          router.push(`/docs/${docId}`);
+          navigateAfterDraftSave(`/docs/${docId}`);
         }
         return "Document duplicated";
       },
@@ -1067,20 +1190,33 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
       return;
     }
 
+    persistPendingContentToLocalCache();
+    await flushPendingSavesRef.current();
+
+    const pendingContent =
+      pendingSaveContextRef.current?.docId === selectedDoc.id
+        ? pendingContentRef.current
+        : null;
+    const updates: Record<string, unknown> = {
+      accessScope,
+      workspacePermission,
+      assignedPermission,
+      assignedUserIds,
+      assignedTeamIds,
+      assignedProjectIds,
+      linkSharingEnabled,
+      linkSharingScope,
+      linkSharingPermission,
+    };
+
+    if (pendingContent && isMeaningfulDocContent(pendingContent)) {
+      updates.content = pendingContent;
+    }
+
     const request = updateDocMutation.mutateAsync({
       workspaceId,
       docId: selectedDoc.id,
-      updates: {
-        accessScope,
-        workspacePermission,
-        assignedPermission,
-        assignedUserIds,
-        assignedTeamIds,
-        assignedProjectIds,
-        linkSharingEnabled,
-        linkSharingScope,
-        linkSharingPermission,
-      },
+      updates,
     });
 
     await toast.promise(request, {
@@ -1089,6 +1225,27 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
         const nextDoc = response?.data?.doc;
         if (nextDoc) {
           updateDocQueryCache(nextDoc);
+          if (Object.prototype.hasOwnProperty.call(updates, "content")) {
+            pendingContentRef.current = null;
+            pendingContentSignatureRef.current = "";
+            const savedContent =
+              isMeaningfulDocContent(nextDoc.content) ||
+              !isMeaningfulDocContent(updates.content)
+                ? nextDoc.content || []
+                : updates.content || [];
+            lastPersistedContentSignatureRef.current = getContentSignature(
+              savedContent,
+            );
+            if (typeof window !== "undefined") {
+              try {
+                window.localStorage.removeItem(
+                  getPendingDocSaveCacheKey(workspaceId, selectedDoc.id),
+                );
+              } catch {
+                // best effort
+              }
+            }
+          }
           setAccessScope(nextDoc.accessScope || "workspace");
           setWorkspacePermission(nextDoc.workspacePermission || "view");
           setAssignedPermission(nextDoc.assignedPermission || "view");
@@ -1111,6 +1268,16 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
 
   const scheduleContentSave = (nextContent: unknown[]) => {
     if (!workspaceId || !selectedDoc?.id || !selectedDoc.canEdit) {
+      return;
+    }
+
+    const nextContentHasText = isMeaningfulDocContent(nextContent);
+    const currentDocHasText = isMeaningfulDocContent(selectedDoc.content);
+    const pendingContentHasText = isMeaningfulDocContent(
+      pendingContentRef.current,
+    );
+
+    if (!nextContentHasText && (currentDocHasText || pendingContentHasText)) {
       return;
     }
 
@@ -1203,6 +1370,11 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
     }
 
     const doc = confirmAction.doc;
+
+    if (confirmAction.type !== "delete" && selectedDoc?.id === doc.id) {
+      persistPendingContentToLocalCache();
+      await flushPendingSavesRef.current();
+    }
 
     if (confirmAction.type === "archive") {
       const request = archiveDocMutation.mutateAsync({
@@ -1501,7 +1673,7 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
   );
 
   const openDoc = (docId: string) => {
-    router.push(`/docs/${docId}`);
+    navigateAfterDraftSave(`/docs/${docId}`);
   };
 
   const renderDocAssignments = (doc: WorkspaceDocRecord) => {
@@ -1906,14 +2078,14 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
                   <div className="flex min-w-0 flex-1 items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => router.push("/docs")}
+                      onClick={() => navigateAfterDraftSave("/docs")}
                       className="text-foreground shrink-0 font-normal line-clamp-1 text-sm"
                     >
                       Docs
                     </button>
                     <button
                       type="button"
-                      onClick={() => router.push("/docs")}
+                      onClick={() => navigateAfterDraftSave("/docs")}
                       className="text-muted-foreground text-[10.5px]"
                       aria-label="Go to docs"
                     >

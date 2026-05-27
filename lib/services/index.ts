@@ -5,7 +5,7 @@ import axios, {
 } from "axios";
 import config from "@/config";
 import { generateHeaders } from "../helpers/generateHeaders";
-import { LOCAL_KEYS } from "@/utils/constants";
+import { LOCAL_KEYS, ROUTES } from "@/utils/constants";
 
 const REFRESH_ENDPOINT = "/auth/refresh";
 const AUTH_ROUTES = [
@@ -28,6 +28,25 @@ const getRefreshToken = () => {
 const clearAuthTokens = () => {
   localStorage.removeItem(LOCAL_KEYS.TOKEN);
   localStorage.removeItem(LOCAL_KEYS.REFRESH_TOKEN);
+};
+
+let authRedirectStarted = false;
+
+const redirectToSignInAfterAuthExpiry = () => {
+  if (typeof window === "undefined" || authRedirectStarted) {
+    return;
+  }
+
+  authRedirectStarted = true;
+  const currentPath = window.location.pathname + window.location.search;
+  const isAuthPage = currentPath.startsWith("/auth/");
+
+  if (!isAuthPage) {
+    localStorage.setItem(LOCAL_KEYS.REDIRECT, currentPath);
+  }
+
+  clearAuthTokens();
+  window.location.assign(ROUTES.SIGN_IN);
 };
 
 const shouldSkipRefresh = (url?: string) => {
@@ -104,12 +123,14 @@ axiosInstance.interceptors.response.use(
     const originalRequest = err.config as RetryRequestConfig | undefined;
     const isUnauthorized = err.response?.status === 401;
 
-    if (
-      !isUnauthorized ||
-      !originalRequest ||
-      originalRequest._retry ||
-      shouldSkipRefresh(originalRequest.url)
-    ) {
+    if (isUnauthorized && shouldSkipRefresh(originalRequest?.url)) {
+      if (String(originalRequest?.url || "").includes(REFRESH_ENDPOINT)) {
+        redirectToSignInAfterAuthExpiry();
+      }
+      return Promise.reject(err);
+    }
+
+    if (!isUnauthorized || !originalRequest || originalRequest._retry) {
       return Promise.reject(err);
     }
 
@@ -128,6 +149,7 @@ axiosInstance.interceptors.response.use(
       return axiosInstance(originalRequest);
     } catch (refreshErr) {
       clearAuthTokens();
+      redirectToSignInAfterAuthExpiry();
       return Promise.reject(refreshErr);
     } finally {
       refreshTokenPromise = null;

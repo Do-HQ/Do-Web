@@ -794,14 +794,11 @@ export function ProjectOverviewHeader({
 
   return (
     <>
-      <section className="overflow-hidden rounded-xl border border-border/35 bg-card/80 shadow-xs backdrop-blur-sm">
+      <section className="overflow-hidden rounded-xl  bg-card/80  backdrop-blur-sm">
         <div className="flex flex-col gap-3 px-4 py-4 md:px-5 md:py-4">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0 space-y-2">
               <div className="flex flex-wrap items-center gap-2.5">
-                <span className="bg-muted/60 text-muted-foreground inline-flex size-7 items-center justify-center rounded-md border border-border/35">
-                  <FolderKanban className="size-4" />
-                </span>
                 <h1 className="truncate text-[19px] font-semibold tracking-tight md:text-[21px]">
                   {project.name}
                 </h1>
@@ -1569,7 +1566,8 @@ export function ProjectOverviewHeader({
               type="button"
               onClick={() => void handleGenerateProjectReportNow()}
               disabled={
-                runProjectReportNowMutation.isPending || hasInsufficientReportTokens
+                runProjectReportNowMutation.isPending ||
+                hasInsufficientReportTokens
               }
             >
               <ChartColumnIncreasing className="size-4" />
