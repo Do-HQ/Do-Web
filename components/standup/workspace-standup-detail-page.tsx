@@ -52,7 +52,7 @@ const initials = (name = "") =>
     .map((part) => part[0]?.toUpperCase())
     .join("") || "M";
 
-const answerToText = (value: StandupAnswer["answerValue"] | unknown) => {
+const answerToText = (value: StandupAnswer["answerValue"] | unknown): string => {
   if (Array.isArray(value)) return value.join(", ");
   if (typeof value === "boolean") return value ? "Yes" : "No";
   if (value && typeof value === "object") {
@@ -66,12 +66,12 @@ const answerToText = (value: StandupAnswer["answerValue"] | unknown) => {
   return String(value);
 };
 
-const summaryText = (value: unknown, fallback: string) => {
+const summaryText = (value: unknown, fallback: string): string => {
   const text = answerToText(value);
   return text && text !== "No answer yet" ? text : fallback;
 };
 
-const summaryList = (value: unknown) =>
+const summaryList = (value: unknown): string[] =>
   (Array.isArray(value) ? value : value ? [value] : [])
     .map((entry) => summaryText(entry, ""))
     .filter(Boolean);

@@ -762,7 +762,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   const isSelectedThreadDetailLoading = Boolean(
     selectedThreadId &&
       jamCommentThreadDetailQuery.isLoading &&
-      !jamCommentThreadDetailQuery.data?.data?.thread,
+      !selectedJamCommentThread,
   );
   const pinnedJamCommentThreads = React.useMemo(
     () =>
