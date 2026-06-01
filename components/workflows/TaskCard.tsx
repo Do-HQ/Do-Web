@@ -1,7 +1,11 @@
 "use client";
 
 import { Activity } from "lucide-react";
-import { PiFlagPennantDuotone, PiTimerDuotone, PiUserDuotone } from "react-icons/pi";
+import {
+  PiFlagPennantDuotone,
+  PiTimerDuotone,
+  PiUserDuotone,
+} from "react-icons/pi";
 
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -64,7 +68,10 @@ export function TaskCard({
         </p>
         <div className="mt-1 flex items-center gap-1">
           {isActive ? (
-            <Activity className="size-3 animate-pulse text-orange-400" aria-hidden="true" />
+            <Activity
+              className="size-3 animate-pulse text-orange-400"
+              aria-hidden="true"
+            />
           ) : null}
           <span
             className={cn(
@@ -79,7 +86,10 @@ export function TaskCard({
       <div className="flex items-center gap-2">
         <Badge
           variant="outline"
-          className={cn("h-4 rounded-full px-1.5 py-0 text-[10px] font-medium", statusMeta.className)}
+          className={cn(
+            "h-4 rounded-full px-1.5 py-0 text-[10px] font-medium",
+            statusMeta.className,
+          )}
         >
           {statusMeta.label}
         </Badge>
@@ -92,11 +102,13 @@ export function TaskCard({
             Running
           </span>
         ) : null}
-        <span className="truncate text-[10px] text-muted-foreground">{task.team}</span>
+        <span className="truncate text-[10px] text-muted-foreground">
+          {task.team}
+        </span>
       </div>
 
       {expanded ? (
-        <div className="mt-2 space-y-1 text-[10px] text-muted-foreground">
+        <div className="flex flex-col mt-2 space-y-1 text-[10px] text-muted-foreground">
           {task.assignee ? (
             <p className="inline-flex items-center gap-1">
               <PiUserDuotone className="size-3.5" />

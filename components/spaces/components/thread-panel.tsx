@@ -2,15 +2,12 @@ import type React from "react";
 import {
   FileText,
   Shapes,
-  ImagePlus,
   Loader2,
   PanelRightClose,
   Plus,
   Pin,
-  SendHorizontal,
   X,
 } from "lucide-react";
-import { Mention, MentionsInput } from "react-mentions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,7 +18,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { MentionSuggestionRow } from "@/components/shared/mention-suggestion-row";
 import type {
   ChatAttachment,
   MentionTokenMeta,
@@ -32,7 +28,8 @@ import type {
 } from "../types";
 import AttachmentPreview from "./attachment-preview";
 import ChatItemActionsMenu from "./chat-item-actions-menu";
-import DraftAttachmentRow from "./draft-attachment-row";
+import RichMessageContent from "./rich-message-content";
+import RichMessageComposer from "./rich-message-composer";
 import { parseJamShareMessage } from "../utils";
 
 type ThreadPanelProps = {
@@ -72,6 +69,7 @@ type ThreadPanelProps = {
   onOpenJamFromMessage: (jamId: string) => void;
   onThreadComposerChange: (value: string) => void;
   onSendThreadReply: () => void;
+  onAttachFiles: (files: File[], target: "main" | "thread") => void;
   onUploadFromInput: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onRemoveAttachment: (attachmentId: string, target: "main" | "thread") => void;
 };
@@ -113,6 +111,7 @@ const ThreadPanel = ({
   onOpenJamFromMessage,
   onThreadComposerChange,
   onSendThreadReply,
+  onAttachFiles,
   onUploadFromInput,
   onRemoveAttachment,
 }: ThreadPanelProps) => {
@@ -139,71 +138,6 @@ const ThreadPanel = ({
     "🤯",
     "😴",
   ] as const;
-  const suggestionsPortalHost =
-    typeof document === "undefined" ? undefined : document.body;
-
-  const mentionInputStyle = {
-    control: {
-      backgroundColor: "transparent",
-      fontSize: 12.5,
-      fontWeight: 400,
-    },
-    highlighter: {
-      overflow: "hidden",
-      padding: "6px 8px",
-      minHeight: "56px",
-    },
-    input: {
-      margin: 0,
-      border: 0,
-      color: "var(--foreground)",
-      backgroundColor: "transparent",
-      minHeight: "56px",
-      maxHeight: "160px",
-      overflowY: "auto",
-      outline: "none",
-      padding: "6px 8px",
-      lineHeight: "1.35",
-    },
-    suggestions: {
-      list: {
-        backgroundColor: "var(--popover)",
-        border: "1px solid var(--border)",
-        borderRadius: "8px",
-        fontSize: 13,
-        color: "var(--popover-foreground)",
-        maxHeight: "220px",
-        overflowY: "auto",
-        zIndex: 90,
-        boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
-      },
-      item: {
-        padding: "6px 8px",
-        color: "var(--popover-foreground)",
-        backgroundColor: "transparent",
-      },
-    },
-  } as const;
-
-  const renderMentionSuggestion = (
-    suggestion: MentionSuggestion,
-    _search: string,
-    highlightedDisplay: React.ReactNode,
-    _index: number,
-    focused: boolean,
-  ) => {
-    return (
-      <MentionSuggestionRow
-        label={String(suggestion.display || "")}
-        highlightedLabel={highlightedDisplay}
-        kind={suggestion.kind}
-        avatarUrl={suggestion.avatarUrl}
-        avatarFallback={suggestion.avatarFallback}
-        subtitle={suggestion.subtitle}
-        focused={focused}
-      />
-    );
-  };
 
   const toTitleCase = (value: string) =>
     value
@@ -638,9 +572,11 @@ const ThreadPanel = ({
               {selectedThreadJamShareCard ? (
                 selectedThreadJamShareCard
               ) : (
-                <p className="mt-1 text-[12.5px] leading-5">
-                  {renderContentWithMentions(selectedThreadMessage.content)}
-                </p>
+                <RichMessageContent
+                  content={selectedThreadMessage.content}
+                  className="mt-1"
+                  renderInlineContent={renderContentWithMentions}
+                />
               )}
               <AttachmentPreview attachments={selectedThreadMessage.attachments} />
             </div>
@@ -790,9 +726,11 @@ const ThreadPanel = ({
                         {jamShareCard ? (
                           jamShareCard
                         ) : (
-                          <p className="mt-1 text-[13px] leading-5">
-                            {renderContentWithMentions(reply.content)}
-                          </p>
+                          <RichMessageContent
+                            content={reply.content}
+                            className="mt-1 text-[13px]"
+                            renderInlineContent={renderContentWithMentions}
+                          />
                         )}
                       </>
                     )}
@@ -806,81 +744,24 @@ const ThreadPanel = ({
           </div>
 
           <div className="bg-card/95 shrink-0 border-t border-border/35 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:p-2.5">
-            <div className="bg-background/88 border-border/35 rounded-none border border-x-0 border-b-0 p-2 backdrop-blur-sm sm:rounded-md sm:border sm:p-2.5">
-              <MentionsInput
-                value={threadComposer}
-                onChange={(event) => onThreadComposerChange(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" && !event.shiftKey) {
-                    event.preventDefault();
-                    onSendThreadReply();
-                  }
-                }}
-                placeholder="Reply in thread... Use @ for people, # for reports"
-                style={mentionInputStyle}
-                className="min-h-14 max-h-40 rounded-md border-0 bg-transparent shadow-none focus-within:ring-0"
-                a11ySuggestionsListLabel="Thread mentions"
-                suggestionsPortalHost={suggestionsPortalHost}
-                forceSuggestionsAboveCursor
-              >
-                <Mention
-                  trigger="@"
-                  data={mentionSuggestions}
-                  markup="@__id__"
-                  displayTransform={(_id, display) => display || _id}
-                  renderSuggestion={renderMentionSuggestion}
-                  appendSpaceOnAdd
-                />
-                <Mention
-                  trigger="#"
-                  data={reportMentionSuggestions}
-                  markup="#__id__"
-                  displayTransform={(_id, display) => display || _id}
-                  renderSuggestion={renderMentionSuggestion}
-                  appendSpaceOnAdd
-                />
-              </MentionsInput>
-
-              <DraftAttachmentRow
-                attachments={threadAttachments}
-                target="thread"
-                onRemoveAttachment={onRemoveAttachment}
-              />
-
-              <div className="flex flex-wrap items-center gap-1">
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 px-2.5 text-[13px]"
-                  onClick={() => threadComposerUploadRef.current?.click()}
-                >
-                  <ImagePlus className="size-3.5" />
-                  Image
-                </Button>
-                <input
-                  ref={threadComposerUploadRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="hidden"
-                  onChange={onUploadFromInput}
-                />
-
-                <p className="text-muted-foreground hidden text-[11px] md:block">
-                  Enter to reply
-                </p>
-
-                <Button
-                  size="sm"
-                  className="ml-auto h-8 px-2.5 text-[12px]"
-                  onClick={onSendThreadReply}
-                  disabled={!canSendThreadReply}
-                >
-                  <SendHorizontal className="size-3.5" />
-                  Reply
-                </Button>
-              </div>
-            </div>
+            <RichMessageComposer
+              value={threadComposer}
+              attachments={threadAttachments}
+              uploadRef={threadComposerUploadRef}
+              target="thread"
+              canSend={canSendThreadReply}
+              placeholder="Reply in thread... Use @ for people, # for reports"
+              sendLabel="Reply"
+              hint="Select text to format · Enter to reply"
+              compact
+              mentionSuggestions={mentionSuggestions}
+              reportMentionSuggestions={reportMentionSuggestions}
+              onChange={onThreadComposerChange}
+              onSend={onSendThreadReply}
+              onUploadFromInput={onUploadFromInput}
+              onAttachFiles={onAttachFiles}
+              onRemoveAttachment={onRemoveAttachment}
+            />
           </div>
         </>
       )}

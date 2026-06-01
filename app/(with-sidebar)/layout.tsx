@@ -16,6 +16,7 @@ import useWorkspaceStore from "@/stores/workspace";
 import { recordRecentVisit } from "@/lib/helpers/recent-visits";
 import UserPreferencesSync from "@/components/preferences/user-preferences-sync";
 import AIAssistantOverlay from "@/components/modals/ai-assistant-overlay";
+import NetworkConnectivityBanner from "@/components/layout/network-connectivity-banner";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -159,6 +160,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return (
       <RequireAuth>
         <div className="bg-background h-[100dvh] overflow-hidden">
+          <NetworkConnectivityBanner />
           {children}
           <Toaster position="top-right" />
           <UserPreferencesSync />
@@ -178,6 +180,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <AppSidebar />
         <SidebarInset className="min-h-0 overflow-hidden">
           {!isDocDetailRoute ? <Header /> : null}
+          <NetworkConnectivityBanner />
           <div
             className={cn(
               "flex h-full min-h-0 flex-1 flex-col",

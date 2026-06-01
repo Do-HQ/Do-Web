@@ -2,9 +2,19 @@ import { useState } from "react";
 import { FileText } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import type { ChatAttachment } from "../types";
+import VoiceNotePlayer from "./voice-note-player";
 
 type AttachmentPreviewProps = {
   attachments?: ChatAttachment[];
+};
+
+const isAudioAttachment = (attachment: ChatAttachment) => {
+  if (attachment.kind === "audio") {
+    return true;
+  }
+
+  const value = `${attachment.name || ""} ${attachment.url || ""}`.toLowerCase();
+  return /\.(webm|m4a|mp3|mpeg|ogg|oga|wav|aac)(\?|#|$)/i.test(value);
 };
 
 const AttachmentPreview = ({ attachments }: AttachmentPreviewProps) => {
@@ -21,6 +31,20 @@ const AttachmentPreview = ({ attachments }: AttachmentPreviewProps) => {
     <>
       <div className="mt-1.5 grid max-w-[28rem] grid-cols-2 gap-1.5">
         {attachments.map((attachment) => {
+          if (isAudioAttachment(attachment) && attachment.url) {
+            return (
+              <VoiceNotePlayer
+                key={attachment.id}
+                url={attachment.url}
+                name={attachment.name}
+                compact
+                fluid
+                showName={false}
+                className="col-span-2"
+              />
+            );
+          }
+
           if (attachment.kind === "image" && attachment.url) {
             return (
               <button
@@ -41,7 +65,7 @@ const AttachmentPreview = ({ attachments }: AttachmentPreviewProps) => {
                   className="h-28 w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
                 />
                 <div className="bg-background/80 text-muted-foreground absolute right-1 bottom-1 rounded-sm px-1 py-0.5 text-[11px]">
-                  preview
+                  Preview
                 </div>
               </button>
             );
@@ -59,7 +83,10 @@ const AttachmentPreview = ({ attachments }: AttachmentPreviewProps) => {
         })}
       </div>
 
-      <Dialog open={Boolean(previewImage)} onOpenChange={() => setPreviewImage(null)}>
+      <Dialog
+        open={Boolean(previewImage)}
+        onOpenChange={() => setPreviewImage(null)}
+      >
         <DialogContent className="max-h-[85vh] max-w-4xl overflow-hidden p-0">
           <DialogTitle className="sr-only">
             {previewImage?.name || "Image preview"}

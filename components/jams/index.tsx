@@ -1651,6 +1651,9 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
       if (isEditableTarget(event.target)) {
         return;
       }
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
 
       const key = String(event.key || "").toLowerCase();
       if (key === "c") {

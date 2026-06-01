@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Maximize2, Minimize2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -545,6 +545,7 @@ export default function ProjectOverview({
   const [workflowsTabPage, setWorkflowsTabPage] = useState(1);
   const [expandedWorkflowIds, setExpandedWorkflowIds] = useState<string[]>([]);
   const [summaryExpanded, setSummaryExpanded] = useState(true);
+  const [projectTabsExpanded, setProjectTabsExpanded] = useState(false);
   const [workflowSheetState, setWorkflowSheetState] =
     useState<WorkflowSheetState>(null);
   const [taskSheetState, setTaskSheetState] = useState<TaskSheetState>(null);
@@ -555,6 +556,19 @@ export default function ProjectOverview({
   const canManageProjectInvites = workspacePermissions.canManageProjectInvites;
   const canArchiveProjects = workspacePermissions.canArchiveProjects;
   const canCreateWorkflows = workspacePermissions.canCreateWorkflows;
+
+  useEffect(() => {
+    if (!projectTabsExpanded) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [projectTabsExpanded]);
 
   const workflowListQuery = useWorkspaceProjectWorkflows(
     workspaceId ?? "",
@@ -2196,188 +2210,232 @@ export default function ProjectOverview({
         ) : null}
 
         <div
-          data-tour="project-tabs"
-          className="sticky top-0 z-20 -mx-1 border-b border-border/20 bg-background/85 px-1 py-2 backdrop-blur-sm"
+          className={cn(
+            "flex min-h-0 flex-col gap-3 md:gap-4",
+            projectTabsExpanded &&
+              "fixed inset-0 z-50 h-[100dvh] w-screen overflow-hidden bg-background p-3 md:p-4",
+          )}
         >
-          <ProjectOverviewTabs value={activeTab} onValueChange={setActiveTab} />
+          <div
+            data-tour="project-tabs"
+            className={cn(
+              "sticky top-0 z-20 -mx-1 border-b border-border/20 bg-background/85 px-1 py-2 backdrop-blur-sm",
+              projectTabsExpanded &&
+                "top-0 -mx-0 rounded-xl bg-background px-2",
+            )}
+          >
+            <div className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <ProjectOverviewTabs
+                  value={activeTab}
+                  onValueChange={setActiveTab}
+                />
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => setProjectTabsExpanded((current) => !current)}
+              >
+                {projectTabsExpanded ? <Minimize2 /> : <Maximize2 />}
+                <span className="hidden sm:inline">
+                  {projectTabsExpanded ? "Collapse" : "Expand"}
+                </span>
+              </Button>
+            </div>
+          </div>
+
+          <div
+            className={cn(
+              "min-h-0 space-y-3 md:space-y-4",
+              projectTabsExpanded && "flex-1 overflow-y-auto pr-1",
+            )}
+          >
+            {activeTab === "overview" ? (
+              <>
+                <div data-tour="project-overview-workflows">
+                  <ProjectOverviewWorkflowTable
+                    projectId={projectId}
+                    workflows={overviewWorkflows}
+                    members={resolvedMembers}
+                    teams={project.teams}
+                    selectedPipeline={selectedPipeline}
+                    selectedTeamId={teamFilter}
+                    onTeamChange={setTeamFilter}
+                    startDate={startDate}
+                    onStartDateChange={setStartDate}
+                    view={workflowView}
+                    onViewChange={setWorkflowView}
+                    sortMode={workflowSortMode}
+                    onSortModeChange={setWorkflowSortMode}
+                    pagination={overviewWorkflowPagination}
+                    loading={
+                      workflowListQuery.isLoading ||
+                      workflowListQuery.isFetching
+                    }
+                    onPreviousPage={() =>
+                      setWorkflowPage((current) => Math.max(1, current - 1))
+                    }
+                    onNextPage={() =>
+                      setWorkflowPage((current) =>
+                        overviewWorkflowPagination?.hasNextPage
+                          ? current + 1
+                          : current,
+                      )
+                    }
+                    expandedWorkflowIds={expandedWorkflowIds}
+                    onToggleWorkflow={handleToggleWorkflow}
+                    onCreateWorkflow={openCreateWorkflow}
+                    onEditWorkflow={openEditWorkflow}
+                    onCreateTask={openCreateTask}
+                    onEditTask={openEditTask}
+                    onCreateSubtask={openCreateSubtask}
+                    onWorkflowAction={handleWorkflowAction}
+                    onTaskAction={handleTaskAction}
+                    canManageWorkflowActions={canCreateWorkflows}
+                  />
+                </div>
+
+                <div
+                  data-tour="project-overview-risks"
+                  className="grid gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]"
+                >
+                  <ProjectOverviewRisks
+                    view={riskView}
+                    onViewChange={setRiskView}
+                    items={visibleRiskItems}
+                    currentUserId={currentUserId}
+                    onAction={handleOverviewRiskAction}
+                  />
+                  <ProjectOverviewActivity
+                    projectId={projectId}
+                    selectedPipelineId={selectedPipeline?.id}
+                    selectedTeamId={teamFilter}
+                    fallbackActivities={visibleActivities}
+                    members={resolvedMembers}
+                  />
+                </div>
+              </>
+            ) : activeTab === "workflows" ? (
+              <div data-tour="project-tab-workflows">
+                <ProjectWorkflowsTab
+                  projectId={projectId}
+                  initialWorkflowId={initialWorkflowId}
+                  workflows={workflowsTabWorkflows}
+                  loading={
+                    workflowsTabListQuery.isLoading ||
+                    workflowsTabListQuery.isFetching
+                  }
+                  archivedWorkflows={workflowsTabArchivedWorkflows}
+                  sortMode={workflowsTabSortMode}
+                  onSortModeChange={setWorkflowsTabSortMode}
+                  pagination={
+                    workflowsTabListQuery.data?.data?.pagination ?? null
+                  }
+                  onPreviousPage={() =>
+                    setWorkflowsTabPage((current) => Math.max(1, current - 1))
+                  }
+                  onNextPage={() =>
+                    setWorkflowsTabPage((current) =>
+                      workflowsTabListQuery.data?.data?.pagination?.hasNextPage
+                        ? current + 1
+                        : current,
+                    )
+                  }
+                  members={resolvedMembers}
+                  teams={project.teams}
+                  selectedPipeline={selectedPipeline}
+                  selectedTeamId={teamFilter}
+                  onTeamChange={setTeamFilter}
+                  startDate={startDate}
+                  onStartDateChange={setStartDate}
+                  view={workflowView}
+                  onViewChange={setWorkflowView}
+                  onCreateWorkflow={openCreateWorkflow}
+                  onEditWorkflow={openEditWorkflow}
+                  onCreateTask={openCreateTask}
+                  onEditTask={openEditTask}
+                  onCreateSubtask={openCreateSubtask}
+                  onEditSubtask={openEditSubtask}
+                  onWorkflowAction={handleWorkflowAction}
+                  onTaskAction={handleTaskAction}
+                  onSubtaskAction={handleSubtaskAction}
+                  canManageWorkflowActions={canCreateWorkflows}
+                />
+              </div>
+            ) : activeTab === "dos" ? (
+              <div data-tour="project-tab-dos">
+                <ProjectDosTab
+                  projectId={projectId}
+                  project={project}
+                  initialTaskId={initialTaskId}
+                  members={resolvedMembers}
+                  teams={project.teams}
+                  selectedPipeline={selectedPipeline}
+                  selectedTeamId={teamFilter}
+                  onTeamChange={setTeamFilter}
+                  startDate={startDate}
+                  onStartDateChange={setStartDate}
+                  onCreateTask={openCreateTask}
+                  onEditTask={openEditTask}
+                  onCreateSubtask={openCreateSubtask}
+                  onEditSubtask={openEditSubtask}
+                  onMoveTask={moveTaskToStatus}
+                  onTaskAction={handleTaskAction}
+                  onSubtaskAction={handleSubtaskAction}
+                  onCreateCustomSection={handleCreateCustomSection}
+                  onDeleteCustomSection={handleDeleteCustomSection}
+                  onReorderKanbanLanes={handleReorderKanbanLanes}
+                />
+              </div>
+            ) : activeTab === "files-assets" ? (
+              <div data-tour="project-tab-files-assets">
+                <ProjectFilesAssetsTab
+                  project={project}
+                  members={resolvedMembers}
+                />
+              </div>
+            ) : activeTab === "risks-issues" ? (
+              <div data-tour="project-tab-risks-issues">
+                <ProjectRisksIssuesTab
+                  workspaceId={workspaceId}
+                  projectId={projectId}
+                  initialRiskId={initialRiskId}
+                  view={riskView}
+                  onViewChange={setRiskView}
+                  selectedPipeline={selectedPipeline}
+                  selectedTeamId={teamFilter}
+                  onTeamChange={setTeamFilter}
+                  teams={project.teams}
+                  members={resolvedMembers}
+                  onProjectRecordSynced={handleRiskRecordSynced}
+                />
+              </div>
+            ) : activeTab === "secrets" ? (
+              <div data-tour="project-tab-secrets">
+                <ProjectSecretsTab
+                  workspaceId={workspaceId}
+                  projectId={projectId}
+                  members={resolvedMembers}
+                  teams={project.teams}
+                />
+              </div>
+            ) : activeTab === "agents-automation" ? (
+              <div data-tour="project-tab-agents-automation">
+                <ProjectAgentsAutomationTab
+                  project={project}
+                  members={resolvedMembers}
+                />
+              </div>
+            ) : (
+              <ProjectOverviewPlaceholder
+                kind="coming-soon"
+                label="coming soon"
+              />
+            )}
+          </div>
         </div>
-
-        {activeTab === "overview" ? (
-          <>
-            <div data-tour="project-overview-workflows">
-              <ProjectOverviewWorkflowTable
-                projectId={projectId}
-                workflows={overviewWorkflows}
-                members={resolvedMembers}
-                teams={project.teams}
-                selectedPipeline={selectedPipeline}
-                selectedTeamId={teamFilter}
-                onTeamChange={setTeamFilter}
-                startDate={startDate}
-                onStartDateChange={setStartDate}
-                view={workflowView}
-                onViewChange={setWorkflowView}
-                sortMode={workflowSortMode}
-                onSortModeChange={setWorkflowSortMode}
-                pagination={overviewWorkflowPagination}
-                loading={
-                  workflowListQuery.isLoading || workflowListQuery.isFetching
-                }
-                onPreviousPage={() =>
-                  setWorkflowPage((current) => Math.max(1, current - 1))
-                }
-                onNextPage={() =>
-                  setWorkflowPage((current) =>
-                    overviewWorkflowPagination?.hasNextPage
-                      ? current + 1
-                      : current,
-                  )
-                }
-                expandedWorkflowIds={expandedWorkflowIds}
-                onToggleWorkflow={handleToggleWorkflow}
-                onCreateWorkflow={openCreateWorkflow}
-                onEditWorkflow={openEditWorkflow}
-                onCreateTask={openCreateTask}
-                onEditTask={openEditTask}
-                onCreateSubtask={openCreateSubtask}
-                onWorkflowAction={handleWorkflowAction}
-                onTaskAction={handleTaskAction}
-                canManageWorkflowActions={canCreateWorkflows}
-              />
-            </div>
-
-            <div
-              data-tour="project-overview-risks"
-              className="grid gap-3 xl:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]"
-            >
-              <ProjectOverviewRisks
-                view={riskView}
-                onViewChange={setRiskView}
-                items={visibleRiskItems}
-                currentUserId={currentUserId}
-                onAction={handleOverviewRiskAction}
-              />
-              <ProjectOverviewActivity
-                projectId={projectId}
-                selectedPipelineId={selectedPipeline?.id}
-                selectedTeamId={teamFilter}
-                fallbackActivities={visibleActivities}
-                members={resolvedMembers}
-              />
-            </div>
-          </>
-        ) : activeTab === "workflows" ? (
-          <div data-tour="project-tab-workflows">
-            <ProjectWorkflowsTab
-              projectId={projectId}
-              initialWorkflowId={initialWorkflowId}
-              workflows={workflowsTabWorkflows}
-              loading={
-                workflowsTabListQuery.isLoading ||
-                workflowsTabListQuery.isFetching
-              }
-              archivedWorkflows={workflowsTabArchivedWorkflows}
-              sortMode={workflowsTabSortMode}
-              onSortModeChange={setWorkflowsTabSortMode}
-              pagination={workflowsTabListQuery.data?.data?.pagination ?? null}
-              onPreviousPage={() =>
-                setWorkflowsTabPage((current) => Math.max(1, current - 1))
-              }
-              onNextPage={() =>
-                setWorkflowsTabPage((current) =>
-                  workflowsTabListQuery.data?.data?.pagination?.hasNextPage
-                    ? current + 1
-                    : current,
-                )
-              }
-              members={resolvedMembers}
-              teams={project.teams}
-              selectedPipeline={selectedPipeline}
-              selectedTeamId={teamFilter}
-              onTeamChange={setTeamFilter}
-              startDate={startDate}
-              onStartDateChange={setStartDate}
-              view={workflowView}
-              onViewChange={setWorkflowView}
-              onCreateWorkflow={openCreateWorkflow}
-              onEditWorkflow={openEditWorkflow}
-              onCreateTask={openCreateTask}
-              onEditTask={openEditTask}
-              onCreateSubtask={openCreateSubtask}
-              onEditSubtask={openEditSubtask}
-              onWorkflowAction={handleWorkflowAction}
-              onTaskAction={handleTaskAction}
-              onSubtaskAction={handleSubtaskAction}
-              canManageWorkflowActions={canCreateWorkflows}
-            />
-          </div>
-        ) : activeTab === "dos" ? (
-          <div data-tour="project-tab-dos">
-            <ProjectDosTab
-              projectId={projectId}
-              project={project}
-              initialTaskId={initialTaskId}
-              members={resolvedMembers}
-              teams={project.teams}
-              selectedPipeline={selectedPipeline}
-              selectedTeamId={teamFilter}
-              onTeamChange={setTeamFilter}
-              startDate={startDate}
-              onStartDateChange={setStartDate}
-              onCreateTask={openCreateTask}
-              onEditTask={openEditTask}
-              onCreateSubtask={openCreateSubtask}
-              onEditSubtask={openEditSubtask}
-              onMoveTask={moveTaskToStatus}
-              onTaskAction={handleTaskAction}
-              onSubtaskAction={handleSubtaskAction}
-              onCreateCustomSection={handleCreateCustomSection}
-              onDeleteCustomSection={handleDeleteCustomSection}
-              onReorderKanbanLanes={handleReorderKanbanLanes}
-            />
-          </div>
-        ) : activeTab === "files-assets" ? (
-          <div data-tour="project-tab-files-assets">
-            <ProjectFilesAssetsTab
-              project={project}
-              members={resolvedMembers}
-            />
-          </div>
-        ) : activeTab === "risks-issues" ? (
-          <div data-tour="project-tab-risks-issues">
-            <ProjectRisksIssuesTab
-              workspaceId={workspaceId}
-              projectId={projectId}
-              initialRiskId={initialRiskId}
-              view={riskView}
-              onViewChange={setRiskView}
-              selectedPipeline={selectedPipeline}
-              selectedTeamId={teamFilter}
-              onTeamChange={setTeamFilter}
-              teams={project.teams}
-              members={resolvedMembers}
-              onProjectRecordSynced={handleRiskRecordSynced}
-            />
-          </div>
-        ) : activeTab === "secrets" ? (
-          <div data-tour="project-tab-secrets">
-            <ProjectSecretsTab
-              workspaceId={workspaceId}
-              projectId={projectId}
-              members={resolvedMembers}
-              teams={project.teams}
-            />
-          </div>
-        ) : activeTab === "agents-automation" ? (
-          <div data-tour="project-tab-agents-automation">
-            <ProjectAgentsAutomationTab
-              project={project}
-              members={resolvedMembers}
-            />
-          </div>
-        ) : (
-          <ProjectOverviewPlaceholder kind="coming-soon" label="coming soon" />
-        )}
       </div>
 
       {workflowSheetState ? (

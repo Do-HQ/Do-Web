@@ -208,6 +208,74 @@ body {
   border-radius: 10px !important;
 }
 
+.jam-excalidraw .excalidraw .context-menu {
+  min-width: 10rem !important;
+  overflow: hidden !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 0.5rem !important;
+  background: var(--popover) !important;
+  color: var(--popover-foreground) !important;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.12) !important;
+  padding: 0.25rem !important;
+}
+
+.jam-excalidraw .excalidraw .context-menu-item {
+  min-width: 9.5rem !important;
+  min-height: 1.75rem !important;
+  border-radius: 0.375rem !important;
+  padding: 0.35rem 0.5rem 0.35rem 1.25rem !important;
+  color: var(--popover-foreground) !important;
+  font-size: 0.75rem !important;
+  line-height: 1rem !important;
+}
+
+.jam-excalidraw .excalidraw .context-menu-item:hover,
+.jam-excalidraw .excalidraw .context-menu-item:focus {
+  background: var(--accent) !important;
+  color: var(--accent-foreground) !important;
+}
+
+.jam-excalidraw
+  .excalidraw
+  .context-menu-item:hover
+  .context-menu-item__label,
+.jam-excalidraw
+  .excalidraw
+  .context-menu-item:focus
+  .context-menu-item__label {
+  color: var(--accent-foreground) !important;
+}
+
+.jam-excalidraw .excalidraw .context-menu-item.dangerous .context-menu-item__label {
+  color: var(--destructive) !important;
+}
+
+.jam-excalidraw .excalidraw .context-menu-item:hover.dangerous,
+.jam-excalidraw .excalidraw .context-menu-item:focus.dangerous {
+  background: var(--destructive) !important;
+}
+
+.jam-excalidraw
+  .excalidraw
+  .context-menu-item:hover.dangerous
+  .context-menu-item__label,
+.jam-excalidraw
+  .excalidraw
+  .context-menu-item:focus.dangerous
+  .context-menu-item__label {
+  color: var(--destructive-foreground) !important;
+}
+
+.jam-excalidraw .excalidraw .context-menu-item .context-menu-item__shortcut {
+  color: var(--muted-foreground) !important;
+  font-size: 0.6875rem !important;
+}
+
+.jam-excalidraw .excalidraw .context-menu-item-separator {
+  border-top: 1px solid var(--border) !important;
+  margin: 0.25rem !important;
+}
+
 .jam-excalidraw .excalidraw .ToolIcon_type_button.isSelected,
 .jam-excalidraw .excalidraw .ToolIcon_type_button[aria-pressed="true"],
 .jam-excalidraw .excalidraw .ToolIcon_type_radio[aria-pressed="true"] {

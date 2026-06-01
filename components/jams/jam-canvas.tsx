@@ -74,6 +74,19 @@ type ExcalidrawApi = {
   ) => void;
 };
 
+type ExcalidrawAppState = {
+  zoom: { value: number };
+  offsetLeft: number;
+  offsetTop: number;
+  scrollX: number;
+  scrollY: number;
+};
+
+type CanvasProjectionState = {
+  appState: ExcalidrawAppState | null;
+  containerBounds: { left: number; top: number } | null;
+};
+
 const EMPTY_SCENE: ExcalidrawSnapshot = {
   elements: [],
   files: {},
@@ -104,6 +117,29 @@ const normalizeSnapshot = (
   };
 };
 
+const getSnapshotSignature = (snapshot: ExcalidrawSnapshot) => {
+  const elements = Array.isArray(snapshot.elements)
+    ? (snapshot.elements as Array<Record<string, unknown>>).filter(
+        (element) => !Boolean(element?.isDeleted),
+      )
+    : [];
+  const files =
+    snapshot.files && typeof snapshot.files === "object"
+      ? Object.keys(snapshot.files)
+      : [];
+
+  const elementSignature = elements
+    .map((element) => {
+      const id = String(element?.id || "");
+      const version = Number(element?.version ?? 0);
+      const versionNonce = Number(element?.versionNonce ?? 0);
+      return `${id}:${version}:${versionNonce}:0`;
+    })
+    .join("|");
+
+  return `${elements.length}:${files.length}:${elementSignature}`;
+};
+
 const JamCanvas = ({
   jamId,
   snapshot,
@@ -125,7 +161,12 @@ const JamCanvas = ({
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const applyingSnapshotRef = React.useRef(false);
   const initialHydrationRef = React.useRef(true);
-  const [appStateTick, setAppStateTick] = React.useState(0);
+  const lastEmittedSnapshotSignatureRef = React.useRef("");
+  const [projectionState, setProjectionState] =
+    React.useState<CanvasProjectionState>({
+      appState: null,
+      containerBounds: null,
+    });
   const lastSelectedViewportRef = React.useRef<{ left: number; top: number } | null>(
     null,
   );
@@ -134,6 +175,60 @@ const JamCanvas = ({
     () => normalizeSnapshot(snapshot),
     [snapshot],
   );
+  const normalizedSnapshotSignature = React.useMemo(
+    () => getSnapshotSignature(normalizedSnapshot),
+    [normalizedSnapshot],
+  );
+  const normalizedSnapshotRef = React.useRef(normalizedSnapshot);
+  const normalizedSnapshotSignatureRef = React.useRef(
+    normalizedSnapshotSignature,
+  );
+
+  React.useEffect(() => {
+    normalizedSnapshotRef.current = normalizedSnapshot;
+    normalizedSnapshotSignatureRef.current = normalizedSnapshotSignature;
+  }, [normalizedSnapshot, normalizedSnapshotSignature]);
+
+  const refreshProjectionState = React.useCallback(() => {
+    const appState = apiRef.current?.getAppState?.() ?? null;
+    const bounds = containerRef.current?.getBoundingClientRect();
+    const containerBounds = bounds
+      ? {
+          left: bounds.left,
+          top: bounds.top,
+        }
+      : null;
+
+    setProjectionState((previous) => {
+      const previousAppState = previous.appState;
+      const previousBounds = previous.containerBounds;
+      const sameAppState =
+        previousAppState &&
+        appState &&
+        previousAppState.scrollX === appState.scrollX &&
+        previousAppState.scrollY === appState.scrollY &&
+        previousAppState.offsetLeft === appState.offsetLeft &&
+        previousAppState.offsetTop === appState.offsetTop &&
+        previousAppState.zoom.value === appState.zoom.value;
+      const sameBounds =
+        previousBounds &&
+        containerBounds &&
+        previousBounds.left === containerBounds.left &&
+        previousBounds.top === containerBounds.top;
+
+      if (
+        ((previousAppState === null && appState === null) || sameAppState) &&
+        ((previousBounds === null && containerBounds === null) || sameBounds)
+      ) {
+        return previous;
+      }
+
+      return {
+        appState,
+        containerBounds,
+      };
+    });
+  }, []);
   const initialData = React.useMemo(
     () =>
       ({
@@ -184,9 +279,17 @@ const JamCanvas = ({
 
   React.useEffect(() => {
     initialHydrationRef.current = true;
+    lastEmittedSnapshotSignatureRef.current = "";
   }, [jamId]);
 
   React.useEffect(() => {
+    if (
+      normalizedSnapshotSignature &&
+      normalizedSnapshotSignature === lastEmittedSnapshotSignatureRef.current
+    ) {
+      return;
+    }
+
     applySnapshot(normalizedSnapshot);
     const retryTimer = window.setTimeout(() => {
       applySnapshot(normalizedSnapshot);
@@ -199,14 +302,22 @@ const JamCanvas = ({
     }, 120);
 
     return () => window.clearTimeout(retryTimer);
-  }, [applySnapshot, jamId, normalizedSnapshot]);
+  }, [applySnapshot, jamId, normalizedSnapshot, normalizedSnapshotSignature]);
 
   const handleApiRef = React.useCallback(
     (api: unknown) => {
       apiRef.current = (api as ExcalidrawApi) || null;
-      applySnapshot(normalizedSnapshot);
+      refreshProjectionState();
+      if (
+        normalizedSnapshotSignatureRef.current &&
+        normalizedSnapshotSignatureRef.current ===
+          lastEmittedSnapshotSignatureRef.current
+      ) {
+        return;
+      }
+      applySnapshot(normalizedSnapshotRef.current);
     },
-    [applySnapshot, normalizedSnapshot],
+    [applySnapshot, refreshProjectionState],
   );
 
   const handleChange = React.useCallback(
@@ -215,7 +326,7 @@ const JamCanvas = ({
       _appState: unknown,
       files: Record<string, unknown>,
     ) => {
-      setAppStateTick((value) => value + 1);
+      refreshProjectionState();
       if (applyingSnapshotRef.current || !onSnapshotChange) {
         return;
       }
@@ -236,13 +347,20 @@ const JamCanvas = ({
         files ||
         {};
 
-      onSnapshotChange({
+      const nextSnapshot = {
         type: "excalidraw",
         elements: visibleElements,
         files: sceneFiles,
+      };
+
+      lastEmittedSnapshotSignatureRef.current = getSnapshotSignature({
+        elements: visibleElements,
+        files: sceneFiles,
       });
+
+      onSnapshotChange(nextSnapshot);
     },
-    [onSnapshotChange],
+    [onSnapshotChange, refreshProjectionState],
   );
 
   React.useEffect(() => {
@@ -281,16 +399,19 @@ const JamCanvas = ({
       return;
     }
 
-    const unsubscribe = apiRef.current.onScrollChange(() => {
-      setAppStateTick((value) => value + 1);
-    });
+    const unsubscribe = apiRef.current.onScrollChange(refreshProjectionState);
 
     return () => {
       if (typeof unsubscribe === "function") {
         unsubscribe();
       }
     };
-  }, [jamId]);
+  }, [jamId, refreshProjectionState]);
+
+  React.useEffect(() => {
+    window.addEventListener("resize", refreshProjectionState);
+    return () => window.removeEventListener("resize", refreshProjectionState);
+  }, [refreshProjectionState]);
 
   const visiblePins = React.useMemo(
     () =>
@@ -307,8 +428,8 @@ const JamCanvas = ({
   );
 
   const projectedPins = React.useMemo(() => {
-    const appState = apiRef.current?.getAppState?.();
-    const containerBounds = containerRef.current?.getBoundingClientRect();
+    const appState = projectionState.appState;
+    const containerBounds = projectionState.containerBounds;
     if (!appState || !containerBounds) {
       return [];
     }
@@ -335,7 +456,7 @@ const JamCanvas = ({
       .filter(Boolean) as Array<
       (typeof visiblePins)[number] & { left: number; top: number }
     >;
-  }, [appStateTick, visiblePins]);
+  }, [projectionState, visiblePins]);
 
   React.useEffect(() => {
     if (!onSelectedPinViewportChange) {
@@ -445,6 +566,7 @@ const JamCanvas = ({
         viewModeEnabled={!canEdit}
         zenModeEnabled
         gridModeEnabled={gridModeEnabled}
+        detectScroll={false}
         UIOptions={uiOptions}
         theme={resolvedTheme === "dark" ? "dark" : "light"}
       />

@@ -183,11 +183,11 @@ export function WorkflowGraph({
                     showArrow={false}
                     className="max-w-xs rounded-lg border border-border/30 bg-popover px-3 py-2 text-[12px]"
                   >
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 ">
                       <p className="text-sm font-medium text-foreground">
                         {workflow.name}
                       </p>
-                      <div className="space-y-1 text-muted-foreground">
+                      <div className="space-y-1 text-muted-foreground flex items-center gap-2 flex-wrap">
                         <p className="inline-flex items-center gap-1">
                           <Calendar className="size-3.5" />
                           Start: {formatShortDate(workflow.startDate)}

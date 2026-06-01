@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   Check,
@@ -16,7 +16,11 @@ import { toast } from "sonner";
 
 import useWorkspaceStandup from "@/hooks/use-workspace-standup";
 import useWorkspaceStore from "@/stores/workspace";
-import type { StandupAnswer, StandupQuestion } from "@/types/standup";
+import type {
+  StandupAnswer,
+  StandupCurrentResponse,
+  StandupQuestion,
+} from "@/types/standup";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -125,14 +129,22 @@ const WorkspaceStandupPage = () => {
   const startMutation = standup.useStartCurrentStandup();
   const answerMutation = standup.useAnswerCurrentStandup();
   const submitMutation = standup.useSubmitCurrentStandup();
-  const data = currentQuery.data?.data;
-  const questions = data?.questions || [];
-  const answers = data?.answers || [];
-  const attentionSummary = data?.attentionSummary;
+  const [actionSnapshot, setActionSnapshot] =
+    useState<StandupCurrentResponse | null>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, unknown>>({});
   const [optimisticStarted, setOptimisticStarted] = useState(false);
   const [optimisticSubmitted, setOptimisticSubmitted] = useState(false);
+  const serverData = currentQuery.data?.data;
+  const data =
+    (optimisticStarted || optimisticSubmitted) &&
+    actionSnapshot &&
+    !serverData?.session
+      ? actionSnapshot
+      : serverData;
+  const questions = useMemo(() => data?.questions || [], [data?.questions]);
+  const answers = useMemo(() => data?.answers || [], [data?.answers]);
+  const attentionSummary = data?.attentionSummary;
 
   useEffect(() => {
     if (!normalizedWorkspaceId) return;
@@ -151,11 +163,14 @@ const WorkspaceStandupPage = () => {
   }, [activeIndex, questions.length]);
 
   useEffect(() => {
+    if (!serverData?.participant?.id) return;
+
     setOptimisticStarted(false);
     setOptimisticSubmitted(false);
     setDrafts({});
     setActiveIndex(0);
-  }, [data?.participant?.id]);
+    setActionSnapshot(null);
+  }, [serverData?.participant?.id]);
 
   const activeQuestion = questions[activeIndex];
   const progress = questions.length
@@ -177,26 +192,44 @@ const WorkspaceStandupPage = () => {
     return answerForQuestion(answers, activeQuestion.id) ?? "";
   }, [activeQuestion, answers, drafts]);
 
-  const invalidateCurrent = async () => {
+  const invalidateCurrent = useCallback(async () => {
     await queryClient.invalidateQueries({
       queryKey: ["standup-current", normalizedWorkspaceId],
     });
-  };
+  }, [normalizedWorkspaceId, queryClient]);
+
+  useEffect(() => {
+    if (!hasStarted || questions.length || isSubmitted || isMissed) return;
+
+    const timer = window.setTimeout(() => {
+      void invalidateCurrent();
+    }, 1500);
+
+    return () => window.clearTimeout(timer);
+  }, [hasStarted, invalidateCurrent, isMissed, isSubmitted, questions.length]);
 
   const handleStart = async () => {
+    if (
+      !normalizedWorkspaceId ||
+      startMutation.isPending ||
+      hasStarted
+    ) {
+      return;
+    }
+
     const request = startMutation.mutateAsync(normalizedWorkspaceId);
     try {
-      const response = await toast.promise(request, {
+      const response = (await toast.promise(request, {
         loading: "Opening your standup...",
         success: "Standup opened.",
         error: "We could not start your standup.",
-      });
+      })) as unknown as { data: StandupCurrentResponse };
       setOptimisticStarted(true);
+      setActionSnapshot(response.data);
       queryClient.setQueryData(
         ["standup-current", normalizedWorkspaceId],
         response,
       );
-      void invalidateCurrent();
     } catch {}
   };
 
@@ -267,27 +300,62 @@ const WorkspaceStandupPage = () => {
     })();
 
     try {
-      const response = await toast.promise(request, {
+      const response = (await toast.promise(request, {
         loading: "Saving final answer and submitting...",
         success: "Standup submitted. You’re all set.",
         error: (error: Error) =>
           error?.message || "We could not submit your standup.",
-      });
+      })) as unknown as { data: StandupCurrentResponse };
       setDrafts({});
       setOptimisticSubmitted(true);
+      setActionSnapshot(response.data);
       queryClient.setQueryData(
         ["standup-current", normalizedWorkspaceId],
         response,
       );
-      void invalidateCurrent();
     } catch {}
   };
 
-  if (currentQuery.isLoading) {
+  if (
+    !normalizedWorkspaceId ||
+    currentQuery.isLoading ||
+    (!data?.session && currentQuery.isFetching)
+  ) {
     return (
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-3 p-4">
         <Skeleton className="h-9 w-48" />
         <Skeleton className="h-[420px] rounded-lg" />
+      </div>
+    );
+  }
+
+  if (hasStarted && !questions.length) {
+    return (
+      <div className="mx-auto flex w-full max-w-4xl flex-col gap-3 p-4">
+        <StandupAiAvailabilityNote workspaceId={normalizedWorkspaceId} />
+        <Card className="border-border/70">
+          <CardContent className="space-y-4 p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                <ClipboardCheck className="size-4" />
+              </div>
+              <div>
+                <h1 className="text-lg font-semibold tracking-tight">
+                  Preparing your standup
+                </h1>
+                <p className="mt-1 text-[13px] leading-5 text-muted-foreground">
+                  Scribe is lining up your questions. This should only take a
+                  moment.
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-3 w-2/3" />
+              <Skeleton className="h-3 w-5/6" />
+              <Skeleton className="h-24 rounded-lg" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -463,7 +531,7 @@ const WorkspaceStandupPage = () => {
                 disabled={startMutation.isPending}
                 className="rounded-lg"
               >
-                Start standup
+                {startMutation.isPending ? "Opening..." : "Start standup"}
               </Button>
             </div>
             <div className="space-y-3 rounded-lg border border-border/70 bg-muted/20 p-4 text-[13px] text-muted-foreground">

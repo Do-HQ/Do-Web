@@ -1,5 +1,6 @@
 import { FileText, X } from "lucide-react";
 import type { ChatAttachment } from "../types";
+import VoiceNotePlayer from "./voice-note-player";
 
 type DraftAttachmentRowProps = {
   attachments: ChatAttachment[];
@@ -39,6 +40,21 @@ const DraftAttachmentRow = ({
                 <X className="size-3.5" />
               </button>
             </div>
+          );
+        }
+
+        if (attachment.kind === "audio") {
+          return (
+            <VoiceNotePlayer
+              key={attachment.id}
+              url={attachment.url || ""}
+              name={attachment.name}
+              compact
+              fluid
+              showName={false}
+              className="basis-full"
+              onRemove={() => onRemoveAttachment(attachment.id, target)}
+            />
           );
         }
 

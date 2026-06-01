@@ -3,14 +3,11 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import {
   FileText,
   Shapes,
-  ImagePlus,
   MessageSquareReply,
   Phone,
   Plus,
   Pin,
-  SendHorizontal,
 } from "lucide-react";
-import { Mention, MentionsInput } from "react-mentions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,11 +29,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { MentionSuggestionRow } from "@/components/shared/mention-suggestion-row";
 import type { ChatAttachment, SpaceMessage } from "../types";
 import AttachmentPreview from "./attachment-preview";
 import ChatItemActionsMenu from "./chat-item-actions-menu";
-import DraftAttachmentRow from "./draft-attachment-row";
+import RichMessageContent from "./rich-message-content";
+import RichMessageComposer from "./rich-message-composer";
 import type {
   MentionSuggestion,
   MentionTokenMeta,
@@ -86,6 +83,7 @@ type MainChatPanelProps = {
   onJoinCallFromMessage: (route?: string) => void;
   onComposerChange: (value: string) => void;
   onSendMessage: () => void;
+  onAttachFiles: (files: File[], target: "main" | "thread") => void;
   onUploadFromInput: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onRemoveAttachment: (attachmentId: string, target: "main" | "thread") => void;
   onMessageListScroll?: (event: React.UIEvent<HTMLDivElement>) => void;
@@ -225,6 +223,7 @@ const MainChatPanel = ({
   onJoinCallFromMessage,
   onComposerChange,
   onSendMessage,
+  onAttachFiles,
   onUploadFromInput,
   onRemoveAttachment,
   onMessageListScroll,
@@ -233,11 +232,9 @@ const MainChatPanel = ({
   isMessagesLoading = false,
 }: MainChatPanelProps) => {
   const messageElementRefs = useRef<Record<string, HTMLElement | null>>({});
-  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(
-    null,
-  );
-  const suggestionsPortalHost =
-    typeof document === "undefined" ? undefined : document.body;
+  const [highlightedMessageId, setHighlightedMessageId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     if (!highlightedMessageId) {
@@ -272,69 +269,6 @@ const MainChatPanel = ({
 
     return () => window.cancelAnimationFrame(frame);
   }, [activeMessages, anchorMessageId]);
-
-  const mentionInputStyle = {
-    control: {
-      backgroundColor: "transparent",
-      fontSize: 13,
-      fontWeight: 400,
-    },
-    highlighter: {
-      overflow: "hidden",
-      padding: "6px 8px",
-      minHeight: "64px",
-    },
-    input: {
-      margin: 0,
-      border: 0,
-      color: "var(--foreground)",
-      backgroundColor: "transparent",
-      minHeight: "64px",
-      maxHeight: "208px",
-      overflowY: "auto",
-      outline: "none",
-      padding: "6px 8px",
-      lineHeight: "1.35",
-    },
-    suggestions: {
-      list: {
-        backgroundColor: "var(--popover)",
-        border: "1px solid var(--border)",
-        borderRadius: "8px",
-        fontSize: 13,
-        color: "var(--popover-foreground)",
-        maxHeight: "220px",
-        overflowY: "auto",
-        zIndex: 90,
-        boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
-      },
-      item: {
-        padding: "6px 8px",
-        color: "var(--popover-foreground)",
-        backgroundColor: "transparent",
-      },
-    },
-  } as const;
-
-  const renderMentionSuggestion = (
-    suggestion: MentionSuggestion,
-    _search: string,
-    highlightedDisplay: React.ReactNode,
-    _index: number,
-    focused: boolean,
-  ) => {
-    return (
-      <MentionSuggestionRow
-        label={String(suggestion.display || "")}
-        highlightedLabel={highlightedDisplay}
-        kind={suggestion.kind}
-        avatarUrl={suggestion.avatarUrl}
-        avatarFallback={suggestion.avatarFallback}
-        subtitle={suggestion.subtitle}
-        focused={focused}
-      />
-    );
-  };
 
   const toTitleCase = (value: string) =>
     value
@@ -411,9 +345,7 @@ const MainChatPanel = ({
       const symbol = String(match[1] || "@");
       const token = String(match[2] || "").toLowerCase();
       const mentionMeta =
-        symbol === "#"
-          ? reportMetaByToken[token]
-          : mentionMetaByToken[token];
+        symbol === "#" ? reportMetaByToken[token] : mentionMetaByToken[token];
 
       if (mentionStart > lastIndex) {
         chunks.push(input.slice(lastIndex, mentionStart));
@@ -670,7 +602,9 @@ const MainChatPanel = ({
 
   const parseCallEventMessage = (content: string) => {
     const normalized = String(content || "").trim();
-    const encodedMatch = normalized.match(/^\[CALL_EVENT:([A-Za-z0-9_-]+)\]\s*([\s\S]*)$/i);
+    const encodedMatch = normalized.match(
+      /^\[CALL_EVENT:([A-Za-z0-9_-]+)\]\s*([\s\S]*)$/i,
+    );
 
     if (encodedMatch) {
       const encodedPayload = String(encodedMatch[1] || "").trim();
@@ -908,7 +842,9 @@ const MainChatPanel = ({
                               <button
                                 key={`${message.id}-hover-${emoji}`}
                                 type="button"
-                                onClick={() => onReactToMessage(message.id, emoji)}
+                                onClick={() =>
+                                  onReactToMessage(message.id, emoji)
+                                }
                                 className="inline-flex size-7 items-center justify-center rounded-full text-[17px] leading-none transition-colors hover:bg-muted"
                                 aria-label={`React with ${emoji}`}
                               >
@@ -944,127 +880,153 @@ const MainChatPanel = ({
                             />
                           </div>
 
-                        <div className="flex flex-wrap items-center gap-1.5 pr-2 md:pr-24">
-                          <p className="text-foreground text-[13px] font-medium">
-                            {message.author.name}
-                          </p>
-                          {message.author.role === "agent" && (
-                            <Badge variant="outline" className="text-[11px]">
-                              Agent
-                            </Badge>
-                          )}
-                          {isPinned && (
-                            <Badge variant="secondary" className="text-[11px]">
-                              <Pin className="size-3.5" />
-                              Pinned
-                            </Badge>
-                          )}
-                          <span className="text-muted-foreground text-[11px]">
-                            {message.sentAt}
-                          </span>
-                          {message.edited && (
-                            <span className="text-muted-foreground text-[11px]">
-                              edited
-                            </span>
-                          )}
-                        </div>
-
-                        {editingMessageId === message.id ? (
-                          <div className="mt-1.5 space-y-1.5">
-                            <Textarea
-                              value={editingMessageValue}
-                              onChange={(event) =>
-                                onEditingMessageValueChange(event.target.value)
-                              }
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter" && !event.shiftKey) {
-                                  event.preventDefault();
-                                  onSaveEditedMessage(message.id);
-                                }
-                              }}
-                              className="min-h-16 max-h-36 resize-none px-2 py-1.5 text-[13px]"
-                            />
-                            <div className="flex items-center gap-1">
-                              <Button
-                                size="sm"
-                                className="h-8 px-2.5 text-[13px]"
-                                onClick={() => onSaveEditedMessage(message.id)}
-                                disabled={editingMessageValue.trim().length < 1}
-                              >
-                                Save
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 px-2.5 text-[13px]"
-                                onClick={onCancelEditingMessage}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            {jamShareCard ? (
-                              jamShareCard
-                            ) : callEventMessage ? (
-                              <button
-                                type="button"
-                                className="mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-border/45 bg-muted/25 px-2 py-1 text-left text-[12px] font-medium transition-colors hover:bg-muted/45"
-                                onClick={() =>
-                                  onJoinCallFromMessage(callEventMessage.route)
-                                }
-                              >
-                                <Phone className="size-3.5 text-primary" />
-                                {callEventMessage.summary}
-                              </button>
-                            ) : forwardedMessage ? (
-                              <div className="mt-1.5 space-y-1.5">
-                                <div className="flex flex-wrap items-center gap-1.5">
-                                  <Badge variant="secondary" className="text-[10px]">
-                                    Forwarded
-                                  </Badge>
-                                  <span className="text-muted-foreground text-[11px]">
-                                    From {forwardedMessage.sourceName}
-                                  </span>
-                                </div>
-                                {forwardedMessage.body ? (
-                                  <p className="text-[12.5px] leading-5 whitespace-pre-wrap">
-                                    {renderContentWithMentions(forwardedMessage.body)}
-                                  </p>
-                                ) : null}
-                              </div>
-                            ) : (
-                              <p className="mt-0.5 text-[12.5px] leading-5 whitespace-pre-wrap">
-                                {renderContentWithMentions(message.content)}
-                              </p>
+                          <div className="flex flex-wrap items-center gap-1.5 pr-2 md:pr-24">
+                            <p className="text-foreground text-[13px] font-medium">
+                              {message.author.name}
+                            </p>
+                            {message.author.role === "agent" && (
+                              <Badge variant="outline" className="text-[11px]">
+                                Agent
+                              </Badge>
                             )}
-                          </>
-                        )}
-
-                        <AttachmentPreview attachments={message.attachments} />
-                        {renderMessageReactions(message)}
-
-                        <div className="mt-1.5 flex flex-wrap items-center gap-1">
-                          <Button
-                            size="sm"
-                            variant={isThreadActive ? "secondary" : "ghost"}
-                            className="h-7 px-2.5 text-[13px]"
-                            onClick={() => onOpenThread(message.id)}
-                          >
-                            <MessageSquareReply className="size-3.5" />
-                            <span className="hidden sm:inline">
-                              {threadCount > 0
-                                ? `${threadCount} repl${threadCount > 1 ? "ies" : "y"}`
-                                : "Reply in thread"}
+                            {isPinned && (
+                              <Badge
+                                variant="secondary"
+                                className="text-[11px]"
+                              >
+                                <Pin className="size-3.5" />
+                                Pinned
+                              </Badge>
+                            )}
+                            <span className="text-muted-foreground text-[11px]">
+                              {message.sentAt}
                             </span>
-                            <span className="sm:hidden">
-                              {threadCount > 0
-                                ? `${threadCount} ${threadCount > 1 ? "replies" : "reply"}`
-                                : "Reply"}
-                            </span>
-                          </Button>
-                        </div>
+                            {message.edited && (
+                              <span className="text-muted-foreground text-[11px]">
+                                edited
+                              </span>
+                            )}
+                          </div>
+
+                          {editingMessageId === message.id ? (
+                            <div className="mt-1.5 space-y-1.5">
+                              <Textarea
+                                value={editingMessageValue}
+                                onChange={(event) =>
+                                  onEditingMessageValueChange(
+                                    event.target.value,
+                                  )
+                                }
+                                onKeyDown={(event) => {
+                                  if (
+                                    event.key === "Enter" &&
+                                    !event.shiftKey
+                                  ) {
+                                    event.preventDefault();
+                                    onSaveEditedMessage(message.id);
+                                  }
+                                }}
+                                className="min-h-16 max-h-36 resize-none px-2 py-1.5 text-[13px]"
+                              />
+                              <div className="flex items-center gap-1">
+                                <Button
+                                  size="sm"
+                                  className="h-8 px-2.5 text-[13px]"
+                                  onClick={() =>
+                                    onSaveEditedMessage(message.id)
+                                  }
+                                  disabled={
+                                    editingMessageValue.trim().length < 1
+                                  }
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-8 px-2.5 text-[13px]"
+                                  onClick={onCancelEditingMessage}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              {jamShareCard ? (
+                                jamShareCard
+                              ) : callEventMessage ? (
+                                <button
+                                  type="button"
+                                  className="mt-1.5 inline-flex items-center gap-1.5 rounded-md border border-border/45 bg-muted/25 px-2 py-1 text-left text-[12px] font-medium transition-colors hover:bg-muted/45"
+                                  onClick={() =>
+                                    onJoinCallFromMessage(
+                                      callEventMessage.route,
+                                    )
+                                  }
+                                >
+                                  <Phone className="size-3.5 text-primary" />
+                                  {callEventMessage.summary}
+                                </button>
+                              ) : forwardedMessage ? (
+                                <div className="mt-1.5 space-y-1.5">
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-[10px]"
+                                    >
+                                      Forwarded
+                                    </Badge>
+                                    <span className="text-muted-foreground text-[11px]">
+                                      From {forwardedMessage.sourceName}
+                                    </span>
+                                  </div>
+                                  {forwardedMessage.body ? (
+                                    <RichMessageContent
+                                      content={forwardedMessage.body}
+                                      renderInlineContent={
+                                        renderContentWithMentions
+                                      }
+                                    />
+                                  ) : null}
+                                </div>
+                              ) : (
+                                <RichMessageContent
+                                  content={message.content}
+                                  className="mt-0.5"
+                                  renderInlineContent={
+                                    renderContentWithMentions
+                                  }
+                                />
+                              )}
+                            </>
+                          )}
+
+                          <AttachmentPreview
+                            attachments={message.attachments}
+                          />
+                          {renderMessageReactions(message)}
+
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant={isThreadActive ? "secondary" : "ghost"}
+                              className="h-7 px-2.5 text-[13px]"
+                              onClick={() => onOpenThread(message.id)}
+                            >
+                              <MessageSquareReply className="size-3.5" />
+                              <span className="hidden sm:inline">
+                                {threadCount > 0
+                                  ? `${threadCount} repl${threadCount > 1 ? "ies" : "y"}`
+                                  : "Reply in thread"}
+                              </span>
+                              <span className="sm:hidden">
+                                {threadCount > 0
+                                  ? `${threadCount} ${threadCount > 1 ? "replies" : "reply"}`
+                                  : "Reply"}
+                              </span>
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -1098,81 +1060,23 @@ const MainChatPanel = ({
         data-tour="spaces-composer"
         className="bg-card/95 shrink-0 border-t border-border/35 px-1.5 pt-1.5 pb-[calc(0.375rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:p-1.5"
       >
-        <div className="bg-background/88 border-border/35 focus-within:border-ring focus-within:ring-ring/50 flex flex-col gap-2 rounded-none border border-x-0 border-b-0 p-1.5 backdrop-blur-sm transition-[border-color,box-shadow] focus-within:ring-2 sm:rounded-md sm:border sm:p-1.5">
-          <MentionsInput
-            value={composer}
-            onChange={(event) => onComposerChange(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" && !event.shiftKey) {
-                event.preventDefault();
-                onSendMessage();
-              }
-            }}
-            placeholder="Message this space... Use @ for people, # for reports"
-            style={mentionInputStyle}
-            className="min-h-16 max-h-52 rounded-md border border-transparent bg-transparent shadow-none"
-            a11ySuggestionsListLabel="Chat mentions"
-            suggestionsPortalHost={suggestionsPortalHost}
-            forceSuggestionsAboveCursor
-          >
-            <Mention
-              trigger="@"
-              data={mentionSuggestions}
-              markup="@__id__"
-              displayTransform={(_id, display) => display || _id}
-              renderSuggestion={renderMentionSuggestion}
-              appendSpaceOnAdd
-            />
-            <Mention
-              trigger="#"
-              data={reportMentionSuggestions}
-              markup="#__id__"
-              displayTransform={(_id, display) => display || _id}
-              renderSuggestion={renderMentionSuggestion}
-              appendSpaceOnAdd
-            />
-          </MentionsInput>
-
-          <DraftAttachmentRow
-            attachments={composerAttachments}
-            target="main"
-            onRemoveAttachment={onRemoveAttachment}
-          />
-
-          <div className="flex flex-wrap items-center gap-1">
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-8 px-2.5 text-[13px]"
-              onClick={() => mainComposerUploadRef.current?.click()}
-            >
-              <ImagePlus className="size-3.5" />
-              Image
-            </Button>
-            <input
-              ref={mainComposerUploadRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={onUploadFromInput}
-            />
-
-            <p className="text-muted-foreground hidden text-[11px] md:block">
-              Enter to send
-            </p>
-
-            <Button
-              size="sm"
-              className="ml-auto h-8 px-2.5 text-[12px]"
-              onClick={onSendMessage}
-              disabled={!canSendMessage}
-            >
-              <SendHorizontal className="size-3.5" />
-              Send
-            </Button>
-          </div>
-        </div>
+        <RichMessageComposer
+          value={composer}
+          attachments={composerAttachments}
+          uploadRef={mainComposerUploadRef}
+          target="main"
+          canSend={canSendMessage}
+          placeholder="Message this space... Use @ for people, # for reports"
+          sendLabel="Send"
+          hint="Enter to send"
+          mentionSuggestions={mentionSuggestions}
+          reportMentionSuggestions={reportMentionSuggestions}
+          onChange={onComposerChange}
+          onSend={onSendMessage}
+          onUploadFromInput={onUploadFromInput}
+          onAttachFiles={onAttachFiles}
+          onRemoveAttachment={onRemoveAttachment}
+        />
       </div>
     </div>
   );

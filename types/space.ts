@@ -20,7 +20,7 @@ export interface WorkspaceSpaceAuthor {
 export interface WorkspaceSpaceAttachment {
   id: string;
   name: string;
-  kind: "image" | "file";
+  kind: "image" | "file" | "audio";
   url?: string;
 }
 

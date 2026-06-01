@@ -2426,15 +2426,19 @@ const SpacesPage = () => {
     }
   };
 
-  const attachFiles = (files: FileList, target: "main" | "thread") => {
+  const attachFiles = (
+    files: FileList | File[],
+    target: "main" | "thread",
+  ) => {
     const nextAttachments: ChatAttachment[] = Array.from(files).map((file) => {
       const isImage = file.type.startsWith("image/");
+      const isAudio = file.type.startsWith("audio/");
 
       return {
         id: createId(),
         name: file.name,
-        kind: isImage ? "image" : "file",
-        url: isImage ? URL.createObjectURL(file) : undefined,
+        kind: isImage ? "image" : isAudio ? "audio" : "file",
+        url: isImage || isAudio ? URL.createObjectURL(file) : undefined,
         file,
       };
     });
@@ -2459,7 +2463,12 @@ const SpacesPage = () => {
   const uploadDraftAttachments = async (
     draftAttachments: ChatAttachment[],
   ): Promise<
-    Array<{ id: string; name: string; kind: "image" | "file"; url?: string }>
+    Array<{
+      id: string;
+      name: string;
+      kind: "image" | "file" | "audio";
+      url?: string;
+    }>
   > => {
     if (!draftAttachments.length) {
       return [];
@@ -2501,14 +2510,25 @@ const SpacesPage = () => {
           };
         };
         const asset = uploadResponse?.data?.asset;
-        const assetMimeType = String(asset?.mimeType || "").toLowerCase();
+        const assetMimeType = String(asset?.mimeType || "")
+          .toLowerCase()
+          .split(";")[0];
         const assetResourceType = String(
           asset?.resourceType || "",
         ).toLowerCase();
-        const kind: "image" | "file" =
+        const attachmentName = String(
+          asset?.fileName || attachment.name || "",
+        ).toLowerCase();
+        const isAudioUpload =
+          attachment.kind === "audio" ||
+          assetMimeType.startsWith("audio/") ||
+          /\.(webm|m4a|mp3|mpeg|ogg|oga|wav|aac)$/i.test(attachmentName);
+        const kind: "image" | "file" | "audio" =
           assetMimeType.startsWith("image/") || assetResourceType === "image"
             ? "image"
-            : "file";
+            : isAudioUpload
+              ? "audio"
+              : "file";
 
         return {
           id: String(asset?._id || attachment.id),
@@ -3902,6 +3922,7 @@ const SpacesPage = () => {
               onJoinCallFromMessage={handleJoinCallFromMessage}
               onComposerChange={setComposer}
               onSendMessage={handleSendMessage}
+              onAttachFiles={attachFiles}
               onUploadFromInput={(event) =>
                 handleUploadFromInput(event, "main")
               }
@@ -3990,6 +4011,7 @@ const SpacesPage = () => {
                   onOpenJamFromMessage={openSharedJamFromMessage}
                   onThreadComposerChange={setThreadComposer}
                   onSendThreadReply={handleSendThreadReply}
+                  onAttachFiles={attachFiles}
                   onUploadFromInput={(event) =>
                     handleUploadFromInput(event, "thread")
                   }
@@ -4131,6 +4153,7 @@ const SpacesPage = () => {
             onOpenJamFromMessage={openSharedJamFromMessage}
             onThreadComposerChange={setThreadComposer}
             onSendThreadReply={handleSendThreadReply}
+            onAttachFiles={attachFiles}
             onUploadFromInput={(event) =>
               handleUploadFromInput(event, "thread")
             }
