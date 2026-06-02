@@ -8,6 +8,10 @@ interface AppStore {
   setShowSpotlightSearch: (showSpotlightSearch: boolean) => void;
   showAiAssistantOverlay: boolean;
   setShowAiAssistantOverlay: (showAiAssistantOverlay: boolean) => void;
+  showScribeWidget: boolean;
+  setShowScribeWidget: (showScribeWidget: boolean) => void;
+  scribeWidgetPinned: boolean;
+  setScribeWidgetPinned: (scribeWidgetPinned: boolean) => void;
   showSettings: boolean;
   setShowSettings: (showSpotlightSearch: boolean) => void;
   activeSetting: string;
@@ -21,6 +25,12 @@ export const useAppStore = create<AppStore>((set) => ({
   showAiAssistantOverlay: false,
   setShowAiAssistantOverlay: (showAiAssistantOverlay: boolean) =>
     set({ showAiAssistantOverlay }),
+  showScribeWidget: false,
+  setShowScribeWidget: (showScribeWidget: boolean) =>
+    set({ showScribeWidget }),
+  scribeWidgetPinned: false,
+  setScribeWidgetPinned: (scribeWidgetPinned: boolean) =>
+    set({ scribeWidgetPinned, showScribeWidget: true }),
   showSettings: false,
   setShowSettings: (showSettings: boolean) => set({ showSettings }),
   activeSetting: "profile",

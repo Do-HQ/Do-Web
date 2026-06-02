@@ -21,6 +21,8 @@ import {
   ListTodo,
   Library,
   MessageCircleQuestion,
+  PanelRightOpen,
+  Pin,
   PlusIcon,
   RefreshCcw,
   Star,
@@ -140,7 +142,13 @@ const CommandSearch = () => {
   const normalizedQuery = normalize(debouncedSearch);
   const queryActive = normalizedQuery.length >= 2;
 
-  const { showSpotlightSearch, setShowSpotlightSearch } = useAppStore();
+  const {
+    showSpotlightSearch,
+    setShowSpotlightSearch,
+    setShowScribeWidget,
+    scribeWidgetPinned,
+    setScribeWidgetPinned,
+  } = useAppStore();
   const projectRecords = useProjectStore((state) => state.projectRecords);
   const requestWorkflowCreate = useProjectStore(
     (state) => state.requestWorkflowCreate,
@@ -320,7 +328,6 @@ const CommandSearch = () => {
         id: "nav-ask",
         label: "Scribe",
         icon: Gem,
-        shortcut: "⌘A",
         onSelect: () => closeAndRoute(ROUTES.ASK_SQUIRCLE),
       },
       {
@@ -464,6 +471,26 @@ const CommandSearch = () => {
           }),
       },
       {
+        id: "action-open-scribe-widget",
+        label: "Open Scribe widget",
+        icon: PanelRightOpen,
+        hint: "Side sheet",
+        onSelect: () =>
+          runAction(() => {
+            setShowScribeWidget(true);
+          }),
+      },
+      {
+        id: "action-pin-scribe-widget",
+        label: scribeWidgetPinned ? "Unpin Scribe widget" : "Pin Scribe widget",
+        icon: Pin,
+        hint: scribeWidgetPinned ? "Launcher stays available" : "Keep Scribe handy",
+        onSelect: () =>
+          runAction(() => {
+            setScribeWidgetPinned(!scribeWidgetPinned);
+          }),
+      },
+      {
         id: "action-restart-walkthrough",
         label: "Restart walkthrough",
         icon: RefreshCcw,
@@ -483,7 +510,10 @@ const CommandSearch = () => {
       requestWorkflowCreate,
       router,
       runAction,
+      scribeWidgetPinned,
       setProjectCreateOpen,
+      setScribeWidgetPinned,
+      setShowScribeWidget,
       user?._id,
     ],
   );

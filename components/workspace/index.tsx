@@ -35,7 +35,7 @@ const JoinWorkspace = () => {
   // Router
   const router = useRouter();
   const searchParams = useSearchParams();
-  const search = searchParams.get("search");
+  const search = searchParams.get("search") ?? "";
 
   // Utils
   const debouncedSearch = useDebounce(search, 500);
@@ -43,7 +43,7 @@ const JoinWorkspace = () => {
   // Hooks
   const { usePublicWorkspace } = useWorkspace();
   const { isPending, data } = usePublicWorkspace({
-    search: debouncedSearch!,
+    search: debouncedSearch,
     page,
     limit: 5,
   });
@@ -51,13 +51,31 @@ const JoinWorkspace = () => {
   // Handlers
   const handleSearchChange = (value: string) => {
     const params = new URLSearchParams(searchParams.toString());
-    params.set("search", value);
+    const nextSearch = value.trim();
+    if (nextSearch) {
+      params.set("search", nextSearch);
+    } else {
+      params.delete("search");
+    }
+    setPage(1);
     router.push(`?${params.toString()}`);
   };
 
   // Utils
-  const workspaces = data?.data?.workspaces;
+  const workspaces = data?.data?.workspaces ?? [];
   const pagination = data?.data?.pagination;
+  const userWorkspaceIds = new Set(
+    (user?.workspaces ?? [])
+      .map((entry) => {
+        const workspaceId = entry?.workspaceId;
+        if (typeof workspaceId === "string") {
+          return workspaceId;
+        }
+
+        return workspaceId?._id ? String(workspaceId._id) : "";
+      })
+      .filter(Boolean),
+  );
 
   // Handlers
   const handleCreateWorkspace = () => {
@@ -83,7 +101,7 @@ const JoinWorkspace = () => {
       <InputGroup className="">
         <InputGroupInput
           placeholder="Search..."
-          value={search!}
+          value={search}
           onChange={(e) => handleSearchChange(e?.target?.value)}
         />
         <InputGroupAddon>
@@ -116,15 +134,12 @@ const JoinWorkspace = () => {
               image="https://res.cloudinary.com/dgiropjpp/image/upload/v1770288832/Real_Estate_and_Architecture___home_house_shelter_security_comfort_safety_2x_wniwm8.png"
             />
           ) : (
-            workspaces?.map((workspace, i) => {
-              const userWorkspaces = user?.workspaces?.map(
-                (d) => d?.workspaceId?._id,
-              );
-              const disabled = userWorkspaces?.includes(workspace?._id);
+            workspaces?.map((workspace) => {
+              const disabled = userWorkspaceIds.has(String(workspace?._id));
 
               return (
                 <WorkspaceCard
-                  key={i}
+                  key={workspace?._id}
                   onRequestJoin={(id) => {
                     setShowJoinModal(true);
                     setSelectedWorkspaceId(id!);

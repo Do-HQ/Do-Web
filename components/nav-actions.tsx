@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import {
   Bell,
   ChevronDown,
   Coins,
+  Gem,
   LogOut,
   Search,
   Settings2,
@@ -13,6 +14,7 @@ import {
 } from "lucide-react";
 
 import useWorkspaceBilling from "@/hooks/use-workspace-billing";
+import { cn } from "@/lib/utils";
 import useAuthStore from "@/stores/auth";
 import useWorkspaceStore from "@/stores/workspace";
 import { useAppStore } from "@/stores";
@@ -56,11 +58,19 @@ const getInitials = (firstName?: string, lastName?: string, email?: string) => {
 
 export function NavActions() {
   const router = useRouter();
+  const pathname = usePathname();
   const { user } = useAuthStore();
   const { workspaceId } = useWorkspaceStore();
   const workspaceBilling = useWorkspaceBilling();
-  const { setShowSpotlightSearch, setShowSettings, setActiveSetting } =
-    useAppStore();
+  const {
+    setShowSpotlightSearch,
+    setShowSettings,
+    setActiveSetting,
+    showScribeWidget,
+    setShowScribeWidget,
+  } = useAppStore();
+
+  const isScribePage = pathname === ROUTES.ASK_SQUIRCLE;
 
   const [showLogoutModal, setShowLogoutModal] = React.useState(false);
 
@@ -143,6 +153,23 @@ export function NavActions() {
             </Badge>
           ) : null}
         </Button>
+
+        {!isScribePage ? (
+          <Button
+            type="button"
+            size="sm"
+            variant={showScribeWidget ? "secondary" : "outline"}
+            className={cn(
+              "hidden h-9 items-center gap-1.5 px-2.5 text-[12px] sm:inline-flex",
+              showScribeWidget && "text-foreground",
+            )}
+            title="Toggle Scribe AI"
+            onClick={() => setShowScribeWidget(!showScribeWidget)}
+          >
+            <Gem className="size-3.5" />
+            <span>Scribe</span>
+          </Button>
+        ) : null}
 
         <WorkspaceNotificationsPopover />
 

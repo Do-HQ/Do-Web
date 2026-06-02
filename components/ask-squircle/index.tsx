@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
@@ -35,7 +35,11 @@ import {
   truncateText,
 } from "./utils";
 
-const AskSquirclePage = () => {
+type AskSquirclePageProps = {
+  embedded?: boolean;
+};
+
+const AskSquirclePage = ({ embedded = false }: AskSquirclePageProps) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -63,13 +67,34 @@ const AskSquirclePage = () => {
     useState<ComposerReference | null>(null);
   const [quotedReference, setQuotedReference] =
     useState<ComposerReference | null>(null);
+  const [embeddedActiveChatId, setEmbeddedActiveChatId] = useState("");
 
   const chatContainerRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const autoCreateStartedRef = useRef(false);
 
   const normalizedWorkspaceId = String(workspaceId || "").trim();
-  const activeChatId = String(searchParams?.get("chat") || "").trim();
+  const activeChatId = embedded
+    ? embeddedActiveChatId
+    : String(searchParams?.get("chat") || "").trim();
+  const setActiveChatId = useCallback(
+    (nextChatId: string) => {
+      const normalizedChatId = String(nextChatId || "").trim();
+      if (!normalizedChatId) {
+        return;
+      }
+
+      if (embedded) {
+        setEmbeddedActiveChatId(normalizedChatId);
+        return;
+      }
+
+      router.replace(
+        `${ROUTES.ASK_SQUIRCLE}?chat=${encodeURIComponent(normalizedChatId)}`,
+      );
+    },
+    [embedded, router],
+  );
 
   const chatsQuery = useWorkspaceAiChats(
     normalizedWorkspaceId,
@@ -330,7 +355,10 @@ const AskSquirclePage = () => {
 
   useEffect(() => {
     autoCreateStartedRef.current = false;
-  }, [normalizedWorkspaceId]);
+    if (embedded) {
+      setEmbeddedActiveChatId("");
+    }
+  }, [embedded, normalizedWorkspaceId]);
 
   useEffect(() => {
     const threadMode = chatDetailQuery.data?.data?.chat?.mode;
@@ -365,9 +393,7 @@ const AskSquirclePage = () => {
         return;
       }
 
-      router.replace(
-        `${ROUTES.ASK_SQUIRCLE}?chat=${encodeURIComponent(nextChatId)}`,
-      );
+      setActiveChatId(nextChatId);
       return;
     }
 
@@ -392,9 +418,7 @@ const AskSquirclePage = () => {
           return;
         }
 
-        router.replace(
-          `${ROUTES.ASK_SQUIRCLE}?chat=${encodeURIComponent(nextChatId)}`,
-        );
+        setActiveChatId(nextChatId);
       })
       .catch(() => {
         autoCreateStartedRef.current = false;
@@ -406,8 +430,8 @@ const AskSquirclePage = () => {
     createChatMutation,
     mode,
     normalizedWorkspaceId,
-    router,
     scope,
+    setActiveChatId,
   ]);
 
   useEffect(() => {

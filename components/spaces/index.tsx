@@ -21,6 +21,14 @@ import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -109,6 +117,12 @@ type ForwardMessageSource = Pick<
   SpaceMessage,
   "author" | "content" | "attachments"
 >;
+
+type PendingMessageDelete = {
+  id: string;
+  kind: "message" | "reply";
+  preview: string;
+};
 
 const formatChatTimestamp = (value?: string) => {
   if (!value) {
@@ -461,6 +475,8 @@ const SpacesPage = () => {
   const [isWorkspaceDetailsOpen, setIsWorkspaceDetailsOpen] = useState(false);
   const [isKeepUpOpen, setIsKeepUpOpen] = useState(false);
   const [isPinsSheetOpen, setIsPinsSheetOpen] = useState(false);
+  const [pendingMessageDelete, setPendingMessageDelete] =
+    useState<PendingMessageDelete | null>(null);
   const [keepUpPage, setKeepUpPage] = useState(1);
   const [keepUpSearch, setKeepUpSearch] = useState("");
   const [anchorMessageId, setAnchorMessageId] = useState<string | null>(null);
@@ -3121,6 +3137,44 @@ const SpacesPage = () => {
     }
   };
 
+  const getMessageDeletePreview = (
+    message?: Pick<SpaceMessage | ThreadReply, "content" | "attachments">,
+  ) => {
+    if (!message) {
+      return "This message will be removed from the conversation.";
+    }
+
+    const contentPreview = compactSpacesNotificationText(message.content, 96);
+    if (contentPreview) {
+      return contentPreview;
+    }
+
+    const attachmentsCount = message.attachments?.length || 0;
+    if (attachmentsCount > 0) {
+      return `${attachmentsCount} attachment${attachmentsCount === 1 ? "" : "s"}`;
+    }
+
+    return "This message will be removed from the conversation.";
+  };
+
+  const requestDeleteMessageFromChat = (messageId: string) => {
+    const targetMessage = activeMessages.find(
+      (message) => message.id === messageId,
+    );
+    if (
+      !targetMessage ||
+      String(targetMessage.author.id || "") !== String(currentUser.id || "")
+    ) {
+      return;
+    }
+
+    setPendingMessageDelete({
+      id: messageId,
+      kind: "message",
+      preview: getMessageDeletePreview(targetMessage),
+    });
+  };
+
   const deleteMessageFromChat = async (messageId: string) => {
     if (
       !resolvedWorkspaceId ||
@@ -3399,6 +3453,37 @@ const SpacesPage = () => {
     } catch {
       // handled by shared hook
     }
+  };
+
+  const requestDeleteThreadReply = (replyId: string) => {
+    const targetReply = activeThreadReplies.find((reply) => reply.id === replyId);
+    if (
+      !targetReply ||
+      String(targetReply.author.id || "") !== String(currentUser.id || "")
+    ) {
+      return;
+    }
+
+    setPendingMessageDelete({
+      id: replyId,
+      kind: "reply",
+      preview: getMessageDeletePreview(targetReply),
+    });
+  };
+
+  const confirmPendingMessageDelete = async () => {
+    const pendingDelete = pendingMessageDelete;
+    if (!pendingDelete || deleteMessageMutation.isPending) {
+      return;
+    }
+
+    if (pendingDelete.kind === "reply") {
+      await deleteThreadReply(pendingDelete.id);
+    } else {
+      await deleteMessageFromChat(pendingDelete.id);
+    }
+
+    setPendingMessageDelete(null);
   };
 
   const togglePinnedReply = (replyId: string) => {
@@ -3917,7 +4002,7 @@ const SpacesPage = () => {
               onTogglePinnedMessage={togglePinnedMessage}
               onForwardMessage={openForwardMessageDialog}
               onCreateTaskFromMessage={createTaskFromMessage}
-              onDeleteMessage={deleteMessageFromChat}
+              onDeleteMessage={requestDeleteMessageFromChat}
               onOpenJamFromMessage={openSharedJamFromMessage}
               onJoinCallFromMessage={handleJoinCallFromMessage}
               onComposerChange={setComposer}
@@ -4007,7 +4092,7 @@ const SpacesPage = () => {
                   onTogglePinnedReply={togglePinnedReply}
                   onForwardReply={openForwardMessageDialog}
                   onCreateTaskFromReply={createTaskFromMessage}
-                  onDeleteThreadReply={deleteThreadReply}
+                  onDeleteThreadReply={requestDeleteThreadReply}
                   onOpenJamFromMessage={openSharedJamFromMessage}
                   onThreadComposerChange={setThreadComposer}
                   onSendThreadReply={handleSendThreadReply}
@@ -4149,7 +4234,7 @@ const SpacesPage = () => {
             onTogglePinnedReply={togglePinnedReply}
             onForwardReply={openForwardMessageDialog}
             onCreateTaskFromReply={createTaskFromMessage}
-            onDeleteThreadReply={deleteThreadReply}
+            onDeleteThreadReply={requestDeleteThreadReply}
             onOpenJamFromMessage={openSharedJamFromMessage}
             onThreadComposerChange={setThreadComposer}
             onSendThreadReply={handleSendThreadReply}
@@ -4385,6 +4470,50 @@ const SpacesPage = () => {
           </div>
         </SheetContent>
       </Sheet>
+
+      <Dialog
+        open={Boolean(pendingMessageDelete)}
+        onOpenChange={(open) => {
+          if (!open && !deleteMessageMutation.isPending) {
+            setPendingMessageDelete(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete message?</DialogTitle>
+            <DialogDescription>
+              This removes the message from this conversation. This action
+              cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {pendingMessageDelete?.preview ? (
+            <div className="rounded-md border border-border/55 bg-muted/20 px-3 py-2 text-[12px] leading-5 text-muted-foreground">
+              {pendingMessageDelete.preview}
+            </div>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setPendingMessageDelete(null)}
+              disabled={deleteMessageMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              onClick={confirmPendingMessageDelete}
+              disabled={deleteMessageMutation.isPending}
+            >
+              {deleteMessageMutation.isPending ? "Deleting..." : "Delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <CreateChatDialog
         open={isCreateChatOpen}

@@ -15,8 +15,8 @@ import RouteWalkthrough from "@/components/walkthrough/route-walkthrough";
 import useWorkspaceStore from "@/stores/workspace";
 import { recordRecentVisit } from "@/lib/helpers/recent-visits";
 import UserPreferencesSync from "@/components/preferences/user-preferences-sync";
-import AIAssistantOverlay from "@/components/modals/ai-assistant-overlay";
 import NetworkConnectivityBanner from "@/components/layout/network-connectivity-banner";
+import ScribeWidget from "@/components/ask-squircle/scribe-widget";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -168,7 +168,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <TeamCallNotificationListener />
           <RouteWalkthrough />
           <CommandSearch />
-          <AIAssistantOverlay />
+          <ScribeWidget />
         </div>
       </RequireAuth>
     );
@@ -199,7 +199,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <RouteWalkthrough />
           </div>
           <CommandSearch />
-          <AIAssistantOverlay />
+          <ScribeWidget />
         </SidebarInset>
       </SidebarProvider>
     </RequireAuth>
