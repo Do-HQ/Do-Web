@@ -74,11 +74,10 @@ export function NavActions() {
 
   const [showLogoutModal, setShowLogoutModal] = React.useState(false);
 
-  const userName = `${String(user?.firstName || "").trim()} ${String(
-    user?.lastName || "",
-  )
-    .trim()}`
-    .trim() || "My profile";
+  const userName =
+    `${String(user?.firstName || "").trim()} ${String(
+      user?.lastName || "",
+    ).trim()}`.trim() || "My profile";
   const userEmail = String(user?.email || "").trim();
   const userRole = "Workspace member";
   const avatarUrl = String(user?.profilePhoto?.url || "").trim();
@@ -145,7 +144,9 @@ export function NavActions() {
         >
           <Coins className="size-3.5" />
           <span>
-            {billingSummaryQuery.isLoading ? "..." : tokenBalance.toLocaleString()}
+            {billingSummaryQuery.isLoading
+              ? "..."
+              : tokenBalance.toLocaleString()}
           </span>
           {isLowTokenBalance ? (
             <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
@@ -158,16 +159,15 @@ export function NavActions() {
           <Button
             type="button"
             size="sm"
-            variant={showScribeWidget ? "secondary" : "outline"}
+            variant={showScribeWidget ? "secondary" : "ghost"}
             className={cn(
-              "hidden h-9 items-center gap-1.5 px-2.5 text-[12px] sm:inline-flex",
+              "hidden h-9 items-center gap-1.5 px-2.5 text-[12px] sm:inline-flex bg-ring/20",
               showScribeWidget && "text-foreground",
             )}
             title="Toggle Scribe AI"
             onClick={() => setShowScribeWidget(!showScribeWidget)}
           >
-            <Gem className="size-3.5" />
-            <span>Scribe</span>
+            <Gem className="size-3.5 text-chart-5" />
           </Button>
         ) : null}
 
@@ -180,9 +180,7 @@ export function NavActions() {
               variant="ghost"
               className="h-9 gap-1.5 rounded-md px-1.5"
             >
-              <Avatar
-                size="sm"
-              >
+              <Avatar size="sm">
                 {avatarUrl ? (
                   <AvatarImage src={avatarUrl} alt={userName} />
                 ) : null}
@@ -195,9 +193,7 @@ export function NavActions() {
           <DropdownMenuContent align="end" className="w-64 p-1.5">
             <DropdownMenuLabel className="px-2 py-1.5">
               <div className="flex items-center gap-2.5">
-                <Avatar
-                  size="default"
-                >
+                <Avatar size="default">
                   {avatarUrl ? (
                     <AvatarImage src={avatarUrl} alt={userName} />
                   ) : null}

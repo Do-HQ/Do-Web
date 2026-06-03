@@ -239,10 +239,17 @@ const SettingsProfilePreferences = () => {
               <SelectValue placeholder="Select start page" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="last-visited">Last visited</SelectItem>
               <SelectItem value="home">Dashboard</SelectItem>
               <SelectItem value="my-tasks">My tasks</SelectItem>
-              <SelectItem value="inbox">Spaces inbox</SelectItem>
-              <SelectItem value="last-visited">Last visited</SelectItem>
+              <SelectItem value="inbox">Spaces</SelectItem>
+              <SelectItem value="projects">Projects</SelectItem>
+              <SelectItem value="jams">Jams</SelectItem>
+              <SelectItem value="docs">Docs</SelectItem>
+              <SelectItem value="calendar">Calendar</SelectItem>
+              <SelectItem value="reports">Reports</SelectItem>
+              <SelectItem value="standup">Standup</SelectItem>
+              <SelectItem value="scribe">Scribe</SelectItem>
             </SelectContent>
           </Select>
         </Field>

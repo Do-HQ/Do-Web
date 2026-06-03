@@ -307,7 +307,7 @@ const WorkspaceReportSchedulesPage = () => {
           {schedules.map((schedule) => (
             <Card key={schedule.id} className="border-border/70 w-full">
               <CardContent className="px-3 py-3 sm:px-4">
-                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 flex-wrap items-center gap-2">
                       <CircleDot

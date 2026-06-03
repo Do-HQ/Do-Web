@@ -722,8 +722,8 @@ export default function WorkspaceSupport({
         className={cn(
           "grid gap-4",
           isAdminView
-            ? "xl:grid-cols-[minmax(0,1fr)]"
-            : "xl:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]",
+            ? "lg:grid-cols-[minmax(0,1fr)]"
+            : "lg:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]",
         )}
       >
         {!isAdminView ? (

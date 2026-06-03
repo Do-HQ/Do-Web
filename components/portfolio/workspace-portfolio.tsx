@@ -1199,7 +1199,7 @@ const WorkspacePortfolio = () => {
             </Empty>
           ) : (
             <>
-              <div className="grid gap-3 xl:grid-cols-[1.45fr_1fr]">
+              <div className="grid gap-3 lg:grid-cols-[1.45fr_1fr]">
                 <Card className="border-border/40">
                   <CardHeader className="pb-2">
                     <div className="flex items-center gap-1.5">

@@ -60,7 +60,7 @@ export function ProjectDosCalendar({
           </Badge>
         </div>
 
-        <div className="grid gap-3 xl:grid-cols-[20.5rem_minmax(0,1fr)] xl:items-start">
+        <div className="grid gap-3 lg:grid-cols-[20.5rem_minmax(0,1fr)] xl:items-start">
           <div className="mx-auto w-full max-w-[20.5rem] xl:mx-0">
             <div className="rounded-xl border border-border/20 bg-background/90 p-3 shadow-xs">
               <Calendar

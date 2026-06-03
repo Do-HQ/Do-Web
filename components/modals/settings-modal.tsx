@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import {
   Dialog,
   DialogContent,
@@ -60,6 +61,17 @@ const profile = {
 const SettingsModal = () => {
   // Store
   const { showSettings, setShowSettings, activeSetting } = useAppStore();
+  const scrollAreaWrapperRef = React.useRef<HTMLDivElement | null>(null);
+
+  // Scroll back to top whenever the active settings section changes.
+  React.useEffect(() => {
+    if (!scrollAreaWrapperRef.current) return;
+    const viewport = scrollAreaWrapperRef.current.querySelector<HTMLElement>(
+      '[data-slot="scroll-area-viewport"]',
+    );
+    viewport?.scrollTo({ top: 0, behavior: "instant" });
+  }, [activeSetting]);
+
   const activeSettingTourId = `settings-section-${String(activeSetting || "")
     .trim()
     .toLowerCase()
@@ -116,7 +128,8 @@ const SettingsModal = () => {
                 <H2 className="font-semibold capitalize">{activeSetting}</H2>
               </div>
             </header>
-            <ScrollArea className="overflow-auto">
+            <div ref={scrollAreaWrapperRef} className="min-h-0 flex-1">
+            <ScrollArea className="h-full overflow-auto">
               <div
                 data-tour="settings-modal-content"
                 className="flex flex-1 flex-col gap-4 overflow-y-auto px-8 pt-4 pb-12"
@@ -129,6 +142,7 @@ const SettingsModal = () => {
                 </div>
               </div>
             </ScrollArea>
+            </div>
           </main>
         </SidebarProvider>
       </DialogContent>

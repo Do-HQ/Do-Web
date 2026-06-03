@@ -86,7 +86,7 @@ export function ProjectWorkflowDetailPanel({
 
   return (
     <section className="rounded-xl border border-border/35 bg-card/70 p-4 shadow-xs">
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] xl:items-start">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] xl:items-start">
         <div className="space-y-4">
           <div className="space-y-2 border-b border-border/35 pb-4">
             <div className="flex flex-wrap items-center gap-2">

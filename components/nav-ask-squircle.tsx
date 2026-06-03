@@ -156,59 +156,56 @@ export function NavAskSquircle() {
 
     const remainingChats = chats.filter((chat) => chat.chatId !== normalizedChatId);
     const nextChatId = remainingChats[0]?.chatId || "";
-    const request = deleteChatMutation.mutateAsync({
-      workspaceId: normalizedWorkspaceId,
-      chatId: normalizedChatId,
+
+    // Optimistic: remove chat from the list immediately so the UI feels fast.
+    queryClient.setQueriesData(
+      { queryKey: ["workspace-ai-chats", normalizedWorkspaceId] },
+      (current: unknown) => {
+        if (!current || typeof current !== "object") return current;
+        const response = current as {
+          data?: { chats?: Array<Record<string, unknown>> };
+        };
+        const existingChats = Array.isArray(response?.data?.chats)
+          ? response.data.chats
+          : null;
+        if (!existingChats) return current;
+        return {
+          ...(current as Record<string, unknown>),
+          data: {
+            ...(response.data || {}),
+            chats: existingChats.filter(
+              (entry) => String(entry?.chatId || "").trim() !== normalizedChatId,
+            ),
+          },
+        };
+      },
+    );
+
+    queryClient.removeQueries({
+      queryKey: ["workspace-ai-chat-detail", normalizedWorkspaceId, normalizedChatId],
     });
 
+    const toastId = toast.loading("Deleting chat...");
+
     try {
-      queryClient.setQueriesData(
-        {
-          queryKey: ["workspace-ai-chats", normalizedWorkspaceId],
-        },
-        (current: unknown) => {
-          if (!current || typeof current !== "object") {
-            return current;
-          }
-
-          const response = current as {
-            data?: { chats?: Array<Record<string, unknown>> };
-          };
-          const existingChats = Array.isArray(response?.data?.chats)
-            ? response.data.chats
-            : null;
-          if (!existingChats) {
-            return current;
-          }
-
-          return {
-            ...(current as Record<string, unknown>),
-            data: {
-              ...(response.data || {}),
-              chats: existingChats.filter(
-                (entry) => String(entry?.chatId || "").trim() !== normalizedChatId,
-              ),
-            },
-          };
-        },
-      );
-
-      queryClient.removeQueries({
-        queryKey: ["workspace-ai-chat-detail", normalizedWorkspaceId, normalizedChatId],
+      // Await the actual network request before invalidating — toast.promise()
+      // returns the toast ID (a string), not a promise, so it cannot be awaited
+      // to know when the delete is done. Refetching before the server confirms
+      // the delete returns stale data and the chat reappears.
+      const result = await deleteChatMutation.mutateAsync({
+        workspaceId: normalizedWorkspaceId,
+        chatId: normalizedChatId,
       });
 
-      await toast.promise(request, {
-        loading: "Deleting chat...",
-        success: (response) =>
-          response?.data?.message || "Chat deleted successfully.",
-        error: "We could not delete this chat.",
+      toast.success(result?.data?.message || "Chat deleted successfully.", {
+        id: toastId,
       });
 
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: ["workspace-ai-chats", normalizedWorkspaceId],
-        }),
-      ]);
+      await queryClient.invalidateQueries({
+        queryKey: ["workspace-ai-chats", normalizedWorkspaceId],
+        exact: false,
+        refetchType: "all",
+      });
 
       if (activeChatId === normalizedChatId && pathname.startsWith(ROUTES.ASK_SQUIRCLE)) {
         if (nextChatId) {
@@ -221,8 +218,13 @@ export function NavAskSquircle() {
         router.replace(ROUTES.ASK_SQUIRCLE);
       }
     } catch {
+      toast.error("We could not delete this chat.", { id: toastId });
+
+      // Roll back optimistic update if the delete failed.
       await queryClient.invalidateQueries({
         queryKey: ["workspace-ai-chats", normalizedWorkspaceId],
+        exact: false,
+        refetchType: "all",
       });
     }
   };

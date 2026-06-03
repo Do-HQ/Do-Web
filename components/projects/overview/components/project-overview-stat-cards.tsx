@@ -87,7 +87,7 @@ export function ProjectOverviewStatCards({
 
   return (
     <section className="overflow-hidden rounded-xl border border-border/35 bg-card/70 shadow-xs">
-      <div className="grid gap-0 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-0 sm:grid-cols-2 lg:grid-cols-4">
         <div className="px-3 py-3 md:px-4">
           <ProjectOverviewProgressCard
             progress={progress}

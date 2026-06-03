@@ -3820,15 +3820,15 @@ const SpacesPage = () => {
                   data-tour="spaces-keepup"
                   size="sm"
                   variant="ghost"
-                  className="h-8 px-2.5 text-[13px]"
+                  className="h-8 px-2 sm:px-2.5 text-[13px]"
                   onClick={() => setIsKeepUpOpen(true)}
                 >
                   <Bell className="size-4" />
-                  Keep-up
+                  <span className="hidden sm:inline">Keep-up</span>
                   {keepUpCount > 0 && (
                     <Badge
                       variant="secondary"
-                      className="ml-1 rounded-full px-1.5 py-0 text-[11px]"
+                      className="ml-0.5 rounded-full px-1.5 py-0 text-[11px]"
                     >
                       {keepUpCount}
                     </Badge>
@@ -3838,16 +3838,16 @@ const SpacesPage = () => {
                 <Button
                   size="sm"
                   variant="ghost"
-                  className="h-8 px-2.5 text-[13px]"
+                  className="h-8 px-2 sm:px-2.5 text-[13px]"
                   onClick={() => setIsPinsSheetOpen(true)}
                   disabled={!activeRoom}
                 >
                   <Pin className="size-4" />
-                  Pins
+                  <span className="hidden sm:inline">Pins</span>
                   {pinnedMessagesCount > 0 && (
                     <Badge
                       variant="secondary"
-                      className="ml-1 rounded-full px-1.5 py-0 text-[11px]"
+                      className="ml-0.5 rounded-full px-1.5 py-0 text-[11px]"
                     >
                       {pinnedMessagesCount}
                     </Badge>
@@ -3859,16 +3859,18 @@ const SpacesPage = () => {
                     size="sm"
                     variant={hasOngoingCallForActiveRoom ? "default" : "ghost"}
                     className={cn(
-                      "h-8 px-2.5 text-[13px]",
+                      "h-8 px-2 sm:px-2.5 text-[13px]",
                       hasOngoingCallForActiveRoom &&
                         "bg-orange-500/90 text-white hover:bg-orange-500",
                     )}
                     onClick={() => handleStartCall("voice")}
                   >
                     <Phone className="size-4" />
-                    {hasOngoingCallForActiveRoom || isActiveCallForRoom
-                      ? "Join Call"
-                      : "Call"}
+                    <span className="hidden sm:inline">
+                      {hasOngoingCallForActiveRoom || isActiveCallForRoom
+                        ? "Join Call"
+                        : "Call"}
+                    </span>
                   </Button>
                 ) : (
                   <Button
@@ -3877,7 +3879,7 @@ const SpacesPage = () => {
                       hasOngoingCallForActiveRoom ? "default" : "outline"
                     }
                     className={cn(
-                      "h-8 px-2.5 text-[13px]",
+                      "h-8 px-2 sm:px-2.5 text-[13px]",
                       hasOngoingCallForActiveRoom &&
                         "bg-orange-500/90 text-white hover:bg-orange-500",
                     )}
@@ -3889,7 +3891,9 @@ const SpacesPage = () => {
                     disabled={!activeRoom}
                   >
                     <Video className="size-4" />
-                    {hasOngoingCallForActiveRoom ? "Join Call" : "Team Call"}
+                    <span className="hidden sm:inline">
+                      {hasOngoingCallForActiveRoom ? "Join Call" : "Team Call"}
+                    </span>
                   </Button>
                 )}
               </div>

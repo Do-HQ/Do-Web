@@ -1,5 +1,6 @@
 import type React from "react";
 import {
+  ArrowBigUp,
   CornerDownRight,
   FileText,
   Paperclip,
@@ -306,11 +307,13 @@ const PromptComposer = ({
           {estimatedTokenCost > 0 ? (
             <p className="text-muted-foreground hidden items-center gap-1 text-[11px] lg:flex">
               Est. {estimatedTokenCost.toLocaleString()} credits
-              {tokenBalance > 0 ? ` · ${tokenBalance.toLocaleString()} left` : ""}
+              {tokenBalance > 0
+                ? ` · ${tokenBalance.toLocaleString()} left`
+                : ""}
             </p>
           ) : null}
           <p className="text-muted-foreground hidden items-center gap-1 text-[11px] lg:flex">
-            Shift + Enter for newline
+            <ArrowBigUp size={10} /> + <CornerDownRight size={10} /> for newline
           </p>
           <Button
             size="sm"

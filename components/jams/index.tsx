@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Archive,
@@ -58,7 +59,12 @@ import {
 } from "@/types/jam";
 import { ROUTES } from "@/utils/constants";
 import { cn } from "@/lib/utils";
-import JamCanvas from "@/components/jams/jam-canvas";
+// Dynamic import prevents @excalidraw/excalidraw (ESM, uses browser APIs at
+// module load time) from being evaluated on the server during SSR.
+const JamCanvas = dynamic(() => import("@/components/jams/jam-canvas"), {
+  ssr: false,
+  loading: () => null,
+});
 import {
   Empty,
   EmptyDescription,
@@ -2022,7 +2028,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
               </Button>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              <div className="relative w-130 ">
+              <div className="relative w-full sm:w-80 lg:w-130">
                 <Search className="text-muted-foreground pointer-events-none absolute top-2.5 left-2.5 size-3.5" />
                 <Input
                   value={listSearch}

@@ -2,11 +2,11 @@ import type React from "react";
 import {
   FileText,
   Shapes,
-  Loader2,
   PanelRightClose,
   Plus,
   Pin,
   X,
+  Loader,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -17,7 +17,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type {
   ChatAttachment,
   MentionTokenMeta,
@@ -147,7 +151,9 @@ const ThreadPanel = ({
       .join(" ");
 
   const formatMentionFallbackLabel = (token: string) => {
-    const normalizedToken = String(token || "").trim().toLowerCase();
+    const normalizedToken = String(token || "")
+      .trim()
+      .toLowerCase();
     const base = normalizedToken.replace(/[_-]+/g, " ").replace(/\./g, " ");
 
     if (normalizedToken.startsWith("team-")) {
@@ -212,9 +218,7 @@ const ThreadPanel = ({
       const symbol = String(match[1] || "@");
       const token = String(match[2] || "").toLowerCase();
       const mentionMeta =
-        symbol === "#"
-          ? reportMetaByToken[token]
-          : mentionMetaByToken[token];
+        symbol === "#" ? reportMetaByToken[token] : mentionMetaByToken[token];
 
       if (mentionStart > lastIndex) {
         chunks.push(input.slice(lastIndex, mentionStart));
@@ -260,7 +264,10 @@ const ThreadPanel = ({
             mentionMeta.kind,
           );
           chunks.push(
-            <Tooltip key={`mention-${token}-${mentionStart}`} delayDuration={100}>
+            <Tooltip
+              key={`mention-${token}-${mentionStart}`}
+              delayDuration={100}
+            >
               <TooltipTrigger asChild>
                 <button
                   type="button"
@@ -331,7 +338,9 @@ const ThreadPanel = ({
                       size="sm"
                       variant="outline"
                       className="h-7 px-2 text-[11px]"
-                      onClick={() => onOpenMentionUser(mentionMeta.user?.id || "")}
+                      onClick={() =>
+                        onOpenMentionUser(mentionMeta.user?.id || "")
+                      }
                     >
                       Message
                     </Button>
@@ -357,7 +366,10 @@ const ThreadPanel = ({
         } else {
           if (mentionMeta.kind === "report" && mentionMeta.report?.id) {
             chunks.push(
-              <Tooltip key={`mention-${token}-${mentionStart}`} delayDuration={100}>
+              <Tooltip
+                key={`mention-${token}-${mentionStart}`}
+                delayDuration={100}
+              >
                 <TooltipTrigger asChild>
                   <button
                     type="button"
@@ -568,7 +580,9 @@ const ThreadPanel = ({
           */}
           <div className="shrink-0 border-b border-border/35 px-2 py-2 sm:px-3 sm:py-2.5">
             <div className="rounded-lg border border-border/35 bg-card/70 px-2.5 py-2.5">
-              <p className="text-muted-foreground text-[11px]">From main chat</p>
+              <p className="text-muted-foreground text-[11px]">
+                From main chat
+              </p>
               {selectedThreadJamShareCard ? (
                 selectedThreadJamShareCard
               ) : (
@@ -578,7 +592,9 @@ const ThreadPanel = ({
                   renderInlineContent={renderContentWithMentions}
                 />
               )}
-              <AttachmentPreview attachments={selectedThreadMessage.attachments} />
+              <AttachmentPreview
+                attachments={selectedThreadMessage.attachments}
+              />
             </div>
           </div>
 
@@ -588,7 +604,7 @@ const ThreadPanel = ({
           >
             {isThreadRepliesLoading ? (
               <div className="text-muted-foreground flex min-h-[9rem] flex-col items-center justify-center gap-2 text-[12px]">
-                <Loader2 className="size-4 animate-spin" />
+                <Loader className="size-4 animate-spin" />
                 Loading thread...
               </div>
             ) : activeThreadReplies.length === 0 ? (
@@ -602,7 +618,8 @@ const ThreadPanel = ({
                   String(reply.author.id || "").trim() ===
                   String(currentUserId || "").trim();
                 const jamShareCard = renderJamShareCard(reply.content);
-                const authorInfo = authorInfoById[String(reply.author.id || "")];
+                const authorInfo =
+                  authorInfoById[String(reply.author.id || "")];
                 const replyAvatarUrl =
                   reply.author.avatarUrl ||
                   authorInfo?.avatarUrl ||
@@ -632,7 +649,9 @@ const ThreadPanel = ({
                       <ChatItemActionsMenu
                         isPinned={isPinned}
                         onEdit={
-                          isOwnReply ? () => onStartEditingReply(reply) : undefined
+                          isOwnReply
+                            ? () => onStartEditingReply(reply)
+                            : undefined
                         }
                         onCopy={() => onCopyText(reply.content)}
                         onTogglePin={() => onTogglePinnedReply(reply.id)}
@@ -655,7 +674,9 @@ const ThreadPanel = ({
                           email: authorInfo?.email,
                           role:
                             authorInfo?.role ||
-                            (reply.author.role === "agent" ? "Agent" : "Member"),
+                            (reply.author.role === "agent"
+                              ? "Agent"
+                              : "Member"),
                           team: authorInfo?.team,
                           status: reply.sentAt,
                         }}

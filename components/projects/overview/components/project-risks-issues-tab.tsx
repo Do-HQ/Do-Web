@@ -926,7 +926,7 @@ export function ProjectRisksIssuesTab({
           data-tour="project-risks-controls"
           className="flex flex-col gap-3 border-b border-border/20 px-3 py-3 md:px-4"
         >
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="text-[14px] font-semibold md:text-[15px]">
                 Risks & issues

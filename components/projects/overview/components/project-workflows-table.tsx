@@ -399,7 +399,7 @@ export function ProjectWorkflowsTable({
   return (
     <section className="overflow-hidden rounded-xl border border-border/35 bg-card/70 shadow-xs">
       <div className="flex flex-col gap-3 border-b border-border/35 px-3 py-3 md:px-4">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-1">
             <div className="text-[14px] font-semibold md:text-[15px]">
               Workflow hierarchy

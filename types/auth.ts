@@ -28,7 +28,14 @@ export type UserStartPagePreference =
   | "home"
   | "my-tasks"
   | "inbox"
-  | "last-visited";
+  | "last-visited"
+  | "projects"
+  | "jams"
+  | "docs"
+  | "calendar"
+  | "reports"
+  | "standup"
+  | "scribe";
 
 export interface UserPreferences {
   appearance: {

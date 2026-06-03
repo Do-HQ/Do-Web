@@ -337,7 +337,7 @@ export function ProjectDosTab({
         data-tour="project-dos-controls"
         className="rounded-xl border border-border/35 bg-card/70 p-3 shadow-xs"
       >
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="space-y-2">
             <div>
               <div className="text-[14px] font-semibold md:text-[15px]">

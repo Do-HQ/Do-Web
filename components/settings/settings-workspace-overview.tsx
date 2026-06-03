@@ -453,13 +453,16 @@ const SettingsWorkspaceOverview = () => {
           </FieldDescription>
           <FieldContent className="flex flex-row items-center gap-2">
             <P className="font-medium text-base">Workspace ID</P>
-            <P className="text-muted-foreground ml-auto text-xs font-medium">
-              {workspace?._id}
+            <P className="text-muted-foreground ml-auto font-mono text-xs font-medium tracking-wide">
+              {workspace?._id
+                ? workspace._id.replace(/(.{8})(.{8})(.{8})/g, "$1-$2-$3")
+                : "—"}
             </P>
 
             <Button
               size="sm"
               variant="ghost"
+              title="Copy workspace ID"
               onClick={(e) => {
                 e.preventDefault();
                 copy(workspace?._id as string);

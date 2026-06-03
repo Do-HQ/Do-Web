@@ -6,7 +6,7 @@ import {
   Gem,
   Star,
   ChevronRight,
-  Loader2,
+  Loader,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -215,7 +215,7 @@ const ChatThread = ({
                           className="group rounded-md border border-border/60 bg-muted/20 px-2.5 py-2"
                         >
                           <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-foreground marker:content-none">
-                            <Loader2
+                            <Loader
                               className={cn(
                                 "size-3",
                                 isCurrent ? "animate-spin" : "opacity-60",

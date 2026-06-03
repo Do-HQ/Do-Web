@@ -1137,7 +1137,7 @@ const UserDashboard = () => {
         )}
       </DashboardSection>
 
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_18.75rem]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_18.75rem]">
         <div className="space-y-4">
           <DashboardSection
             tourId="dashboard-focus"
@@ -1279,7 +1279,7 @@ const UserDashboard = () => {
             )}
           </DashboardSection>
 
-          <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <DashboardSection
               tourId="dashboard-keepup"
               title="Keep up"
@@ -1497,7 +1497,7 @@ const UserDashboard = () => {
           </div>
         </div>
 
-        <div className="space-y-4 xl:sticky xl:top-[4.25rem] xl:self-start">
+        <div className="space-y-4 lg:sticky lg:top-17 lg:self-start">
           <DashboardSection
             title="Today"
             description="Fast glance on what needs attention."

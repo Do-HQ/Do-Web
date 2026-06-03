@@ -138,6 +138,39 @@ body {
   }
 }
 
+/* Collapsible slide-open / slide-closed using Radix's height CSS variable */
+@keyframes collapsible-open {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+}
+
+@keyframes collapsible-close {
+  from {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+
+[data-slot="collapsible-content"][data-state="open"] {
+  animation: collapsible-open 180ms cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+[data-slot="collapsible-content"][data-state="closed"] {
+  animation: collapsible-close 140ms cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
 @keyframes ask-typing-dot {
   0%,
   80%,

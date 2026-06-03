@@ -60,7 +60,7 @@ const ScribeWidget = () => {
         role="complementary"
         aria-label="Scribe AI assistant"
         className={cn(
-          "fixed inset-y-3 right-3 z-60 flex w-[min(92vw,42rem)] flex-col overflow-hidden rounded-2xl border border-border/50 bg-background shadow-2xl shadow-black/10 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
+          "fixed inset-y-3 right-3 z-60 flex w-[min(92vw,32rem)] flex-col overflow-hidden rounded-2xl border border-border/50 bg-background shadow-2xl shadow-black/10 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
           showScribeWidget
             ? "translate-x-0 opacity-100"
             : "pointer-events-none translate-x-[calc(100%+24px)] opacity-0",
@@ -109,9 +109,10 @@ const ScribeWidget = () => {
           </div>
         </div>
 
-        {/* Panel body */}
+        {/* Panel body — only mount when visible to avoid running
+            AI/billing hooks on every page regardless of whether Scribe is open */}
         <div className="min-h-0 flex-1 overflow-hidden bg-background">
-          <AskSquirclePage embedded />
+          {showScribeWidget ? <AskSquirclePage embedded /> : null}
         </div>
       </div>
     </>

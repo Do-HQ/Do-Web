@@ -1739,7 +1739,7 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
           </div>
 
           {!compact ? (
-            <div className="text-muted-foreground grid gap-1 text-[10.5px] sm:grid-cols-2 xl:grid-cols-4">
+            <div className="text-muted-foreground grid gap-1 text-[10.5px] sm:grid-cols-2 lg:grid-cols-4">
               <div className="truncate">
                 Edited{" "}
                 {formatRelativeDateLabel(doc.lastEditedAt || doc.updatedAt)}
@@ -2023,7 +2023,7 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
                   <LoaderComponent />
                 ) : docsForScope.length ? (
                   layoutMode === "grid" ? (
-                    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                       {docsForScope.map((doc) => renderDocRow(doc))}
                     </div>
                   ) : (

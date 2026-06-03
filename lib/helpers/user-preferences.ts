@@ -12,19 +12,28 @@ export const DEFAULT_USER_PREFERENCES: UserPreferences = {
   },
 };
 
+const VALID_START_PAGES: UserStartPagePreference[] = [
+  "home",
+  "my-tasks",
+  "inbox",
+  "last-visited",
+  "projects",
+  "jams",
+  "docs",
+  "calendar",
+  "reports",
+  "standup",
+  "scribe",
+];
+
 const resolveStartPage = (
   value?: string | null,
 ): UserStartPagePreference => {
   const normalized = String(value || "")
     .trim()
-    .toLowerCase();
+    .toLowerCase() as UserStartPagePreference;
 
-  if (
-    normalized === "home" ||
-    normalized === "my-tasks" ||
-    normalized === "inbox" ||
-    normalized === "last-visited"
-  ) {
+  if (VALID_START_PAGES.includes(normalized)) {
     return normalized;
   }
 
@@ -73,6 +82,14 @@ export const resolveUserStartRoute = ({
   if (startPage === "inbox") {
     return ROUTES.SPACES;
   }
+
+  if (startPage === "projects") return ROUTES.PROJECTS;
+  if (startPage === "jams") return ROUTES.JAMS;
+  if (startPage === "docs") return ROUTES.DOCS;
+  if (startPage === "calendar") return ROUTES.CALENDAR;
+  if (startPage === "reports") return ROUTES.REPORTS;
+  if (startPage === "standup") return ROUTES.STANDUP;
+  if (startPage === "scribe") return ROUTES.ASK_SQUIRCLE;
 
   if (startPage === "last-visited") {
     const resolvedWorkspaceId =
