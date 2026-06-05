@@ -313,7 +313,8 @@ const PromptComposer = ({
             </p>
           ) : null}
           <p className="text-muted-foreground hidden items-center gap-1 text-[11px] lg:flex">
-            <ArrowBigUp size={10} /> + <CornerDownRight size={10} /> for newline
+            <ArrowBigUp size={10} /> + <CornerDownRight size={10} /> for new
+            line
           </p>
           <Button
             size="sm"
