@@ -62,6 +62,7 @@ const refreshAccessToken = async () => {
   const response = await axiosInstance.post<{
     token: string;
     refreshToken?: string;
+    csrfToken?: string;
   }>(REFRESH_ENDPOINT, refreshToken ? { refreshToken } : {});
 
   const token = response?.data?.token;

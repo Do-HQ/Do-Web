@@ -1,7 +1,8 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { ChevronRight, ListTodo, MoreHorizontal, Star, StarOff } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ChevronRight, ListTodo, MessageSquare, MoreHorizontal, Star, StarOff } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +29,7 @@ import {
 } from "@/components/ui/empty";
 import { cn } from "@/lib/utils";
 import { useFavoritesStore } from "@/stores";
+import { ROUTES } from "@/utils/constants";
 
 import {
   FlattenedProjectTask,
@@ -86,6 +88,7 @@ export function ProjectDosTable({
   onTaskAction,
   onSubtaskAction,
 }: ProjectDosTableProps) {
+  const router = useRouter();
   const favorites = useFavoritesStore((state) => state.favorites);
   const toggleFavorite = useFavoritesStore((state) => state.toggleFavorite);
   const [expandedTaskIds, setExpandedTaskIds] = useState<string[]>([]);
@@ -266,6 +269,16 @@ export function ProjectDosTable({
                               Add subtask
                             </DropdownMenuItem>
                           ) : null}
+                          <DropdownMenuItem
+                            onClick={() =>
+                              router.push(
+                                `${ROUTES.SPACES}?room=${encodeURIComponent(`task-${projectId}-${task.id}`)}`,
+                              )
+                            }
+                          >
+                            <MessageSquare />
+                            Open space
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             variant="destructive"
@@ -380,6 +393,16 @@ export function ProjectDosTable({
                                       Edit subtask
                                     </DropdownMenuItem>
                                   ) : null}
+                                  <DropdownMenuItem
+                                    onClick={() =>
+                                      router.push(
+                                        `${ROUTES.SPACES}?room=${encodeURIComponent(`task-${projectId}-${task.id}`)}`,
+                                      )
+                                    }
+                                  >
+                                    <MessageSquare />
+                                    Open space
+                                  </DropdownMenuItem>
                                   {onSubtaskAction ? (
                                     <>
                                       <DropdownMenuSeparator />

@@ -4,6 +4,8 @@ import "./globals.css";
 import "@excalidraw/excalidraw/index.css";
 import ReactQueryContextProvider from "@/lib/context/queryClient";
 import { ThemeProvider } from "next-themes";
+import { PrivacyConsentBanner } from "@/components/shared/privacy-consent-banner";
+import { PwaRegister } from "@/components/shared/pwa-register";
 
 const DEFAULT_PREVIEW_IMAGE =
   "https://res.cloudinary.com/dgiropjpp/image/upload/v1774470169/Logo_maker_project-2_1_2_wh3vxm.png";
@@ -84,6 +86,15 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
+  appleWebApp: {
+    capable: true,
+    title: "Squircle",
+    statusBarStyle: "default",
+  },
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
   // verification: {
   //   google: "your-google-verification-code",
   // },
@@ -114,7 +125,6 @@ export default function RootLayout({
           sizes="16x16"
           href="/images/favicon-16x16.png"
         />
-        <link rel="manifest" href="/images/site.webmanifest"></link>
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
@@ -122,6 +132,8 @@ export default function RootLayout({
         <ReactQueryContextProvider>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
             {children}
+            <PrivacyConsentBanner />
+            <PwaRegister />
           </ThemeProvider>
         </ReactQueryContextProvider>
       </body>

@@ -13,6 +13,7 @@ export type SpaceRoom = {
   topic: string;
   avatarUrl?: string;
   avatarFallback?: string;
+  archived?: boolean;
   meta?: {
     projectId?: string | null;
     workflowId?: string | null;

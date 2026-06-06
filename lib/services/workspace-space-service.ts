@@ -38,6 +38,7 @@ export const getWorkspaceSpaceRooms = async (
     limit = 100,
     search = "",
     kind = "all",
+    pinnedRoomId = "",
   } = params;
 
   return await axiosInstance.get<{
@@ -50,6 +51,7 @@ export const getWorkspaceSpaceRooms = async (
       limit,
       search,
       kind,
+      ...(pinnedRoomId ? { pinnedRoomId } : {}),
     },
   });
 };

@@ -3,6 +3,7 @@
 import Logo from "@/components/shared/logo";
 import { Toaster } from "@/components/ui/sonner";
 import Link from "next/link";
+import { ROUTES } from "@/utils/constants";
 
 export default function RootLayout({
   children,
@@ -22,11 +23,11 @@ export default function RootLayout({
 
         <p className="text-xs text-muted-foreground text-center mb-6">
           By continuing, you agree to the{" "}
-          <Link href="#" className="underline hover:text-foreground">
+          <Link href={ROUTES.TERMS} className="underline hover:text-foreground">
             Terms of Service
           </Link>{" "}
           and{" "}
-          <Link href="#" className="underline hover:text-foreground">
+          <Link href={ROUTES.PRIVACY} className="underline hover:text-foreground">
             Privacy Policy
           </Link>
           .

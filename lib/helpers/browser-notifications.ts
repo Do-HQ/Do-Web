@@ -9,7 +9,7 @@ type BrowserNotificationPayload = {
   requireInteraction?: boolean;
 };
 
-const SERVICE_WORKER_PATH = "/spaces-notifications-sw.js";
+const SERVICE_WORKER_PATH = "/sw.js";
 const DEFAULT_NOTIFICATION_ROUTE = "/";
 
 let notificationServiceWorkerPromise: Promise<ServiceWorkerRegistration | null> | null =

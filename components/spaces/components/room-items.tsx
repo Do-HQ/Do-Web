@@ -97,7 +97,15 @@ const RoomItems = ({
           >
             <Star className={cn("size-3.5", isFavorite && "fill-current")} />
           </button>
-          {room.unread > 0 && (
+          {room.archived && (
+            <Badge
+              variant="outline"
+              className="rounded-sm px-1 py-0 text-[10px] text-muted-foreground"
+            >
+              Archived
+            </Badge>
+          )}
+          {!room.archived && room.unread > 0 && (
             <Badge
               variant="secondary"
               className="rounded-full px-1.5 py-0 text-[11px]"

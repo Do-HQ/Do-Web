@@ -63,6 +63,7 @@ const useWorkspaceSpace = () => {
     const pageSize = options?.limit ?? params.limit ?? 30;
     const search = String(params.search || "");
     const kind = params.kind ?? "all";
+    const pinnedRoomId = String(params.pinnedRoomId || "");
 
     return useInfiniteQuery({
       queryKey: [
@@ -72,6 +73,7 @@ const useWorkspaceSpace = () => {
         search,
         kind,
         pageSize,
+        pinnedRoomId,
       ],
       initialPageParam: 1,
       enabled: (options?.enabled ?? true) && !!workspaceId,
@@ -82,6 +84,7 @@ const useWorkspaceSpace = () => {
             limit: pageSize,
             search,
             kind,
+            pinnedRoomId,
           });
         } catch (error) {
           handleError(error as AxiosError);

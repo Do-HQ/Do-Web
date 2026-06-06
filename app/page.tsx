@@ -1618,6 +1618,21 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <footer className="border-t border-border/50 bg-background py-8">
+        <div className="mx-auto max-w-5xl px-6 flex flex-col items-center gap-3 text-center sm:flex-row sm:justify-between sm:text-left">
+          <Logo isFull />
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-1 text-xs text-muted-foreground sm:justify-end">
+            <Link href={ROUTES.PRIVACY} className="hover:text-foreground transition-colors">
+              Privacy Policy
+            </Link>
+            <Link href={ROUTES.TERMS} className="hover:text-foreground transition-colors">
+              Terms of Service
+            </Link>
+            <span>© {new Date().getFullYear()} Squircle</span>
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }

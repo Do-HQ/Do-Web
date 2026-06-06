@@ -42,6 +42,7 @@ export interface WorkspaceSpaceRoomRecord {
     customColor: string | null;
     directUserId?: string | null;
   };
+  archived?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -94,6 +95,7 @@ export interface WorkspaceSpaceRoomsQueryParams {
   limit?: number;
   search?: string;
   kind?: WorkspaceSpaceRoomKind | "all";
+  pinnedRoomId?: string;
 }
 
 export interface WorkspaceSpaceMessagesQueryParams {

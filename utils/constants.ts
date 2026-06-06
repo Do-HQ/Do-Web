@@ -28,6 +28,8 @@ export const ROUTES = {
   SWITCH_WORKSPACE: "/workspace/switch",
   CREATE_WORKSPACE: "/workspace/create",
   ONBOARDING: "/onboarding",
+  PRIVACY: "/privacy",
+  TERMS: "/terms",
 };
 
 export const getProjectRoute = (projectId: string) =>

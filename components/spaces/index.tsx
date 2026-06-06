@@ -567,11 +567,16 @@ const SpacesPage = () => {
   // Debounce
   const debounced_search = useDebounce(roomQuery, 500);
 
+  const pinnedRoomId = debounced_search
+    ? ""
+    : String(searchParams.get("room") || searchParams.get("project") || "").trim();
+
   const roomsQuery = spaceHook.useWorkspaceSpaceRoomsInfinite(
     resolvedWorkspaceId,
     {
       search: debounced_search,
       kind: "all",
+      pinnedRoomId,
     },
     {
       enabled: Boolean(resolvedWorkspaceId),
@@ -2177,14 +2182,30 @@ const SpacesPage = () => {
       });
     };
 
+    const handleRoomUnarchived = ({
+      workspaceId,
+    }: {
+      workspaceId: string;
+      roomId: string;
+    }) => {
+      if (String(workspaceId) !== String(resolvedWorkspaceId)) {
+        return;
+      }
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-spaces-rooms", resolvedWorkspaceId],
+      });
+    };
+
     socket.on("spaces:message:created", handleMessageCreated);
     socket.on("spaces:message:updated", handleMessageUpdated);
     socket.on("spaces:message:deleted", handleMessageDeleted);
+    socket.on("spaces:room:unarchived", handleRoomUnarchived);
 
     return () => {
       socket.off("spaces:message:created", handleMessageCreated);
       socket.off("spaces:message:updated", handleMessageUpdated);
       socket.off("spaces:message:deleted", handleMessageDeleted);
+      socket.off("spaces:room:unarchived", handleRoomUnarchived);
       unsubscribeWorkspaceSpaces({
         workspaceId: resolvedWorkspaceId,
       });

@@ -2,11 +2,13 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   ArrowRight,
   FolderKanban,
   GitBranch,
   ListTodo,
+  MessageSquare,
   Search,
 } from "lucide-react";
 
@@ -25,7 +27,7 @@ import useWorkspaceProject from "@/hooks/use-workspace-project";
 import { cn } from "@/lib/utils";
 import useWorkspaceStore from "@/stores/workspace";
 import { WorkspaceProjectRecord } from "@/types/project";
-import { getProjectRoute } from "@/utils/constants";
+import { getProjectRoute, ROUTES } from "@/utils/constants";
 
 const formatDate = (value?: string) => {
   const parsed = new Date(value || "");
@@ -77,6 +79,7 @@ const statusClassName = (status?: string) => {
 };
 
 export function WorkspaceProjectsPage() {
+  const router = useRouter();
   const { workspaceId } = useWorkspaceStore();
   const { useWorkspaceProjects } = useWorkspaceProject();
   const [search, setSearch] = useState("");
@@ -133,7 +136,21 @@ export function WorkspaceProjectsPage() {
                       {project.summary || "No project summary yet."}
                     </p>
                   </div>
-                  <ArrowRight className="text-muted-foreground size-4 shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
+                  <div className="flex shrink-0 items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        router.push(`${ROUTES.SPACES}?project=${encodeURIComponent(project.projectId)}`);
+                      }}
+                      title="Open project space"
+                      className="text-muted-foreground hover:text-foreground inline-flex size-6 items-center justify-center rounded-md transition-colors"
+                    >
+                      <MessageSquare className="size-3.5" />
+                    </button>
+                    <ArrowRight className="text-muted-foreground size-4 transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
+                  </div>
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center gap-1.5">
