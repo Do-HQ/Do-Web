@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { LOCAL_KEYS } from "@/utils/constants";
 
 type GenerateHeadersParams = {
   token?: string;
@@ -35,7 +36,10 @@ export function generateHeaders({
 }: GenerateHeadersParams) {
   const timestamp = Date.now().toString();
   const requestId = globalThis.crypto.randomUUID();
-  const csrfToken = readCookie("csrf_token");
+  const csrfToken =
+    (typeof window !== "undefined"
+      ? String(localStorage.getItem(LOCAL_KEYS.CSRF_TOKEN) || "").trim()
+      : "") || readCookie("csrf_token");
 
   const signaturePayload = `${clientId || "public-client"}.${workspaceId || "none"}.${timestamp}`;
 

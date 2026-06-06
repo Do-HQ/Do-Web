@@ -55,6 +55,9 @@ const VerificationCode = () => {
 
       localStorage.setItem(LOCAL_KEYS.TOKEN, data?.data?.token);
       localStorage.setItem(LOCAL_KEYS.REFRESH_TOKEN, data?.data?.refreshToken);
+      if (data?.data?.csrfToken) {
+        localStorage.setItem(LOCAL_KEYS.CSRF_TOKEN, data.data.csrfToken);
+      }
       localStorage.removeItem(LOCAL_KEYS.PENDING_AUTH_EMAIL);
 
       setUser(data?.data?.user);

@@ -16,6 +16,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import useWorkspaceProject from "@/hooks/use-workspace-project";
+import { isForbiddenError } from "@/lib/helpers/api-error";
+import { AccessDenied } from "@/components/shared/access-denied";
 import {
   CreateWorkspaceProjectSecretRequestBody,
   WorkspaceProjectSecretRecord,
@@ -581,6 +583,16 @@ export function ProjectSecretsTab({
     setPolicyVisibility(normalizedPolicyVisibility);
     setPolicyOpen(true);
   };
+
+  if (isForbiddenError(secretsQuery.error)) {
+    return (
+      <AccessDenied
+        compact
+        title="Secrets are restricted"
+        description="Only workspace admins and owners can view and manage project secrets."
+      />
+    );
+  }
 
   return (
     <>

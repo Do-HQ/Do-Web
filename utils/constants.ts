@@ -36,6 +36,7 @@ export const getProjectRoute = (projectId: string) =>
 export const LOCAL_KEYS = {
   TOKEN: "squircle-user-token",
   REFRESH_TOKEN: "squircle-refresh-token",
+  CSRF_TOKEN: "squircle-csrf-token",
   REDIRECT: "squircle-redirect-path",
   PENDING_AUTH_EMAIL: "squircle-pending-auth-email",
   PENDING_BILLING_INTENT: "squircle-pending-billing-intent",

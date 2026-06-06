@@ -26,6 +26,7 @@ const GoogleAuthCallbackPage = () => {
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
     const token = String(hashParams.get("token") || "").trim();
     const refreshToken = String(hashParams.get("refreshToken") || "").trim();
+    const csrfToken = String(hashParams.get("csrfToken") || "").trim();
 
     if (!token || !refreshToken) {
       toast.error("Google sign-in failed", {
@@ -37,6 +38,9 @@ const GoogleAuthCallbackPage = () => {
 
     localStorage.setItem(LOCAL_KEYS.TOKEN, token);
     localStorage.setItem(LOCAL_KEYS.REFRESH_TOKEN, refreshToken);
+    if (csrfToken) {
+      localStorage.setItem(LOCAL_KEYS.CSRF_TOKEN, csrfToken);
+    }
     window.history.replaceState({}, document.title, window.location.pathname);
 
     const bootstrap = async () => {

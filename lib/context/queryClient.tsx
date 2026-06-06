@@ -19,7 +19,7 @@ const ReactQueryContextProvider: React.FC<Props> = ({ children }) => {
                   ?.response?.status ||
                 (error as { status?: number })?.status;
 
-              if (status === 401) {
+              if (status === 401 || status === 403) {
                 return false;
               }
 

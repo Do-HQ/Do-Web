@@ -28,6 +28,7 @@ const getRefreshToken = () => {
 const clearAuthTokens = () => {
   localStorage.removeItem(LOCAL_KEYS.TOKEN);
   localStorage.removeItem(LOCAL_KEYS.REFRESH_TOKEN);
+  localStorage.removeItem(LOCAL_KEYS.CSRF_TOKEN);
 };
 
 let authRedirectStarted = false;
@@ -65,6 +66,7 @@ const refreshAccessToken = async () => {
 
   const token = response?.data?.token;
   const nextRefreshToken = response?.data?.refreshToken ?? refreshToken ?? "";
+  const nextCsrfToken = String(response?.data?.csrfToken || "").trim();
 
   if (!token) {
     throw new Error("Unable to refresh access token");
@@ -73,6 +75,9 @@ const refreshAccessToken = async () => {
   localStorage.setItem(LOCAL_KEYS.TOKEN, token);
   if (nextRefreshToken) {
     localStorage.setItem(LOCAL_KEYS.REFRESH_TOKEN, nextRefreshToken);
+  }
+  if (nextCsrfToken) {
+    localStorage.setItem(LOCAL_KEYS.CSRF_TOKEN, nextCsrfToken);
   }
 
   return token;

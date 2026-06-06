@@ -65,15 +65,20 @@ const createClientSecretsErrorResponse = ({
   message: string;
   error: unknown;
   status?: number;
-}) =>
-  createClientSecretsResponse({
-    request,
-    status,
-    payload: {
-      message,
-      description: error instanceof Error ? error.message : "Unknown error",
-    },
-  });
+}) => {
+  try {
+    return createClientSecretsResponse({
+      request,
+      status,
+      payload: {
+        message,
+        description: error instanceof Error ? error.message : "Unknown error",
+      },
+    });
+  } catch {
+    return NextResponse.json({ message, description: "Unknown error" }, { status });
+  }
+};
 
 export {
   createClientSecretsErrorResponse,
