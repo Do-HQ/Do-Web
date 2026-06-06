@@ -86,7 +86,6 @@ const refreshAccessToken = async () => {
 
 const axiosInstance = axios.create({
   baseURL: config.BASE_API_URL,
-  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },
