@@ -264,6 +264,8 @@ export function ProjectSecretsTab({
   const [teamPickerSearch, setTeamPickerSearch] = useState("");
   const [teamPickerSortAsc, setTeamPickerSortAsc] = useState(true);
 
+  const [revealingSecretId, setRevealingSecretId] = useState<string | null>(null);
+
   const [sessionUnlocked, setSessionUnlocked] = useState(false);
   const [otpStep, setOtpStep] = useState<"lock" | "requested">("lock");
   const [otpCode, setOtpCode] = useState("");
@@ -563,6 +565,7 @@ export function ProjectSecretsTab({
     }
 
     try {
+      setRevealingSecretId(secret.id);
       const response = await revealSecretMutation.mutateAsync({
         workspaceId,
         projectId,
@@ -578,6 +581,8 @@ export function ProjectSecretsTab({
         return;
       }
       toast(getSecretMutationErrorMessage(error, "Unable to reveal secret."));
+    } finally {
+      setRevealingSecretId(null);
     }
   };
 
@@ -849,9 +854,14 @@ export function ProjectSecretsTab({
           <>
             <div data-tour="project-secrets-list" className="divide-y divide-border/20 lg:hidden">
               {secrets.map((secret) => {
-                const assignedMembers = members.filter((member) =>
-                  secret.memberIds.includes(member.id),
-                );
+                const assignedMembers =
+                  secret.visibility === "team"
+                    ? members.filter((member) =>
+                        secret.teamIds.some((teamId) =>
+                          teams.find((t) => t.id === teamId)?.memberIds.includes(member.id),
+                        ),
+                      )
+                    : members.filter((member) => secret.memberIds.includes(member.id));
                 const visibleValue = revealedSecrets[secret.id];
                 const canManageSecret =
                   !!currentUserId &&
@@ -880,10 +890,10 @@ export function ProjectSecretsTab({
                             type="button"
                             variant="ghost"
                             size="sm"
-                            disabled={!secret.canReveal}
+                            disabled={!secret.canReveal || revealingSecretId === secret.id}
                             onClick={() => revealSecretValue(secret)}
                           >
-                            {revealSecretMutation?.isPending ? (
+                            {revealingSecretId === secret.id ? (
                               <Loader size={10} className="animate-spin" />
                             ) : visibleValue ? (
                               <EyeOff />
@@ -997,9 +1007,14 @@ export function ProjectSecretsTab({
                 </TableHeader>
                 <TableBody>
                   {secrets.map((secret) => {
-                    const assignedMembers = members.filter((member) =>
-                      secret.memberIds.includes(member.id),
-                    );
+                    const assignedMembers =
+                      secret.visibility === "team"
+                        ? members.filter((member) =>
+                            secret.teamIds.some((teamId) =>
+                              teams.find((t) => t.id === teamId)?.memberIds.includes(member.id),
+                            ),
+                          )
+                        : members.filter((member) => secret.memberIds.includes(member.id));
                     const visibleValue = revealedSecrets[secret.id];
                     const canManageSecret =
                       !!currentUserId &&
@@ -1044,10 +1059,10 @@ export function ProjectSecretsTab({
                               type="button"
                               variant="ghost"
                               size="sm"
-                              disabled={!secret.canReveal}
+                              disabled={!secret.canReveal || revealingSecretId === secret.id}
                               onClick={() => revealSecretValue(secret)}
                             >
-                              {revealSecretMutation?.isPending ? (
+                              {revealingSecretId === secret.id ? (
                                 <Loader size={10} className="animate-spin" />
                               ) : visibleValue ? (
                                 <EyeOff />
@@ -1203,7 +1218,15 @@ export function ProjectSecretsTab({
       </section>
 
       <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
-        <DialogContent className="max-w-xl">
+        <DialogContent
+          className="max-w-xl"
+          onEscapeKeyDown={(e) => {
+            if (memberPickerOpen || teamPickerOpen) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (memberPickerOpen || teamPickerOpen) e.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>{draft.id ? "Edit" : "Create"} secret</DialogTitle>
             <DialogDescription>
@@ -1252,8 +1275,13 @@ export function ProjectSecretsTab({
                     ...current,
                     visibility: value as WorkspaceProjectSecretVisibility,
                     memberIds:
-                      value === "restricted" ? current.memberIds : [],
-                    teamIds: value === "team" ? current.teamIds : [],
+                      value === "restricted"
+                        ? (current.memberIds.length ? current.memberIds : members.length ? [members[0].id] : [])
+                        : [],
+                    teamIds:
+                      value === "team"
+                        ? (current.teamIds.length ? current.teamIds : teams.length ? [teams[0].id] : [])
+                        : [],
                   }))
                 }
               >
@@ -1389,7 +1417,10 @@ export function ProjectSecretsTab({
       </Dialog>
 
       <Dialog open={memberPickerOpen} onOpenChange={setMemberPickerOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent
+          className="max-w-md"
+          onEscapeKeyDown={(e) => e.stopPropagation()}
+        >
           <DialogHeader>
             <DialogTitle>Assign members</DialogTitle>
             <DialogDescription>
@@ -1492,7 +1523,10 @@ export function ProjectSecretsTab({
       </Dialog>
 
       <Dialog open={teamPickerOpen} onOpenChange={setTeamPickerOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent
+          className="max-w-md"
+          onEscapeKeyDown={(e) => e.stopPropagation()}
+        >
           <DialogHeader>
             <DialogTitle>Assign teams</DialogTitle>
             <DialogDescription>
