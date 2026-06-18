@@ -114,6 +114,19 @@ const listFromUnknown = (value: unknown) =>
 const toMarkdownList = (items: string[]) =>
   items.length ? items.map((entry) => `- ${entry}`).join("\n") : "";
 
+const formatTimelineEntry = (raw: string): string => {
+  const SEP = " — ";
+  const parts = raw.split(SEP);
+  if (!parts.length) return raw;
+
+  const maybeIso = parts[0].trim();
+  const parsed = new Date(maybeIso);
+  if (Number.isNaN(parsed.getTime())) return raw;
+
+  const formatted = dayjs(parsed).format("D MMM YYYY [·] h:mm A");
+  return [formatted, ...parts.slice(1)].join(SEP);
+};
+
 const WorkspaceReportDetailPage = ({
   reportId,
 }: WorkspaceReportDetailPageProps) => {
@@ -249,7 +262,7 @@ const WorkspaceReportDetailPage = ({
       blockers: listFromUnknown(structuredInsights?.blockers),
       risks: listFromUnknown(structuredInsights?.risks),
       fallbackNotice: String(structuredInsights?.fallbackNotice || "").trim(),
-      eventTimeline: listFromUnknown(structuredInsights?.eventTimeline),
+      eventTimeline: listFromUnknown(structuredInsights?.eventTimeline).map(formatTimelineEntry),
       eventTypeBreakdown: listFromUnknown(
         structuredInsights?.eventTypeBreakdown,
       ),
@@ -406,6 +419,144 @@ const WorkspaceReportDetailPage = ({
     }
 
     router.push(`${ROUTES.SPACES}?room=${encodeURIComponent(roomId)}`);
+  };
+
+  const handleExportPdf = () => {
+    if (typeof window === "undefined" || !report) return;
+
+    const title = String(report.title || "Report").trim();
+    const generatedDate = new Date().toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+
+    const esc = (s: unknown) =>
+      String(s ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+    const section = (heading: string, body: string) =>
+      body.trim()
+        ? `<div class="section"><h2>${esc(heading)}</h2>${body}</div>`
+        : "";
+
+    const bulletList = (items: string[]) =>
+      items.length
+        ? `<ul>${items.map((i) => `<li>${esc(i)}</li>`).join("")}</ul>`
+        : "";
+
+    const reviewerNames = reviewers
+      .map((r) => esc(r.name || ""))
+      .filter(Boolean)
+      .join(", ");
+
+    const metricRows = metricsCards
+      .map(
+        (m) =>
+          `<div class="metric-card"><div class="metric-label">${esc(m.label)}</div><div class="metric-value">${esc(m.value)}</div></div>`,
+      )
+      .join("");
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      toast.error("Could not open print window. Check your pop-up settings.");
+      return;
+    }
+
+    printWindow.document.write(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${esc(title)} – Squircle</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; color: #111827; background: #fff; padding: 36px 44px; max-width: 860px; margin: 0 auto; }
+    .pdf-header { display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 2px solid #111827; padding-bottom: 14px; margin-bottom: 24px; }
+    .pdf-logo { font-weight: 800; font-size: 20px; letter-spacing: -0.5px; color: #111827; }
+    .pdf-meta { font-size: 11px; color: #6b7280; text-align: right; line-height: 1.6; }
+    .report-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; color: #111827; }
+    .report-sub { font-size: 12px; color: #6b7280; margin-bottom: 16px; }
+    .badges { margin-bottom: 16px; }
+    .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 100px; border: 1px solid #d1d5db; text-transform: capitalize; margin-right: 6px; color: #374151; }
+    .dates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #6b7280; margin-bottom: 8px; }
+    .dates span { font-weight: 600; color: #111827; }
+    .reviewers { font-size: 12px; color: #374151; margin: 8px 0 4px; }
+    .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; }
+    .metric-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; }
+    .metric-label { font-size: 10px; color: #6b7280; margin-bottom: 2px; }
+    .metric-value { font-size: 15px; font-weight: 700; color: #111827; }
+    .section { margin-top: 20px; }
+    h2 { font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid #f3f4f6; padding-bottom: 4px; }
+    p { line-height: 1.65; margin-bottom: 6px; color: #374151; font-size: 13px; }
+    ul { padding-left: 18px; margin-bottom: 6px; }
+    li { line-height: 1.65; color: #374151; margin-bottom: 2px; font-size: 13px; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 4px; }
+    hr { border: none; border-top: 1px solid #e5e7eb; margin: 20px 0; }
+    @media print { body { padding: 0; } @page { margin: 18mm 14mm; size: A4; } }
+  </style>
+</head>
+<body>
+  <div class="pdf-header">
+    <div class="pdf-logo">Squircle</div>
+    <div class="pdf-meta">
+      <div>Exported ${esc(generatedDate)}</div>
+      <div>squircle.live</div>
+    </div>
+  </div>
+
+  <div class="report-title">${esc(title)}</div>
+  <div class="report-sub">${esc(formatReportTypeLabel(report.reportType))}${report.project?.name ? ` · ${esc(report.project.name)}` : " · Workspace"}</div>
+
+  <div class="badges">
+    <span class="badge">${esc(report.status?.toLowerCase() ?? "pending")}</span>
+    <span class="badge">${(report.reviewedCount || 0) > 0 ? `${report.reviewedCount} reviewed` : "Unreviewed"}</span>
+    <span class="badge">Email: ${esc(report.emailDeliveryStatus?.toLowerCase() ?? "-")}</span>
+  </div>
+
+  <div class="dates">
+    <div>Period start<br/><span>${esc(dayjs(report.periodStart).format("Do MMMM, YYYY"))}</span></div>
+    <div>Period end<br/><span>${esc(dayjs(report.periodEnd).format("Do MMMM, YYYY"))}</span></div>
+    <div>Generated<br/><span>${esc(dayjs(report.createdAt).format("Do MMMM, YYYY"))}</span></div>
+  </div>
+
+  ${reviewerNames ? `<div class="reviewers"><strong>Reviewed by:</strong> ${reviewerNames}</div>` : ""}
+
+  ${section("Executive Summary", sections.executiveSummary ? `<p>${esc(sections.executiveSummary)}</p>` : "")}
+
+  ${sections.fallbackNotice ? `<p style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:6px;padding:10px 12px;font-size:12px;margin-top:12px;">${esc(sections.fallbackNotice)}</p>` : ""}
+
+  <div class="section">
+    <h2>Metrics</h2>
+    <div class="metrics">${metricRows}</div>
+  </div>
+
+  ${sections.eventTypeBreakdown.length ? section("Event Breakdown", bulletList(sections.eventTypeBreakdown)) : ""}
+
+  <hr/>
+
+  <div class="two-col">
+    <div>
+      ${section("Progress", [sections.progressSummary ? `<p>${esc(sections.progressSummary)}</p>` : "", bulletList(sections.highlights)].join(""))}
+    </div>
+    <div>
+      ${section("Blockers", [sections.blockersSummary ? `<p>${esc(sections.blockersSummary)}</p>` : "", bulletList(sections.blockers)].join(""))}
+    </div>
+    <div>
+      ${section("Risks", [sections.risksSummary ? `<p>${esc(sections.risksSummary)}</p>` : "", bulletList(sections.risks)].join(""))}
+    </div>
+    <div>
+      ${section("Recommendations", bulletList(sections.recommendations))}
+    </div>
+  </div>
+
+  ${sections.eventTimeline.length ? `<hr/>${section("Event Timeline", bulletList(sections.eventTimeline))}` : ""}
+
+  <script>window.onload = () => { window.print(); window.onafterprint = () => window.close(); };<\/script>
+</body>
+</html>`);
+    printWindow.document.close();
   };
 
   if (reportQuery.isLoading) {
@@ -865,9 +1016,9 @@ const WorkspaceReportDetailPage = ({
               </>
             ) : null}
 
-            <Button variant="outline" size="sm" disabled>
+            <Button variant="outline" size="sm" onClick={handleExportPdf}>
               <Download className="mr-1.5 size-3.5" />
-              Export (Soon)
+              Export PDF
             </Button>
 
             <Button
@@ -897,7 +1048,7 @@ const WorkspaceReportDetailPage = ({
               }}
             >
               <ShieldCheck className="mr-1.5 size-3.5" />
-              {report.isReviewedByMe ? "Remove my review" : "Mark as reviewed"}
+              {report.isReviewedByMe ? "Reviewed by me" : "Mark as reviewed"}
             </Button>
           </div>
         </CardContent>

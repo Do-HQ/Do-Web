@@ -53,6 +53,32 @@ export const SETTINGS_WALKTHROUGH_SECTIONS: WalkthroughSection[] = [
   "settings-import",
 ];
 
+export const ALL_WALKTHROUGH_SECTIONS: WalkthroughSection[] = [
+  "dashboard",
+  "spaces",
+  "support",
+  "support-admin",
+  "support-thread",
+  "support-admin-thread",
+  "projects-overview",
+  "projects-workflows",
+  "projects-dos",
+  "projects-files-assets",
+  "projects-risks-issues",
+  "projects-secrets",
+  "projects-agents-automation",
+  "calendar",
+  "jams",
+  "jam-canvas",
+  "docs-index",
+  "docs-editor",
+  "knowledge-base",
+  "portfolio",
+  "templates",
+  "archive",
+  ...SETTINGS_WALKTHROUGH_SECTIONS,
+];
+
 const buildSettingsSteps = (
   label: string,
   navTourId: string,

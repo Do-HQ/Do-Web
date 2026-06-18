@@ -15,6 +15,7 @@ import {
 } from "./steps";
 import {
   isWalkthroughCompleted,
+  markAllWalkthroughCompleted,
   markWalkthroughCompleted,
 } from "./storage";
 import "./walkthrough.css";
@@ -228,6 +229,7 @@ const RouteWalkthrough = () => {
             return;
           }
           markWalkthroughCompleted(userId, section);
+          markAllWalkthroughCompleted(userId);
           startedRef.current = false;
         },
       });

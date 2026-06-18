@@ -567,16 +567,11 @@ const SpacesPage = () => {
   // Debounce
   const debounced_search = useDebounce(roomQuery, 500);
 
-  const pinnedRoomId = debounced_search
-    ? ""
-    : String(searchParams.get("room") || searchParams.get("project") || "").trim();
-
   const roomsQuery = spaceHook.useWorkspaceSpaceRoomsInfinite(
     resolvedWorkspaceId,
     {
       search: debounced_search,
       kind: "all",
-      pinnedRoomId,
     },
     {
       enabled: Boolean(resolvedWorkspaceId),

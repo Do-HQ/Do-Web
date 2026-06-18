@@ -59,6 +59,8 @@ class WorkspaceProjectSecretServiceError extends Error {
 
 const CLIENT_TRANSPORT_VERSION = "v1";
 
+export const SECRETS_STEPUP_SESSION_KEY = "squircle:secrets:stepup";
+
 const buildHeaders = () => {
   const headers: Record<string, string> = {
     "content-type": "application/json",
@@ -69,7 +71,8 @@ const buildHeaders = () => {
     return headers;
   }
 
-  const token = localStorage.getItem(LOCAL_KEYS.TOKEN);
+  const stepUpToken = sessionStorage.getItem(SECRETS_STEPUP_SESSION_KEY);
+  const token = stepUpToken ?? localStorage.getItem(LOCAL_KEYS.TOKEN);
 
   if (token) {
     headers.authorization = `Bearer ${token}`;

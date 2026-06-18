@@ -1,4 +1,5 @@
 import {
+  ALL_WALKTHROUGH_SECTIONS,
   SETTINGS_WALKTHROUGH_SECTIONS,
   WALKTHROUGH_VERSION,
   type WalkthroughSection,
@@ -53,6 +54,16 @@ export const markWalkthroughCompleted = (
   }
 
   window.localStorage.setItem(getWalkthroughStorageKey(userId, section), "done");
+};
+
+export const markAllWalkthroughCompleted = (userId: string) => {
+  if (typeof window === "undefined" || !userId) {
+    return;
+  }
+
+  ALL_WALKTHROUGH_SECTIONS.forEach((section) => {
+    window.localStorage.setItem(getWalkthroughStorageKey(userId, section), "done");
+  });
 };
 
 export const resetWalkthroughForUser = (userId?: string) => {

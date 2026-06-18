@@ -81,23 +81,6 @@ import { AxiosError, AxiosResponse } from "axios";
 
 type UseOptions<T> = UseMutationOptions<AxiosResponse, unknown, T, unknown>;
 
-const isApprovalRequiredError = (error: unknown) => {
-  const payload = error as
-    | {
-        code?: string;
-        response?: {
-          data?: {
-            code?: string;
-          };
-        };
-      }
-    | undefined;
-
-  return (
-    String(payload?.response?.data?.code || payload?.code || "").trim() ===
-    "APPROVAL_REQUIRED"
-  );
-};
 
 const useWorkspaceProject = () => {
   const { handleError } = useError();
@@ -143,18 +126,14 @@ const useWorkspaceProject = () => {
     workspaceId: string,
     projectId: string,
     params: SecretsQueryParams = {},
-    options?: { enabled?: boolean },
+    options?: { enabled?: boolean; retry?: boolean | number },
   ) => {
     return useQuery({
       queryKey: ["workspace-project-secrets", workspaceId, projectId, params],
       enabled: (options?.enabled ?? true) && !!workspaceId && !!projectId,
+      retry: options?.retry ?? false,
       queryFn: async () => {
-        try {
-          return await getWorkspaceProjectSecrets(workspaceId, projectId, params);
-        } catch (error) {
-          handleError(error as AxiosError);
-          throw error;
-        }
+        return await getWorkspaceProjectSecrets(workspaceId, projectId, params);
       },
     });
   };
@@ -167,13 +146,9 @@ const useWorkspaceProject = () => {
     return useQuery({
       queryKey: ["workspace-project-secrets-policy", workspaceId, projectId],
       enabled: (options?.enabled ?? true) && !!workspaceId && !!projectId,
+      retry: false,
       queryFn: async () => {
-        try {
-          return await getWorkspaceProjectSecretsPolicy(workspaceId, projectId);
-        } catch (error) {
-          handleError(error as AxiosError);
-          throw error;
-        }
+        return await getWorkspaceProjectSecretsPolicy(workspaceId, projectId);
       },
     });
   };
@@ -767,12 +742,6 @@ const useWorkspaceProject = () => {
     return useMutation({
       mutationFn: createWorkspaceProjectSecret,
       ...options,
-      onError: (error, variables, onMutateResult, context) => {
-        options?.onError?.(error, variables, onMutateResult, context);
-        if (!isApprovalRequiredError(error)) {
-          handleError(error as AxiosError);
-        }
-      },
     });
   };
 
@@ -792,12 +761,6 @@ const useWorkspaceProject = () => {
     return useMutation({
       mutationFn: updateWorkspaceProjectSecret,
       ...options,
-      onError: (error, variables, onMutateResult, context) => {
-        options?.onError?.(error, variables, onMutateResult, context);
-        if (!isApprovalRequiredError(error)) {
-          handleError(error as AxiosError);
-        }
-      },
     });
   };
 
@@ -816,12 +779,6 @@ const useWorkspaceProject = () => {
     return useMutation({
       mutationFn: deleteWorkspaceProjectSecret,
       ...options,
-      onError: (error, variables, onMutateResult, context) => {
-        options?.onError?.(error, variables, onMutateResult, context);
-        if (!isApprovalRequiredError(error)) {
-          handleError(error as AxiosError);
-        }
-      },
     });
   };
 
@@ -840,12 +797,6 @@ const useWorkspaceProject = () => {
     return useMutation({
       mutationFn: revealWorkspaceProjectSecret,
       ...options,
-      onError: (error, variables, onMutateResult, context) => {
-        options?.onError?.(error, variables, onMutateResult, context);
-        if (!isApprovalRequiredError(error)) {
-          handleError(error as AxiosError);
-        }
-      },
     });
   };
 
@@ -864,12 +815,6 @@ const useWorkspaceProject = () => {
     return useMutation({
       mutationFn: updateWorkspaceProjectSecretsPolicy,
       ...options,
-      onError: (error, variables, onMutateResult, context) => {
-        options?.onError?.(error, variables, onMutateResult, context);
-        if (!isApprovalRequiredError(error)) {
-          handleError(error as AxiosError);
-        }
-      },
     });
   };
 

@@ -1,23 +1,34 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  ArrowDownAZ,
+  ArrowUpAZ,
+  Building2,
+  Check,
   Copy,
   Eye,
   EyeOff,
   Loader,
+  Lock,
   MoreHorizontal,
   PencilLine,
   Plus,
   ShieldCheck,
   Trash2,
+  Users,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import useWorkspaceProject from "@/hooks/use-workspace-project";
-import { isForbiddenError } from "@/lib/helpers/api-error";
 import { AccessDenied } from "@/components/shared/access-denied";
+import { LOCAL_KEYS } from "@/utils/constants";
+import config from "@/config";
+import {
+  SECRETS_STEPUP_SESSION_KEY,
+  WorkspaceProjectSecretServiceError,
+} from "@/lib/services/workspace-project-secret-service";
 import {
   CreateWorkspaceProjectSecretRequestBody,
   WorkspaceProjectSecretRecord,
@@ -72,6 +83,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 
+import { OTPInput } from "@/components/shared/input/otp-input";
 import { ProjectMember, ProjectTeamSummary } from "../types";
 import LoaderComponent from "@/components/shared/loader";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -219,7 +231,9 @@ export function ProjectSecretsTab({
   members,
   teams,
 }: ProjectSecretsTabProps) {
-  const currentUserId = useAuthStore((state) => state.user?._id);
+  const { user } = useAuthStore();
+  const currentUserId = user?._id;
+  const currentUserEmail = user?.email ?? "";
   const queryClient = useQueryClient();
   const {
     useWorkspaceProjectSecrets,
@@ -242,7 +256,27 @@ export function ProjectSecretsTab({
   const [policyVisibility, setPolicyVisibility] =
     useState<WorkspaceProjectSecretVisibility>("restricted");
 
+  const [memberPickerOpen, setMemberPickerOpen] = useState(false);
+  const [memberPickerSearch, setMemberPickerSearch] = useState("");
+  const [memberPickerSortAsc, setMemberPickerSortAsc] = useState(true);
+
+  const [teamPickerOpen, setTeamPickerOpen] = useState(false);
+  const [teamPickerSearch, setTeamPickerSearch] = useState("");
+  const [teamPickerSortAsc, setTeamPickerSortAsc] = useState(true);
+
+  const [sessionUnlocked, setSessionUnlocked] = useState(false);
+  const [otpStep, setOtpStep] = useState<"lock" | "requested">("lock");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpPending, setOtpPending] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const hasToken = Boolean(sessionStorage.getItem(SECRETS_STEPUP_SESSION_KEY));
+    if (hasToken) setSessionUnlocked(true);
+  }, []);
+
   const debouncedSearch = useDebounce(search, 500);
+  const queriesEnabled = Boolean(workspaceId) && Boolean(projectId) && sessionUnlocked;
 
   const secretsQuery = useWorkspaceProjectSecrets(
     workspaceId ?? "",
@@ -254,14 +288,14 @@ export function ProjectSecretsTab({
       archived: false,
     },
     {
-      enabled: Boolean(workspaceId) && Boolean(projectId),
+      enabled: queriesEnabled,
     },
   );
   const policyQuery = useWorkspaceProjectSecretsPolicy(
     workspaceId ?? "",
     projectId,
     {
-      enabled: Boolean(workspaceId) && Boolean(projectId),
+      enabled: queriesEnabled,
     },
   );
   const createSecretMutation = useCreateWorkspaceProjectSecret();
@@ -269,6 +303,23 @@ export function ProjectSecretsTab({
   const deleteSecretMutation = useDeleteWorkspaceProjectSecret();
   const revealSecretMutation = useRevealWorkspaceProjectSecret();
   const updatePolicyMutation = useUpdateWorkspaceProjectSecretsPolicy();
+
+  const secretsQueryError = secretsQuery.error;
+  useEffect(() => {
+    if (!sessionUnlocked) return;
+    if (!(secretsQueryError instanceof WorkspaceProjectSecretServiceError)) return;
+
+    const shouldRelock =
+      secretsQueryError.status === 401 ||
+      (secretsQueryError.status === 403 && secretsQueryError.code === "STEP_UP_REQUIRED");
+
+    if (shouldRelock) {
+      sessionStorage.removeItem(SECRETS_STEPUP_SESSION_KEY);
+      setSessionUnlocked(false);
+      setOtpStep("lock");
+      setOtpCode("");
+    }
+  }, [secretsQueryError, sessionUnlocked]);
 
   const secrets = useMemo(
     () => secretsQuery.data?.secrets ?? [],
@@ -584,13 +635,156 @@ export function ProjectSecretsTab({
     setPolicyOpen(true);
   };
 
-  if (isForbiddenError(secretsQuery.error)) {
+  const isSecretsForbidden =
+    !sessionUnlocked
+      ? false
+      : secretsQuery.error instanceof WorkspaceProjectSecretServiceError &&
+        secretsQuery.error.status === 403 &&
+        secretsQuery.error.code !== "STEP_UP_REQUIRED";
+
+  if (isSecretsForbidden) {
     return (
       <AccessDenied
         compact
-        title="Secrets are restricted"
-        description="Only workspace admins and owners can view and manage project secrets."
+        title="No access to secrets"
+        description="You don't have permission to view secrets for this project."
       />
+    );
+  }
+
+  const buildStepUpHeaders = () => {
+    const token = typeof window !== "undefined"
+      ? localStorage.getItem(LOCAL_KEYS.TOKEN) ?? ""
+      : "";
+    return {
+      "content-type": "application/json",
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+    };
+  };
+
+  const baseApiUrl = String(config.BASE_API_URL || "").trim().replace(/\/+$/, "");
+
+  const handleSendOtp = () => {
+    setOtpPending(true);
+    const request = fetch(`${baseApiUrl}/auth/step-up/start`, {
+      method: "POST",
+      headers: buildStepUpHeaders(),
+      body: JSON.stringify({ email: currentUserEmail }),
+    }).then(async (res) => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          String((data as { description?: string }).description || "Failed to send code.")
+        );
+      }
+      setOtpStep("requested");
+    }).finally(() => setOtpPending(false));
+
+    void toast.promise(request, {
+      loading: "Sending verification code…",
+      success: `Code sent to ${currentUserEmail}`,
+      error: (err: unknown) =>
+        err instanceof Error ? err.message : "Failed to send code.",
+    });
+  };
+
+  const handleVerifyOtp = (codeOverride?: string) => {
+    const code = (codeOverride ?? otpCode).trim();
+    if (!code) return;
+    setOtpPending(true);
+    const request = fetch(`${baseApiUrl}/auth/step-up/verify`, {
+      method: "POST",
+      headers: buildStepUpHeaders(),
+      body: JSON.stringify({ email: currentUserEmail, code }),
+    }).then(async (res) => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          String((data as { description?: string }).description || "Invalid code.")
+        );
+      }
+      const stepUpToken = String((data as { stepUpToken?: string }).stepUpToken || "").trim();
+      if (!stepUpToken) throw new Error("Verification failed. Try again.");
+      sessionStorage.setItem(SECRETS_STEPUP_SESSION_KEY, stepUpToken);
+      setSessionUnlocked(true);
+    }).finally(() => setOtpPending(false));
+
+    void toast.promise(request, {
+      loading: "Verifying…",
+      success: "Identity verified",
+      error: (err: unknown) =>
+        err instanceof Error ? err.message : "Verification failed.",
+    });
+  };
+
+  if (!sessionUnlocked) {
+    return (
+      <div className="flex min-h-80 flex-col items-center justify-center gap-6 rounded-xl border border-border/35 bg-card/75 p-8 shadow-xs">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="flex size-12 items-center justify-center rounded-full border border-border/40 bg-muted/50">
+            <Lock className="size-5 text-muted-foreground" />
+          </div>
+          {otpStep === "lock" ? (
+            <>
+              <div>
+                <p className="text-[14px] font-semibold">Verify your identity</p>
+                <p className="text-muted-foreground mt-1 text-[12px] leading-5">
+                  Secrets are protected. Send a one-time code to{" "}
+                  <span className="text-foreground font-medium">{currentUserEmail}</span>{" "}
+                  to continue.
+                </p>
+              </div>
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleSendOtp}
+                disabled={otpPending}
+              >
+                Send verification code
+              </Button>
+            </>
+          ) : (
+            <>
+              <div>
+                <p className="text-[14px] font-semibold">Enter verification code</p>
+                <p className="text-muted-foreground mt-1 text-[12px] leading-5">
+                  We sent a 6-digit code to{" "}
+                  <span className="text-foreground font-medium">{currentUserEmail}</span>.
+                </p>
+              </div>
+              <div className="flex w-full flex-col items-center gap-3">
+                <OTPInput
+                  count={6}
+                  value={otpCode}
+                  onChange={(val) => {
+                    setOtpCode(val);
+                    if (val.length === 6) handleVerifyOtp(val);
+                  }}
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  className="w-full max-w-xs"
+                  onClick={() => handleVerifyOtp()}
+                  disabled={otpPending || otpCode.length < 6}
+                >
+                  Verify
+                </Button>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground text-[12px] underline-offset-2 hover:underline"
+                  onClick={() => {
+                    setOtpCode("");
+                    setOtpStep("lock");
+                  }}
+                >
+                  Use a different code
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
     );
   }
 
@@ -1075,74 +1269,86 @@ export function ProjectSecretsTab({
 
             <div className="grid gap-2">
               <Label>Assigned teams</Label>
-              <div className="flex flex-wrap gap-1.5 rounded-lg border border-border/35 bg-background/70 p-2">
-                {teams.length ? (
-                  teams.map((team) => {
-                    const selected = draft.teamIds.includes(team.id);
-
-                    return (
-                      <Button
-                        key={team.id}
-                        type="button"
-                        variant={selected ? "secondary" : "outline"}
-                        size="sm"
-                        onClick={() => toggleTeamSelection(team.id)}
-                        className="h-7 px-2 text-[11px]"
-                        disabled={draft.visibility !== "team"}
-                      >
-                        {team.name}
-                      </Button>
-                    );
-                  })
-                ) : (
-                  <Empty className="border-0 p-0 md:p-0">
-                    <EmptyHeader>
-                      <EmptyMedia variant="icon" className="size-8">
-                        <ShieldCheck className="size-3.5 text-primary/80" />
-                      </EmptyMedia>
-                      <EmptyDescription className="text-[11px]">
-                        No teams assigned to this project yet.
-                      </EmptyDescription>
-                    </EmptyHeader>
-                  </Empty>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={draft.visibility !== "team"}
+                onClick={() => {
+                  setTeamPickerSearch("");
+                  setTeamPickerSortAsc(true);
+                  setTeamPickerOpen(true);
+                }}
+                className="h-9 w-full justify-between px-3"
+              >
+                <span className="flex items-center gap-2 text-[12px]">
+                  <Building2 className="size-3.5 text-muted-foreground" />
+                  {draft.teamIds.length === 0
+                    ? "Choose teams…"
+                    : `${draft.teamIds.length} team${draft.teamIds.length === 1 ? "" : "s"} selected`}
+                </span>
+                {draft.teamIds.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {teams
+                      .filter((t) => draft.teamIds.includes(t.id))
+                      .slice(0, 3)
+                      .map((t) => (
+                        <span
+                          key={t.id}
+                          className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium"
+                        >
+                          {t.name}
+                        </span>
+                      ))}
+                    {draft.teamIds.length > 3 && (
+                      <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium">
+                        +{draft.teamIds.length - 3}
+                      </span>
+                    )}
+                  </div>
                 )}
-              </div>
+              </Button>
             </div>
 
             <div className="grid gap-2">
               <Label>Assigned members</Label>
-              <div className="flex max-h-32 flex-wrap gap-1.5 overflow-y-auto rounded-lg border border-border/35 bg-background/70 p-2">
-                {members.length ? (
-                  members.map((member) => {
-                    const selected = draft.memberIds.includes(member.id);
-
-                    return (
-                      <Button
-                        key={member.id}
-                        type="button"
-                        variant={selected ? "secondary" : "outline"}
-                        size="sm"
-                        onClick={() => toggleMemberSelection(member.id)}
-                        className="h-7 px-2 text-[11px]"
-                        disabled={draft.visibility !== "restricted"}
-                      >
-                        {member.name}
-                      </Button>
-                    );
-                  })
-                ) : (
-                  <Empty className="border-0 p-0 md:p-0">
-                    <EmptyHeader>
-                      <EmptyMedia variant="icon" className="size-8">
-                        <ShieldCheck className="size-3.5 text-primary/80" />
-                      </EmptyMedia>
-                      <EmptyDescription className="text-[11px]">
-                        No members assigned to this project yet.
-                      </EmptyDescription>
-                    </EmptyHeader>
-                  </Empty>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={draft.visibility !== "restricted"}
+                onClick={() => {
+                  setMemberPickerSearch("");
+                  setMemberPickerSortAsc(true);
+                  setMemberPickerOpen(true);
+                }}
+                className="h-9 w-full justify-between px-3"
+              >
+                <span className="flex items-center gap-2 text-[12px]">
+                  <Users className="size-3.5 text-muted-foreground" />
+                  {draft.memberIds.length === 0
+                    ? "Choose members…"
+                    : `${draft.memberIds.length} member${draft.memberIds.length === 1 ? "" : "s"} selected`}
+                </span>
+                {draft.memberIds.length > 0 && (
+                  <AvatarGroup>
+                    {members
+                      .filter((m) => draft.memberIds.includes(m.id))
+                      .slice(0, 4)
+                      .map((m) => (
+                        <Avatar key={m.id} size="sm">
+                          <AvatarImage src={m.avatarUrl || ""} alt={m.name} />
+                          <AvatarFallback>{m.initials}</AvatarFallback>
+                        </Avatar>
+                      ))}
+                    {draft.memberIds.length > 4 && (
+                      <AvatarGroupCount className="text-[11px]">
+                        +{draft.memberIds.length - 4}
+                      </AvatarGroupCount>
+                    )}
+                  </AvatarGroup>
                 )}
-              </div>
+              </Button>
             </div>
 
             <div className="grid gap-2">
@@ -1177,6 +1383,213 @@ export function ProjectSecretsTab({
               }
             >
               {draft.id ? "Save changes" : "Create secret"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={memberPickerOpen} onOpenChange={setMemberPickerOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign members</DialogTitle>
+            <DialogDescription>
+              Select the members who should have access to this secret.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Input
+                placeholder="Search members…"
+                value={memberPickerSearch}
+                onChange={(e) => setMemberPickerSearch(e.target.value)}
+                className="h-8 pr-8 text-[12px]"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              onClick={() => setMemberPickerSortAsc((v) => !v)}
+              title={memberPickerSortAsc ? "Sort Z → A" : "Sort A → Z"}
+            >
+              {memberPickerSortAsc ? (
+                <ArrowDownAZ className="size-3.5" />
+              ) : (
+                <ArrowUpAZ className="size-3.5" />
+              )}
+            </Button>
+          </div>
+
+          <div className="max-h-72 overflow-y-auto rounded-lg border border-border/35">
+            {(() => {
+              const filtered = members
+                .filter((m) =>
+                  m.name.toLowerCase().includes(memberPickerSearch.toLowerCase()) ||
+                  m.role.toLowerCase().includes(memberPickerSearch.toLowerCase()),
+                )
+                .sort((a, b) =>
+                  memberPickerSortAsc
+                    ? a.name.localeCompare(b.name)
+                    : b.name.localeCompare(a.name),
+                );
+
+              if (!filtered.length) {
+                return (
+                  <div className="flex flex-col items-center gap-1 py-8 text-center">
+                    <p className="text-[12px] text-muted-foreground">No members match your search.</p>
+                  </div>
+                );
+              }
+
+              return filtered.map((member, idx) => {
+                const selected = draft.memberIds.includes(member.id);
+                return (
+                  <button
+                    key={member.id}
+                    type="button"
+                    onClick={() => toggleMemberSelection(member.id)}
+                    className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/50 ${idx !== 0 ? "border-t border-border/25" : ""} ${selected ? "bg-muted/30" : ""}`}
+                  >
+                    <Avatar size="sm">
+                      <AvatarImage src={member.avatarUrl || ""} alt={member.name} />
+                      <AvatarFallback>{member.initials}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[12.5px] font-medium">{member.name}</p>
+                      <p className="truncate text-[11px] text-muted-foreground">{member.role}</p>
+                    </div>
+                    <div className={`flex size-4 items-center justify-center rounded-sm border transition-colors ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border/50"}`}>
+                      {selected && <Check className="size-3" />}
+                    </div>
+                  </button>
+                );
+              });
+            })()}
+          </div>
+
+          <DialogFooter>
+            <span className="mr-auto text-[11px] text-muted-foreground">
+              {draft.memberIds.length} selected
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setDraft((c) => ({ ...c, memberIds: [] }))}
+            >
+              Clear
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setMemberPickerOpen(false)}
+            >
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={teamPickerOpen} onOpenChange={setTeamPickerOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign teams</DialogTitle>
+            <DialogDescription>
+              Select the teams that should have access to this secret.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Input
+                placeholder="Search teams…"
+                value={teamPickerSearch}
+                onChange={(e) => setTeamPickerSearch(e.target.value)}
+                className="h-8 text-[12px]"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="icon-sm"
+              onClick={() => setTeamPickerSortAsc((v) => !v)}
+              title={teamPickerSortAsc ? "Sort Z → A" : "Sort A → Z"}
+            >
+              {teamPickerSortAsc ? (
+                <ArrowDownAZ className="size-3.5" />
+              ) : (
+                <ArrowUpAZ className="size-3.5" />
+              )}
+            </Button>
+          </div>
+
+          <div className="max-h-72 overflow-y-auto rounded-lg border border-border/35">
+            {(() => {
+              const filtered = teams
+                .filter((t) =>
+                  t.name.toLowerCase().includes(teamPickerSearch.toLowerCase()) ||
+                  t.focus.toLowerCase().includes(teamPickerSearch.toLowerCase()),
+                )
+                .sort((a, b) =>
+                  teamPickerSortAsc
+                    ? a.name.localeCompare(b.name)
+                    : b.name.localeCompare(a.name),
+                );
+
+              if (!filtered.length) {
+                return (
+                  <div className="flex flex-col items-center gap-1 py-8 text-center">
+                    <p className="text-[12px] text-muted-foreground">No teams match your search.</p>
+                  </div>
+                );
+              }
+
+              return filtered.map((team, idx) => {
+                const selected = draft.teamIds.includes(team.id);
+                return (
+                  <button
+                    key={team.id}
+                    type="button"
+                    onClick={() => toggleTeamSelection(team.id)}
+                    className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/50 ${idx !== 0 ? "border-t border-border/25" : ""} ${selected ? "bg-muted/30" : ""}`}
+                  >
+                    <div className="flex size-7 shrink-0 items-center justify-center rounded-md border border-border/40 bg-muted/50">
+                      <Building2 className="size-3.5 text-muted-foreground" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[12.5px] font-medium">{team.name}</p>
+                      {team.focus && (
+                        <p className="truncate text-[11px] text-muted-foreground">{team.focus}</p>
+                      )}
+                    </div>
+                    <div className={`flex size-4 items-center justify-center rounded-sm border transition-colors ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border/50"}`}>
+                      {selected && <Check className="size-3" />}
+                    </div>
+                  </button>
+                );
+              });
+            })()}
+          </div>
+
+          <DialogFooter>
+            <span className="mr-auto text-[11px] text-muted-foreground">
+              {draft.teamIds.length} selected
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setDraft((c) => ({ ...c, teamIds: [] }))}
+            >
+              Clear
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setTeamPickerOpen(false)}
+            >
+              Done
             </Button>
           </DialogFooter>
         </DialogContent>

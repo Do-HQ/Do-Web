@@ -24,6 +24,7 @@ import {
   WorkspaceSpaceRoomsQueryParams,
 } from "@/types/space";
 import {
+  keepPreviousData,
   useInfiniteQuery,
   useMutation,
   UseMutationOptions,
@@ -73,10 +74,13 @@ const useWorkspaceSpace = () => {
         search,
         kind,
         pageSize,
-        pinnedRoomId,
+        // pinnedRoomId intentionally excluded: including it caused the entire
+        // rooms list to refetch on every room switch (URL → searchParams changed).
+        // Active-room highlighting is handled client-side via activeRoomId.
       ],
       initialPageParam: 1,
       enabled: (options?.enabled ?? true) && !!workspaceId,
+      placeholderData: keepPreviousData,
       queryFn: async ({ pageParam }) => {
         try {
           return await getWorkspaceSpaceRooms(workspaceId, {
@@ -140,6 +144,7 @@ const useWorkspaceSpace = () => {
       ],
       initialPageParam: 1,
       enabled: (options?.enabled ?? true) && !!workspaceId && !!roomId,
+      placeholderData: keepPreviousData,
       queryFn: async ({ pageParam }) => {
         try {
           return await getWorkspaceSpaceRoomMessages(workspaceId, roomId, {
