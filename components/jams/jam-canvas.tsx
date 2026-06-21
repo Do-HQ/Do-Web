@@ -72,6 +72,8 @@ type ExcalidrawApi = {
       animate?: boolean;
     },
   ) => void;
+  refresh?: () => void;
+  setActiveTool?: (tool: { type: string }) => void;
 };
 
 type ExcalidrawAppState = {
@@ -298,6 +300,9 @@ const JamCanvas = ({
       } catch {
         // noop
       }
+      // Re-read container offsets after layout stabilizes and reset to selection tool.
+      apiRef.current?.refresh?.();
+      apiRef.current?.setActiveTool?.({ type: "selection" });
       initialHydrationRef.current = false;
     }, 120);
 
@@ -564,7 +569,6 @@ const JamCanvas = ({
         initialData={initialData as never}
         onChange={handleChange}
         viewModeEnabled={!canEdit}
-        zenModeEnabled
         gridModeEnabled={gridModeEnabled}
         detectScroll={false}
         UIOptions={uiOptions}

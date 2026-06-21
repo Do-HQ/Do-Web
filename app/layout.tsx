@@ -4,6 +4,7 @@ import "./globals.css";
 import "@excalidraw/excalidraw/index.css";
 import ReactQueryContextProvider from "@/lib/context/queryClient";
 import { ThemeProvider } from "next-themes";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { PrivacyConsentBanner } from "@/components/shared/privacy-consent-banner";
 import { PwaRegister } from "@/components/shared/pwa-register";
 
@@ -131,9 +132,11 @@ export default function RootLayout({
       >
         <ReactQueryContextProvider>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-            {children}
-            <PrivacyConsentBanner />
-            <PwaRegister />
+            <TooltipProvider>
+              {children}
+              <PrivacyConsentBanner />
+              <PwaRegister />
+            </TooltipProvider>
           </ThemeProvider>
         </ReactQueryContextProvider>
       </body>

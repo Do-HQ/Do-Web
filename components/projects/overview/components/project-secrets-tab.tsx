@@ -138,9 +138,7 @@ const VISIBILITY_STYLES: Record<WorkspaceProjectSecretVisibility, string> = {
     "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-300",
 };
 
-const buildEmptyDraft = (
-  members: ProjectMember[],
-): SecretDraft => ({
+const buildEmptyDraft = (members: ProjectMember[]): SecretDraft => ({
   key: "",
   value: "",
   note: "",
@@ -252,7 +250,9 @@ export function ProjectSecretsTab({
   const [revealedSecrets, setRevealedSecrets] = useState<
     Record<string, string>
   >({});
-  const [draft, setDraft] = useState<SecretDraft>(() => buildEmptyDraft(members));
+  const [draft, setDraft] = useState<SecretDraft>(() =>
+    buildEmptyDraft(members),
+  );
   const [policyVisibility, setPolicyVisibility] =
     useState<WorkspaceProjectSecretVisibility>("restricted");
 
@@ -264,7 +264,9 @@ export function ProjectSecretsTab({
   const [teamPickerSearch, setTeamPickerSearch] = useState("");
   const [teamPickerSortAsc, setTeamPickerSortAsc] = useState(true);
 
-  const [revealingSecretId, setRevealingSecretId] = useState<string | null>(null);
+  const [revealingSecretId, setRevealingSecretId] = useState<string | null>(
+    null,
+  );
 
   const [sessionUnlocked, setSessionUnlocked] = useState(false);
   const [otpStep, setOtpStep] = useState<"lock" | "requested">("lock");
@@ -273,12 +275,15 @@ export function ProjectSecretsTab({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const hasToken = Boolean(sessionStorage.getItem(SECRETS_STEPUP_SESSION_KEY));
+    const hasToken = Boolean(
+      sessionStorage.getItem(SECRETS_STEPUP_SESSION_KEY),
+    );
     if (hasToken) setSessionUnlocked(true);
   }, []);
 
   const debouncedSearch = useDebounce(search, 500);
-  const queriesEnabled = Boolean(workspaceId) && Boolean(projectId) && sessionUnlocked;
+  const queriesEnabled =
+    Boolean(workspaceId) && Boolean(projectId) && sessionUnlocked;
 
   const secretsQuery = useWorkspaceProjectSecrets(
     workspaceId ?? "",
@@ -309,11 +314,13 @@ export function ProjectSecretsTab({
   const secretsQueryError = secretsQuery.error;
   useEffect(() => {
     if (!sessionUnlocked) return;
-    if (!(secretsQueryError instanceof WorkspaceProjectSecretServiceError)) return;
+    if (!(secretsQueryError instanceof WorkspaceProjectSecretServiceError))
+      return;
 
     const shouldRelock =
       secretsQueryError.status === 401 ||
-      (secretsQueryError.status === 403 && secretsQueryError.code === "STEP_UP_REQUIRED");
+      (secretsQueryError.status === 403 &&
+        secretsQueryError.code === "STEP_UP_REQUIRED");
 
     if (shouldRelock) {
       sessionStorage.removeItem(SECRETS_STEPUP_SESSION_KEY);
@@ -354,12 +361,8 @@ export function ProjectSecretsTab({
     setDraft({
       ...nextDraft,
       visibility: nextVisibility,
-      memberIds:
-        nextVisibility === "restricted"
-          ? nextDraft.memberIds
-          : [],
-      teamIds:
-        nextVisibility === "team" && teams.length ? [teams[0].id] : [],
+      memberIds: nextVisibility === "restricted" ? nextDraft.memberIds : [],
+      teamIds: nextVisibility === "team" && teams.length ? [teams[0].id] : [],
     });
     setEditorOpen(true);
   };
@@ -640,12 +643,11 @@ export function ProjectSecretsTab({
     setPolicyOpen(true);
   };
 
-  const isSecretsForbidden =
-    !sessionUnlocked
-      ? false
-      : secretsQuery.error instanceof WorkspaceProjectSecretServiceError &&
-        secretsQuery.error.status === 403 &&
-        secretsQuery.error.code !== "STEP_UP_REQUIRED";
+  const isSecretsForbidden = !sessionUnlocked
+    ? false
+    : secretsQuery.error instanceof WorkspaceProjectSecretServiceError &&
+      secretsQuery.error.status === 403 &&
+      secretsQuery.error.code !== "STEP_UP_REQUIRED";
 
   if (isSecretsForbidden) {
     return (
@@ -658,16 +660,19 @@ export function ProjectSecretsTab({
   }
 
   const buildStepUpHeaders = () => {
-    const token = typeof window !== "undefined"
-      ? localStorage.getItem(LOCAL_KEYS.TOKEN) ?? ""
-      : "";
+    const token =
+      typeof window !== "undefined"
+        ? (localStorage.getItem(LOCAL_KEYS.TOKEN) ?? "")
+        : "";
     return {
       "content-type": "application/json",
       ...(token ? { authorization: `Bearer ${token}` } : {}),
     };
   };
 
-  const baseApiUrl = String(config.BASE_API_URL || "").trim().replace(/\/+$/, "");
+  const baseApiUrl = String(config.BASE_API_URL || "")
+    .trim()
+    .replace(/\/+$/, "");
 
   const handleSendOtp = () => {
     setOtpPending(true);
@@ -675,15 +680,20 @@ export function ProjectSecretsTab({
       method: "POST",
       headers: buildStepUpHeaders(),
       body: JSON.stringify({ email: currentUserEmail }),
-    }).then(async (res) => {
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(
-          String((data as { description?: string }).description || "Failed to send code.")
-        );
-      }
-      setOtpStep("requested");
-    }).finally(() => setOtpPending(false));
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(
+            String(
+              (data as { description?: string }).description ||
+                "Failed to send code.",
+            ),
+          );
+        }
+        setOtpStep("requested");
+      })
+      .finally(() => setOtpPending(false));
 
     void toast.promise(request, {
       loading: "Sending verification code…",
@@ -701,18 +711,24 @@ export function ProjectSecretsTab({
       method: "POST",
       headers: buildStepUpHeaders(),
       body: JSON.stringify({ email: currentUserEmail, code }),
-    }).then(async (res) => {
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(
-          String((data as { description?: string }).description || "Invalid code.")
-        );
-      }
-      const stepUpToken = String((data as { stepUpToken?: string }).stepUpToken || "").trim();
-      if (!stepUpToken) throw new Error("Verification failed. Try again.");
-      sessionStorage.setItem(SECRETS_STEPUP_SESSION_KEY, stepUpToken);
-      setSessionUnlocked(true);
-    }).finally(() => setOtpPending(false));
+    })
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(
+            String(
+              (data as { description?: string }).description || "Invalid code.",
+            ),
+          );
+        }
+        const stepUpToken = String(
+          (data as { stepUpToken?: string }).stepUpToken || "",
+        ).trim();
+        if (!stepUpToken) throw new Error("Verification failed. Try again.");
+        sessionStorage.setItem(SECRETS_STEPUP_SESSION_KEY, stepUpToken);
+        setSessionUnlocked(true);
+      })
+      .finally(() => setOtpPending(false));
 
     void toast.promise(request, {
       loading: "Verifying…",
@@ -732,10 +748,14 @@ export function ProjectSecretsTab({
           {otpStep === "lock" ? (
             <>
               <div>
-                <p className="text-[14px] font-semibold">Verify your identity</p>
+                <p className="text-[14px] font-semibold">
+                  Verify your identity
+                </p>
                 <p className="text-muted-foreground mt-1 text-[12px] leading-5">
                   Secrets are protected. Send a one-time code to{" "}
-                  <span className="text-foreground font-medium">{currentUserEmail}</span>{" "}
+                  <span className="text-foreground font-medium">
+                    {currentUserEmail}
+                  </span>{" "}
                   to continue.
                 </p>
               </div>
@@ -751,10 +771,15 @@ export function ProjectSecretsTab({
           ) : (
             <>
               <div>
-                <p className="text-[14px] font-semibold">Enter verification code</p>
+                <p className="text-[14px] font-semibold">
+                  Enter verification code
+                </p>
                 <p className="text-muted-foreground mt-1 text-[12px] leading-5">
                   We sent a 6-digit code to{" "}
-                  <span className="text-foreground font-medium">{currentUserEmail}</span>.
+                  <span className="text-foreground font-medium">
+                    {currentUserEmail}
+                  </span>
+                  .
                 </p>
               </div>
               <div className="flex w-full flex-col items-center gap-3">
@@ -766,15 +791,7 @@ export function ProjectSecretsTab({
                     if (val.length === 6) handleVerifyOtp(val);
                   }}
                 />
-                <Button
-                  type="button"
-                  size="sm"
-                  className="w-full max-w-xs"
-                  onClick={() => handleVerifyOtp()}
-                  disabled={otpPending || otpCode.length < 6}
-                >
-                  Verify
-                </Button>
+
                 <button
                   type="button"
                   className="text-muted-foreground hover:text-foreground text-[12px] underline-offset-2 hover:underline"
@@ -852,20 +869,28 @@ export function ProjectSecretsTab({
           <LoaderComponent />
         ) : secrets.length ? (
           <>
-            <div data-tour="project-secrets-list" className="divide-y divide-border/20 lg:hidden">
+            <div
+              data-tour="project-secrets-list"
+              className="divide-y divide-border/20 lg:hidden"
+            >
               {secrets.map((secret) => {
                 const assignedMembers =
                   secret.visibility === "team"
                     ? members.filter((member) =>
                         secret.teamIds.some((teamId) =>
-                          teams.find((t) => t.id === teamId)?.memberIds.includes(member.id),
+                          teams
+                            .find((t) => t.id === teamId)
+                            ?.memberIds.includes(member.id),
                         ),
                       )
-                    : members.filter((member) => secret.memberIds.includes(member.id));
+                    : members.filter((member) =>
+                        secret.memberIds.includes(member.id),
+                      );
                 const visibleValue = revealedSecrets[secret.id];
                 const canManageSecret =
                   !!currentUserId &&
-                  String(secret.createdByUserId || "") === String(currentUserId);
+                  String(secret.createdByUserId || "") ===
+                    String(currentUserId);
 
                 return (
                   <div key={secret.id} className="px-3 py-3 md:px-4">
@@ -890,7 +915,10 @@ export function ProjectSecretsTab({
                             type="button"
                             variant="ghost"
                             size="sm"
-                            disabled={!secret.canReveal || revealingSecretId === secret.id}
+                            disabled={
+                              !secret.canReveal ||
+                              revealingSecretId === secret.id
+                            }
                             onClick={() => revealSecretValue(secret)}
                           >
                             {revealingSecretId === secret.id ? (
@@ -924,8 +952,8 @@ export function ProjectSecretsTab({
                                   member.teamIds.length > 1
                                     ? `${member.teamIds.length} teams`
                                     : member.teamIds.length === 1
-                                    ? "1 team"
-                                    : "No team",
+                                      ? "1 team"
+                                      : "No team",
                                 status: member.active ? "Active" : "Offline",
                                 details: [
                                   {
@@ -993,7 +1021,10 @@ export function ProjectSecretsTab({
               })}
             </div>
 
-            <div data-tour="project-secrets-list" className="hidden overflow-x-auto lg:block">
+            <div
+              data-tour="project-secrets-list"
+              className="hidden overflow-x-auto lg:block"
+            >
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
@@ -1011,14 +1042,19 @@ export function ProjectSecretsTab({
                       secret.visibility === "team"
                         ? members.filter((member) =>
                             secret.teamIds.some((teamId) =>
-                              teams.find((t) => t.id === teamId)?.memberIds.includes(member.id),
+                              teams
+                                .find((t) => t.id === teamId)
+                                ?.memberIds.includes(member.id),
                             ),
                           )
-                        : members.filter((member) => secret.memberIds.includes(member.id));
+                        : members.filter((member) =>
+                            secret.memberIds.includes(member.id),
+                          );
                     const visibleValue = revealedSecrets[secret.id];
                     const canManageSecret =
                       !!currentUserId &&
-                      String(secret.createdByUserId || "") === String(currentUserId);
+                      String(secret.createdByUserId || "") ===
+                        String(currentUserId);
 
                     return (
                       <TableRow
@@ -1059,7 +1095,10 @@ export function ProjectSecretsTab({
                               type="button"
                               variant="ghost"
                               size="sm"
-                              disabled={!secret.canReveal || revealingSecretId === secret.id}
+                              disabled={
+                                !secret.canReveal ||
+                                revealingSecretId === secret.id
+                              }
                               onClick={() => revealSecretValue(secret)}
                             >
                               {revealingSecretId === secret.id ? (
@@ -1092,8 +1131,8 @@ export function ProjectSecretsTab({
                                     member.teamIds.length > 1
                                       ? `${member.teamIds.length} teams`
                                       : member.teamIds.length === 1
-                                      ? "1 team"
-                                      : "No team",
+                                        ? "1 team"
+                                        : "No team",
                                   status: member.active ? "Active" : "Offline",
                                   details: [
                                     {
@@ -1276,11 +1315,19 @@ export function ProjectSecretsTab({
                     visibility: value as WorkspaceProjectSecretVisibility,
                     memberIds:
                       value === "restricted"
-                        ? (current.memberIds.length ? current.memberIds : members.length ? [members[0].id] : [])
+                        ? current.memberIds.length
+                          ? current.memberIds
+                          : members.length
+                            ? [members[0].id]
+                            : []
                         : [],
                     teamIds:
                       value === "team"
-                        ? (current.teamIds.length ? current.teamIds : teams.length ? [teams[0].id] : [])
+                        ? current.teamIds.length
+                          ? current.teamIds
+                          : teams.length
+                            ? [teams[0].id]
+                            : []
                         : [],
                   }))
                 }
@@ -1455,9 +1502,14 @@ export function ProjectSecretsTab({
           <div className="max-h-72 overflow-y-auto rounded-lg border border-border/35">
             {(() => {
               const filtered = members
-                .filter((m) =>
-                  m.name.toLowerCase().includes(memberPickerSearch.toLowerCase()) ||
-                  m.role.toLowerCase().includes(memberPickerSearch.toLowerCase()),
+                .filter(
+                  (m) =>
+                    m.name
+                      .toLowerCase()
+                      .includes(memberPickerSearch.toLowerCase()) ||
+                    m.role
+                      .toLowerCase()
+                      .includes(memberPickerSearch.toLowerCase()),
                 )
                 .sort((a, b) =>
                   memberPickerSortAsc
@@ -1468,7 +1520,9 @@ export function ProjectSecretsTab({
               if (!filtered.length) {
                 return (
                   <div className="flex flex-col items-center gap-1 py-8 text-center">
-                    <p className="text-[12px] text-muted-foreground">No members match your search.</p>
+                    <p className="text-[12px] text-muted-foreground">
+                      No members match your search.
+                    </p>
                   </div>
                 );
               }
@@ -1483,14 +1537,23 @@ export function ProjectSecretsTab({
                     className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/50 ${idx !== 0 ? "border-t border-border/25" : ""} ${selected ? "bg-muted/30" : ""}`}
                   >
                     <Avatar size="sm">
-                      <AvatarImage src={member.avatarUrl || ""} alt={member.name} />
+                      <AvatarImage
+                        src={member.avatarUrl || ""}
+                        alt={member.name}
+                      />
                       <AvatarFallback>{member.initials}</AvatarFallback>
                     </Avatar>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[12.5px] font-medium">{member.name}</p>
-                      <p className="truncate text-[11px] text-muted-foreground">{member.role}</p>
+                      <p className="truncate text-[12.5px] font-medium">
+                        {member.name}
+                      </p>
+                      <p className="truncate text-[11px] text-muted-foreground">
+                        {member.role}
+                      </p>
                     </div>
-                    <div className={`flex size-4 items-center justify-center rounded-sm border transition-colors ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border/50"}`}>
+                    <div
+                      className={`flex size-4 items-center justify-center rounded-sm border transition-colors ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border/50"}`}
+                    >
                       {selected && <Check className="size-3" />}
                     </div>
                   </button>
@@ -1561,9 +1624,14 @@ export function ProjectSecretsTab({
           <div className="max-h-72 overflow-y-auto rounded-lg border border-border/35">
             {(() => {
               const filtered = teams
-                .filter((t) =>
-                  t.name.toLowerCase().includes(teamPickerSearch.toLowerCase()) ||
-                  t.focus.toLowerCase().includes(teamPickerSearch.toLowerCase()),
+                .filter(
+                  (t) =>
+                    t.name
+                      .toLowerCase()
+                      .includes(teamPickerSearch.toLowerCase()) ||
+                    t.focus
+                      .toLowerCase()
+                      .includes(teamPickerSearch.toLowerCase()),
                 )
                 .sort((a, b) =>
                   teamPickerSortAsc
@@ -1574,7 +1642,9 @@ export function ProjectSecretsTab({
               if (!filtered.length) {
                 return (
                   <div className="flex flex-col items-center gap-1 py-8 text-center">
-                    <p className="text-[12px] text-muted-foreground">No teams match your search.</p>
+                    <p className="text-[12px] text-muted-foreground">
+                      No teams match your search.
+                    </p>
                   </div>
                 );
               }
@@ -1592,12 +1662,18 @@ export function ProjectSecretsTab({
                       <Building2 className="size-3.5 text-muted-foreground" />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[12.5px] font-medium">{team.name}</p>
+                      <p className="truncate text-[12.5px] font-medium">
+                        {team.name}
+                      </p>
                       {team.focus && (
-                        <p className="truncate text-[11px] text-muted-foreground">{team.focus}</p>
+                        <p className="truncate text-[11px] text-muted-foreground">
+                          {team.focus}
+                        </p>
                       )}
                     </div>
-                    <div className={`flex size-4 items-center justify-center rounded-sm border transition-colors ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border/50"}`}>
+                    <div
+                      className={`flex size-4 items-center justify-center rounded-sm border transition-colors ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border/50"}`}
+                    >
                       {selected && <Check className="size-3" />}
                     </div>
                   </button>

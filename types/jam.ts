@@ -232,6 +232,7 @@ export interface ShareWorkspaceJamRequestBody {
   userIds?: string[];
   teamIds?: string[];
   roomIds?: string[];
+  editorUserIds?: string[];
   replace?: boolean;
   visibility?: WorkspaceJamVisibility;
   announceInRooms?: boolean;

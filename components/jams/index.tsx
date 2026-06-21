@@ -117,6 +117,7 @@ import {
   PopoverContent,
 } from "@/components/ui/popover";
 import { MentionSuggestionRow } from "@/components/shared/mention-suggestion-row";
+import { AccessDenied } from "@/components/shared/access-denied";
 import LoaderComponent from "../shared/loader";
 
 const getSnapshotSignature = (
@@ -352,8 +353,8 @@ const JAMS_SCOPE_OPTIONS: Array<{
   label: string;
 }> = [
   { value: "all", label: "All" },
-  { value: "mine", label: "Mine" },
-  { value: "shared", label: "Shared" },
+  { value: "mine", label: "My jams" },
+  { value: "shared", label: "Shared with me" },
 ];
 
 const JAMS_VISIBILITY_OPTIONS: Array<{
@@ -368,6 +369,7 @@ type ShareSelection = {
   users: string[];
   teams: string[];
   rooms: string[];
+  editorUserIds: string[];
   announceInRooms: boolean;
   note: string;
 };
@@ -376,6 +378,7 @@ const defaultShareSelection: ShareSelection = {
   users: [],
   teams: [],
   rooms: [],
+  editorUserIds: [],
   announceInRooms: true,
   note: "",
 };
@@ -513,6 +516,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   const debouncedCommentThreadSearch = useDebounce(commentThreadSearch, 250);
   const activeJamFromRoute = routeJamId?.trim() || "";
   const shouldAutoOpenCreateDialog = searchParams?.get("create") === "1";
+  const shouldAutoOpenShareDialog = searchParams?.get("share") === "1";
   const routeThreadId = String(searchParams?.get("thread") || "").trim();
 
   const workspaceKey = workspaceId ?? "";
@@ -640,6 +644,15 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   const refetchJamDetail = jamDetailQuery.refetch;
 
   const activeJam = jamDetailQuery.data?.data?.jam || null;
+
+  React.useEffect(() => {
+    if (!shouldAutoOpenShareDialog || !workspaceKey || !activeJam) {
+      return;
+    }
+    setIsShareDialogOpen(true);
+    router.replace(`${ROUTES.JAMS}/${activeJam.jamId}`);
+  }, [activeJam, router, shouldAutoOpenShareDialog, workspaceKey]);
+
   const activeJamSnapshot = (activeJam?.snapshot || null) as Record<
     string,
     unknown
@@ -1010,6 +1023,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
       users: [...activeJam.sharedUserIds],
       teams: [...activeJam.sharedTeamIds],
       rooms: [...activeJam.sharedRoomIds],
+      editorUserIds: [...activeJam.editorUserIds],
       announceInRooms: true,
       note: "",
     });
@@ -1095,7 +1109,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
           setActiveJamId(nextJamId);
           setIsCanvasFocusMode(true);
         }
-        router.push(`${ROUTES.JAMS}/${nextJamId}`);
+        router.push(`${ROUTES.JAMS}/${nextJamId}?share=1`);
       }
 
       setIsCreateDialogOpen(false);
@@ -1488,6 +1502,9 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
           userIds: shareSelection.users,
           teamIds: shareSelection.teams,
           roomIds: shareSelection.rooms,
+          editorUserIds: shareSelection.editorUserIds.filter((id) =>
+            shareSelection.users.includes(id),
+          ),
           replace: true,
           announceInRooms: shareSelection.announceInRooms,
           note: shareSelection.note.trim(),
@@ -2315,7 +2332,14 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
             </div>
           </div>
           <div className="min-h-0 flex-1">
-            {jamDetailQuery.isLoading || !activeJam ? (
+            {jamDetailQuery.isLoading ? (
+              <LoaderComponent />
+            ) : jamDetailQuery.isError || activeJam?.canView === false ? (
+              <AccessDenied
+                title="Access restricted"
+                description="You don't have permission to view this jam. Ask the owner to share it with you."
+              />
+            ) : !activeJam ? (
               <LoaderComponent />
             ) : (
               <div className="flex h-full min-h-0">
@@ -3256,38 +3280,79 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
             </div>
             <div className="flex flex-wrap gap-1.5">
               {selectedRecipients.length ? (
-                selectedRecipients.map((entry) => {
-                  const EntryIcon =
-                    entry.type === "users"
-                      ? Users
-                      : entry.type === "teams"
-                        ? UsersRound
-                        : Hash;
+                <div className="w-full divide-y divide-border/30 rounded-md border border-border/40">
+                  {selectedRecipients.map((entry) => {
+                    const EntryIcon =
+                      entry.type === "users"
+                        ? Users
+                        : entry.type === "teams"
+                          ? UsersRound
+                          : Hash;
+                    const isEditor =
+                      entry.type === "users" &&
+                      shareSelection.editorUserIds.includes(entry.id);
+                    const toggleEditAccess = () => {
+                      if (entry.type !== "users") return;
+                      setShareSelection((cur) => ({
+                        ...cur,
+                        editorUserIds: isEditor
+                          ? cur.editorUserIds.filter((id) => id !== entry.id)
+                          : [...cur.editorUserIds, entry.id],
+                      }));
+                    };
 
-                  return (
-                    <Badge
-                      key={`${entry.type}:${entry.id}`}
-                      variant="secondary"
-                      className="h-6 gap-1 px-2 text-[11px]"
-                    >
-                      <EntryIcon className="size-3" />
-                      <span className="max-w-[14rem] truncate">
-                        {entry.label}
-                      </span>
-                      <button
-                        type="button"
-                        className="hover:text-foreground text-muted-foreground"
-                        onClick={() => toggleSelection(entry.type, entry.id)}
-                        aria-label={`Remove ${entry.label}`}
+                    return (
+                      <div
+                        key={`${entry.type}:${entry.id}`}
+                        className="flex items-center gap-2 px-3 py-2"
                       >
-                        <X className="size-3" />
-                      </button>
-                    </Badge>
-                  );
-                })
+                        <EntryIcon className="size-3.5 shrink-0 text-muted-foreground" />
+                        <span className="min-w-0 flex-1 truncate text-[12px]">
+                          {entry.label}
+                        </span>
+                        {entry.type === "users" ? (
+                          <div className="flex shrink-0 items-center rounded-md border border-border/40 text-[11px] overflow-hidden">
+                            <button
+                              type="button"
+                              onClick={isEditor ? toggleEditAccess : undefined}
+                              className={`px-2 py-1 transition-colors ${!isEditor ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                            >
+                              View
+                            </button>
+                            <button
+                              type="button"
+                              onClick={!isEditor ? toggleEditAccess : undefined}
+                              className={`px-2 py-1 transition-colors ${isEditor ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                            >
+                              Edit
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="shrink-0 text-[11px] text-muted-foreground">View</span>
+                        )}
+                        <button
+                          type="button"
+                          className="shrink-0 text-muted-foreground hover:text-destructive"
+                          onClick={() => {
+                            toggleSelection(entry.type, entry.id);
+                            if (entry.type === "users") {
+                              setShareSelection((cur) => ({
+                                ...cur,
+                                editorUserIds: cur.editorUserIds.filter((id) => id !== entry.id),
+                              }));
+                            }
+                          }}
+                          aria-label={`Remove ${entry.label}`}
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               ) : (
                 <p className="text-muted-foreground text-[11px]">
-                  No recipients selected yet.
+                  No recipients selected yet. Search above to add people, teams, or rooms.
                 </p>
               )}
             </div>
