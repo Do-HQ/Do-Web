@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import {
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar";
@@ -17,6 +18,7 @@ export function NavMain({
     isActive?: boolean;
     onClick?: () => void;
     disabled?: boolean;
+    badge?: number;
   }[];
 }) {
   return (
@@ -51,6 +53,11 @@ export function NavMain({
               <span>{item.title}</span>
             </Link>
           </SidebarMenuButton>
+          {item.badge ? (
+            <SidebarMenuBadge className="bg-primary text-primary-foreground rounded-full px-1.5 text-[10px] font-semibold">
+              {item.badge > 99 ? "99+" : item.badge}
+            </SidebarMenuBadge>
+          ) : null}
         </SidebarMenuItem>
       ))}
     </SidebarMenu>

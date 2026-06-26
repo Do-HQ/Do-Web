@@ -4,11 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   LayoutGrid,
+  Maximize2,
   MessageSquare,
   Mic,
   MicOff,
   Monitor,
   MonitorUp,
+  PanelRight,
   PanelRightClose,
   PanelRightOpen,
   PhoneOff,
@@ -40,6 +42,14 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   disconnectTeamCallSocket,
   getTeamCallSocket,
@@ -242,7 +252,9 @@ const TeamCallPage = () => {
   const [isMicOn, setIsMicOn] = useState(true);
   const [isVideoOn] = useState(false);
   const [isSpeakerOn, setIsSpeakerOn] = useState(true);
-  const [isGridView, setIsGridView] = useState(true);
+  const [viewMode, setViewMode] = useState<"tiled" | "spotlight" | "sidebar">(
+    "tiled",
+  );
 
   const [isPanelOpenDesktop, setIsPanelOpenDesktop] = useState(true);
   const [isPanelSheetOpen, setIsPanelSheetOpen] = useState(false);
@@ -304,8 +316,8 @@ const TeamCallPage = () => {
   );
 
   const participants = useMemo<Participant[]>(() => {
-    const remoteParticipants = Object.values(remoteParticipantsMap).sort((a, b) =>
-      a.name.localeCompare(b.name),
+    const remoteParticipants = Object.values(remoteParticipantsMap).sort(
+      (a, b) => a.name.localeCompare(b.name),
     );
 
     return [localParticipant, ...remoteParticipants];
@@ -334,13 +346,13 @@ const TeamCallPage = () => {
         };
       })
       .filter(Boolean) as Array<{
-        id: string;
-        display: string;
-        kind?: "user" | "team" | "project";
-        avatarUrl?: string;
-        avatarFallback?: string;
-        subtitle?: string;
-      }>;
+      id: string;
+      display: string;
+      kind?: "user" | "team" | "project";
+      avatarUrl?: string;
+      avatarFallback?: string;
+      subtitle?: string;
+    }>;
   }, [participants]);
 
   const workspacePeopleQuery = workspaceHook.useWorkspacePeople(
@@ -374,7 +386,9 @@ const TeamCallPage = () => {
       return directUserIdFromQuery;
     }
 
-    const normalizedRoomName = String(roomName || "").trim().toLowerCase();
+    const normalizedRoomName = String(roomName || "")
+      .trim()
+      .toLowerCase();
     if (!normalizedRoomName) {
       return "";
     }
@@ -384,7 +398,11 @@ const TeamCallPage = () => {
       const name =
         `${person?.firstName || ""} ${person?.lastName || ""}`.trim() ||
         String(person?.email || "").trim();
-      return String(name || "").trim().toLowerCase() === normalizedRoomName;
+      return (
+        String(name || "")
+          .trim()
+          .toLowerCase() === normalizedRoomName
+      );
     });
 
     const fallbackByName = String(matchingMember?.userId?._id || "").trim();
@@ -425,17 +443,22 @@ const TeamCallPage = () => {
       email: string;
       avatarUrl?: string;
     }>;
-  }, [activeParticipantIdSet, currentUserId, directCounterpartId, workspacePeople]);
+  }, [
+    activeParticipantIdSet,
+    currentUserId,
+    directCounterpartId,
+    workspacePeople,
+  ]);
 
   const isScreenSharing = Boolean(screenStream);
   const screenSharingParticipant =
     participants.find((participant) => participant.isScreenSharing) || null;
-  const featuredParticipant = screenSharingParticipant || participants[0] || localParticipant;
+  const featuredParticipant =
+    screenSharingParticipant || participants[0] || localParticipant;
   const tileParticipants = participants.filter(
     (participant) => participant.id !== featuredParticipant.id,
   );
   const hasScreenSharing = Boolean(screenSharingParticipant);
-  const shouldRenderGrid = isGridView && !hasScreenSharing;
   const resolvedMediaError = roomId
     ? mediaError
     : "Missing call room context. Start the call from a chat room.";
@@ -466,7 +489,8 @@ const TeamCallPage = () => {
         const nextParticipant: Participant = {
           id: userId,
           name: existing?.name || "Member",
-          initials: existing?.initials || getInitials(existing?.name || "Member"),
+          initials:
+            existing?.initials || getInitials(existing?.name || "Member"),
           avatarUrl: existing?.avatarUrl,
           role: existing?.role || "Member",
           isMuted: existing?.isMuted ?? true,
@@ -528,7 +552,10 @@ const TeamCallPage = () => {
       const currentAudioTracks = localStreamRef.current?.getAudioTracks() || [];
       currentAudioTracks.forEach((track) => {
         setTrackContentHint(track, "speech");
-        const sender = connection.addTrack(track, localStreamRef.current as MediaStream);
+        const sender = connection.addTrack(
+          track,
+          localStreamRef.current as MediaStream,
+        );
         void tuneAudioSenderQuality(sender);
       });
 
@@ -538,11 +565,17 @@ const TeamCallPage = () => {
 
       if (currentVideoTrack) {
         const isScreenTrack =
-          screenStreamRef.current?.getVideoTracks().some((track) => track.id === currentVideoTrack.id) ??
-          false;
-        setTrackContentHint(currentVideoTrack, isScreenTrack ? "detail" : "motion");
+          screenStreamRef.current
+            ?.getVideoTracks()
+            .some((track) => track.id === currentVideoTrack.id) ?? false;
+        setTrackContentHint(
+          currentVideoTrack,
+          isScreenTrack ? "detail" : "motion",
+        );
         const videoCarrierStream =
-          screenStreamRef.current || localStreamRef.current || new MediaStream([currentVideoTrack]);
+          screenStreamRef.current ||
+          localStreamRef.current ||
+          new MediaStream([currentVideoTrack]);
         connection.addTrack(currentVideoTrack, videoCarrierStream);
       }
 
@@ -570,7 +603,9 @@ const TeamCallPage = () => {
 
         const existingStream = remoteStreamsRef.current.get(targetUserId);
         const normalizedStream = existingStream || new MediaStream();
-        const existingTrackIds = new Set(normalizedStream.getTracks().map((track) => track.id));
+        const existingTrackIds = new Set(
+          normalizedStream.getTracks().map((track) => track.id),
+        );
 
         incomingStream.getTracks().forEach((track) => {
           if (!existingTrackIds.has(track.id)) {
@@ -609,14 +644,20 @@ const TeamCallPage = () => {
     }
     if (videoTrack) {
       const isScreenTrack =
-        screenStreamRef.current?.getVideoTracks().some((track) => track.id === videoTrack.id) ?? false;
+        screenStreamRef.current
+          ?.getVideoTracks()
+          .some((track) => track.id === videoTrack.id) ?? false;
       setTrackContentHint(videoTrack, isScreenTrack ? "detail" : "motion");
     }
 
     peerConnectionsRef.current.forEach((connection, targetUserId) => {
       const senders = connection.getSenders();
-      const audioSender = senders.find((sender) => sender.track?.kind === "audio");
-      const videoSender = senders.find((sender) => sender.track?.kind === "video");
+      const audioSender = senders.find(
+        (sender) => sender.track?.kind === "audio",
+      );
+      const videoSender = senders.find(
+        (sender) => sender.track?.kind === "video",
+      );
       let shouldRenegotiate = false;
 
       if (audioSender && audioSender.track !== audioTrack) {
@@ -632,7 +673,9 @@ const TeamCallPage = () => {
         void videoSender.replaceTrack(videoTrack);
       } else if (!videoSender && videoTrack) {
         const videoCarrier =
-          screenStreamRef.current || localStreamRef.current || new MediaStream([videoTrack]);
+          screenStreamRef.current ||
+          localStreamRef.current ||
+          new MediaStream([videoTrack]);
         connection.addTrack(videoTrack, videoCarrier);
         shouldRenegotiate = true;
       }
@@ -668,7 +711,12 @@ const TeamCallPage = () => {
 
   const createOfferToParticipant = useCallback(
     async (targetUserId: string) => {
-      if (!resolvedWorkspaceId || !roomId || !targetUserId || targetUserId === currentUserId) {
+      if (
+        !resolvedWorkspaceId ||
+        !roomId ||
+        !targetUserId ||
+        targetUserId === currentUserId
+      ) {
         return;
       }
 
@@ -722,7 +770,9 @@ const TeamCallPage = () => {
 
       if (signal.type === "offer" && signal.sdp) {
         try {
-          await connection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          await connection.setRemoteDescription(
+            new RTCSessionDescription(signal.sdp),
+          );
           const answer = await connection.createAnswer();
           await connection.setLocalDescription(answer);
 
@@ -743,7 +793,9 @@ const TeamCallPage = () => {
 
       if (signal.type === "answer" && signal.sdp) {
         try {
-          await connection.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+          await connection.setRemoteDescription(
+            new RTCSessionDescription(signal.sdp),
+          );
         } catch {
           // Ignore stale answer payloads during renegotiation.
         }
@@ -752,7 +804,9 @@ const TeamCallPage = () => {
 
       if (signal.type === "ice-candidate" && signal.candidate) {
         try {
-          await connection.addIceCandidate(new RTCIceCandidate(signal.candidate));
+          await connection.addIceCandidate(
+            new RTCIceCandidate(signal.candidate),
+          );
         } catch {
           // Ignore candidates that arrive before remote description is available.
         }
@@ -793,7 +847,9 @@ const TeamCallPage = () => {
     }
 
     const timer = window.setTimeout(() => {
-      setDurationSeconds(Math.max(0, Math.floor((Date.now() - startedAtParam) / 1000)));
+      setDurationSeconds(
+        Math.max(0, Math.floor((Date.now() - startedAtParam) / 1000)),
+      );
     }, 0);
 
     return () => {
@@ -1160,7 +1216,14 @@ const TeamCallPage = () => {
         isScreenSharing,
       },
     });
-  }, [currentUserId, isMicOn, isScreenSharing, isVideoOn, resolvedWorkspaceId, roomId]);
+  }, [
+    currentUserId,
+    isMicOn,
+    isScreenSharing,
+    isVideoOn,
+    resolvedWorkspaceId,
+    roomId,
+  ]);
 
   useEffect(() => {
     return () => {
@@ -1262,7 +1325,10 @@ const TeamCallPage = () => {
       isScreenSharing,
     };
 
-    window.sessionStorage.setItem(TEAM_CALL_WIDGET_KEY, JSON.stringify(payload));
+    window.sessionStorage.setItem(
+      TEAM_CALL_WIDGET_KEY,
+      JSON.stringify(payload),
+    );
   };
 
   const handleLeaveToSpaces = () => {
@@ -1517,8 +1583,8 @@ const TeamCallPage = () => {
       <article
         key={participant.id}
         className={cn(
-          "relative min-h-0 overflow-hidden rounded-xl border border-border/45 bg-muted/25",
-          compact && "w-[7.5rem] shrink-0",
+          "relative min-h-0 overflow-hidden rounded-xl bg-zinc-900",
+          compact && "w-28 shrink-0",
         )}
       >
         {hasVideo ? (
@@ -1527,20 +1593,16 @@ const TeamCallPage = () => {
             playsInline
             muted={participant.id === currentUserId || !isSpeakerOn}
             ref={(node) => {
-              if (!node || !participant.stream) {
-                return;
-              }
-
-              if (node.srcObject !== participant.stream) {
+              if (!node || !participant.stream) return;
+              if (node.srcObject !== participant.stream)
                 node.srcObject = participant.stream;
-              }
             }}
-            className="h-full w-full bg-black object-contain"
+            className="h-full w-full bg-black object-cover"
           />
         ) : (
-          <div className="flex h-full items-center justify-center">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2.5">
             <Avatar
-              size="sm"
+              className="size-14 sm:size-20 ring-2 ring-white/10 ring-offset-2 ring-offset-zinc-900"
               userCard={{
                 name: participant.name,
                 role: participant.role ?? "Member",
@@ -1548,7 +1610,7 @@ const TeamCallPage = () => {
               }}
             >
               <AvatarImage src={participant.avatarUrl} alt={participant.name} />
-              <AvatarFallback className="text-[11px]">
+              <AvatarFallback className="bg-zinc-700 text-white text-base">
                 {participant.initials}
               </AvatarFallback>
             </Avatar>
@@ -1561,26 +1623,21 @@ const TeamCallPage = () => {
             playsInline
             muted={participant.id === currentUserId || !isSpeakerOn}
             ref={(node) => {
-              if (!node || !participant.stream) {
-                return;
-              }
-
-              if (node.srcObject !== participant.stream) {
+              if (!node || !participant.stream) return;
+              if (node.srcObject !== participant.stream)
                 node.srcObject = participant.stream;
-              }
             }}
           />
         ) : null}
 
-        <div className="absolute right-1 bottom-1 left-1 flex items-center gap-1 rounded-md bg-black/45 px-1.5 py-0.5 text-white backdrop-blur-sm">
-          <p className="truncate text-[11px]">{participant.name}</p>
+        <div className="absolute bottom-0 left-0 right-0 flex items-center gap-1.5 bg-linear-to-t from-black/70 via-black/30 to-transparent px-2.5 pb-2 pt-6 text-white">
+          <p className="truncate text-[11px] font-medium">{participant.name}</p>
           <span className="ml-auto inline-flex items-center gap-1">
             {participant.isMuted ? (
-              <MicOff className="size-2.5" />
+              <MicOff className="size-3 text-white/70" />
             ) : (
-              <Mic className="size-2.5" />
+              renderAudioMeter(participant.id, false)
             )}
-            {renderAudioMeter(participant.id, participant.isMuted)}
           </span>
         </div>
       </article>
@@ -1683,125 +1740,113 @@ const TeamCallPage = () => {
             {participant.name}
           </p>
           {participant.role ? (
-            <p className="text-muted-foreground text-[10px]">{participant.role}</p>
+            <p className="text-muted-foreground text-[10px]">
+              {participant.role}
+            </p>
           ) : null}
         </div>
       </article>
     );
   };
 
-  const renderVoiceView = () => {
-    const featuredVoiceParticipant =
-      participants.find((participant) => !participant.isMuted) ||
-      featuredParticipant;
-
-    return (
-      <div className="relative flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-b from-[#171232] via-[#0f1023] to-[#0c0d1a] px-3 py-4 text-white sm:px-6 sm:py-6">
-        <div className="mb-3 flex items-center justify-between">
-          <Badge variant="outline" className="border-white/25 bg-white/10 text-[11px] text-white">
-            Voice call
-          </Badge>
-          <Badge variant="secondary" className="bg-white/10 text-[11px] text-white">
-            {participants.length} participant{participants.length > 1 ? "s" : ""}
-          </Badge>
-        </div>
-
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto">
-          <div className="flex w-full flex-wrap items-center justify-center gap-4 sm:gap-7">
-            {participants.map((participant) =>
-              renderVoiceParticipantOrb(
-                participant,
-                participant.id === featuredVoiceParticipant.id,
-              ),
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   const renderGridView = () => {
+    const tileList = hasScreenSharing ? tileParticipants : participants;
+    const totalTiles = tileList.length + (hasScreenSharing ? 1 : 0);
+    const gridColsClass =
+      totalTiles <= 1
+        ? "grid-cols-1"
+        : totalTiles <= 2
+          ? "grid-cols-2"
+          : totalTiles <= 4
+            ? "grid-cols-2"
+            : totalTiles <= 9
+              ? "grid-cols-3"
+              : "grid-cols-4";
+
     return (
-      <div className="grid h-full min-h-0 auto-rows-fr grid-cols-2 gap-2 overflow-hidden sm:grid-cols-3 lg:grid-cols-4">
+      <div
+        className={cn(
+          "grid h-full min-h-0 auto-rows-fr gap-1.5 overflow-hidden rounded-xl bg-black p-1.5",
+          gridColsClass,
+        )}
+      >
         {hasScreenSharing && (
-          <article className="relative min-h-0 overflow-hidden rounded-xl border border-primary/30 bg-black/85 shadow-lg sm:col-span-2">
+          <article className="relative col-span-full min-h-0 overflow-hidden rounded-xl bg-zinc-900 sm:col-span-2 sm:row-span-2">
             {featuredParticipant.id === currentUserId && screenStream ? (
-              <video ref={screenVideoRef} autoPlay playsInline muted className="h-full w-full bg-black object-contain" />
+              <video
+                ref={screenVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className="h-full w-full bg-black object-contain"
+              />
             ) : featuredParticipant.stream ? (
               <video
                 autoPlay
                 playsInline
                 muted={featuredParticipant.id === currentUserId || !isSpeakerOn}
                 ref={(node) => {
-                  if (!node || !featuredParticipant.stream) {
-                    return;
-                  }
-
-                  if (node.srcObject !== featuredParticipant.stream) {
+                  if (!node || !featuredParticipant.stream) return;
+                  if (node.srcObject !== featuredParticipant.stream)
                     node.srcObject = featuredParticipant.stream;
-                  }
                 }}
                 className="h-full w-full bg-black object-contain"
               />
             ) : (
               <div className="flex h-full items-center justify-center px-2 text-center">
-                <p className="text-[12px] text-white/85">Screen share is live</p>
+                <p className="text-[12px] text-white/70">
+                  Screen share is live
+                </p>
               </div>
             )}
-            <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/55 px-2 py-0.5 text-[11px] text-white backdrop-blur-sm">
+            <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/60 px-2 py-0.5 text-[11px] text-white backdrop-blur-sm">
               <MonitorUp className="size-3.5" />
               {featuredParticipant.name} sharing
             </div>
           </article>
         )}
 
-        {(hasScreenSharing ? tileParticipants : [featuredParticipant, ...tileParticipants]).map(
-          (participant) => renderParticipantTile(participant),
-        )}
+        {tileList.map((participant) => renderParticipantTile(participant))}
       </div>
     );
   };
 
   const renderSpeakerView = () => {
     return (
-      <div
-        className={cn(
-          "grid h-full min-h-0 gap-2 overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-br from-[#16122d] via-[#0d0d19] to-[#121425] p-2 sm:p-3",
-          hasScreenSharing
-            ? "grid-rows-[minmax(0,1fr)_4.75rem] sm:grid-rows-[minmax(0,1fr)_6.75rem]"
-            : "grid-rows-[minmax(0,1fr)_4.75rem] sm:grid-rows-[minmax(0,1fr)_6.75rem]",
-        )}
-      >
-        <article className="relative min-h-0 overflow-hidden rounded-xl border border-primary/25 bg-gradient-to-br from-black/90 via-black/80 to-black/90">
+      <div className="grid h-full min-h-0 gap-1.5 overflow-hidden rounded-xl bg-black p-1.5 grid-rows-[minmax(0,1fr)_5rem] sm:grid-rows-[minmax(0,1fr)_7rem]">
+        <article className="relative min-h-0 overflow-hidden rounded-xl bg-zinc-900">
           {hasScreenSharing ? (
             <>
               {featuredParticipant.id === currentUserId && screenStream ? (
-                <video ref={screenVideoRef} autoPlay playsInline muted className="h-full w-full bg-black object-contain" />
+                <video
+                  ref={screenVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="h-full w-full bg-black object-contain"
+                />
               ) : featuredParticipant.stream ? (
                 <video
                   autoPlay
                   playsInline
-                  muted={featuredParticipant.id === currentUserId || !isSpeakerOn}
+                  muted={
+                    featuredParticipant.id === currentUserId || !isSpeakerOn
+                  }
                   ref={(node) => {
-                    if (!node || !featuredParticipant.stream) {
-                      return;
-                    }
-
-                    if (node.srcObject !== featuredParticipant.stream) {
+                    if (!node || !featuredParticipant.stream) return;
+                    if (node.srcObject !== featuredParticipant.stream)
                       node.srcObject = featuredParticipant.stream;
-                    }
                   }}
                   className="h-full w-full bg-black object-contain"
                 />
               ) : (
                 <div className="absolute inset-0 flex items-center justify-center px-3 text-center">
-                  <p className="text-[12px] font-medium text-white/90">
+                  <p className="text-[12px] font-medium text-white/70">
                     Sharing is live. Waiting for screen preview.
                   </p>
                 </div>
               )}
-
-              <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/55 px-2 py-0.5 text-[11px] text-white backdrop-blur-sm">
+              <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/60 px-2 py-0.5 text-[11px] text-white backdrop-blur-sm">
                 <MonitorUp className="size-3.5" />
                 {featuredParticipant.name} sharing
               </div>
@@ -1812,21 +1857,17 @@ const TeamCallPage = () => {
               playsInline
               muted={featuredParticipant.id === currentUserId || !isSpeakerOn}
               ref={(node) => {
-                if (!node || !featuredParticipant.stream) {
-                  return;
-                }
-
-                if (node.srcObject !== featuredParticipant.stream) {
+                if (!node || !featuredParticipant.stream) return;
+                if (node.srcObject !== featuredParticipant.stream)
                   node.srcObject = featuredParticipant.stream;
-                }
               }}
-              className="h-full w-full bg-black object-contain"
+              className="h-full w-full bg-black object-cover"
             />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-b from-transparent to-black/35">
+            <div className="absolute inset-0 flex items-center justify-center">
               <Avatar
                 size="lg"
-                className="size-28 border-primary/45 ring-2 ring-primary/35 sm:size-36"
+                className="size-24 ring-2 ring-white/10 ring-offset-2 ring-offset-zinc-900 sm:size-32"
                 userCard={{
                   name: featuredParticipant.name,
                   role: featuredParticipant.role ?? "Member",
@@ -1837,54 +1878,188 @@ const TeamCallPage = () => {
                   src={featuredParticipant.avatarUrl}
                   alt={featuredParticipant.name}
                 />
-                <AvatarFallback>{featuredParticipant.initials}</AvatarFallback>
+                <AvatarFallback className="bg-zinc-700 text-white text-xl">
+                  {featuredParticipant.initials}
+                </AvatarFallback>
               </Avatar>
             </div>
           )}
 
           {hasScreenSharing && isVideoOn && localStream && (
-            <div className="absolute right-2 bottom-8 h-16 w-[6.5rem] overflow-hidden rounded-sm border border-white/25 bg-black/30 shadow-lg">
+            <div className="absolute right-2 bottom-8 h-16 w-26 overflow-hidden rounded-lg border border-white/20 bg-black/30 shadow-lg">
               <video
                 ref={localPreviewRef}
                 autoPlay
                 playsInline
                 muted
-                className="h-full w-full bg-black object-contain"
+                className="h-full w-full bg-black object-cover"
               />
             </div>
           )}
 
-          <div className="absolute right-2 bottom-2 left-2 flex items-center gap-1 rounded-full border border-white/20 bg-black/55 px-2 py-1 text-white backdrop-blur-sm">
-            <p className="truncate text-[12px] font-medium">{featuredParticipant.name}</p>
-            {featuredParticipant.role && (
-              <span className="text-[11px] text-white/70">{featuredParticipant.role}</span>
-            )}
-
-            <span className="ml-auto inline-flex items-center gap-1 text-[11px]">
+          <div className="absolute bottom-0 left-0 right-0 flex items-center gap-1.5 bg-linear-to-t from-black/70 via-black/30 to-transparent px-2.5 pb-2 pt-6 text-white">
+            <p className="truncate text-[12px] font-medium">
+              {featuredParticipant.name}
+            </p>
+            <span className="ml-auto inline-flex items-center gap-1 text-white/70">
               {featuredParticipant.isMuted ? (
                 <MicOff className="size-3.5" />
               ) : (
                 <Mic className="size-3.5" />
               )}
-              {featuredParticipant.isVideoOn ? (
-                <Video className="size-3.5" />
+            </span>
+          </div>
+        </article>
+
+        <div className="flex min-h-0 gap-1.5 overflow-x-auto">
+          {tileParticipants.map((participant) =>
+            renderParticipantTile(participant, true),
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderSidebarView = () => {
+    return (
+      <div className="flex h-full min-h-0 gap-1.5 overflow-hidden rounded-xl bg-black p-1.5">
+        <article className="relative min-h-0 min-w-0 flex-1 overflow-hidden rounded-xl bg-zinc-900">
+          {hasScreenSharing ? (
+            <>
+              {featuredParticipant.id === currentUserId && screenStream ? (
+                <video
+                  ref={screenVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="h-full w-full bg-black object-contain"
+                />
+              ) : featuredParticipant.stream ? (
+                <video
+                  autoPlay
+                  playsInline
+                  muted={
+                    featuredParticipant.id === currentUserId || !isSpeakerOn
+                  }
+                  ref={(node) => {
+                    if (!node || !featuredParticipant.stream) return;
+                    if (node.srcObject !== featuredParticipant.stream)
+                      node.srcObject = featuredParticipant.stream;
+                  }}
+                  className="h-full w-full bg-black object-contain"
+                />
               ) : (
-                <VideoOff className="size-3.5" />
+                <div className="absolute inset-0 flex items-center justify-center px-3 text-center">
+                  <p className="text-[12px] text-white/70">
+                    Sharing is live. Waiting for screen preview.
+                  </p>
+                </div>
+              )}
+              <div className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full border border-white/20 bg-black/60 px-2 py-0.5 text-[11px] text-white backdrop-blur-sm">
+                <MonitorUp className="size-3.5" />
+                {featuredParticipant.name} sharing
+              </div>
+            </>
+          ) : featuredParticipant.isVideoOn && featuredParticipant.stream ? (
+            <video
+              autoPlay
+              playsInline
+              muted={featuredParticipant.id === currentUserId || !isSpeakerOn}
+              ref={(node) => {
+                if (!node || !featuredParticipant.stream) return;
+                if (node.srcObject !== featuredParticipant.stream)
+                  node.srcObject = featuredParticipant.stream;
+              }}
+              className="h-full w-full bg-black object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <Avatar
+                size="lg"
+                className="size-24 ring-2 ring-white/10 ring-offset-2 ring-offset-zinc-900 sm:size-32"
+                userCard={{
+                  name: featuredParticipant.name,
+                  role: featuredParticipant.role ?? "Member",
+                  status: featuredParticipant.isMuted ? "Muted" : "Live",
+                }}
+              >
+                <AvatarImage
+                  src={featuredParticipant.avatarUrl}
+                  alt={featuredParticipant.name}
+                />
+                <AvatarFallback className="bg-zinc-700 text-white text-xl">
+                  {featuredParticipant.initials}
+                </AvatarFallback>
+              </Avatar>
+            </div>
+          )}
+
+          <div className="absolute bottom-0 left-0 right-0 flex items-center gap-1.5 bg-linear-to-t from-black/70 via-black/30 to-transparent px-2.5 pb-2 pt-6 text-white">
+            <p className="truncate text-[12px] font-medium">
+              {featuredParticipant.name}
+            </p>
+            <span className="ml-auto inline-flex items-center gap-1 text-white/70">
+              {featuredParticipant.isMuted ? (
+                <MicOff className="size-3.5" />
+              ) : (
+                <Mic className="size-3.5" />
               )}
             </span>
           </div>
         </article>
 
-        <div className="flex min-h-0 gap-1.5 overflow-x-auto pb-0.5">
-          {tileParticipants.map((participant) => renderParticipantTile(participant, true))}
-        </div>
+        {tileParticipants.length > 0 && (
+          <div className="flex w-28 shrink-0 flex-col gap-1.5 overflow-y-auto sm:w-36">
+            {tileParticipants.map((participant) => (
+              <article
+                key={participant.id}
+                className="relative aspect-video min-h-0 shrink-0 overflow-hidden rounded-xl bg-zinc-900"
+              >
+                {participant.isVideoOn &&
+                participant.stream?.getVideoTracks()?.length ? (
+                  <video
+                    autoPlay
+                    playsInline
+                    muted={participant.id === currentUserId || !isSpeakerOn}
+                    ref={(node) => {
+                      if (!node || !participant.stream) return;
+                      if (node.srcObject !== participant.stream)
+                        node.srcObject = participant.stream;
+                    }}
+                    className="h-full w-full bg-black object-cover"
+                  />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Avatar className="size-8 ring-1 ring-white/10">
+                      <AvatarImage
+                        src={participant.avatarUrl}
+                        alt={participant.name}
+                      />
+                      <AvatarFallback className="bg-zinc-700 text-white text-xs">
+                        {participant.initials}
+                      </AvatarFallback>
+                    </Avatar>
+                  </div>
+                )}
+                <div className="absolute bottom-0 left-0 right-0 flex items-center gap-1 bg-linear-to-t from-black/70 to-transparent px-1.5 pb-1 pt-4 text-white">
+                  <p className="truncate text-[9px] font-medium">
+                    {participant.name}
+                  </p>
+                  {participant.isMuted && (
+                    <MicOff className="ml-auto size-2.5 shrink-0 text-white/70" />
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </div>
     );
   };
 
   return (
     <>
-      <div className="flex h-full min-h-0 w-full flex-1 gap-0 overflow-hidden overscroll-none bg-gradient-to-b from-background via-background to-muted/10 sm:gap-2.5">
+      <div className="flex h-full min-h-0 w-full flex-1 gap-0 overflow-hidden overscroll-none bg-linear-to-b from-background via-background to-muted/10 sm:gap-2.5">
         <section className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-none border border-x-0 border-b-0 bg-card/95 sm:rounded-xl sm:border-x sm:border-b sm:shadow-sm">
           <div className="shrink-0 border-b bg-card/95 px-2.5 py-2.5 sm:px-3.5">
             <div className="flex min-w-0 items-center justify-between gap-2">
@@ -1920,7 +2095,10 @@ const TeamCallPage = () => {
               </div>
 
               <div className="ml-auto flex shrink-0 items-center gap-1.5">
-                <Badge variant="secondary" className="h-6 rounded-full px-2 text-[11px]">
+                <Badge
+                  variant="secondary"
+                  className="h-6 rounded-full px-2 text-[11px]"
+                >
                   Live {formatDuration(durationSeconds)}
                 </Badge>
                 <Badge
@@ -1975,10 +2153,10 @@ const TeamCallPage = () => {
           </div>
 
           <div className="min-h-0 flex-1 overflow-hidden p-1.5 sm:p-2.5">
-            {callMode === "voice" && !hasScreenSharing
-              ? renderVoiceView()
-              : shouldRenderGrid
-                ? renderGridView()
+            {viewMode === "tiled"
+              ? renderGridView()
+              : viewMode === "sidebar"
+                ? renderSidebarView()
                 : renderSpeakerView()}
           </div>
 
@@ -1991,7 +2169,11 @@ const TeamCallPage = () => {
                   className="h-9 rounded-full px-2.5 text-[13px]"
                   onClick={handleToggleMic}
                 >
-                  {isMicOn ? <Mic className="size-4" /> : <MicOff className="size-4" />}
+                  {isMicOn ? (
+                    <Mic className="size-4" />
+                  ) : (
+                    <MicOff className="size-4" />
+                  )}
                   {isMicOn ? "Mic" : "Muted"}
                 </Button>
 
@@ -2023,19 +2205,60 @@ const TeamCallPage = () => {
                   {isSpeakerOn ? "Speaker" : "Speaker Off"}
                 </Button>
 
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="h-9 rounded-full px-2.5 text-[13px]"
-                  onClick={() => setIsGridView((prev) => !prev)}
-                >
-                  <LayoutGrid className="size-4" />
-                  {callMode === "voice" && !hasScreenSharing
-                    ? "Tiles"
-                    : shouldRenderGrid
-                      ? "Speaker"
-                      : "Grid"}
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-9 rounded-full px-2.5 text-[13px]"
+                    >
+                      {viewMode === "tiled" ? (
+                        <LayoutGrid className="size-4" />
+                      ) : viewMode === "sidebar" ? (
+                        <PanelRight className="size-4" />
+                      ) : (
+                        <Maximize2 className="size-4" />
+                      )}
+                      Layout
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="center"
+                    side="top"
+                    className="w-44"
+                  >
+                    <DropdownMenuItem
+                      className={cn(
+                        "gap-2 text-[13px]",
+                        viewMode === "tiled" && "bg-accent",
+                      )}
+                      onClick={() => setViewMode("tiled")}
+                    >
+                      <LayoutGrid className="size-4" />
+                      Tiled
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className={cn(
+                        "gap-2 text-[13px]",
+                        viewMode === "spotlight" && "bg-accent",
+                      )}
+                      onClick={() => setViewMode("spotlight")}
+                    >
+                      <Maximize2 className="size-4" />
+                      Spotlight
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className={cn(
+                        "gap-2 text-[13px]",
+                        viewMode === "sidebar" && "bg-accent",
+                      )}
+                      onClick={() => setViewMode("sidebar")}
+                    >
+                      <PanelRight className="size-4" />
+                      Sidebar
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
                 <Button
                   size="sm"
@@ -2063,11 +2286,11 @@ const TeamCallPage = () => {
         <div
           className={cn(
             "hidden min-h-0 overflow-hidden transition-[width,opacity] duration-300 ease-out lg:flex",
-            isPanelOpenDesktop ? "w-[18.5rem] opacity-100" : "w-0 opacity-0",
+            isPanelOpenDesktop ? "w-74 opacity-100" : "w-0 opacity-0",
           )}
         >
           {isPanelOpenDesktop && (
-            <aside className="min-h-0 w-[18.5rem] overflow-hidden rounded-md border">
+            <aside className="min-h-0 w-74 overflow-hidden rounded-md border">
               <CallPanel
                 participants={participants}
                 activePanelTab={activePanelTab}
@@ -2093,7 +2316,10 @@ const TeamCallPage = () => {
       </div>
 
       <Sheet open={isPanelSheetOpen} onOpenChange={setIsPanelSheetOpen}>
-        <SheetContent side="right" className="w-full max-w-none p-0 sm:max-w-sm">
+        <SheetContent
+          side="right"
+          className="w-full max-w-none p-0 sm:max-w-sm"
+        >
           <SheetHeader className="sr-only">
             <SheetTitle>Call Panel</SheetTitle>
             <SheetDescription>In-call collaboration panel.</SheetDescription>
@@ -2136,7 +2362,8 @@ const TeamCallPage = () => {
           <DialogHeader>
             <DialogTitle>Add people to this call</DialogTitle>
             <DialogDescription>
-              We will create a new group chat for this call and move everyone there.
+              We will create a new group chat for this call and move everyone
+              there.
             </DialogDescription>
           </DialogHeader>
 
@@ -2162,7 +2389,7 @@ const TeamCallPage = () => {
 
           <div className="max-h-60 space-y-1 overflow-y-auto rounded-md border p-1.5">
             {workspacePeopleQuery.isLoading ? (
-              <div className="flex min-h-[8rem] items-center justify-center">
+              <div className="flex min-h-32 items-center justify-center">
                 <LoaderComponent />
               </div>
             ) : addParticipantOptions.length ? (

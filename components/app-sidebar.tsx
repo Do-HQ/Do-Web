@@ -52,7 +52,7 @@ import WorkspaceArchive from "@/components/archive/workspace-archive";
 import SettingsModal from "./modals/settings-modal";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { setShowSettings, setShowSpotlightSearch } = useAppStore();
+  const { setShowSettings, setShowSpotlightSearch, spacesUnread, jamsUnread } = useAppStore();
   const { user } = useAuthStore();
   const pathname = usePathname();
   const router = useRouter();
@@ -154,13 +154,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         title: "Spaces",
         url: ROUTES.SPACES,
         icon: Inbox,
-        badge: "10",
+        badge: spacesUnread || undefined,
         isActive: pathname.startsWith(ROUTES.SPACES),
       },
       {
         title: "Jams",
         url: ROUTES.JAMS,
         icon: Shapes,
+        badge: jamsUnread || undefined,
         isActive: pathname.startsWith(ROUTES.JAMS),
       },
       {

@@ -3,12 +3,27 @@
 import * as React from "react";
 import dynamic from "next/dynamic";
 import { useTheme } from "next-themes";
-import {
-  sceneCoordsToViewportCoords,
-  viewportCoordsToSceneCoords,
-} from "@excalidraw/excalidraw";
 
 import { cn } from "@/lib/utils";
+
+// Inline coordinate helpers — avoids a static import of @excalidraw/excalidraw
+// (ESM-only) which causes a webpack "Module not found" error during server-side
+// bundle analysis even when ssr:false is set.
+const sceneCoordsToViewportCoords = (
+  { sceneX, sceneY }: { sceneX: number; sceneY: number },
+  appState: { zoom: { value: number }; offsetLeft: number; offsetTop: number; scrollX: number; scrollY: number },
+) => ({
+  x: (sceneX + appState.scrollX) * appState.zoom.value + appState.offsetLeft,
+  y: (sceneY + appState.scrollY) * appState.zoom.value + appState.offsetTop,
+});
+
+const viewportCoordsToSceneCoords = (
+  { clientX, clientY }: { clientX: number; clientY: number },
+  appState: { zoom: { value: number }; offsetLeft: number; offsetTop: number; scrollX: number; scrollY: number },
+) => ({
+  x: (clientX - appState.offsetLeft) / appState.zoom.value - appState.scrollX,
+  y: (clientY - appState.offsetTop) / appState.zoom.value - appState.scrollY,
+});
 
 const Excalidraw = dynamic(
   () => import("@excalidraw/excalidraw").then((module) => module.Excalidraw),

@@ -69,6 +69,7 @@ import {
   Empty,
   EmptyDescription,
   EmptyHeader,
+  EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Badge } from "@/components/ui/badge";
@@ -2159,7 +2160,9 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                 ) : (
                   <Empty className="border-border/40 h-full rounded-lg border border-dashed p-4">
                     <EmptyHeader className="gap-1">
-                      <Brush className="text-muted-foreground size-5" />
+                      <EmptyMedia variant="icon">
+                        <Brush />
+                      </EmptyMedia>
                       <EmptyTitle className="text-sm">
                         {favoritesOnly ? "No favorite jams yet" : "No jams yet"}
                       </EmptyTitle>
