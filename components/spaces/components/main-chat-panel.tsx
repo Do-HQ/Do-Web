@@ -714,7 +714,7 @@ const MainChatPanel = ({
         {reactions.map((reaction) => {
           const reactorIds = Array.isArray(reaction.reactorIds) ? reaction.reactorIds : [];
           const names = reactorIds
-            .map((id) => {
+            .map((id: string) => {
               if (id === currentUserId) return "You";
               return authorInfoById[id]?.name || null;
             })

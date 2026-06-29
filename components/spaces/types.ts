@@ -98,6 +98,8 @@ export type SpaceMessageReaction = {
   emoji: string;
   count: number;
   reacted: boolean;
+  reactorIds?: string[];
+  reactorNames?: string[];
 };
 
 export type ThreadReply = {
