@@ -6,6 +6,7 @@ import {
   InputOTPSeparator,
   InputOTPSlot,
 } from "@/components/ui/input-otp";
+import { REGEXP_ONLY_DIGITS_AND_CHARS } from "input-otp";
 
 interface Props {
   count: number;
@@ -20,8 +21,9 @@ export function OTPInput({ count, value, onChange }: Props) {
     <InputOTP
       maxLength={count}
       value={value}
-      onChange={onChange}
-      inputMode="numeric"
+      onChange={(v) => onChange(v.toUpperCase())}
+      inputMode="text"
+      pattern={REGEXP_ONLY_DIGITS_AND_CHARS}
     >
       <InputOTPGroup>
         {Array.from({ length: half }).map((_, index) => (

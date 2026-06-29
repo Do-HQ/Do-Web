@@ -63,6 +63,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   SpaceMessageDeletedEventPayload,
   SpaceMessageEventPayload,
+  SpaceAiThinkingEventPayload,
   getTeamCallRoomStatus,
   getSpacesSocket,
   subscribeWorkspaceSpaces,
@@ -246,15 +247,27 @@ const mentionInitials = (value: string, fallback = "U") => {
   return letters || fallback;
 };
 
+const initialsFromName = (name: string) =>
+  String(name || "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase())
+    .join("") || "?";
+
 const normalizeAuthor = (
   author: WorkspaceSpaceMessageRecord["author"],
-): ChatAuthor => ({
-  id: String(author?.id || ""),
-  name: String(author?.name || "Unknown"),
-  initials: String(author?.initials || "U"),
-  avatarUrl: String(author?.avatarUrl || "") || undefined,
-  role: author?.role === "agent" ? "agent" : "member",
-});
+): ChatAuthor => {
+  const name = String(author?.name || "Unknown");
+  return {
+    id: String(author?.id || ""),
+    name,
+    initials: String(author?.initials || "").trim() || initialsFromName(name),
+    avatarUrl: String(author?.avatarUrl || "") || undefined,
+    role: author?.role === "agent" ? "agent" : "member",
+  };
+};
 
 const mapRoomToUi = (room: WorkspaceSpaceRoomRecord): SpaceRoom => ({
   id: String(room.id),
@@ -461,6 +474,7 @@ const SpacesPage = () => {
     useState<Record<string, SpaceMessageReaction[]>>({});
   const [optimisticPinnedByMessageId, setOptimisticPinnedByMessageId] =
     useState<Record<string, boolean>>({});
+  const [aiThinkingRooms, setAiThinkingRooms] = useState<Record<string, boolean>>({});
 
   const [leftPanelWidth, setLeftPanelWidth] = useState(304);
   const [threadPanelWidth, setThreadPanelWidth] = useState(392);
@@ -1338,6 +1352,23 @@ const SpacesPage = () => {
     const members = workspaceMentionPeopleQuery.data?.data?.members ?? [];
     const reports = workspaceReportsQuery.data?.data?.reports ?? [];
 
+    const aiToken = "squircle-intelligence";
+    entries.push({
+      id: aiToken,
+      display: "Squircle Intelligence",
+      kind: "agent",
+      avatarFallback: "SI",
+      subtitle: "AI assistant",
+    });
+    byToken[aiToken] = {
+      token: aiToken,
+      label: "Squircle Intelligence",
+      kind: "agent",
+      avatarFallback: "SI",
+      subtitle: "AI assistant",
+    };
+    seenIds.add(aiToken);
+
     members.forEach((entry) => {
       const display =
         `${entry?.userId?.firstName || ""} ${entry?.userId?.lastName || ""}`.trim() ||
@@ -2191,16 +2222,25 @@ const SpacesPage = () => {
       });
     };
 
+    const handleAiThinking = ({ roomId, thinking }: SpaceAiThinkingEventPayload) => {
+      setAiThinkingRooms((prev) => ({
+        ...prev,
+        [String(roomId)]: Boolean(thinking),
+      }));
+    };
+
     socket.on("spaces:message:created", handleMessageCreated);
     socket.on("spaces:message:updated", handleMessageUpdated);
     socket.on("spaces:message:deleted", handleMessageDeleted);
     socket.on("spaces:room:unarchived", handleRoomUnarchived);
+    socket.on("spaces:ai:thinking", handleAiThinking);
 
     return () => {
       socket.off("spaces:message:created", handleMessageCreated);
       socket.off("spaces:message:updated", handleMessageUpdated);
       socket.off("spaces:message:deleted", handleMessageDeleted);
       socket.off("spaces:room:unarchived", handleRoomUnarchived);
+      socket.off("spaces:ai:thinking", handleAiThinking);
       unsubscribeWorkspaceSpaces({
         workspaceId: resolvedWorkspaceId,
       });
@@ -4036,6 +4076,7 @@ const SpacesPage = () => {
               hasOlderMessages={hasOlderMessages}
               isLoadingOlderMessages={isLoadingOlderMessages}
               isMessagesLoading={messagesQuery.isLoading}
+              isAiThinking={Boolean(activeRoom?.id && aiThinkingRooms[activeRoom.id])}
             />
           ) : (
             <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-8">

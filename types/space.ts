@@ -66,6 +66,8 @@ export interface WorkspaceSpaceMessageReactionRecord {
   emoji: string;
   count: number;
   reacted: boolean;
+  reactorIds: string[];
+  reactorNames: string[];
 }
 
 export interface WorkspaceSpaceKeepUpItem {

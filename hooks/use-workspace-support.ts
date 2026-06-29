@@ -16,6 +16,8 @@ import {
   getWorkspaceSupportTickets,
   searchWorkspaceSupportKnowledgeBase,
   updateWorkspaceSupportTicket,
+  submitWorkspaceSupportTicketReview,
+  submitTeamCallReview,
 } from "@/lib/services/workspace-support-service";
 import {
   AssignWorkspaceSupportTicketRequestBody,
@@ -259,6 +261,26 @@ const useWorkspaceSupport = () => {
       ...options,
     });
 
+  const useSubmitWorkspaceSupportTicketReview = (options?: UseOptions<{
+    workspaceId: string;
+    ticketId: string;
+    payload: { rating: number; comment?: string };
+  }>) =>
+    useMutation({
+      mutationFn: submitWorkspaceSupportTicketReview,
+      ...options,
+    });
+
+  const useSubmitTeamCallReview = (options?: UseOptions<{
+    workspaceId: string;
+    roomId: string;
+    payload: { rating: number; comment?: string };
+  }>) =>
+    useMutation({
+      mutationFn: submitTeamCallReview,
+      ...options,
+    });
+
   return {
     useWorkspaceSupportTickets,
     useWorkspaceSupportTicketDetail,
@@ -273,6 +295,8 @@ const useWorkspaceSupport = () => {
     useCreateWorkspaceSupportTicketMessage,
     useAssignWorkspaceSupportTicket,
     useCreateWorkspaceSupportTicketInternalNote,
+    useSubmitWorkspaceSupportTicketReview,
+    useSubmitTeamCallReview,
   };
 };
 

@@ -472,28 +472,48 @@ const WorkspaceReportDetailPage = ({
   <title>${esc(title)} – Squircle</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; color: #111827; background: #fff; padding: 36px 44px; max-width: 860px; margin: 0 auto; }
+
+    /* Base — 13px body throughout */
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 13px; line-height: 1.65; color: #111827; background: #fff; padding: 36px 44px; max-width: 860px; margin: 0 auto; }
+
+    /* Document header */
     .pdf-header { display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 2px solid #111827; padding-bottom: 14px; margin-bottom: 24px; }
-    .pdf-logo { font-weight: 800; font-size: 20px; letter-spacing: -0.5px; color: #111827; }
-    .pdf-meta { font-size: 11px; color: #6b7280; text-align: right; line-height: 1.6; }
-    .report-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; color: #111827; }
-    .report-sub { font-size: 12px; color: #6b7280; margin-bottom: 16px; }
+    .pdf-logo { font-weight: 800; font-size: 16px; letter-spacing: -0.3px; color: #111827; }
+    .pdf-meta { font-size: 12px; color: #6b7280; text-align: right; line-height: 1.6; }
+
+    /* Report identity */
+    .report-title { font-size: 24px; font-weight: 700; letter-spacing: -0.3px; margin-bottom: 4px; color: #111827; }
+    .report-sub { font-size: 13px; color: #6b7280; margin-bottom: 16px; }
+
+    /* Status badges */
     .badges { margin-bottom: 16px; }
-    .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 3px 10px; border-radius: 100px; border: 1px solid #d1d5db; text-transform: capitalize; margin-right: 6px; color: #374151; }
+    .badge { display: inline-block; font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: 100px; border: 1px solid #d1d5db; text-transform: capitalize; margin-right: 6px; color: #374151; }
+
+    /* Dates row */
     .dates { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 14px; font-size: 12px; color: #6b7280; margin-bottom: 8px; }
-    .dates span { font-weight: 600; color: #111827; }
-    .reviewers { font-size: 12px; color: #374151; margin: 8px 0 4px; }
+    .dates strong { display: block; font-size: 13px; font-weight: 600; color: #111827; margin-top: 3px; }
+
+    /* Reviewers */
+    .reviewers { font-size: 13px; color: #374151; margin: 8px 0 4px; }
+
+    /* Metrics grid */
     .metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 8px 0; }
     .metric-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; }
-    .metric-label { font-size: 10px; color: #6b7280; margin-bottom: 2px; }
-    .metric-value { font-size: 15px; font-weight: 700; color: #111827; }
-    .section { margin-top: 20px; }
-    h2 { font-size: 13px; font-weight: 700; color: #111827; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid #f3f4f6; padding-bottom: 4px; }
-    p { line-height: 1.65; margin-bottom: 6px; color: #374151; font-size: 13px; }
+    .metric-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: #6b7280; margin-bottom: 4px; }
+    .metric-value { font-size: 20px; font-weight: 700; color: #111827; }
+
+    /* Section structure */
+    .section { margin-top: 22px; }
+    h2 { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.07em; border-bottom: 1px solid #e5e7eb; padding-bottom: 5px; margin-bottom: 10px; }
+
+    /* Body content — uniform 13px */
+    p { font-size: 13px; line-height: 1.65; margin-bottom: 6px; color: #374151; }
     ul { padding-left: 18px; margin-bottom: 6px; }
-    li { line-height: 1.65; color: #374151; margin-bottom: 2px; font-size: 13px; }
+    li { font-size: 13px; line-height: 1.65; color: #374151; margin-bottom: 3px; }
+
+    /* Layout helpers */
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 4px; }
-    hr { border: none; border-top: 1px solid #e5e7eb; margin: 20px 0; }
+    hr { border: none; border-top: 1px solid #e5e7eb; margin: 22px 0; }
     @media print { body { padding: 0; } @page { margin: 18mm 14mm; size: A4; } }
   </style>
 </head>
@@ -516,9 +536,9 @@ const WorkspaceReportDetailPage = ({
   </div>
 
   <div class="dates">
-    <div>Period start<br/><span>${esc(dayjs(report.periodStart).format("Do MMMM, YYYY"))}</span></div>
-    <div>Period end<br/><span>${esc(dayjs(report.periodEnd).format("Do MMMM, YYYY"))}</span></div>
-    <div>Generated<br/><span>${esc(dayjs(report.createdAt).format("Do MMMM, YYYY"))}</span></div>
+    <div>Period start<strong>${esc(dayjs(report.periodStart).format("Do MMMM, YYYY"))}</strong></div>
+    <div>Period end<strong>${esc(dayjs(report.periodEnd).format("Do MMMM, YYYY"))}</strong></div>
+    <div>Generated<strong>${esc(dayjs(report.createdAt).format("Do MMMM, YYYY"))}</strong></div>
   </div>
 
   ${reviewerNames ? `<div class="reviewers"><strong>Reviewed by:</strong> ${reviewerNames}</div>` : ""}
@@ -697,7 +717,7 @@ const WorkspaceReportDetailPage = ({
 
           {reviewers.length ? (
             <div className="space-y-2">
-              <p className="text-sm font-semibold">Reviewed by</p>
+              <h3 className="text-sm font-semibold tracking-tight">Reviewed by</h3>
               <div className="flex items-center gap-2">
                 <AvatarGroup className="[--space:0.35rem]">
                   {visibleReviewers.map((reviewer) => {
@@ -825,7 +845,7 @@ const WorkspaceReportDetailPage = ({
 
           {sections.executiveSummary ? (
             <div className="space-y-1">
-              <p className="text-sm font-semibold">Executive Summary</p>
+              <h3 className="text-sm font-semibold tracking-tight">Executive Summary</h3>
               <MessageMarkdown
                 content={sections.executiveSummary}
                 className="text-muted-foreground text-sm leading-6"
@@ -845,8 +865,8 @@ const WorkspaceReportDetailPage = ({
                 key={metric.label}
                 className="border-border/70 rounded-md border px-3 py-2.5"
               >
-                <p className="text-muted-foreground text-xs">{metric.label}</p>
-                <p className="text-sm font-semibold">{metric.value}</p>
+                <p className="text-muted-foreground text-xs uppercase tracking-wide">{metric.label}</p>
+                <p className="mt-0.5 text-base font-semibold">{metric.value}</p>
               </div>
             ))}
           </div>
@@ -855,7 +875,7 @@ const WorkspaceReportDetailPage = ({
 
           {sections.eventTypeBreakdown.length ? (
             <div className="space-y-2">
-              <p className="text-sm font-semibold">Event Breakdown</p>
+              <h3 className="text-sm font-semibold tracking-tight">Event Breakdown</h3>
               <MessageMarkdown
                 content={toMarkdownList(sections.eventTypeBreakdown)}
                 className="text-muted-foreground text-sm leading-6"
@@ -865,7 +885,7 @@ const WorkspaceReportDetailPage = ({
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <p className="text-sm font-semibold">Progress</p>
+              <h3 className="text-sm font-semibold tracking-tight">Progress</h3>
               <MessageMarkdown
                 content={
                   sections.progressSummary || "No progress summary available."
@@ -881,7 +901,7 @@ const WorkspaceReportDetailPage = ({
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-semibold">Blockers</p>
+              <h3 className="text-sm font-semibold tracking-tight">Blockers</h3>
               <MessageMarkdown
                 content={
                   sections.blockersSummary || "No blockers summary available."
@@ -897,7 +917,7 @@ const WorkspaceReportDetailPage = ({
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-semibold">Risks</p>
+              <h3 className="text-sm font-semibold tracking-tight">Risks</h3>
               <MessageMarkdown
                 content={sections.risksSummary || "No risks summary available."}
                 className="text-muted-foreground text-sm leading-6"
@@ -911,7 +931,7 @@ const WorkspaceReportDetailPage = ({
             </div>
 
             <div className="space-y-2">
-              <p className="text-sm font-semibold">Recommendations</p>
+              <h3 className="text-sm font-semibold tracking-tight">Recommendations</h3>
               {sections.recommendationsMarkdown ? (
                 <MessageMarkdown
                   content={sections.recommendationsMarkdown}
@@ -929,7 +949,7 @@ const WorkspaceReportDetailPage = ({
             <>
               <Separator />
               <div className="space-y-2">
-                <p className="text-sm font-semibold">Event Timeline</p>
+                <h3 className="text-sm font-semibold tracking-tight">Event Timeline</h3>
                 <MessageMarkdown
                   content={toMarkdownList(sections.eventTimeline)}
                   className="text-muted-foreground text-sm leading-6"

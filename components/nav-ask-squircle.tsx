@@ -239,14 +239,14 @@ export function NavAskSquircle() {
           >
             <Link href={askSquircleHref}>
               <Gem />
-              <span>Scribe</span>
+              <span>Squircle Intelligence</span>
             </Link>
           </SidebarMenuButton>
 
           <SidebarMenuAction
             type="button"
             showOnHover
-            aria-label={open ? "Collapse Scribe chats" : "Expand Scribe chats"}
+            aria-label={open ? "Collapse chats" : "Expand chats"}
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();

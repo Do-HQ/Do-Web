@@ -34,7 +34,7 @@ export type ChatAttachment = {
 export type MentionSuggestion = {
   id: string | number;
   display?: string;
-  kind?: "user" | "team" | "project" | "report";
+  kind?: "user" | "team" | "project" | "report" | "agent";
   avatarUrl?: string;
   avatarFallback?: string;
   subtitle?: string;
@@ -43,7 +43,7 @@ export type MentionSuggestion = {
 export type MentionTokenMeta = {
   token: string;
   label: string;
-  kind: "user" | "team" | "project" | "report";
+  kind: "user" | "team" | "project" | "report" | "agent";
   avatarUrl?: string;
   avatarFallback?: string;
   subtitle?: string;

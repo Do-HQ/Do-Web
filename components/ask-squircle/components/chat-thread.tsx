@@ -7,6 +7,7 @@ import {
   Star,
   ChevronRight,
   Loader,
+  Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -104,7 +105,7 @@ const ChatThread = ({
             >
               <div className="text-muted-foreground flex items-center gap-1.5 text-[11px]">
                 {isAssistant ? <Gem className="size-3.5" /> : null}
-                {isAssistant ? "Scribe" : "You"}
+                {isAssistant ? "Squircle Intelligence" : "You"}
               </div>
 
               {hasThreadContext ? (
@@ -192,55 +193,108 @@ const ChatThread = ({
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="w-full max-w-3xl space-y-2">
             <div className="text-muted-foreground flex items-center gap-1.5 text-[11px]">
-              <Gem className="size-3.5" />
-              Scribe is thinking...
+              <Gem className="size-3.5 animate-pulse" />
+              Squircle Intelligence
             </div>
-            <div className="rounded-md px-3.5 py-3">
-              <div className="space-y-2.5">
-                {thinkingTrace.length ? (
-                  <div className="space-y-1.5">
-                    <p className="text-[10px] text-muted-foreground">
-                      Reasoning trace
-                    </p>
-                    {thinkingTrace.slice(-4).map((step, index, traceList) => {
+
+            <div className="rounded-xl bg-muted/10 px-4 py-3.5">
+              {/* Header */}
+              <div className="mb-3 flex items-center gap-2">
+                <Loader className="size-3.5 animate-spin text-muted-foreground" />
+                <span className="text-[11px] font-medium text-muted-foreground tracking-wide uppercase">
+                  Reasoning
+                </span>
+              </div>
+
+              {thinkingTrace.length > 0 ? (
+                <div className="relative">
+                  {/* Vertical guide line */}
+                  <div className="absolute left-1.25 top-2 bottom-2 w-px bg-border/40" />
+
+                  <div className="space-y-0">
+                    {thinkingTrace.slice(-6).map((step, index, traceList) => {
                       const isCurrent = index === traceList.length - 1;
                       const details = Array.isArray(step.details)
-                        ? step.details.filter(Boolean).slice(0, 6)
+                        ? step.details.filter(Boolean).slice(0, 5)
                         : [];
 
                       return (
-                        <details
-                          key={step.id}
-                          open={isCurrent}
-                          className="group rounded-md border border-border/60 bg-muted/20 px-2.5 py-2"
-                        >
-                          <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[11px] text-foreground marker:content-none">
-                            <Loader
+                        <div key={step.id} className="relative pl-5">
+                          {/* Timeline dot */}
+                          <div
+                            className={cn(
+                              "absolute left-0 top-1.25 flex size-2.75 items-center justify-center rounded-full ring-2 ring-background",
+                              isCurrent
+                                ? "bg-foreground"
+                                : "bg-muted-foreground/30",
+                            )}
+                          >
+                            {isCurrent ? (
+                              <span className="size-1.5 animate-ping rounded-full bg-background opacity-80" />
+                            ) : (
+                              <Check className="size-1.5 text-background" />
+                            )}
+                          </div>
+
+                          {/* Step content */}
+                          <div
+                            className={cn(
+                              "mb-3 rounded-lg px-3 py-2 transition-all",
+                              isCurrent
+                                ? "bg-muted/30 border border-border/30"
+                                : "bg-transparent",
+                            )}
+                          >
+                            <p
                               className={cn(
-                                "size-3",
-                                isCurrent ? "animate-spin" : "opacity-60",
+                                "text-[11px] leading-4",
+                                isCurrent
+                                  ? "font-medium text-foreground"
+                                  : "text-muted-foreground/70",
                               )}
-                            />
-                            <span>{step.title}</span>
-                          </summary>
-                          {details.length ? (
-                            <div className="mt-2 space-y-1 pl-4 text-[10px] text-muted-foreground">
-                              {details.map((detail, detailIndex) => (
-                                <p key={`${step.id}-detail-${detailIndex + 1}`}>
-                                  • {detail}
-                                </p>
-                              ))}
-                            </div>
-                          ) : null}
-                        </details>
+                            >
+                              {step.title}
+                            </p>
+
+                            {isCurrent && details.length > 0 ? (
+                              <ul className="mt-1.5 space-y-0.5">
+                                {details.map((detail, di) => (
+                                  <li
+                                    key={`${step.id}-d-${di}`}
+                                    className="flex items-start gap-1.5 text-[10px] text-muted-foreground"
+                                  >
+                                    <span className="mt-px shrink-0 text-muted-foreground/50">
+                                      ›
+                                    </span>
+                                    <span>{detail}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : null}
+                          </div>
+                        </div>
                       );
                     })}
+
+                    {/* Generating row */}
+                    <div className="relative pl-5">
+                      <div className="absolute left-0 top-1.25 size-2.75 rounded-full border-2 border-dashed border-muted-foreground/30" />
+                      <div className="mb-1 space-y-1.5 py-1">
+                        <div className="h-2.5 w-7/12 animate-pulse rounded-full bg-muted" />
+                        <div className="h-2.5 w-10/12 animate-pulse rounded-full bg-muted" />
+                        <div className="h-2.5 w-5/12 animate-pulse rounded-full bg-muted" />
+                      </div>
+                    </div>
                   </div>
-                ) : null}
-                <div className="bg-muted h-3 w-5/12 animate-pulse rounded" />
-                <div className="bg-muted h-3 w-11/12 animate-pulse rounded" />
-                <div className="bg-muted h-3 w-8/12 animate-pulse rounded" />
-              </div>
+                </div>
+              ) : (
+                /* No trace yet — just skeleton */
+                <div className="space-y-2 pl-1">
+                  <div className="h-2.5 w-5/12 animate-pulse rounded-full bg-muted" />
+                  <div className="h-2.5 w-10/12 animate-pulse rounded-full bg-muted" />
+                  <div className="h-2.5 w-7/12 animate-pulse rounded-full bg-muted" />
+                </div>
+              )}
             </div>
           </div>
         </div>

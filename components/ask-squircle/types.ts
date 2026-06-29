@@ -14,6 +14,8 @@ export type PromptScope = WorkspaceAiPromptScope;
 export type PromptOption<TValue extends string> = {
   label: string;
   value: TValue;
+  description?: string;
+  icon?: string;
 };
 
 export type ComposerReference = {

@@ -18,6 +18,12 @@ type SpaceMessageDeletedEventPayload = {
   parentMessageId: string | null;
 };
 
+type SpaceAiThinkingEventPayload = {
+  workspaceId: string;
+  roomId: string;
+  thinking: boolean;
+};
+
 type SpaceMentionEventPayload = {
   mention: {
     id: string;
@@ -183,6 +189,7 @@ export type {
   SpaceMessageEventPayload,
   SpaceMessageDeletedEventPayload,
   SpaceMentionEventPayload,
+  SpaceAiThinkingEventPayload,
   TeamCallRoomStatusPayload,
 };
 export {

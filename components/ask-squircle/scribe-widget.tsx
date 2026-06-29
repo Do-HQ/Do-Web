@@ -58,7 +58,7 @@ const ScribeWidget = () => {
       <div
         ref={panelRef}
         role="complementary"
-        aria-label="Scribe AI assistant"
+        aria-label="Squircle Intelligence AI assistant"
         className={cn(
           "fixed inset-y-3 right-3 z-60 flex w-[min(92vw,32rem)] flex-col overflow-hidden rounded-2xl border border-border/50 bg-background shadow-2xl shadow-black/10 transition-all duration-300 ease-[cubic-bezier(0.32,0.72,0,1)]",
           showScribeWidget
@@ -74,7 +74,7 @@ const ScribeWidget = () => {
 
           <div className="min-w-0 flex-1">
             <p className="text-[13px] font-semibold leading-none text-foreground">
-              Scribe
+              Squircle Intelligence
             </p>
             <p className="mt-0.75 text-[10.5px] leading-none text-muted-foreground">
               Workspace AI assistant
@@ -87,7 +87,7 @@ const ScribeWidget = () => {
               size="icon-sm"
               variant={scribeWidgetPinned ? "secondary" : "ghost"}
               className="size-7 rounded-lg"
-              title={scribeWidgetPinned ? "Unpin Scribe" : "Keep Scribe open"}
+              title={scribeWidgetPinned ? "Unpin" : "Keep open"}
               onClick={() => setScribeWidgetPinned(!scribeWidgetPinned)}
             >
               {scribeWidgetPinned ? (
@@ -104,7 +104,7 @@ const ScribeWidget = () => {
               onClick={() => setShowScribeWidget(false)}
             >
               <X className="size-3.5" />
-              <span className="sr-only">Close Scribe</span>
+              <span className="sr-only">Close</span>
             </Button>
           </div>
         </div>

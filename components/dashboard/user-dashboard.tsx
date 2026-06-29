@@ -24,6 +24,8 @@ import {
   X,
 } from "lucide-react";
 
+import { useQuery } from "@tanstack/react-query";
+import axiosInstance from "@/lib/services";
 import useWorkspaceJam from "@/hooks/use-workspace-jam";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
 import useWorkspaceSpace from "@/hooks/use-workspace-space";
@@ -66,7 +68,16 @@ import { Separator } from "@/components/ui/separator";
 
 type DashboardVisitItem = {
   key: string;
-  kind: "project" | "space" | "jam" | "doc" | "report" | "schedule" | "scribe" | "standup" | "standup-session";
+  kind:
+    | "project"
+    | "space"
+    | "jam"
+    | "doc"
+    | "report"
+    | "schedule"
+    | "scribe"
+    | "standup"
+    | "standup-session";
   title: string;
   subtitle: string;
   href: string;
@@ -301,24 +312,18 @@ const DashboardSection = ({
   </section>
 );
 
-const UPCOMING_FEATURES = [
-  {
-    title: "Smarter AI availability handling",
-    description:
-      "AI actions automatically pause when the model is unavailable, so workflows stay stable across environments.",
-  },
-  {
-    title: "Richer scheduled intelligence",
-    description:
-      "Scheduled briefings are expanding with deeper project signals, blockers, and clearer next-step recommendations.",
-  },
-  {
-    title: "Guided AI drafting everywhere",
-    description:
-      "Workspace, project, workflow, and task drafts will continue getting stronger while remaining fully editable before save.",
-  },
-];
-const UPCOMING_BANNER_DISMISSED_KEY = "sq.dashboard.upcoming.dismissed";
+type WhatsNextFeature = {
+  title: string;
+  description: string;
+  docUrl: string;
+};
+
+const UPCOMING_BANNER_SEEN_KEY = "sq.dashboard.upcoming.seen";
+
+const computeFeaturesFingerprint = (features: WhatsNextFeature[]) => {
+  if (!features.length) return "";
+  return `${features.length}:${features.map((f) => f.title).join("|")}`;
+};
 
 const UserDashboard = () => {
   const { user } = useAuthStore();
@@ -331,7 +336,18 @@ const UserDashboard = () => {
     RecentVisitEntry[]
   >([]);
   const [isUpcomingBannerVisible, setIsUpcomingBannerVisible] =
-    React.useState(true);
+    React.useState(false);
+
+  const { data: whatsNextFeatures = [] } = useQuery<WhatsNextFeature[]>({
+    queryKey: ["whats-next"],
+    queryFn: async () => {
+      const res = await axiosInstance.get<{ data: WhatsNextFeature[] }>(
+        "/public/whats-next",
+      );
+      return res.data?.data ?? [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   const projectHook = useWorkspaceProject();
   const spaceHook = useWorkspaceSpace();
@@ -340,24 +356,21 @@ const UserDashboard = () => {
     () => String(workspaceId || user?.currentWorkspaceId?._id || "").trim(),
     [workspaceId, user?.currentWorkspaceId?._id],
   );
-  const upcomingDismissKey = React.useMemo(
-    () =>
-      `${UPCOMING_BANNER_DISMISSED_KEY}:${resolvedWorkspaceId || "global"}`,
-    [resolvedWorkspaceId],
-  );
 
   React.useEffect(() => {
-    if (typeof window === "undefined") {
+    if (!whatsNextFeatures.length || typeof window === "undefined") {
       return;
     }
 
+    const currentFingerprint = computeFeaturesFingerprint(whatsNextFeatures);
+
     try {
-      const dismissed = window.localStorage.getItem(upcomingDismissKey) === "1";
-      setIsUpcomingBannerVisible(!dismissed);
+      const seenFingerprint = window.localStorage.getItem(UPCOMING_BANNER_SEEN_KEY) ?? "";
+      setIsUpcomingBannerVisible(seenFingerprint !== currentFingerprint);
     } catch {
       setIsUpcomingBannerVisible(true);
     }
-  }, [upcomingDismissKey]);
+  }, [whatsNextFeatures]);
 
   const handleDismissUpcomingBanner = React.useCallback(() => {
     setIsUpcomingBannerVisible(false);
@@ -367,11 +380,14 @@ const UserDashboard = () => {
     }
 
     try {
-      window.localStorage.setItem(upcomingDismissKey, "1");
+      window.localStorage.setItem(
+        UPCOMING_BANNER_SEEN_KEY,
+        computeFeaturesFingerprint(whatsNextFeatures),
+      );
     } catch {
       // no-op
     }
-  }, [upcomingDismissKey]);
+  }, [whatsNextFeatures]);
 
   const projectQuery = projectHook.useWorkspaceProjects(
     resolvedWorkspaceId,
@@ -812,7 +828,10 @@ const UserDashboard = () => {
             key: entry.key,
             kind: entry.kind,
             title: entry.kind === "standup" ? "Standup" : "Standup session",
-            subtitle: entry.kind === "standup" ? "Your async check-in" : "Workspace standup responses",
+            subtitle:
+              entry.kind === "standup"
+                ? "Your async check-in"
+                : "Workspace standup responses",
             href: entry.href,
             updatedAt: entry.visitedAt,
           };
@@ -1009,48 +1028,66 @@ const UserDashboard = () => {
         </div>
       </section>
 
-      {isUpcomingBannerVisible ? (
+      {isUpcomingBannerVisible && whatsNextFeatures.length > 0 ? (
         <section className="bg-card/70 border-border/55 rounded-xl border p-4">
-        <div className="flex flex-col gap-3">
-          <div className="flex items-start justify-between gap-2">
-            <div className="space-y-1">
-              <div className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase text-muted-foreground">
-                <Megaphone className="size-3.5" />
-                Upcoming
-              </div>
-              <h2 className="text-[15px] font-semibold">What to expect next</h2>
-              <p className="text-muted-foreground text-[12px]">
-                Here is a preview of improvements rolling out soon across AI, reporting, and planning.
-              </p>
-            </div>
-
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="text-muted-foreground hover:text-foreground size-7"
-              aria-label="Dismiss upcoming features banner"
-              onClick={handleDismissUpcomingBanner}
-            >
-              <X className="size-4" />
-            </Button>
-          </div>
-
-          <div className="grid gap-2 md:grid-cols-3">
-            {UPCOMING_FEATURES.map((feature) => (
-              <div
-                key={feature.title}
-                className="bg-background/70 border-border/45 rounded-lg border px-3 py-2.5"
-              >
-                <p className="text-[12px] font-semibold">{feature.title}</p>
-                <p className="text-muted-foreground mt-1 text-[11px] leading-5">
-                  {feature.description}
+          <div className="flex flex-col gap-3">
+            <div className="flex items-start justify-between gap-2">
+              <div className="space-y-1">
+                <div className="inline-flex items-center gap-1.5 text-[11px] font-medium uppercase text-muted-foreground">
+                  <Megaphone className="size-3.5" />
+                  Upcoming
+                </div>
+                <h2 className="text-[15px] font-semibold">
+                  What to expect next
+                </h2>
+                <p className="text-muted-foreground text-[12px]">
+                  Here is a preview of improvements rolling out soon across AI,
+                  reporting, and planning.
                 </p>
               </div>
-            ))}
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted-foreground hover:text-foreground size-7"
+                aria-label="Dismiss upcoming features banner"
+                onClick={handleDismissUpcomingBanner}
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {whatsNextFeatures.slice(0, 4).map((feature) =>
+                feature.docUrl ? (
+                  <Link
+                    key={feature.title}
+                    href={feature.docUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-background/70 border-border/45 rounded-lg border px-3 py-2.5 transition-colors hover:bg-background hover:border-border flex flex-col gap-2"
+                  >
+                    <p className="text-[12px] font-semibold">{feature.title}</p>
+                    <p className="text-muted-foreground mt-1 text-[11px] ">
+                      {feature.description}
+                    </p>
+                  </Link>
+                ) : (
+                  <div
+                    key={feature.title}
+                    className="bg-background/70 border-border/45 rounded-lg border px-3 py-2.5"
+                  >
+                    <p className="text-[12px] font-semibold">{feature.title}</p>
+                    <p className="text-muted-foreground mt-1 text-[11px] leading-5">
+                      {feature.description}
+                    </p>
+                  </div>
+                ),
+              )}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
       ) : null}
 
       <DashboardSection

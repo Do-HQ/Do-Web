@@ -2,6 +2,7 @@ import type React from "react";
 import { Fragment, useEffect, useRef, useState } from "react";
 import {
   FileText,
+  Gem,
   Shapes,
   MessageSquareReply,
   Phone,
@@ -34,6 +35,7 @@ import AttachmentPreview from "./attachment-preview";
 import ChatItemActionsMenu from "./chat-item-actions-menu";
 import RichMessageContent from "./rich-message-content";
 import RichMessageComposer from "./rich-message-composer";
+import MessageMarkdown from "@/components/ask-squircle/components/message-markdown";
 import type {
   MentionSuggestion,
   MentionTokenMeta,
@@ -90,6 +92,7 @@ type MainChatPanelProps = {
   hasOlderMessages?: boolean;
   isLoadingOlderMessages?: boolean;
   isMessagesLoading?: boolean;
+  isAiThinking?: boolean;
 };
 
 const parseMessageTimestamp = (message: SpaceMessage) => {
@@ -230,9 +233,13 @@ const MainChatPanel = ({
   hasOlderMessages = false,
   isLoadingOlderMessages = false,
   isMessagesLoading = false,
+  isAiThinking = false,
 }: MainChatPanelProps) => {
   const messageElementRefs = useRef<Record<string, HTMLElement | null>>({});
   const [highlightedMessageId, setHighlightedMessageId] = useState<
+    string | null
+  >(null);
+  const [activeMobileMessageId, setActiveMobileMessageId] = useState<
     string | null
   >(null);
 
@@ -532,6 +539,23 @@ const MainChatPanel = ({
             continue;
           }
 
+          if (mentionMeta.kind === "agent") {
+            chunks.push(
+              <span
+                key={`mention-${token}-${mentionStart}`}
+                className="inline-flex items-center gap-1 rounded-md bg-orange-500/12 px-1 py-0.5 text-orange-300"
+              >
+                <span className="inline-flex size-4 items-center justify-center rounded-sm bg-orange-500/18">
+                  <Gem className="size-2.5" />
+                </span>
+                {mentionLabel}
+              </span>,
+            );
+            lastIndex = mentionEnd;
+            match = mentionPattern.exec(input);
+            continue;
+          }
+
           const mentionFallback = getMentionAvatarFallback(
             mentionMeta.label,
             mentionMeta.kind,
@@ -687,22 +711,46 @@ const MainChatPanel = ({
 
     return (
       <div className="mt-1.5 flex flex-wrap items-center gap-1">
-        {reactions.map((reaction) => (
-          <button
-            key={`${message.id}:${reaction.emoji}`}
-            type="button"
-            onClick={() => onReactToMessage(message.id, reaction.emoji)}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[12px] transition-colors",
-              reaction.reacted
-                ? "border-orange-500/55 bg-orange-500/12 text-orange-300"
-                : "border-border/45 bg-muted/25 text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <span className="text-[14px] leading-none">{reaction.emoji}</span>
-            <span className="font-medium">{reaction.count}</span>
-          </button>
-        ))}
+        {reactions.map((reaction) => {
+          const reactorIds = Array.isArray(reaction.reactorIds) ? reaction.reactorIds : [];
+          const names = reactorIds
+            .map((id) => {
+              if (id === currentUserId) return "You";
+              return authorInfoById[id]?.name || null;
+            })
+            .filter(Boolean) as string[];
+
+          const tooltipLabel =
+            names.length === 0
+              ? `${reaction.count} ${reaction.count === 1 ? "person" : "people"} reacted`
+              : names.length <= 5
+                ? names.join(", ")
+                : `${names.slice(0, 5).join(", ")} +${names.length - 5} more`;
+
+          return (
+            <Tooltip key={`${message.id}:${reaction.emoji}`} delayDuration={300}>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => onReactToMessage(message.id, reaction.emoji)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[12px] transition-colors",
+                    reaction.reacted
+                      ? "border-orange-500/55 bg-orange-500/12 text-orange-300"
+                      : "border-border/45 bg-muted/25 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <span className="text-[14px] leading-none">{reaction.emoji}</span>
+                  <span className="font-medium">{reaction.count}</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="max-w-[220px] text-center text-[12px]">
+                <span className="mr-1">{reaction.emoji}</span>
+                {tooltipLabel}
+              </TooltipContent>
+            </Tooltip>
+          );
+        })}
       </div>
     );
   };
@@ -784,10 +832,14 @@ const MainChatPanel = ({
               const forwardedMessage = parseForwardedMessage(message.content);
               const authorInfo =
                 authorInfoById[String(message.author.id || "")];
+              const SQUIRCLE_LOGO_URL =
+                "https://res.cloudinary.com/dgiropjpp/image/upload/v1769577491/Logo_maker_project-2_jz4e09.png";
               const messageAvatarUrl =
-                message.author.avatarUrl ||
-                authorInfo?.avatarUrl ||
-                (isOwnMessage ? currentUserAvatarUrl || "" : "");
+                message.author.role === "agent"
+                  ? SQUIRCLE_LOGO_URL
+                  : message.author.avatarUrl ||
+                    authorInfo?.avatarUrl ||
+                    (isOwnMessage ? currentUserAvatarUrl || "" : "");
 
               return (
                 <Fragment key={message.id}>
@@ -809,6 +861,11 @@ const MainChatPanel = ({
                       highlightedMessageId === message.id &&
                         "ring-1 ring-orange-500/60 bg-orange-500/10",
                     )}
+                    onClick={() =>
+                      setActiveMobileMessageId((prev) =>
+                        prev === message.id ? null : message.id,
+                      )
+                    }
                   >
                     <div className="flex items-start gap-2">
                       <Avatar
@@ -837,14 +894,16 @@ const MainChatPanel = ({
 
                       <div className="min-w-0 flex-1">
                         <div className="relative max-w-[min(100%,48rem)]">
-                          <div className="absolute top-0 right-0 z-10 inline-flex items-center gap-1 rounded-full border border-border/45 bg-background/95 px-1.5 py-1 shadow-sm opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
+                          <div className={cn("absolute top-0 right-0 z-10 inline-flex items-center gap-1 rounded-full border border-border/45 bg-background/95 px-1.5 py-1 shadow-sm transition-opacity opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100", activeMobileMessageId === message.id && "opacity-100")}>
                             {QUICK_REACTION_OPTIONS.map((emoji) => (
                               <button
                                 key={`${message.id}-hover-${emoji}`}
                                 type="button"
-                                onClick={() =>
-                                  onReactToMessage(message.id, emoji)
-                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onReactToMessage(message.id, emoji);
+                                  setActiveMobileMessageId(null);
+                                }}
                                 className="inline-flex size-7 items-center justify-center rounded-full text-[17px] leading-none transition-colors hover:bg-muted"
                                 aria-label={`React with ${emoji}`}
                               >
@@ -885,8 +944,9 @@ const MainChatPanel = ({
                               {message.author.name}
                             </p>
                             {message.author.role === "agent" && (
-                              <Badge variant="outline" className="text-[11px]">
-                                Agent
+                              <Badge variant="outline" className="gap-1 text-[11px]">
+                                <Gem className="size-2.75" />
+                                Squircle Intelligence
                               </Badge>
                             )}
                             {isPinned && (
@@ -990,6 +1050,11 @@ const MainChatPanel = ({
                                     />
                                   ) : null}
                                 </div>
+                              ) : message.author.role === "agent" ? (
+                                <MessageMarkdown
+                                  content={message.content}
+                                  className="mt-0.5 text-[13px]"
+                                />
                               ) : (
                                 <RichMessageContent
                                   content={message.content}
@@ -1055,6 +1120,22 @@ const MainChatPanel = ({
           )}
         </div>
       </div>
+
+      {isAiThinking && (
+        <div className="flex items-center gap-2.5 border-t border-border/20 bg-muted/20 px-4 py-2.5">
+          <div className="flex size-6 shrink-0 items-center justify-center rounded-md border border-border/50 bg-background">
+            <Gem className="size-3 text-muted-foreground animate-pulse" />
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[12px] text-muted-foreground">Squircle Intelligence is thinking</span>
+            <span className="flex gap-0.5">
+              <span className="size-1 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:0ms]" />
+              <span className="size-1 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:150ms]" />
+              <span className="size-1 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:300ms]" />
+            </span>
+          </div>
+        </div>
+      )}
 
       <div
         data-tour="spaces-composer"

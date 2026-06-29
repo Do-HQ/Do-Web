@@ -19,8 +19,38 @@ const useError = () => {
     }
 
     const payload = ((err?.response?.data as ApiErrorPayload | undefined) ||
-      {}) as ApiErrorPayload;
+      {}) as ApiErrorPayload & { loginRequired?: boolean; signupRequired?: boolean };
     const errorCode = String(payload?.code || "").trim().toUpperCase();
+
+    if (payload?.loginRequired) {
+      toast.error(payload.message || "Account already exists", {
+        description: payload.description || "An account with this email already exists.",
+        action: {
+          label: "Sign in",
+          onClick: () => {
+            if (typeof window !== "undefined") {
+              window.location.assign(ROUTES.SIGN_IN);
+            }
+          },
+        },
+      });
+      return;
+    }
+
+    if (payload?.signupRequired) {
+      toast.error(payload.message || "No account found", {
+        description: payload.description || "No account was found with this email.",
+        action: {
+          label: "Sign up",
+          onClick: () => {
+            if (typeof window !== "undefined") {
+              window.location.assign(ROUTES.SIGN_UP);
+            }
+          },
+        },
+      });
+      return;
+    }
 
     if (errorCode === "TOKEN_INSUFFICIENT") {
       const requiredTokens = Number(payload?.details?.requiredTokens || 0);

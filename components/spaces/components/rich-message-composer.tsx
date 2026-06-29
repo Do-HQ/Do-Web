@@ -678,7 +678,7 @@ export default function RichMessageComposer({
         />
 
         {activeMention && filteredMentionSuggestions.length > 0 ? (
-          <div className="absolute right-3 bottom-2 left-3 z-30 max-h-60 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg">
+          <div className="absolute bottom-2 left-3 z-30 max-h-60 w-72 max-w-[calc(100%-1.5rem)] overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-lg">
             {filteredMentionSuggestions.map((suggestion) => (
               <button
                 key={suggestion.id}

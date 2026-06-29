@@ -78,6 +78,11 @@ const VerificationCode = () => {
         return;
       }
 
+      if (data?.data?.user?.isInternal) {
+        router.replace(ROUTES.SUPPORT_ADMIN);
+        return;
+      }
+
       router.replace(
         resolveUserStartRoute({
           user: data?.data?.user,

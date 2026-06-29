@@ -46,6 +46,7 @@ export interface WorkspaceSupportTicketRecord {
   slaDueAt: string | null;
   slaBreached: boolean;
   slaRemainingHours: number | null;
+  review?: WorkspaceSupportTicketReview | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -57,6 +58,7 @@ export interface WorkspaceSupportTicketMessageRecord {
   authorUserId: string;
   author: WorkspaceSupportTicketActor;
   body: string;
+  imageUrls: string[];
   source: "user" | "system";
   createdAt: string;
   updatedAt: string;
@@ -151,6 +153,7 @@ export interface AssignWorkspaceSupportTicketRequestBody {
 
 export interface CreateWorkspaceSupportTicketMessageRequestBody {
   body: string;
+  imageUrls?: string[];
 }
 
 export interface CreateWorkspaceSupportTicketInternalNoteRequestBody {
@@ -202,6 +205,18 @@ export interface WorkspaceSupportStatusResponse {
   overall: "operational" | "degraded" | "down";
   updatedAt: string;
   components: WorkspaceSupportStatusComponent[];
+}
+
+export interface WorkspaceSupportTicketReview {
+  rating: number;
+  comment: string;
+  submittedAt: string;
+  submittedBy: WorkspaceSupportTicketActor;
+}
+
+export interface SubmitWorkspaceSupportTicketReviewRequestBody {
+  rating: number;
+  comment?: string;
 }
 
 export interface WorkspaceSupportSlaBoardResponse {

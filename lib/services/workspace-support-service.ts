@@ -16,6 +16,7 @@ import {
   WorkspaceSupportTicketMessagesResponse,
   WorkspaceSupportTicketsQueryParams,
   WorkspaceSupportTicketsResponse,
+  SubmitWorkspaceSupportTicketReviewRequestBody,
 } from "@/types/support";
 import { searchWorkspaceKnowledgeBase } from "@/lib/services/workspace-knowledge-base-service";
 
@@ -32,6 +33,10 @@ const WORKSPACE_SUPPORT_ENDPOINTS = {
   ticketInternalNotes: (workspaceId: string, ticketId: string) =>
     `/workspace/${workspaceId}/support/tickets/${ticketId}/internal-notes`,
   status: (workspaceId: string) => `/workspace/${workspaceId}/support/status`,
+  ticketReview: (workspaceId: string, ticketId: string) =>
+    `/workspace/${workspaceId}/support/tickets/${ticketId}/review`,
+  callReview: (workspaceId: string, roomId: string) =>
+    `/workspace/${workspaceId}/spaces/rooms/${roomId}/calls/review`,
 };
 
 export const getWorkspaceSupportTickets = async (
@@ -223,5 +228,27 @@ export const searchWorkspaceSupportKnowledgeBase = async (
 export const getWorkspaceSupportStatus = async (workspaceId: string) => {
   return await axiosInstance.get<WorkspaceSupportStatusResponse>(
     WORKSPACE_SUPPORT_ENDPOINTS.status(workspaceId),
+  );
+};
+
+export const submitWorkspaceSupportTicketReview = async (data: {
+  workspaceId: string;
+  ticketId: string;
+  payload: SubmitWorkspaceSupportTicketReviewRequestBody;
+}) => {
+  return await axiosInstance.post(
+    WORKSPACE_SUPPORT_ENDPOINTS.ticketReview(data.workspaceId, data.ticketId),
+    data.payload,
+  );
+};
+
+export const submitTeamCallReview = async (data: {
+  workspaceId: string;
+  roomId: string;
+  payload: { rating: number; comment?: string };
+}) => {
+  return await axiosInstance.post(
+    WORKSPACE_SUPPORT_ENDPOINTS.callReview(data.workspaceId, data.roomId),
+    data.payload,
   );
 };

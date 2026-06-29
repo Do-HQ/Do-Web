@@ -147,7 +147,7 @@ const AskSquirclePage = ({ embedded = false }: AskSquirclePageProps) => {
           aiStatusQuery.data?.data?.disabledReason ||
             aiStatusQuery.data?.data?.reason ||
             "",
-        ).trim() || "Scribe is currently unavailable."
+        ).trim() || "Squircle Intelligence is currently unavailable."
       );
     }
 
@@ -360,21 +360,18 @@ const AskSquirclePage = ({ embedded = false }: AskSquirclePageProps) => {
     }
   }, [embedded, normalizedWorkspaceId]);
 
+  // Sync mode/scope from the loaded thread — only when server data changes,
+  // not when the user changes local state (including mode/scope in deps would
+  // immediately revert any local change back to the persisted thread value).
   useEffect(() => {
     const threadMode = chatDetailQuery.data?.data?.chat?.mode;
-    if (threadMode && threadMode !== mode) {
-      setMode(threadMode);
-    }
+    if (threadMode) setMode(threadMode);
 
     const threadScope = chatDetailQuery.data?.data?.chat?.scope;
-    if (threadScope && threadScope !== scope) {
-      setScope(threadScope);
-    }
+    if (threadScope) setScope(threadScope);
   }, [
     chatDetailQuery.data?.data?.chat?.mode,
     chatDetailQuery.data?.data?.chat?.scope,
-    mode,
-    scope,
   ]);
 
   useEffect(() => {
@@ -541,7 +538,7 @@ const AskSquirclePage = ({ embedded = false }: AskSquirclePageProps) => {
     }
 
     if (isAiUnavailable) {
-      toast.error(aiDisabledReason || "Scribe is currently unavailable.");
+      toast.error(aiDisabledReason || "Squircle Intelligence is currently unavailable.");
       return;
     }
 

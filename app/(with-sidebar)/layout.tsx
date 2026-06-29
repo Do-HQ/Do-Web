@@ -31,7 +31,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     pathname === ROUTES.CALENDAR ||
     pathname === ROUTES.KNOWLEDGE_BASE ||
     pathname.startsWith(ROUTES.JAMS) ||
-    pathname.startsWith(ROUTES.SPACES);
+    pathname.startsWith(ROUTES.SPACES) ||
+    pathname.startsWith(ROUTES.SUPPORT);
 
   useEffect(() => {
     const scopedWorkspaceId = String(workspaceId || "").trim();

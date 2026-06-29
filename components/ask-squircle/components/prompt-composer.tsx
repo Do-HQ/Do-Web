@@ -18,6 +18,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type {
   ComposerReference,
   PromptMode,
@@ -166,7 +172,7 @@ const PromptComposer = ({
             onSend();
           }
         }}
-        placeholder="Ask Scribe anything about your workspace... Use # to reference a report."
+        placeholder="Ask Squircle Intelligence anything about your workspace... Use # to reference a report."
         style={mentionInputStyle}
         className="min-h-14 max-h-48 rounded-md border border-transparent bg-transparent shadow-none"
         a11ySuggestionsListLabel="Report references"
@@ -185,7 +191,7 @@ const PromptComposer = ({
 
       {disabledReason ? (
         <div className="rounded-md border border-amber-500/35 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-700 dark:text-amber-300">
-          {disabledReason || "Scribe is currently unavailable."}
+          {disabledReason || "Squircle Intelligence is currently unavailable."}
         </div>
       ) : null}
 
@@ -251,6 +257,7 @@ const PromptComposer = ({
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
+        {/* Mode select */}
         <Select
           value={mode}
           onValueChange={(value) => onModeChange(value as PromptMode)}
@@ -261,29 +268,49 @@ const PromptComposer = ({
           </SelectTrigger>
           <SelectContent>
             {modeOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
+              <SelectItem key={option.value} value={option.value} className="flex-col items-start">
+                <span className="text-xs font-medium">{option.label}</span>
+                {option.description ? (
+                  <span className="text-[10px] text-muted-foreground leading-tight block mt-0.5">
+                    {option.description}
+                  </span>
+                ) : null}
               </SelectItem>
             ))}
           </SelectContent>
         </Select>
 
-        <Select
-          value={scope}
-          onValueChange={(value) => onScopeChange(value as PromptScope)}
-          disabled={disableAiActions}
-        >
-          <SelectTrigger className="h-8 w-[7.2rem] rounded-md border-border/70 bg-background text-xs sm:w-30">
-            <SelectValue placeholder="Scope" />
-          </SelectTrigger>
-          <SelectContent>
-            {scopeOptions.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {/* Scope select */}
+        <TooltipProvider delayDuration={300}>
+          <Select
+            value={scope}
+            onValueChange={(value) => onScopeChange(value as PromptScope)}
+            disabled={disableAiActions}
+          >
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <SelectTrigger className="h-8 w-[7.2rem] rounded-md border-border/70 bg-background text-xs sm:w-30">
+                  <SelectValue placeholder="Scope" />
+                </SelectTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="text-[11px]">
+                {scopeOptions.find((o) => o.value === scope)?.description ?? "Focus area for this response"}
+              </TooltipContent>
+            </Tooltip>
+            <SelectContent>
+              {scopeOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value} className="flex-col items-start">
+                  <span className="text-xs font-medium">{option.label}</span>
+                  {option.description ? (
+                    <span className="text-[10px] text-muted-foreground leading-tight block mt-0.5">
+                      {option.description}
+                    </span>
+                  ) : null}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </TooltipProvider>
 
         <Button
           size="sm"

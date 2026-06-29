@@ -69,6 +69,8 @@ import { toast } from "sonner";
 import useWorkspace from "@/hooks/use-workspace";
 import useWorkspaceSpace from "@/hooks/use-workspace-space";
 import LoaderComponent from "@/components/shared/loader";
+import ReviewDialog from "@/components/shared/review-dialog";
+import useWorkspaceSupport from "@/hooks/use-workspace-support";
 import CallPanel from "./components/call-panel";
 import type {
   CallChatMessage,
@@ -275,6 +277,11 @@ const TeamCallPage = () => {
   const [callNote, setCallNote] = useState("");
   const [isSavingCallNote, setIsSavingCallNote] = useState(false);
   const [callMessages, setCallMessages] = useState<CallChatMessage[]>([]);
+  const [callReviewOpen, setCallReviewOpen] = useState(false);
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null);
+
+  const { useSubmitTeamCallReview } = useWorkspaceSupport();
+  const submitCallReviewMutation = useSubmitTeamCallReview();
 
   const [remoteParticipantsMap, setRemoteParticipantsMap] = useState<
     Record<string, Participant>
@@ -1331,27 +1338,53 @@ const TeamCallPage = () => {
     );
   };
 
-  const handleLeaveToSpaces = () => {
-    persistMinimizedCall();
+  const teardownCall = (minimize: boolean) => {
+    if (minimize) {
+      persistMinimizedCall();
+    } else if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(TEAM_CALL_WIDGET_KEY);
+    }
     leaveTeamCallRoom();
     disconnectTeamCallSocket();
     cleanupCallConnections();
     stopMediaStream(localStreamRef.current);
     stopMediaStream(screenStreamRef.current);
-    router.push(ROUTES.SPACES);
+  };
+
+  const handleLeaveToSpaces = () => {
+    teardownCall(true);
+    setPendingNavigation(() => () => router.push(ROUTES.SPACES));
+    setCallReviewOpen(true);
   };
 
   const endCall = () => {
-    if (typeof window !== "undefined") {
-      window.sessionStorage.removeItem(TEAM_CALL_WIDGET_KEY);
-    }
+    teardownCall(false);
+    setPendingNavigation(() => () => router.push(ROUTES.SPACES));
+    setCallReviewOpen(true);
+  };
 
-    leaveTeamCallRoom();
-    disconnectTeamCallSocket();
-    cleanupCallConnections();
-    stopMediaStream(localStreamRef.current);
-    stopMediaStream(screenStreamRef.current);
-    router.push(ROUTES.SPACES);
+  const handleSubmitCallReview = async (rating: number, comment: string) => {
+    if (resolvedWorkspaceId && roomId) {
+      try {
+        await submitCallReviewMutation.mutateAsync({
+          workspaceId: String(resolvedWorkspaceId),
+          roomId,
+          payload: { rating, comment: comment || undefined },
+        });
+        toast.success("Thanks for your feedback!");
+      } catch {
+        // non-blocking — navigate even if review fails
+      }
+    }
+    setCallReviewOpen(false);
+    pendingNavigation?.();
+    setPendingNavigation(null);
+  };
+
+  const handleSkipCallReview = () => {
+    setCallReviewOpen(false);
+    pendingNavigation?.();
+    setPendingNavigation(null);
   };
 
   const sendCallMessage = async () => {
@@ -2450,6 +2483,15 @@ const TeamCallPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ReviewDialog
+        open={callReviewOpen}
+        title="How was the call?"
+        description="Rate your experience to help us improve team calls."
+        isSubmitting={submitCallReviewMutation.isPending}
+        onSubmit={(rating, comment) => void handleSubmitCallReview(rating, comment)}
+        onSkip={handleSkipCallReview}
+      />
     </>
   );
 };

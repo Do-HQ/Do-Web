@@ -164,7 +164,7 @@ export function NavActions() {
               "hidden h-9 items-center gap-1.5 px-2.5 text-[12px] sm:inline-flex bg-ring/20",
               showScribeWidget && "text-foreground",
             )}
-            title="Toggle Scribe AI"
+            title="Toggle Squircle Intelligence"
             onClick={() => setShowScribeWidget(!showScribeWidget)}
           >
             <Gem className="size-3.5 text-chart-5" />

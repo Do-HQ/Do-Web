@@ -1,4 +1,5 @@
 import type React from "react";
+import { useState } from "react";
 import {
   FileText,
   Shapes,
@@ -34,6 +35,7 @@ import AttachmentPreview from "./attachment-preview";
 import ChatItemActionsMenu from "./chat-item-actions-menu";
 import RichMessageContent from "./rich-message-content";
 import RichMessageComposer from "./rich-message-composer";
+import { cn } from "@/lib/utils";
 import { parseJamShareMessage } from "../utils";
 
 type ThreadPanelProps = {
@@ -119,6 +121,8 @@ const ThreadPanel = ({
   onUploadFromInput,
   onRemoveAttachment,
 }: ThreadPanelProps) => {
+  const [activeMobileReplyId, setActiveMobileReplyId] = useState<string | null>(null);
+
   const quickReactionOptions = ["👍", "❤️", "🔥", "🎉", "😂"] as const;
   const extendedReactionOptions = [
     "👏",
@@ -629,13 +633,22 @@ const ThreadPanel = ({
                   <article
                     key={reply.id}
                     className="group relative rounded-lg border border-border/35 bg-card/70 px-2.5 py-2 pt-7 transition-colors hover:bg-card"
+                    onClick={() =>
+                      setActiveMobileReplyId((prev) =>
+                        prev === reply.id ? null : reply.id,
+                      )
+                    }
                   >
-                    <div className="absolute top-1.5 left-2.5 z-10 inline-flex items-center gap-1 rounded-full border border-border/45 bg-background/95 px-1.5 py-1 shadow-sm opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
+                    <div className={cn("absolute top-1.5 left-2.5 z-10 inline-flex items-center gap-1 rounded-full border border-border/45 bg-background/95 px-1.5 py-1 shadow-sm transition-opacity opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100", activeMobileReplyId === reply.id && "opacity-100")}>
                       {quickReactionOptions.map((emoji) => (
                         <button
                           key={`${reply.id}-hover-${emoji}`}
                           type="button"
-                          onClick={() => onReactToReply(reply.id, emoji)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onReactToReply(reply.id, emoji);
+                            setActiveMobileReplyId(null);
+                          }}
                           className="inline-flex size-7 items-center justify-center rounded-full text-[17px] leading-none transition-colors hover:bg-muted"
                           aria-label={`React with ${emoji}`}
                         >

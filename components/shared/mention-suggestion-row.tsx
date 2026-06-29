@@ -1,10 +1,10 @@
 import type React from "react";
-import { FileText } from "lucide-react";
+import { FileText, Gem } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 
-type MentionSuggestionKind = "user" | "team" | "project" | "task" | "report";
+type MentionSuggestionKind = "user" | "team" | "project" | "task" | "report" | "agent";
 
 const stripMentionPrefix = (value: string) =>
   String(value || "")
@@ -57,7 +57,9 @@ export const MentionSuggestionRow = ({
         ? "Task"
         : kind === "team"
           ? "Team"
-          : "Member";
+          : kind === "agent"
+            ? "AI assistant"
+            : "Member";
   const fallback =
     avatarFallback ||
     deriveInitials(
@@ -73,6 +75,7 @@ export const MentionSuggestionRow = ({
           : "U",
     );
   const isReport = kind === "report";
+  const isAgent = kind === "agent";
   const displayValue = stripMentionPrefix(label);
 
   return (
@@ -83,7 +86,11 @@ export const MentionSuggestionRow = ({
         className,
       )}
     >
-      {isReport ? (
+      {isAgent ? (
+        <span className="bg-muted flex size-5 shrink-0 items-center justify-center rounded-md border border-border/60">
+          <Gem className="size-3 text-muted-foreground" />
+        </span>
+      ) : isReport ? (
         <span className="bg-muted flex size-5 shrink-0 items-center justify-center rounded-md border border-border/60">
           <FileText className="size-3 text-muted-foreground" />
         </span>
