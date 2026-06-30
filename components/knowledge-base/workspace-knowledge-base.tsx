@@ -3,6 +3,7 @@
 import { type ComponentType, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Bookmark,
   BookOpen,
   ChevronLeft,
   ChevronRight,
@@ -11,7 +12,6 @@ import {
   ExternalLink,
   Layers3,
   Library,
-  Pin,
   RefreshCcw,
   Search,
   Sparkles,
@@ -862,8 +862,8 @@ export default function WorkspaceKnowledgeBase() {
                         variant="outline"
                         className="h-5 rounded-md px-1.5 text-[10px]"
                       >
-                        <Pin className="mr-1 size-3" />
-                        Pinned
+                        <Bookmark className="mr-1 size-3" />
+                        Tagged
                       </Badge>
                     ) : null}
                   </div>

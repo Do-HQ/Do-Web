@@ -17,7 +17,6 @@ import {
   MoreHorizontal,
   Pencil,
   Plus,
-  Pin,
   PinOff,
   RotateCcw,
   Search,
@@ -32,6 +31,7 @@ import {
   X,
   Loader,
   Magnet,
+  Bookmark,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -2966,7 +2966,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                                       </span>
                                       {thread.position ? (
                                         <span className="inline-flex items-center gap-1">
-                                          <Pin className="size-3" />
+                                          <Bookmark className="size-3" />
                                           pinned
                                         </span>
                                       ) : (
@@ -3331,7 +3331,9 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                             </button>
                           </div>
                         ) : (
-                          <span className="shrink-0 text-[11px] text-muted-foreground">View</span>
+                          <span className="shrink-0 text-[11px] text-muted-foreground">
+                            View
+                          </span>
                         )}
                         <button
                           type="button"
@@ -3341,7 +3343,9 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                             if (entry.type === "users") {
                               setShareSelection((cur) => ({
                                 ...cur,
-                                editorUserIds: cur.editorUserIds.filter((id) => id !== entry.id),
+                                editorUserIds: cur.editorUserIds.filter(
+                                  (id) => id !== entry.id,
+                                ),
                               }));
                             }
                           }}
@@ -3355,7 +3359,8 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                 </div>
               ) : (
                 <p className="text-muted-foreground text-[11px]">
-                  No recipients selected yet. Search above to add people, teams, or rooms.
+                  No recipients selected yet. Search above to add people, teams,
+                  or rooms.
                 </p>
               )}
             </div>

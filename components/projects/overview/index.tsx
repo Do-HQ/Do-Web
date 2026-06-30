@@ -533,7 +533,7 @@ export default function ProjectOverview({
   );
   const [teamFilter, setTeamFilter] = useState("all");
   const [startDate, setStartDate] = useState("");
-  const [riskView, setRiskView] = useState<ProjectRiskKind>("risk");
+  const [riskView, setRiskView] = useState<ProjectRiskKind>("issue");
   const [workflowView, setWorkflowView] = useState<ProjectWorkflowView>("all");
   const [workflowSortMode, setWorkflowSortMode] = useState<
     "updated" | "progress" | "name"

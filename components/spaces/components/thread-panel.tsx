@@ -5,9 +5,8 @@ import {
   Shapes,
   PanelRightClose,
   Plus,
-  Pin,
   X,
-  Loader,
+  Bookmark,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -36,7 +35,9 @@ import ChatItemActionsMenu from "./chat-item-actions-menu";
 import RichMessageContent from "./rich-message-content";
 import RichMessageComposer from "./rich-message-composer";
 import { cn } from "@/lib/utils";
-import { parseJamShareMessage } from "../utils";
+import { parseJamShareMessage, parseDocShareMessage, extractFirstExternalUrl } from "../utils";
+import OgPreviewCard from "./og-preview-card";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type ThreadPanelProps = {
   desktop?: boolean;
@@ -121,7 +122,9 @@ const ThreadPanel = ({
   onUploadFromInput,
   onRemoveAttachment,
 }: ThreadPanelProps) => {
-  const [activeMobileReplyId, setActiveMobileReplyId] = useState<string | null>(null);
+  const [activeMobileReplyId, setActiveMobileReplyId] = useState<string | null>(
+    null,
+  );
 
   const quickReactionOptions = ["👍", "❤️", "🔥", "🎉", "😂"] as const;
   const extendedReactionOptions = [
@@ -607,9 +610,28 @@ const ThreadPanel = ({
             className="h-0 min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain px-2 py-2 sm:px-3 sm:py-2.5"
           >
             {isThreadRepliesLoading ? (
-              <div className="text-muted-foreground flex min-h-[9rem] flex-col items-center justify-center gap-2 text-[12px]">
-                <Loader className="size-4 animate-spin" />
-                Loading thread...
+              <div className="flex flex-col gap-4 px-1 py-2">
+                {[
+                  { lines: [{ w: "w-40" }, { w: "w-56" }] },
+                  { lines: [{ w: "w-48" }] },
+                  { lines: [{ w: "w-36" }, { w: "w-52" }, { w: "w-28" }] },
+                  { lines: [{ w: "w-44" }, { w: "w-32" }] },
+                ].map((row, i) => (
+                  <div key={i} className="flex items-end gap-2">
+                    <Skeleton className="size-6 shrink-0 rounded-full" />
+                    <div className="flex flex-col gap-1.5">
+                      <Skeleton className="h-2.5 w-16 rounded-md" />
+                      <div className="rounded-md bg-muted/60 px-3 py-2 flex flex-col gap-1.5">
+                        {row.lines.map((line, j) => (
+                          <Skeleton
+                            key={j}
+                            className={`h-3 ${line.w} rounded`}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : activeThreadReplies.length === 0 ? (
               <p className="text-muted-foreground text-[13px]">
@@ -622,6 +644,10 @@ const ThreadPanel = ({
                   String(reply.author.id || "").trim() ===
                   String(currentUserId || "").trim();
                 const jamShareCard = renderJamShareCard(reply.content);
+                const docShare = !jamShareCard ? parseDocShareMessage(reply.content) : null;
+                const externalUrl = !jamShareCard && !docShare
+                  ? extractFirstExternalUrl(reply.content)
+                  : null;
                 const authorInfo =
                   authorInfoById[String(reply.author.id || "")];
                 const replyAvatarUrl =
@@ -632,14 +658,19 @@ const ThreadPanel = ({
                 return (
                   <article
                     key={reply.id}
-                    className="group relative rounded-lg border border-border/35 bg-card/70 px-2.5 py-2 pt-7 transition-colors hover:bg-card"
+                    className="group relative rounded-lg border-none bg-card/70 px-2.5 py-2 transition-colors hover:bg-card"
                     onClick={() =>
                       setActiveMobileReplyId((prev) =>
                         prev === reply.id ? null : reply.id,
                       )
                     }
                   >
-                    <div className={cn("absolute top-1.5 left-2.5 z-10 inline-flex items-center gap-1 rounded-full border border-border/45 bg-background/95 px-1.5 py-1 shadow-sm transition-opacity opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100", activeMobileReplyId === reply.id && "opacity-100")}>
+                    <div
+                      className={cn(
+                        "absolute top-1.5 left-2.5 z-10 inline-flex items-center gap-1 rounded-full border border-border/45 bg-background/95 px-1.5 py-1 shadow-sm transition-opacity opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100",
+                        activeMobileReplyId === reply.id && "opacity-100",
+                      )}
+                    >
                       {quickReactionOptions.map((emoji) => (
                         <button
                           key={`${reply.id}-hover-${emoji}`}
@@ -715,8 +746,8 @@ const ThreadPanel = ({
                       )}
                       {isPinned && (
                         <Badge variant="secondary" className="text-[11px]">
-                          <Pin className="size-3.5" />
-                          Pinned
+                          <Bookmark className="size-3.5" />
+                          Tagged
                         </Badge>
                       )}
                     </div>
@@ -759,12 +790,35 @@ const ThreadPanel = ({
                       <>
                         {jamShareCard ? (
                           jamShareCard
+                        ) : docShare ? (
+                          <a
+                            href={docShare.route}
+                            onClick={(e) => e.stopPropagation()}
+                            className="mt-1.5 flex w-full items-start gap-2 rounded-md border border-border/35 bg-accent/22 p-2 text-left transition-colors hover:bg-accent/35"
+                          >
+                            <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/12 text-primary">
+                              <FileText className="size-3.5" />
+                            </span>
+                            <span className="min-w-0 space-y-0.5">
+                              <span className="line-clamp-1 block text-[12.5px] font-medium">
+                                {docShare.title}
+                              </span>
+                              <span className="text-muted-foreground block text-[11px]">
+                                Shared document
+                              </span>
+                            </span>
+                          </a>
                         ) : (
-                          <RichMessageContent
-                            content={reply.content}
-                            className="mt-1 text-[13px]"
-                            renderInlineContent={renderContentWithMentions}
-                          />
+                          <>
+                            <RichMessageContent
+                              content={reply.content}
+                              className="mt-1 text-[13px]"
+                              renderInlineContent={renderContentWithMentions}
+                            />
+                            {externalUrl ? (
+                              <OgPreviewCard url={externalUrl} />
+                            ) : null}
+                          </>
                         )}
                       </>
                     )}

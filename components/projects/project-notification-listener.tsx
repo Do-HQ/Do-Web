@@ -13,6 +13,7 @@ import {
   armBrowserNotificationPermission,
   showBrowserNotification,
 } from "@/lib/helpers/browser-notifications";
+import { playNotificationSound } from "@/lib/helpers/notification-sound";
 import useWorkspaceStore from "@/stores/workspace";
 
 export default function ProjectNotificationListener() {
@@ -47,6 +48,7 @@ export default function ProjectNotificationListener() {
       }
 
       if (notificationType !== "space.call.incoming") {
+        playNotificationSound();
         toast(notification?.title || "Project update", {
           description: notification?.summary || "",
           action:

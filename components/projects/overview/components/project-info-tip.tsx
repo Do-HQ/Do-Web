@@ -21,6 +21,7 @@ export function ProjectInfoTip({
       <TooltipTrigger asChild>
         <button
           type="button"
+          tabIndex={-1}
           aria-label="More information"
           className={cn(
             "text-muted-foreground/85 hover:text-foreground inline-flex size-4 items-center justify-center rounded-sm transition-colors",

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Gem, Pin, PinOff, X } from "lucide-react";
+import { Bookmark, Gem, X, BookmarkX, Lock, Unlock } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 import AskSquirclePage from "@/components/ask-squircle";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/stores";
 import { ROUTES } from "@/utils/constants";
+import { PiCalendarStarBold } from "react-icons/pi";
 
 const ScribeWidget = () => {
   const pathname = usePathname();
@@ -91,9 +92,9 @@ const ScribeWidget = () => {
               onClick={() => setScribeWidgetPinned(!scribeWidgetPinned)}
             >
               {scribeWidgetPinned ? (
-                <PinOff className="size-3.5" />
+                <Unlock className="size-3.5" />
               ) : (
-                <Pin className="size-3.5" />
+                <Lock className="size-3.5" />
               )}
             </Button>
             <Button

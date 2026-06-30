@@ -7,7 +7,7 @@ import {
   MessageSquareReply,
   Phone,
   Plus,
-  Pin,
+  Bookmark,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -41,8 +41,10 @@ import type {
   MentionTokenMeta,
   SpaceUserInfo,
 } from "../types";
-import { parseJamShareMessage } from "../utils";
+import { parseJamShareMessage, parseDocShareMessage, extractFirstExternalUrl } from "../utils";
+import OgPreviewCard from "./og-preview-card";
 import LoaderComponent from "@/components/shared/loader";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type MainChatPanelProps = {
   activeMessages: SpaceMessage[];
@@ -712,7 +714,9 @@ const MainChatPanel = ({
     return (
       <div className="mt-1.5 flex flex-wrap items-center gap-1">
         {reactions.map((reaction) => {
-          const reactorIds = Array.isArray(reaction.reactorIds) ? reaction.reactorIds : [];
+          const reactorIds = Array.isArray(reaction.reactorIds)
+            ? reaction.reactorIds
+            : [];
           const names = reactorIds
             .map((id: string) => {
               if (id === currentUserId) return "You";
@@ -728,7 +732,10 @@ const MainChatPanel = ({
                 : `${names.slice(0, 5).join(", ")} +${names.length - 5} more`;
 
           return (
-            <Tooltip key={`${message.id}:${reaction.emoji}`} delayDuration={300}>
+            <Tooltip
+              key={`${message.id}:${reaction.emoji}`}
+              delayDuration={300}
+            >
               <TooltipTrigger asChild>
                 <button
                   type="button"
@@ -740,11 +747,16 @@ const MainChatPanel = ({
                       : "border-border/45 bg-muted/25 text-muted-foreground hover:text-foreground",
                   )}
                 >
-                  <span className="text-[14px] leading-none">{reaction.emoji}</span>
+                  <span className="text-[14px] leading-none">
+                    {reaction.emoji}
+                  </span>
                   <span className="font-medium">{reaction.count}</span>
                 </button>
               </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-[220px] text-center text-[12px]">
+              <TooltipContent
+                side="top"
+                className="max-w-[220px] text-center text-[12px]"
+              >
                 <span className="mr-1">{reaction.emoji}</span>
                 {tooltipLabel}
               </TooltipContent>
@@ -808,7 +820,7 @@ const MainChatPanel = ({
           </div>
         )}
 
-        <div className="mt-2 space-y-1.5">
+        <div className="mt-2 space-y-1.5 overflow-y-hidden">
           {activeMessages.length ? (
             activeMessages.map((message, index) => {
               const currentMessageDate = parseMessageTimestamp(message);
@@ -828,8 +840,12 @@ const MainChatPanel = ({
                 String(message.author.id || "").trim() ===
                 String(currentUserId || "").trim();
               const jamShareCard = renderJamShareCard(message.content);
-              const callEventMessage = parseCallEventMessage(message.content);
-              const forwardedMessage = parseForwardedMessage(message.content);
+              const docShare = !jamShareCard ? parseDocShareMessage(message.content) : null;
+              const callEventMessage = !jamShareCard && !docShare ? parseCallEventMessage(message.content) : null;
+              const forwardedMessage = !jamShareCard && !docShare && !callEventMessage ? parseForwardedMessage(message.content) : null;
+              const externalUrl = !jamShareCard && !docShare && !callEventMessage
+                ? extractFirstExternalUrl(message.content)
+                : null;
               const authorInfo =
                 authorInfoById[String(message.author.id || "")];
               const SQUIRCLE_LOGO_URL =
@@ -894,7 +910,13 @@ const MainChatPanel = ({
 
                       <div className="min-w-0 flex-1">
                         <div className="relative max-w-[min(100%,48rem)]">
-                          <div className={cn("absolute top-0 right-0 z-10 inline-flex items-center gap-1 rounded-full border border-border/45 bg-background/95 px-1.5 py-1 shadow-sm transition-opacity opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100", activeMobileMessageId === message.id && "opacity-100")}>
+                          <div
+                            className={cn(
+                              "absolute top-0 right-0 z-10 inline-flex items-center gap-1 rounded-full border border-border/45 bg-background/95 px-1.5 py-1 shadow-sm transition-opacity opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100",
+                              activeMobileMessageId === message.id &&
+                                "opacity-100",
+                            )}
+                          >
                             {QUICK_REACTION_OPTIONS.map((emoji) => (
                               <button
                                 key={`${message.id}-hover-${emoji}`}
@@ -944,7 +966,10 @@ const MainChatPanel = ({
                               {message.author.name}
                             </p>
                             {message.author.role === "agent" && (
-                              <Badge variant="outline" className="gap-1 text-[11px]">
+                              <Badge
+                                variant="outline"
+                                className="gap-1 text-[11px]"
+                              >
                                 <Gem className="size-2.75" />
                                 Squircle Intelligence
                               </Badge>
@@ -954,8 +979,8 @@ const MainChatPanel = ({
                                 variant="secondary"
                                 className="text-[11px]"
                               >
-                                <Pin className="size-3.5" />
-                                Pinned
+                                <Bookmark className="size-3.5" />
+                                Marked
                               </Badge>
                             )}
                             <span className="text-muted-foreground text-[11px]">
@@ -1015,6 +1040,24 @@ const MainChatPanel = ({
                             <>
                               {jamShareCard ? (
                                 jamShareCard
+                              ) : docShare ? (
+                                <a
+                                  href={docShare.route}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="mt-1.5 flex w-full items-start gap-2 rounded-md border border-border/35 bg-accent/22 p-2 text-left transition-colors hover:bg-accent/35"
+                                >
+                                  <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/12 text-primary">
+                                    <FileText className="size-3.5" />
+                                  </span>
+                                  <span className="min-w-0 space-y-0.5">
+                                    <span className="line-clamp-1 block text-[12.5px] font-medium">
+                                      {docShare.title}
+                                    </span>
+                                    <span className="text-muted-foreground block text-[11px]">
+                                      Shared document
+                                    </span>
+                                  </span>
+                                </a>
                               ) : callEventMessage ? (
                                 <button
                                   type="button"
@@ -1056,13 +1099,18 @@ const MainChatPanel = ({
                                   className="mt-0.5 text-[13px]"
                                 />
                               ) : (
-                                <RichMessageContent
-                                  content={message.content}
-                                  className="mt-0.5"
-                                  renderInlineContent={
-                                    renderContentWithMentions
-                                  }
-                                />
+                                <>
+                                  <RichMessageContent
+                                    content={message.content}
+                                    className="mt-0.5"
+                                    renderInlineContent={
+                                      renderContentWithMentions
+                                    }
+                                  />
+                                  {externalUrl ? (
+                                    <OgPreviewCard url={externalUrl} />
+                                  ) : null}
+                                </>
                               )}
                             </>
                           )}
@@ -1100,8 +1148,51 @@ const MainChatPanel = ({
               );
             })
           ) : isMessagesLoading ? (
-            <div className="flex min-h-[48vh] items-center justify-center px-3 py-6">
-              <LoaderComponent />
+            <div className="flex flex-col gap-5 px-3 py-4 ">
+              {[
+                { self: false, lines: [{ w: "w-48" }, { w: "w-64" }] },
+                {
+                  self: false,
+                  lines: [{ w: "w-56" }, { w: "w-72" }, { w: "w-36" }],
+                },
+                { self: false, lines: [{ w: "w-44" }] },
+                { self: false, lines: [{ w: "w-36" }, { w: "w-56" }] },
+                { self: false, lines: [{ w: "w-48" }, { w: "w-64" }] },
+                {
+                  self: false,
+                  lines: [{ w: "w-56" }, { w: "w-72" }, { w: "w-36" }],
+                },
+                { self: false, lines: [{ w: "w-44" }] },
+                { self: false, lines: [{ w: "w-36" }, { w: "w-56" }] },
+                {
+                  self: false,
+                  lines: [{ w: "w-56" }, { w: "w-72" }, { w: "w-36" }],
+                },
+                { self: false, lines: [{ w: "w-44" }] },
+              ].map((row, i) => (
+                <div key={i} className={`flex items-end gap-2 flex-row`}>
+                  {!row.self && (
+                    <Skeleton className="size-7 shrink-0 rounded-full" />
+                  )}
+                  <div
+                    className={`flex flex-col gap-1.5 ${row.self ? "items-end" : "items-start"}`}
+                  >
+                    {!row.self && (
+                      <Skeleton className="h-2.5 w-20 rounded-md" />
+                    )}
+                    <div
+                      className={`rounded-md px-3 py-2.5 flex flex-col gap-1.5 ${row.self ? "bg-primary/10" : "bg-muted/60"}`}
+                    >
+                      {row.lines.map((line, j) => (
+                        <Skeleton
+                          key={j}
+                          className={`h-3 ${line.w} rounded-md`}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
             <div className="flex min-h-[48vh] items-center justify-center px-3 py-6">
@@ -1127,7 +1218,9 @@ const MainChatPanel = ({
             <Gem className="size-3 text-muted-foreground animate-pulse" />
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-[12px] text-muted-foreground">Squircle Intelligence is thinking</span>
+            <span className="text-[12px] text-muted-foreground">
+              Squircle Intelligence is thinking
+            </span>
             <span className="flex gap-0.5">
               <span className="size-1 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:0ms]" />
               <span className="size-1 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:150ms]" />

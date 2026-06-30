@@ -9,11 +9,11 @@ import {
   Bell,
   Menu,
   MessageSquareText,
-  Pin,
   Phone,
   Plus,
   Search,
   Video,
+  Bookmark,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { AxiosError } from "axios";
@@ -474,7 +474,9 @@ const SpacesPage = () => {
     useState<Record<string, SpaceMessageReaction[]>>({});
   const [optimisticPinnedByMessageId, setOptimisticPinnedByMessageId] =
     useState<Record<string, boolean>>({});
-  const [aiThinkingRooms, setAiThinkingRooms] = useState<Record<string, boolean>>({});
+  const [aiThinkingRooms, setAiThinkingRooms] = useState<
+    Record<string, boolean>
+  >({});
 
   const [leftPanelWidth, setLeftPanelWidth] = useState(304);
   const [threadPanelWidth, setThreadPanelWidth] = useState(392);
@@ -1016,8 +1018,8 @@ const SpacesPage = () => {
   ]);
   const isThreadRepliesLoading = Boolean(
     selectedThreadMessage?.id &&
-      (threadRepliesQuery.isLoading ||
-        (threadRepliesQuery.isFetching && !serverThreadReplies.length)),
+    (threadRepliesQuery.isLoading ||
+      (threadRepliesQuery.isFetching && !serverThreadReplies.length)),
   );
 
   useEffect(() => {
@@ -2055,27 +2057,88 @@ const SpacesPage = () => {
         return;
       }
 
-      queryClient.invalidateQueries({
-        queryKey: [
-          "workspace-spaces-room-messages",
-          resolvedWorkspaceId,
-          normalizedRoomId,
-        ],
-      });
-      queryClient.invalidateQueries({
-        queryKey: [
-          "workspace-spaces-room-messages-infinite",
-          resolvedWorkspaceId,
-          normalizedRoomId,
-        ],
-      });
-      queryClient.invalidateQueries({
-        queryKey: [
-          "workspace-spaces-thread-replies",
-          resolvedWorkspaceId,
-          normalizedRoomId,
-        ],
-      });
+      // Inject the new message directly into the infinite query cache.
+      // This avoids a full refetch (and the visible "reload all messages" flash)
+      // that invalidateQueries would trigger. Thread replies go into their own query,
+      // not into the main room message list.
+      const isThreadReplyMessage = Boolean(message?.parentMessageId);
+
+      if (!isThreadReplyMessage && message) {
+        queryClient.setQueryData(
+          [
+            "workspace-spaces-room-messages-infinite",
+            resolvedWorkspaceId,
+            normalizedRoomId,
+            messageQueryParams.limit,
+          ],
+          (
+            oldData:
+              | {
+                  pages: Array<{
+                    data: { messages: WorkspaceSpaceMessageRecord[] };
+                  }>;
+                  pageParams: unknown[];
+                }
+              | undefined,
+          ) => {
+            if (!oldData?.pages?.length) return oldData;
+            const alreadyPresent = oldData.pages.some((page) =>
+              (page?.data?.messages || []).some(
+                (m) => String(m.id) === messageId,
+              ),
+            );
+            if (alreadyPresent) return oldData;
+            const [firstPage, ...restPages] = oldData.pages;
+            return {
+              ...oldData,
+              pages: [
+                {
+                  ...firstPage,
+                  data: {
+                    ...firstPage.data,
+                    messages: [...(firstPage.data?.messages || []), message],
+                  },
+                },
+                ...restPages,
+              ],
+            };
+          },
+        );
+      }
+
+      if (isThreadReplyMessage && message) {
+        const parentMessageId = String(message.parentMessageId || "").trim();
+        if (parentMessageId) {
+          queryClient.setQueryData(
+            [
+              "workspace-spaces-thread-replies",
+              resolvedWorkspaceId,
+              normalizedRoomId,
+              parentMessageId,
+              messageQueryParams,
+            ],
+            (
+              oldData:
+                | { data?: { replies?: WorkspaceSpaceMessageRecord[] } }
+                | undefined,
+            ) => {
+              if (!oldData) return oldData;
+              const existingReplies = oldData?.data?.replies || [];
+              const alreadyPresent = existingReplies.some(
+                (r) => String(r.id) === messageId,
+              );
+              if (alreadyPresent) return oldData;
+              return {
+                ...oldData,
+                data: {
+                  ...oldData.data,
+                  replies: [...existingReplies, message],
+                },
+              };
+            },
+          );
+        }
+      }
     };
 
     const handleMessageUpdated = ({
@@ -2222,7 +2285,10 @@ const SpacesPage = () => {
       });
     };
 
-    const handleAiThinking = ({ roomId, thinking }: SpaceAiThinkingEventPayload) => {
+    const handleAiThinking = ({
+      roomId,
+      thinking,
+    }: SpaceAiThinkingEventPayload) => {
       setAiThinkingRooms((prev) => ({
         ...prev,
         [String(roomId)]: Boolean(thinking),
@@ -2498,10 +2564,7 @@ const SpacesPage = () => {
     }
   };
 
-  const attachFiles = (
-    files: FileList | File[],
-    target: "main" | "thread",
-  ) => {
+  const attachFiles = (files: FileList | File[], target: "main" | "thread") => {
     const nextAttachments: ChatAttachment[] = Array.from(files).map((file) => {
       const isImage = file.type.startsWith("image/");
       const isAudio = file.type.startsWith("audio/");
@@ -2951,7 +3014,9 @@ const SpacesPage = () => {
       }
 
       revokeAttachmentObjectUrls(draftAttachments);
-      upsertMessageCache(roomId);
+      // The socket event (spaces:message:created) fires after the server persists
+      // the message and handles the cache update via setQueryData — no extra
+      // invalidation needed here.
     } catch {
       removeOptimisticRoomMessage(roomId, optimisticMessageId);
       setComposer((prev) => (prev.trim().length ? prev : content));
@@ -3021,16 +3086,9 @@ const SpacesPage = () => {
         removeOptimisticThreadReply(messageId, optimisticReplyId);
       }
 
-      upsertMessageCache(roomId);
       revokeAttachmentObjectUrls(draftAttachments);
-      queryClient.invalidateQueries({
-        queryKey: [
-          "workspace-spaces-thread-replies",
-          resolvedWorkspaceId,
-          roomId,
-          messageId,
-        ],
-      });
+      // Socket event (spaces:message:created) fires after persistence and updates
+      // the thread replies cache via setQueryData — no extra invalidation needed.
     } catch {
       removeOptimisticThreadReply(messageId, optimisticReplyId);
       setThreadComposer((prev) => (prev.trim().length ? prev : content));
@@ -3328,7 +3386,7 @@ const SpacesPage = () => {
       .replace(/\s+/g, " ")
       .trim();
     if (!normalized) {
-      return "Pinned message";
+      return "Marked message";
     }
 
     return normalized.length > 120
@@ -3512,7 +3570,9 @@ const SpacesPage = () => {
   };
 
   const requestDeleteThreadReply = (replyId: string) => {
-    const targetReply = activeThreadReplies.find((reply) => reply.id === replyId);
+    const targetReply = activeThreadReplies.find(
+      (reply) => reply.id === replyId,
+    );
     if (
       !targetReply ||
       String(targetReply.author.id || "") !== String(currentUser.id || "")
@@ -3898,8 +3958,8 @@ const SpacesPage = () => {
                   onClick={() => setIsPinsSheetOpen(true)}
                   disabled={!activeRoom}
                 >
-                  <Pin className="size-4" />
-                  <span className="hidden sm:inline">Pins</span>
+                  <Bookmark className="size-4" />
+                  <span className="hidden sm:inline">Marked</span>
                   {pinnedMessagesCount > 0 && (
                     <Badge
                       variant="secondary"
@@ -3994,7 +4054,7 @@ const SpacesPage = () => {
             {activeRoom && featuredPinnedMessage && (
               <div className="mt-2 flex items-center gap-2 rounded-md py-1.5">
                 <Badge variant="outline" className="text-[10px]">
-                  <Pin className="size-3.5" />
+                  <Bookmark className="size-3.5" />
                   {pinnedMessagesCount}
                 </Badge>
                 <button
@@ -4076,7 +4136,9 @@ const SpacesPage = () => {
               hasOlderMessages={hasOlderMessages}
               isLoadingOlderMessages={isLoadingOlderMessages}
               isMessagesLoading={messagesQuery.isLoading}
-              isAiThinking={Boolean(activeRoom?.id && aiThinkingRooms[activeRoom.id])}
+              isAiThinking={Boolean(
+                activeRoom?.id && aiThinkingRooms[activeRoom.id],
+              )}
             />
           ) : (
             <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-8">
@@ -4311,12 +4373,12 @@ const SpacesPage = () => {
       <Sheet open={isPinsSheetOpen} onOpenChange={setIsPinsSheetOpen}>
         <SheetContent
           side="right"
-          className="w-full max-w-none p-0 sm:max-w-md"
+          className="w-full max-w-none p-0 sm:max-w-md gap-0"
         >
           <SheetHeader className="border-b border-border/35 px-4 py-3">
-            <SheetTitle className="text-[15px]">Pinned Messages</SheetTitle>
+            <SheetTitle className="text-[15px]">Marked Messages</SheetTitle>
             <SheetDescription className="text-[12px]">
-              Jump to important messages pinned in this space.
+              Jump to important messages marked in this space.
             </SheetDescription>
           </SheetHeader>
 
@@ -4332,7 +4394,7 @@ const SpacesPage = () => {
                     key={`pin-${message.id}`}
                     type="button"
                     onClick={() => openPinnedMessage(message.id)}
-                    className="w-full rounded-lg border border-border/45 bg-background/70 px-3 py-2 text-left transition-colors hover:bg-accent/30"
+                    className="w-full rounded-lg bg-background/70 px-3 py-2 text-left transition-colors hover:bg-accent/30"
                   >
                     <div className="flex items-center gap-2">
                       <Avatar size="sm" className="size-7">
@@ -4353,8 +4415,8 @@ const SpacesPage = () => {
                         </p>
                       </div>
                       <Badge variant="outline" className="text-[10px]">
-                        <Pin className="size-3.5" />
-                        Pinned
+                        <Bookmark className="size-3.5" />
+                        Marked
                       </Badge>
                     </div>
                     <p className="mt-1 line-clamp-2 text-[12px] text-muted-foreground">
@@ -4368,7 +4430,7 @@ const SpacesPage = () => {
                 <Empty className="border-0 p-0 md:p-0">
                   <EmptyHeader>
                     <EmptyMedia variant="icon">
-                      <Pin className="size-4 text-primary/85" />
+                      <Bookmark className="size-4 text-primary/85" />
                     </EmptyMedia>
                     <EmptyDescription className="text-center text-[12px]">
                       No pinned messages in this space yet.
@@ -4486,7 +4548,7 @@ const SpacesPage = () => {
                           ) : null}
                         </div>
                       </div>
-                      <div className="mt-1.5 flex justify-end">
+                      <div className=" flex justify-end">
                         <Button
                           size="sm"
                           variant="ghost"

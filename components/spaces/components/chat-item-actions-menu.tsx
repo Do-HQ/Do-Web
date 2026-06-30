@@ -1,10 +1,11 @@
 import {
+  Bookmark,
+  BookmarkX,
   CheckCircle2,
   Copy,
   Ellipsis,
   MessageSquareReply,
   Pencil,
-  Pin,
   SendHorizontal,
   Trash2,
 } from "lucide-react";
@@ -71,8 +72,12 @@ const ChatItemActionsMenu = ({
         </DropdownMenuItem>
 
         <DropdownMenuItem className="text-[12px]" onClick={onTogglePin}>
-          <Pin className="size-4" />
-          {isPinned ? "Unpin" : "Pin"}
+          {isPinned ? (
+            <BookmarkX className="size-4" />
+          ) : (
+            <Bookmark className="size-4" />
+          )}
+          {isPinned ? "Unmark" : "Mark"}
         </DropdownMenuItem>
 
         <DropdownMenuItem className="text-[12px]" onClick={onForward}>
@@ -98,7 +103,11 @@ const ChatItemActionsMenu = ({
         {onDelete && (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" className="text-[12px]" onClick={onDelete}>
+            <DropdownMenuItem
+              variant="destructive"
+              className="text-[12px]"
+              onClick={onDelete}
+            >
               <Trash2 className="size-4" />
               Delete
             </DropdownMenuItem>

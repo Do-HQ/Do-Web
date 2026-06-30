@@ -7,8 +7,15 @@ export type ParsedJamShareMessage = {
   note: string;
 };
 
+export type ParsedDocShareMessage = {
+  docId: string;
+  route: string;
+  title: string;
+};
+
 const JAM_ROUTE_PATTERN = /\/jams\?jam=([a-zA-Z0-9_-]+)/i;
 const JAM_CANVAS_ROUTE_PATTERN = /\/jams\/([a-zA-Z0-9_-]+)/i;
+const DOC_ROUTE_PATTERN = /\/docs\/([a-zA-Z0-9]+)(?:[^a-zA-Z0-9]|$)/i;
 
 export const createId = () => {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -159,4 +166,50 @@ export const parseJamShareMessage = (
     title,
     note,
   };
+};
+
+export const parseDocShareMessage = (
+  value: string,
+): ParsedDocShareMessage | null => {
+  const content = String(value || "").trim();
+  if (!content) return null;
+
+  const match = content.match(DOC_ROUTE_PATTERN);
+  if (!match?.[1]) return null;
+
+  const docId = match[1];
+
+  const lines = content
+    .split(/\r?\n/)
+    .map((line) => String(line || "").trim())
+    .filter(Boolean);
+
+  const titleLine = lines.find(
+    (line) => !DOC_ROUTE_PATTERN.test(line) && !line.startsWith("Forwarded from"),
+  );
+
+  return {
+    docId,
+    route: `/docs/${docId}`,
+    title: titleLine || "Shared document",
+  };
+};
+
+const URL_PATTERN = /https?:\/\/[^\s<>"']+/gi;
+const INTERNAL_PATH_PATTERN = /^\/(jams|docs|spaces|projects|reports)/;
+
+export const extractFirstExternalUrl = (content: string): string | null => {
+  const matches = String(content || "").match(URL_PATTERN);
+  if (!matches) return null;
+  for (const url of matches) {
+    try {
+      const parsed = new URL(url);
+      if (!INTERNAL_PATH_PATTERN.test(parsed.pathname)) {
+        return url.replace(/[.,!?;:)]+$/, "");
+      }
+    } catch {
+      // skip invalid URLs
+    }
+  }
+  return null;
 };

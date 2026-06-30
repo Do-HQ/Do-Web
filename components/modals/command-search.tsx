@@ -22,7 +22,6 @@ import {
   Library,
   MessageCircleQuestion,
   PanelRightOpen,
-  Pin,
   PlusIcon,
   RefreshCcw,
   Star,
@@ -31,6 +30,7 @@ import {
   Workflow,
   type LucideIcon,
   Gem,
+  Bookmark,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -483,7 +483,7 @@ const CommandSearch = () => {
       {
         id: "action-pin-scribe-widget",
         label: scribeWidgetPinned ? "Unpin Scribe widget" : "Pin Scribe widget",
-        icon: Pin,
+        icon: Bookmark,
         hint: scribeWidgetPinned
           ? "Launcher stays available"
           : "Keep Scribe handy",

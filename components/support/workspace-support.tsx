@@ -9,7 +9,6 @@ import {
   AlertTriangle,
   File,
   LayoutDashboard,
-  LifeBuoy,
   Megaphone,
   Paperclip,
   Pencil,
@@ -353,7 +352,9 @@ export default function WorkspaceSupport({
     [visibleTickets],
   );
 
-  const handleAttachmentSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAttachmentSelect = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;

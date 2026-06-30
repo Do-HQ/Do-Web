@@ -18,6 +18,7 @@ import UserPreferencesSync from "@/components/preferences/user-preferences-sync"
 import NetworkConnectivityBanner from "@/components/layout/network-connectivity-banner";
 import ScribeWidget from "@/components/ask-squircle/scribe-widget";
 import GlobalNavBadgeListener from "@/components/layout/global-nav-badge-listener";
+import GlobalSpaceMessageListener from "@/components/notifications/global-space-message-listener";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -169,6 +170,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <ProjectNotificationListener />
           <TeamCallNotificationListener />
           <GlobalNavBadgeListener />
+          <GlobalSpaceMessageListener />
           <RouteWalkthrough />
           <CommandSearch />
           <ScribeWidget />
@@ -200,6 +202,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <ProjectNotificationListener />
             <TeamCallNotificationListener />
             <GlobalNavBadgeListener />
+            <GlobalSpaceMessageListener />
             <RouteWalkthrough />
           </div>
           <CommandSearch />
