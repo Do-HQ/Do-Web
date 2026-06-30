@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import { parseJamShareMessage, parseDocShareMessage, extractFirstExternalUrl } from "../utils";
 import OgPreviewCard from "./og-preview-card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { TypingIndicator, type TypingUser } from "./typing-indicator";
 
 type ThreadPanelProps = {
   desktop?: boolean;
@@ -79,6 +80,7 @@ type ThreadPanelProps = {
   onAttachFiles: (files: File[], target: "main" | "thread") => void;
   onUploadFromInput: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onRemoveAttachment: (attachmentId: string, target: "main" | "thread") => void;
+  typingUsers?: TypingUser[];
 };
 
 const ThreadPanel = ({
@@ -121,6 +123,7 @@ const ThreadPanel = ({
   onAttachFiles,
   onUploadFromInput,
   onRemoveAttachment,
+  typingUsers = [],
 }: ThreadPanelProps) => {
   const [activeMobileReplyId, setActiveMobileReplyId] = useState<string | null>(
     null,
@@ -831,6 +834,7 @@ const ThreadPanel = ({
             )}
           </div>
 
+          <TypingIndicator users={typingUsers} />
           <div className="bg-card/95 shrink-0 border-t border-border/35 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-sm sm:p-2.5">
             <RichMessageComposer
               value={threadComposer}

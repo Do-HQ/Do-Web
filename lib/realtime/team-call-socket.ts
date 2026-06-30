@@ -34,6 +34,20 @@ type TeamCallChatMessagePayload = {
   sentAt: string;
 };
 
+type TeamCallTypingUser = {
+  id: string;
+  name: string;
+  initials: string;
+  avatarUrl?: string | null;
+};
+
+type TeamCallTypingPayload = {
+  workspaceId: string;
+  roomId: string;
+  user: TeamCallTypingUser;
+  isTyping: boolean;
+};
+
 type TeamCallJoinAck = {
   ok: boolean;
   message?: string;
@@ -210,11 +224,17 @@ const disconnectTeamCallSocket = () => {
   teamCallSocket.disconnect();
 };
 
+const sendTeamCallTyping = (payload: TeamCallTypingPayload) => {
+  if (!teamCallSocket?.connected) return;
+  teamCallSocket.emit("team-call:chat:typing", payload);
+};
+
 export type {
   TeamCallParticipant,
   TeamCallParticipantState,
   TeamCallSignalPayload,
   TeamCallChatMessagePayload,
+  TeamCallTypingPayload,
 };
 export {
   getTeamCallSocket,
@@ -224,6 +244,7 @@ export {
   sendTeamCallSignal,
   updateTeamCallParticipantState,
   sendTeamCallChatMessage,
+  sendTeamCallTyping,
   saveTeamCallNote,
   disconnectTeamCallSocket,
 };

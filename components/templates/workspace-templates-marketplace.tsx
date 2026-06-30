@@ -75,7 +75,6 @@ type TemplateFormState = {
     nameTemplate: string;
     summaryTemplate: string;
     status: "on-track" | "at-risk" | "paused";
-    initialPipelineTemplate: "product" | "marketing" | "operations";
     startOffsetDays: number;
     durationDays: number;
   };
@@ -100,7 +99,6 @@ const makeDefaultFormState = (
     nameTemplate: "{{project_name}}",
     summaryTemplate: "",
     status: "on-track",
-    initialPipelineTemplate: "product",
     startOffsetDays: 0,
     durationDays: 21,
   },
@@ -158,7 +156,6 @@ function buildPayload(
         nameTemplate: form.project.nameTemplate.trim(),
         summaryTemplate: form.project.summaryTemplate.trim(),
         status: form.project.status,
-        initialPipelineTemplate: form.project.initialPipelineTemplate,
         startOffsetDays: form.project.startOffsetDays,
         durationDays: form.project.durationDays,
       },
@@ -698,33 +695,6 @@ export function WorkspaceTemplatesMarketplace() {
                             <SelectItem value="on-track">On track</SelectItem>
                             <SelectItem value="at-risk">At risk</SelectItem>
                             <SelectItem value="paused">Paused</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="grid gap-2">
-                        <Label>Pipeline template</Label>
-                        <Select
-                          value={form.project.initialPipelineTemplate}
-                          onValueChange={(value) =>
-                            setForm((current) => ({
-                              ...current,
-                              project: {
-                                ...current.project,
-                                initialPipelineTemplate:
-                                  value as TemplateFormState["project"]["initialPipelineTemplate"],
-                              },
-                            }))
-                          }
-                        >
-                          <SelectTrigger className="w-full">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="product">Product</SelectItem>
-                            <SelectItem value="marketing">Marketing</SelectItem>
-                            <SelectItem value="operations">
-                              Operations
-                            </SelectItem>
                           </SelectContent>
                         </Select>
                       </div>

@@ -413,6 +413,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   const queryClient = useQueryClient();
   const { resolvedTheme } = useTheme();
   const { user } = useAuthStore();
+  const currentUserId = String(user?._id || "").trim();
   const { workspaceId } = useWorkspaceStore();
   const {
     useWorkspaceJams,
@@ -650,9 +651,10 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
     if (!shouldAutoOpenShareDialog || !workspaceKey || !activeJam) {
       return;
     }
-    setIsShareDialogOpen(true);
     router.replace(`${ROUTES.JAMS}/${activeJam.jamId}`);
-  }, [activeJam, router, shouldAutoOpenShareDialog, workspaceKey]);
+    if (activeJam.ownerUserId !== currentUserId) return;
+    setIsShareDialogOpen(true);
+  }, [activeJam, currentUserId, router, shouldAutoOpenShareDialog, workspaceKey]);
 
   const activeJamSnapshot = (activeJam?.snapshot || null) as Record<
     string,
@@ -871,7 +873,6 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
       ),
     [mentionSuggestionsRaw],
   );
-  const currentUserId = String(user?._id || "").trim();
   const mentionSuggestions = React.useMemo<JamMentionSuggestion[]>(
     () =>
       mentionSuggestionsRaw
@@ -1157,9 +1158,11 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   };
 
   const openShareDialog = React.useCallback((jamId: string) => {
+    const jam = jamRows.find((j) => j.jamId === jamId);
+    if (!jam || jam.ownerUserId !== currentUserId) return;
     setActiveJamId(jamId);
     setIsShareDialogOpen(true);
-  }, []);
+  }, [currentUserId, jamRows]);
 
   const handleArchiveToggle = React.useCallback(
     async (jam: WorkspaceJamRecord) => {
@@ -1491,7 +1494,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   );
 
   const handleShareJam = async () => {
-    if (!workspaceKey || !activeJam || !activeJam.canManage) {
+    if (!workspaceKey || !activeJam || activeJam.ownerUserId !== currentUserId) {
       return;
     }
 
@@ -2141,6 +2144,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                           key={jam.jamId}
                           jam={jam}
                           isActive={activeJamId === jam.jamId}
+                          currentUserId={currentUserId}
                           onOpen={() => handleOpenJamCanvas(jam.jamId)}
                           onRename={() => openRenameDialog(jam)}
                           onShare={() => openShareDialog(jam.jamId)}
@@ -2255,7 +2259,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                   </div>
                 </>
               ) : null}
-              {activeJam?.canManage &&
+              {activeJam?.ownerUserId === currentUserId &&
               Number(activeJam?.pendingEditAccessRequestCount || 0) > 0 ? (
                 <Button
                   size="sm"
@@ -3364,7 +3368,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                 </p>
               )}
             </div>
-            {activeJam?.canManage &&
+            {activeJam?.ownerUserId === currentUserId &&
             Array.isArray(activeJam.pendingEditAccessRequests) &&
             activeJam.pendingEditAccessRequests.length ? (
               <div className="bg-muted/20 border-border/45 space-y-2 rounded-md border p-2">
@@ -3477,6 +3481,7 @@ type JamListCardProps = {
   jam: WorkspaceJamRecord;
   isActive: boolean;
   isFavorited: boolean;
+  currentUserId: string;
   onOpen: () => void;
   onRename: () => void;
   onShare: () => void;
@@ -3489,6 +3494,7 @@ const JamListCard = ({
   jam,
   isActive,
   isFavorited,
+  currentUserId,
   onOpen,
   onRename,
   onShare,
@@ -3598,7 +3604,7 @@ const JamListCard = ({
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={onShare}
-              disabled={!jam.canManage}
+              disabled={jam.ownerUserId !== currentUserId}
               className="text-[12px]"
             >
               <Share2 className="size-3.5" />

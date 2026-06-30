@@ -58,8 +58,10 @@ import {
   saveTeamCallNote,
   sendTeamCallChatMessage,
   sendTeamCallSignal,
+  sendTeamCallTyping,
   updateTeamCallParticipantState,
 } from "@/lib/realtime/team-call-socket";
+import type { TypingUser } from "@/components/spaces/components/typing-indicator";
 import { getSpacesSocket } from "@/lib/realtime/spaces-socket";
 import useAuthStore from "@/stores/auth";
 import useWorkspaceStore from "@/stores/workspace";
@@ -275,6 +277,10 @@ const TeamCallPage = () => {
 
   const [chatInput, setChatInput] = useState("");
   const [callNote, setCallNote] = useState("");
+  const [callChatTypingUsers, setCallChatTypingUsers] = useState<TypingUser[]>([]);
+  const callTypingTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const callTypingActiveRef = useRef(false);
+  const callTypingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isSavingCallNote, setIsSavingCallNote] = useState(false);
   const [callMessages, setCallMessages] = useState<CallChatMessage[]>([]);
   const [callReviewOpen, setCallReviewOpen] = useState(false);
@@ -1119,11 +1125,38 @@ const TeamCallPage = () => {
       });
     };
 
+    const handleChatTyping = ({
+      user,
+      isTyping,
+    }: {
+      workspaceId: string;
+      roomId: string;
+      user: TypingUser;
+      isTyping: boolean;
+    }) => {
+      if (!user?.id) return;
+      const existingTimer = callTypingTimersRef.current[user.id];
+      if (existingTimer) clearTimeout(existingTimer);
+      if (isTyping) {
+        setCallChatTypingUsers((prev) => [
+          ...prev.filter((u) => u.id !== user.id),
+          { id: String(user.id), name: String(user.name || "Teammate"), initials: String(user.initials || "?"), avatarUrl: user.avatarUrl },
+        ]);
+        callTypingTimersRef.current[user.id] = setTimeout(() => {
+          setCallChatTypingUsers((prev) => prev.filter((u) => u.id !== user.id));
+          delete callTypingTimersRef.current[user.id];
+        }, 5000);
+      } else {
+        setCallChatTypingUsers((prev) => prev.filter((u) => u.id !== user.id));
+      }
+    };
+
     socket.on("team-call:user-joined", handleUserJoined);
     socket.on("team-call:user-left", handleUserLeft);
     socket.on("team-call:user-state", handleUserState);
     socket.on("team-call:signal", handleSignal);
     socket.on("team-call:chat:new", handleChatMessage);
+    socket.on("team-call:chat:typing", handleChatTyping);
 
     void joinTeamCallRoom({
       workspaceId: resolvedWorkspaceId,
@@ -1193,6 +1226,7 @@ const TeamCallPage = () => {
       socket.off("team-call:user-state", handleUserState);
       socket.off("team-call:signal", handleSignal);
       socket.off("team-call:chat:new", handleChatMessage);
+      socket.off("team-call:chat:typing", handleChatTyping);
       leaveTeamCallRoom();
     };
   }, [
@@ -1387,12 +1421,54 @@ const TeamCallPage = () => {
     setPendingNavigation(null);
   };
 
+  const handleChatInputChange = (value: string) => {
+    setChatInput(value);
+    if (!resolvedWorkspaceId || !roomId) return;
+
+    const typingUser = {
+      id: currentUserId,
+      name: currentUserName,
+      initials: getInitials(currentUserName),
+      avatarUrl: user?.profilePhoto?.url ?? null,
+    };
+
+    if (!value.trim()) {
+      if (callTypingActiveRef.current) {
+        callTypingActiveRef.current = false;
+        if (callTypingTimerRef.current) {
+          clearTimeout(callTypingTimerRef.current);
+          callTypingTimerRef.current = null;
+        }
+        sendTeamCallTyping({ workspaceId: resolvedWorkspaceId, roomId, user: typingUser, isTyping: false });
+      }
+      return;
+    }
+
+    if (!callTypingActiveRef.current) {
+      callTypingActiveRef.current = true;
+      sendTeamCallTyping({ workspaceId: resolvedWorkspaceId, roomId, user: typingUser, isTyping: true });
+    }
+
+    if (callTypingTimerRef.current) clearTimeout(callTypingTimerRef.current);
+    callTypingTimerRef.current = setTimeout(() => {
+      callTypingActiveRef.current = false;
+      callTypingTimerRef.current = null;
+      sendTeamCallTyping({ workspaceId: resolvedWorkspaceId, roomId, user: typingUser, isTyping: false });
+    }, 3000);
+  };
+
   const sendCallMessage = async () => {
     const message = chatInput.trim();
     if (!message || !resolvedWorkspaceId || !roomId) {
       return;
     }
 
+    // Clear typing before sending
+    callTypingActiveRef.current = false;
+    if (callTypingTimerRef.current) {
+      clearTimeout(callTypingTimerRef.current);
+      callTypingTimerRef.current = null;
+    }
     setChatInput("");
 
     await sendTeamCallChatMessage({
@@ -2333,7 +2409,8 @@ const TeamCallPage = () => {
                 callMentionSuggestions={callMentionSuggestions}
                 onActivePanelTabChange={setActivePanelTab}
                 onCallNoteChange={setCallNote}
-                onChatInputChange={setChatInput}
+                onChatInputChange={handleChatInputChange}
+                callTypingUsers={callChatTypingUsers}
                 onSendCallMessage={() => {
                   void sendCallMessage();
                 }}
@@ -2367,7 +2444,8 @@ const TeamCallPage = () => {
             callMentionSuggestions={callMentionSuggestions}
             onActivePanelTabChange={setActivePanelTab}
             onCallNoteChange={setCallNote}
-            onChatInputChange={setChatInput}
+            onChatInputChange={handleChatInputChange}
+                callTypingUsers={callChatTypingUsers}
             onSendCallMessage={() => {
               void sendCallMessage();
             }}

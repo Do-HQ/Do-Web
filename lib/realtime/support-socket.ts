@@ -21,6 +21,20 @@ export type SupportTicketUpdatedPayload = {
   };
 };
 
+export type SupportTypingUser = {
+  id: string;
+  name: string;
+  initials: string;
+  avatarUrl?: string | null;
+};
+
+export type SupportTypingPayload = {
+  workspaceId: string;
+  ticketId: string;
+  user: SupportTypingUser;
+  isTyping: boolean;
+};
+
 let supportSocket: Socket | null = null;
 
 const resolveSocketBaseUrl = () => {
@@ -76,4 +90,10 @@ const unsubscribeTicket = ({
   supportSocket.emit("support:ticket:unsubscribe", { workspaceId, ticketId });
 };
 
-export { getSupportSocket, subscribeTicket, unsubscribeTicket };
+const emitSupportTyping = (payload: SupportTypingPayload) => {
+  const socket = getSupportSocket();
+  if (!socket.connected) return;
+  socket.emit("support:typing", payload);
+};
+
+export { getSupportSocket, subscribeTicket, unsubscribeTicket, emitSupportTyping };

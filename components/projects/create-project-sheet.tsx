@@ -31,7 +31,6 @@ import { getProjectRoute } from "@/utils/constants";
 
 import {
   ProjectEditorValues,
-  ProjectPipelineTemplateKey,
   ProjectStatus,
 } from "./overview/types";
 
@@ -39,12 +38,6 @@ const STATUS_OPTIONS: { value: ProjectStatus; label: string }[] = [
   { value: "on-track", label: "On track" },
   { value: "at-risk", label: "At risk" },
   { value: "paused", label: "Paused" },
-];
-
-const PIPELINE_OPTIONS: { value: ProjectPipelineTemplateKey; label: string }[] = [
-  { value: "product", label: "Product" },
-  { value: "marketing", label: "Marketing" },
-  { value: "operations", label: "Operations" },
 ];
 
 type CreateProjectSheetProps = {
@@ -99,8 +92,6 @@ export function CreateProjectSheet({
   const [targetEndDate, setTargetEndDate] = useState(
     addDays(new Date().toISOString().slice(0, 10), 21),
   );
-  const [initialPipelineTemplate, setInitialPipelineTemplate] =
-    useState<ProjectPipelineTemplateKey>("product");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [templateVariables, setTemplateVariables] = useState<Record<string, string>>({});
   const autoAppliedTemplateIdRef = useRef("");
@@ -164,7 +155,6 @@ export function CreateProjectSheet({
         nameTemplate?: string;
         summaryTemplate?: string;
         status?: ProjectStatus;
-        initialPipelineTemplate?: ProjectPipelineTemplateKey;
         startOffsetDays?: number;
         durationDays?: number;
       };
@@ -189,13 +179,6 @@ export function CreateProjectSheet({
         STATUS_OPTIONS.some((option) => option.value === resolved?.status)
           ? (resolved.status as ProjectStatus)
           : "on-track",
-      );
-      setInitialPipelineTemplate(
-        PIPELINE_OPTIONS.some(
-          (option) => option.value === resolved?.initialPipelineTemplate,
-        )
-          ? (resolved.initialPipelineTemplate as ProjectPipelineTemplateKey)
-          : "product",
       );
       setStartDate(nextStartDate);
       setTargetEndDate(addDays(nextStartDate, nextDuration));
@@ -318,7 +301,6 @@ export function CreateProjectSheet({
           name?: string;
           summary?: string;
           status?: string;
-          initialPipelineTemplate?: string;
           startDate?: string;
           targetEndDate?: string;
         }
@@ -331,13 +313,6 @@ export function CreateProjectSheet({
       STATUS_OPTIONS.some((option) => option.value === fields?.status)
         ? (fields?.status as ProjectStatus)
         : "on-track",
-    );
-    setInitialPipelineTemplate(
-      PIPELINE_OPTIONS.some(
-        (option) => option.value === fields?.initialPipelineTemplate,
-      )
-        ? (fields?.initialPipelineTemplate as ProjectPipelineTemplateKey)
-        : "product",
     );
     if (String(fields?.startDate || "").trim()) {
       setStartDate(String(fields?.startDate).trim());
@@ -371,7 +346,6 @@ export function CreateProjectSheet({
       status,
       startDate,
       targetEndDate,
-      initialPipelineTemplate,
     };
 
     if (!workspaceId) {
@@ -386,7 +360,6 @@ export function CreateProjectSheet({
         status: values.status,
         startDate: values.startDate,
         targetEndDate: values.targetEndDate,
-        initialPipelineTemplate: values.initialPipelineTemplate,
       },
     });
   };
@@ -562,26 +535,6 @@ export function CreateProjectSheet({
               </Select>
             </div>
 
-            <div className="grid gap-2">
-              <Label>Pipeline template</Label>
-              <Select
-                value={initialPipelineTemplate}
-                onValueChange={(value) =>
-                  setInitialPipelineTemplate(value as ProjectPipelineTemplateKey)
-                }
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PIPELINE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
         </div>
 

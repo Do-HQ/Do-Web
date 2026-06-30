@@ -24,6 +24,21 @@ type SpaceAiThinkingEventPayload = {
   thinking: boolean;
 };
 
+type SpaceTypingUser = {
+  id: string;
+  name: string;
+  initials: string;
+  avatarUrl?: string | null;
+};
+
+type SpaceTypingEventPayload = {
+  workspaceId: string;
+  roomId: string;
+  threadId: string | null;
+  user: SpaceTypingUser;
+  isTyping: boolean;
+};
+
 type SpaceMentionEventPayload = {
   mention: {
     id: string;
@@ -185,11 +200,18 @@ const getTeamCallRoomStatus = (payload: {
   });
 };
 
+const emitSpacesTyping = (payload: SpaceTypingEventPayload) => {
+  const socket = getSpacesSocket();
+  if (!socket.connected) return;
+  socket.emit("spaces:typing", payload);
+};
+
 export type {
   SpaceMessageEventPayload,
   SpaceMessageDeletedEventPayload,
   SpaceMentionEventPayload,
   SpaceAiThinkingEventPayload,
+  SpaceTypingEventPayload,
   TeamCallRoomStatusPayload,
 };
 export {
@@ -199,4 +221,5 @@ export {
   unsubscribeWorkspaceSpaces,
   unsubscribeSpaceRoom,
   getTeamCallRoomStatus,
+  emitSpacesTyping,
 };

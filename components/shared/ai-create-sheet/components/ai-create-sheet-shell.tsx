@@ -85,6 +85,14 @@ export function AiCreateSheetShell({
       <SheetContent
         side="right"
         className="w-full gap-0 border-l border-border/50 sm:max-w-[30rem] lg:max-w-[33rem]"
+        onInteractOutside={(e) => {
+          const originalEvent = (e as CustomEvent<{ originalEvent: PointerEvent }>).detail
+            ?.originalEvent;
+          const target = originalEvent?.target as Element | null;
+          if (target?.closest?.("[data-radix-popper-content-wrapper]")) {
+            e.preventDefault();
+          }
+        }}
       >
         <SheetHeader className="gap-3 border-b border-border/35 bg-card/60 pb-4 pr-10">
           <div className="space-y-2">

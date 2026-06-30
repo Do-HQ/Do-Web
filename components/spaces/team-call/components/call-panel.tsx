@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { MentionSuggestionRow } from "@/components/shared/mention-suggestion-row";
 import { Textarea } from "@/components/ui/textarea";
 import type { CallChatMessage, PanelTab, Participant } from "../types";
+import { TypingIndicator, type TypingUser } from "@/components/spaces/components/typing-indicator";
 
 type CallPanelProps = {
   mobile?: boolean;
@@ -40,6 +41,7 @@ type CallPanelProps = {
   isSavingCallNote?: boolean;
   onCloseMobile?: () => void;
   renderAudioMeter: (participantId: string, muted: boolean) => ReactNode;
+  callTypingUsers?: TypingUser[];
 };
 
 const panelTabs: Array<{ id: PanelTab; label: string; icon: typeof Users }> = [
@@ -64,6 +66,7 @@ const CallPanel = ({
   isSavingCallNote = false,
   onCloseMobile,
   renderAudioMeter,
+  callTypingUsers = [],
 }: CallPanelProps) => {
   const suggestionsPortalHost =
     typeof document === "undefined" ? undefined : document.body;
@@ -308,6 +311,7 @@ const CallPanel = ({
           ))}
         </div>
 
+        <TypingIndicator users={callTypingUsers} />
         <div className="border-t p-2.5">
           <MentionsInput
             value={chatInput}

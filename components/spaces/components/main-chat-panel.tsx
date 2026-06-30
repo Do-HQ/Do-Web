@@ -43,6 +43,7 @@ import type {
 } from "../types";
 import { parseJamShareMessage, parseDocShareMessage, extractFirstExternalUrl } from "../utils";
 import OgPreviewCard from "./og-preview-card";
+import { TypingIndicator, type TypingUser } from "./typing-indicator";
 import LoaderComponent from "@/components/shared/loader";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -95,6 +96,7 @@ type MainChatPanelProps = {
   isLoadingOlderMessages?: boolean;
   isMessagesLoading?: boolean;
   isAiThinking?: boolean;
+  typingUsers?: TypingUser[];
 };
 
 const parseMessageTimestamp = (message: SpaceMessage) => {
@@ -236,6 +238,7 @@ const MainChatPanel = ({
   isLoadingOlderMessages = false,
   isMessagesLoading = false,
   isAiThinking = false,
+  typingUsers = [],
 }: MainChatPanelProps) => {
   const messageElementRefs = useRef<Record<string, HTMLElement | null>>({});
   const [highlightedMessageId, setHighlightedMessageId] = useState<
@@ -1229,6 +1232,7 @@ const MainChatPanel = ({
           </div>
         </div>
       )}
+      <TypingIndicator users={typingUsers} />
 
       <div
         data-tour="spaces-composer"

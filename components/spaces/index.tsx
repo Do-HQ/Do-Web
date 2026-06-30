@@ -64,13 +64,16 @@ import {
   SpaceMessageDeletedEventPayload,
   SpaceMessageEventPayload,
   SpaceAiThinkingEventPayload,
+  SpaceTypingEventPayload,
   getTeamCallRoomStatus,
   getSpacesSocket,
   subscribeWorkspaceSpaces,
   subscribeSpaceRoom,
   unsubscribeWorkspaceSpaces,
   unsubscribeSpaceRoom,
+  emitSpacesTyping,
 } from "@/lib/realtime/spaces-socket";
+import type { TypingUser } from "./components/typing-indicator";
 import CreateChatDialog from "./components/create-chat-dialog";
 import ForwardMessageDialog from "./components/forward-message-dialog";
 import MainChatPanel from "./components/main-chat-panel";
@@ -477,6 +480,17 @@ const SpacesPage = () => {
   const [aiThinkingRooms, setAiThinkingRooms] = useState<
     Record<string, boolean>
   >({});
+  // contextKey: roomId (main) or `${roomId}:${threadId}` (thread)
+  const [typingUsersByContext, setTypingUsersByContext] = useState<
+    Record<string, TypingUser[]>
+  >({});
+  const typingTimersRef = useRef<
+    Record<string, Record<string, ReturnType<typeof setTimeout>>>
+  >({});
+  const mainTypingActiveRef = useRef(false);
+  const mainTypingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const threadTypingActiveRef = useRef(false);
+  const threadTypingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [leftPanelWidth, setLeftPanelWidth] = useState(304);
   const [threadPanelWidth, setThreadPanelWidth] = useState(392);
@@ -2063,7 +2077,12 @@ const SpacesPage = () => {
       // not into the main room message list.
       const isThreadReplyMessage = Boolean(message?.parentMessageId);
 
-      if (!isThreadReplyMessage && message) {
+      // For the sender's own messages the API response handler injects the
+      // persisted record into the cache and clears the optimistic entry.
+      // Doing it here too (before the API response arrives) causes a duplicate:
+      // the real message lands in serverMessages while the optimistic temp-id
+      // entry is still in optimisticMessages — two different ids, two rows.
+      if (!isMyMessage && !isThreadReplyMessage && message) {
         queryClient.setQueryData(
           [
             "workspace-spaces-room-messages-infinite",
@@ -2106,7 +2125,7 @@ const SpacesPage = () => {
         );
       }
 
-      if (isThreadReplyMessage && message) {
+      if (!isMyMessage && isThreadReplyMessage && message) {
         const parentMessageId = String(message.parentMessageId || "").trim();
         if (parentMessageId) {
           queryClient.setQueryData(
@@ -2295,11 +2314,66 @@ const SpacesPage = () => {
       }));
     };
 
+    const handleTyping = ({
+      workspaceId,
+      roomId,
+      threadId,
+      user,
+      isTyping,
+    }: SpaceTypingEventPayload) => {
+      if (String(workspaceId) !== String(resolvedWorkspaceId)) return;
+      if (!user?.id) return;
+
+      const normalizedRoomId = String(roomId || "");
+      const contextKey = threadId
+        ? `${normalizedRoomId}:${threadId}`
+        : normalizedRoomId;
+
+      const existingTimer =
+        typingTimersRef.current[contextKey]?.[user.id];
+      if (existingTimer) clearTimeout(existingTimer);
+
+      if (isTyping) {
+        setTypingUsersByContext((prev) => ({
+          ...prev,
+          [contextKey]: [
+            ...(prev[contextKey] || []).filter((u) => u.id !== user.id),
+            {
+              id: String(user.id),
+              name: String(user.name || "Teammate"),
+              initials: String(user.initials || "?"),
+              avatarUrl: user.avatarUrl ?? undefined,
+            },
+          ],
+        }));
+        if (!typingTimersRef.current[contextKey]) {
+          typingTimersRef.current[contextKey] = {};
+        }
+        typingTimersRef.current[contextKey][user.id] = setTimeout(() => {
+          setTypingUsersByContext((prev) => ({
+            ...prev,
+            [contextKey]: (prev[contextKey] || []).filter(
+              (u) => u.id !== user.id,
+            ),
+          }));
+          delete typingTimersRef.current[contextKey]?.[user.id];
+        }, 5000);
+      } else {
+        setTypingUsersByContext((prev) => ({
+          ...prev,
+          [contextKey]: (prev[contextKey] || []).filter(
+            (u) => u.id !== user.id,
+          ),
+        }));
+      }
+    };
+
     socket.on("spaces:message:created", handleMessageCreated);
     socket.on("spaces:message:updated", handleMessageUpdated);
     socket.on("spaces:message:deleted", handleMessageDeleted);
     socket.on("spaces:room:unarchived", handleRoomUnarchived);
     socket.on("spaces:ai:thinking", handleAiThinking);
+    socket.on("spaces:typing", handleTyping);
 
     return () => {
       socket.off("spaces:message:created", handleMessageCreated);
@@ -2307,6 +2381,7 @@ const SpacesPage = () => {
       socket.off("spaces:message:deleted", handleMessageDeleted);
       socket.off("spaces:room:unarchived", handleRoomUnarchived);
       socket.off("spaces:ai:thinking", handleAiThinking);
+      socket.off("spaces:typing", handleTyping);
       unsubscribeWorkspaceSpaces({
         workspaceId: resolvedWorkspaceId,
       });
@@ -2817,28 +2892,6 @@ const SpacesPage = () => {
     }));
   };
 
-  const replaceOptimisticRoomMessage = (
-    roomId: string,
-    optimisticMessageId: string,
-    nextMessage: SpaceMessage,
-  ) => {
-    setOptimisticMessagesByRoom((prev) => {
-      const current = prev[roomId] || [];
-      if (!current.length) {
-        return prev;
-      }
-
-      const next = current.map((message) =>
-        message.id === optimisticMessageId ? nextMessage : message,
-      );
-
-      return {
-        ...prev,
-        [roomId]: next,
-      };
-    });
-  };
-
   const removeOptimisticRoomMessage = (roomId: string, messageId: string) => {
     setOptimisticMessagesByRoom((prev) => {
       const current = prev[roomId] || [];
@@ -2871,27 +2924,6 @@ const SpacesPage = () => {
     }));
   };
 
-  const replaceOptimisticThreadReply = (
-    messageId: string,
-    optimisticReplyId: string,
-    nextReply: ThreadReply,
-  ) => {
-    setOptimisticThreadRepliesByMessage((prev) => {
-      const current = prev[messageId] || [];
-      if (!current.length) {
-        return prev;
-      }
-
-      const next = current.map((reply) =>
-        reply.id === optimisticReplyId ? nextReply : reply,
-      );
-
-      return {
-        ...prev,
-        [messageId]: next,
-      };
-    });
-  };
 
   const removeOptimisticThreadReply = (messageId: string, replyId: string) => {
     setOptimisticThreadRepliesByMessage((prev) => {
@@ -2955,6 +2987,116 @@ const SpacesPage = () => {
     }
   };
 
+  const handleMainComposerChange = (value: string) => {
+    setComposer(value);
+    if (!resolvedWorkspaceId || !activeRoom?.id) return;
+
+    const typingUser = {
+      id: String(currentUser.id || ""),
+      name: String(currentUser.name || ""),
+      initials: String(currentUser.initials || ""),
+      avatarUrl: currentUser.avatarUrl ?? null,
+    };
+
+    if (!value.trim()) {
+      if (mainTypingActiveRef.current) {
+        mainTypingActiveRef.current = false;
+        if (mainTypingTimerRef.current) {
+          clearTimeout(mainTypingTimerRef.current);
+          mainTypingTimerRef.current = null;
+        }
+        emitSpacesTyping({
+          workspaceId: resolvedWorkspaceId,
+          roomId: activeRoom.id,
+          threadId: null,
+          user: typingUser,
+          isTyping: false,
+        });
+      }
+      return;
+    }
+
+    if (!mainTypingActiveRef.current) {
+      mainTypingActiveRef.current = true;
+      emitSpacesTyping({
+        workspaceId: resolvedWorkspaceId,
+        roomId: activeRoom.id,
+        threadId: null,
+        user: typingUser,
+        isTyping: true,
+      });
+    }
+
+    if (mainTypingTimerRef.current) clearTimeout(mainTypingTimerRef.current);
+    mainTypingTimerRef.current = setTimeout(() => {
+      mainTypingActiveRef.current = false;
+      mainTypingTimerRef.current = null;
+      if (!resolvedWorkspaceId || !activeRoom?.id) return;
+      emitSpacesTyping({
+        workspaceId: resolvedWorkspaceId,
+        roomId: activeRoom.id,
+        threadId: null,
+        user: typingUser,
+        isTyping: false,
+      });
+    }, 3000);
+  };
+
+  const handleThreadComposerChange = (value: string) => {
+    setThreadComposer(value);
+    if (!resolvedWorkspaceId || !activeRoom?.id || !selectedThreadMessageId) return;
+
+    const typingUser = {
+      id: String(currentUser.id || ""),
+      name: String(currentUser.name || ""),
+      initials: String(currentUser.initials || ""),
+      avatarUrl: currentUser.avatarUrl ?? null,
+    };
+
+    if (!value.trim()) {
+      if (threadTypingActiveRef.current) {
+        threadTypingActiveRef.current = false;
+        if (threadTypingTimerRef.current) {
+          clearTimeout(threadTypingTimerRef.current);
+          threadTypingTimerRef.current = null;
+        }
+        emitSpacesTyping({
+          workspaceId: resolvedWorkspaceId,
+          roomId: activeRoom.id,
+          threadId: selectedThreadMessageId,
+          user: typingUser,
+          isTyping: false,
+        });
+      }
+      return;
+    }
+
+    if (!threadTypingActiveRef.current) {
+      threadTypingActiveRef.current = true;
+      emitSpacesTyping({
+        workspaceId: resolvedWorkspaceId,
+        roomId: activeRoom.id,
+        threadId: selectedThreadMessageId,
+        user: typingUser,
+        isTyping: true,
+      });
+    }
+
+    if (threadTypingTimerRef.current) clearTimeout(threadTypingTimerRef.current);
+    threadTypingTimerRef.current = setTimeout(() => {
+      threadTypingActiveRef.current = false;
+      threadTypingTimerRef.current = null;
+      if (!resolvedWorkspaceId || !activeRoom?.id || !selectedThreadMessageId) return;
+      emitSpacesTyping({
+        workspaceId: resolvedWorkspaceId,
+        roomId: activeRoom.id,
+        threadId: selectedThreadMessageId,
+        user: typingUser,
+        isTyping: false,
+      });
+    }, 3000);
+  };
+
   const handleSendMessage = async () => {
     if (!resolvedWorkspaceId || !activeRoom) {
       return;
@@ -2964,6 +3106,15 @@ const SpacesPage = () => {
     const draftAttachments = [...composerAttachments];
     if (!content && draftAttachments.length === 0) {
       return;
+    }
+
+    // Clear typing indicator before sending
+    if (mainTypingActiveRef.current) {
+      mainTypingActiveRef.current = false;
+      if (mainTypingTimerRef.current) {
+        clearTimeout(mainTypingTimerRef.current);
+        mainTypingTimerRef.current = null;
+      }
     }
 
     const roomId = activeRoom.id;
@@ -3003,20 +3154,58 @@ const SpacesPage = () => {
         ? mapMessageToUi(response.data.chatMessage)
         : null;
 
-      if (persistedMessage) {
-        replaceOptimisticRoomMessage(
-          roomId,
-          optimisticMessageId,
-          persistedMessage,
+      const rawRecord = response?.data?.chatMessage ?? null;
+      if (rawRecord) {
+        // Inject the persisted record into the server cache so it survives after
+        // the optimistic entry is removed. The socket handler skips own messages
+        // to avoid the duplicate-flash race, so we own the cache update here.
+        queryClient.setQueryData(
+          [
+            "workspace-spaces-room-messages-infinite",
+            resolvedWorkspaceId,
+            roomId,
+            messageQueryParams.limit,
+          ],
+          (
+            oldData:
+              | {
+                  pages: Array<{
+                    data: { messages: WorkspaceSpaceMessageRecord[] };
+                  }>;
+                  pageParams: unknown[];
+                }
+              | undefined,
+          ) => {
+            if (!oldData?.pages?.length) return oldData;
+            const alreadyPresent = oldData.pages.some((page) =>
+              (page?.data?.messages || []).some(
+                (m) => String(m.id) === String(rawRecord.id),
+              ),
+            );
+            if (alreadyPresent) return oldData;
+            const [firstPage, ...restPages] = oldData.pages;
+            return {
+              ...oldData,
+              pages: [
+                {
+                  ...firstPage,
+                  data: {
+                    ...firstPage.data,
+                    messages: [
+                      ...(firstPage.data?.messages || []),
+                      rawRecord,
+                    ],
+                  },
+                },
+                ...restPages,
+              ],
+            };
+          },
         );
-      } else {
-        removeOptimisticRoomMessage(roomId, optimisticMessageId);
       }
+      removeOptimisticRoomMessage(roomId, optimisticMessageId);
 
       revokeAttachmentObjectUrls(draftAttachments);
-      // The socket event (spaces:message:created) fires after the server persists
-      // the message and handles the cache update via setQueryData — no extra
-      // invalidation needed here.
     } catch {
       removeOptimisticRoomMessage(roomId, optimisticMessageId);
       setComposer((prev) => (prev.trim().length ? prev : content));
@@ -3033,6 +3222,15 @@ const SpacesPage = () => {
     const draftAttachments = [...threadAttachments];
     if (!content && draftAttachments.length === 0) {
       return;
+    }
+
+    // Clear typing indicator before sending
+    if (threadTypingActiveRef.current) {
+      threadTypingActiveRef.current = false;
+      if (threadTypingTimerRef.current) {
+        clearTimeout(threadTypingTimerRef.current);
+        threadTypingTimerRef.current = null;
+      }
     }
 
     const roomId = activeRoom.id;
@@ -3068,27 +3266,42 @@ const SpacesPage = () => {
         },
       });
 
-      const persistedReplyRecord = response?.data?.reply;
+      const persistedReplyRecord = response?.data?.reply ?? null;
       if (persistedReplyRecord) {
-        const mappedReply = mapMessageToUi(persistedReplyRecord);
-        replaceOptimisticThreadReply(messageId, optimisticReplyId, {
-          id: mappedReply.id,
-          messageId: mappedReply.parentMessageId || messageId,
-          author: mappedReply.author,
-          content: mappedReply.content,
-          sentAt: mappedReply.sentAt,
-          sentAtRaw: mappedReply.sentAtRaw,
-          edited: mappedReply.edited,
-          attachments: mappedReply.attachments,
-          reactions: mappedReply.reactions,
-        });
-      } else {
-        removeOptimisticThreadReply(messageId, optimisticReplyId);
+        // Inject into thread replies cache. The socket handler skips own messages
+        // to avoid the duplicate-flash race, so we own the cache update here.
+        queryClient.setQueryData(
+          [
+            "workspace-spaces-thread-replies",
+            resolvedWorkspaceId,
+            roomId,
+            messageId,
+            messageQueryParams,
+          ],
+          (
+            oldData:
+              | { data?: { replies?: WorkspaceSpaceMessageRecord[] } }
+              | undefined,
+          ) => {
+            if (!oldData) return oldData;
+            const existingReplies = oldData?.data?.replies || [];
+            const alreadyPresent = existingReplies.some(
+              (r) => String(r.id) === String(persistedReplyRecord.id),
+            );
+            if (alreadyPresent) return oldData;
+            return {
+              ...oldData,
+              data: {
+                ...oldData.data,
+                replies: [...existingReplies, persistedReplyRecord],
+              },
+            };
+          },
+        );
       }
+      removeOptimisticThreadReply(messageId, optimisticReplyId);
 
       revokeAttachmentObjectUrls(draftAttachments);
-      // Socket event (spaces:message:created) fires after persistence and updates
-      // the thread replies cache via setQueryData — no extra invalidation needed.
     } catch {
       removeOptimisticThreadReply(messageId, optimisticReplyId);
       setThreadComposer((prev) => (prev.trim().length ? prev : content));
@@ -4125,8 +4338,9 @@ const SpacesPage = () => {
               onDeleteMessage={requestDeleteMessageFromChat}
               onOpenJamFromMessage={openSharedJamFromMessage}
               onJoinCallFromMessage={handleJoinCallFromMessage}
-              onComposerChange={setComposer}
+              onComposerChange={handleMainComposerChange}
               onSendMessage={handleSendMessage}
+              typingUsers={typingUsersByContext[activeRoom?.id || ""] ?? []}
               onAttachFiles={attachFiles}
               onUploadFromInput={(event) =>
                 handleUploadFromInput(event, "main")
@@ -4217,13 +4431,20 @@ const SpacesPage = () => {
                   onCreateTaskFromReply={createTaskFromMessage}
                   onDeleteThreadReply={requestDeleteThreadReply}
                   onOpenJamFromMessage={openSharedJamFromMessage}
-                  onThreadComposerChange={setThreadComposer}
+                  onThreadComposerChange={handleThreadComposerChange}
                   onSendThreadReply={handleSendThreadReply}
                   onAttachFiles={attachFiles}
                   onUploadFromInput={(event) =>
                     handleUploadFromInput(event, "thread")
                   }
                   onRemoveAttachment={removeDraftAttachment}
+                  typingUsers={
+                    typingUsersByContext[
+                      selectedThreadMessageId
+                        ? `${activeRoom?.id}:${selectedThreadMessageId}`
+                        : ""
+                    ] ?? []
+                  }
                 />
               </aside>
             </>
@@ -4359,13 +4580,20 @@ const SpacesPage = () => {
             onCreateTaskFromReply={createTaskFromMessage}
             onDeleteThreadReply={requestDeleteThreadReply}
             onOpenJamFromMessage={openSharedJamFromMessage}
-            onThreadComposerChange={setThreadComposer}
+            onThreadComposerChange={handleThreadComposerChange}
             onSendThreadReply={handleSendThreadReply}
             onAttachFiles={attachFiles}
             onUploadFromInput={(event) =>
               handleUploadFromInput(event, "thread")
             }
             onRemoveAttachment={removeDraftAttachment}
+            typingUsers={
+              typingUsersByContext[
+                selectedThreadMessageId
+                  ? `${activeRoom?.id}:${selectedThreadMessageId}`
+                  : ""
+              ] ?? []
+            }
           />
         </SheetContent>
       </Sheet>

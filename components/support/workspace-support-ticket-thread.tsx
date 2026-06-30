@@ -5,9 +5,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   subscribeTicket,
   unsubscribeTicket,
+  emitSupportTyping,
   type SupportMessageCreatedPayload,
   type SupportTicketUpdatedPayload,
+  type SupportTypingPayload,
 } from "@/lib/realtime/support-socket";
+import { TypingIndicator, type TypingUser } from "@/components/spaces/components/typing-indicator";
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
@@ -225,6 +228,10 @@ export default function WorkspaceSupportTicketThread({
   const currentUserId = String(user?._id || "").trim();
 
   const [messageBody, setMessageBody] = useState("");
+  const [ticketTypingUsers, setTicketTypingUsers] = useState<TypingUser[]>([]);
+  const ticketTypingTimersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const ticketTypingActiveRef = useRef(false);
+  const ticketTypingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [internalNoteBody, setInternalNoteBody] = useState("");
   const [showInternalNotes, setShowInternalNotes] = useState(false);
   const [pendingImages, setPendingImages] = useState<{ url: string; isImage: boolean; name: string }[]>([]);
@@ -356,12 +363,32 @@ export default function WorkspaceSupportTicketThread({
       });
     };
 
+    const handleTyping = ({ user, isTyping }: SupportTypingPayload) => {
+      if (!user?.id) return;
+      const existingTimer = ticketTypingTimersRef.current[user.id];
+      if (existingTimer) clearTimeout(existingTimer);
+      if (isTyping) {
+        setTicketTypingUsers((prev) => [
+          ...prev.filter((u) => u.id !== user.id),
+          { id: String(user.id), name: String(user.name || "Teammate"), initials: String(user.initials || "?"), avatarUrl: user.avatarUrl ?? undefined },
+        ]);
+        ticketTypingTimersRef.current[user.id] = setTimeout(() => {
+          setTicketTypingUsers((prev) => prev.filter((u) => u.id !== user.id));
+          delete ticketTypingTimersRef.current[user.id];
+        }, 5000);
+      } else {
+        setTicketTypingUsers((prev) => prev.filter((u) => u.id !== user.id));
+      }
+    };
+
     socket.on("support:message:created", handleMessageCreated);
     socket.on("support:ticket:updated", handleTicketUpdated);
+    socket.on("support:typing", handleTyping);
 
     return () => {
       socket.off("support:message:created", handleMessageCreated);
       socket.off("support:ticket:updated", handleTicketUpdated);
+      socket.off("support:typing", handleTyping);
       unsubscribeTicket({ workspaceId: activeWorkspaceId, ticketId: normalizedTicketId });
     };
   }, [activeWorkspaceId, normalizedTicketId, queryClient]);
@@ -434,6 +461,37 @@ export default function WorkspaceSupportTicketThread({
     }
   };
 
+  const handleMessageBodyChange = (value: string) => {
+    setMessageBody(value);
+    if (!activeWorkspaceId || !normalizedTicketId) return;
+
+    const typingUser = {
+      id: currentUserId,
+      name: [user?.firstName, user?.lastName].filter(Boolean).join(" ") || String(user?.email || "Teammate"),
+      initials: getInitials([user?.firstName, user?.lastName].filter(Boolean).join(" ") || String(user?.email || "")),
+      avatarUrl: user?.profilePhoto?.url ?? null,
+    };
+
+    if (!value.trim()) {
+      if (ticketTypingActiveRef.current) {
+        ticketTypingActiveRef.current = false;
+        if (ticketTypingTimerRef.current) { clearTimeout(ticketTypingTimerRef.current); ticketTypingTimerRef.current = null; }
+        emitSupportTyping({ workspaceId: activeWorkspaceId, ticketId: normalizedTicketId, user: typingUser, isTyping: false });
+      }
+      return;
+    }
+    if (!ticketTypingActiveRef.current) {
+      ticketTypingActiveRef.current = true;
+      emitSupportTyping({ workspaceId: activeWorkspaceId, ticketId: normalizedTicketId, user: typingUser, isTyping: true });
+    }
+    if (ticketTypingTimerRef.current) clearTimeout(ticketTypingTimerRef.current);
+    ticketTypingTimerRef.current = setTimeout(() => {
+      ticketTypingActiveRef.current = false;
+      ticketTypingTimerRef.current = null;
+      emitSupportTyping({ workspaceId: activeWorkspaceId, ticketId: normalizedTicketId, user: typingUser, isTyping: false });
+    }, 3000);
+  };
+
   const handleSendMessage = async () => {
     if (!activeWorkspaceId || !normalizedTicketId) return;
     const trimmed = messageBody.trim();
@@ -441,6 +499,8 @@ export default function WorkspaceSupportTicketThread({
       toast("Write a short message first.");
       return;
     }
+    ticketTypingActiveRef.current = false;
+    if (ticketTypingTimerRef.current) { clearTimeout(ticketTypingTimerRef.current); ticketTypingTimerRef.current = null; }
     const body = trimmed.length >= 2 ? trimmed : "📎";
     const loadingId = toast.loading("Sending...");
     try {
@@ -906,6 +966,7 @@ export default function WorkspaceSupportTicketThread({
       ) : null}
 
       {/* Composer */}
+      <TypingIndicator users={ticketTypingUsers} />
       <div className="shrink-0 border-t border-border/35 bg-card/70 px-4 py-3">
         {pendingImages.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2">
@@ -968,7 +1029,7 @@ export default function WorkspaceSupportTicketThread({
             </Button>
             <Textarea
               value={messageBody}
-              onChange={(e) => setMessageBody(e.target.value)}
+              onChange={(e) => handleMessageBodyChange(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
