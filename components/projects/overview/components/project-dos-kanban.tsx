@@ -161,6 +161,78 @@ const CUSTOM_SECTION_STYLES: Record<
     countClassName:
       "border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
   },
+  blue: {
+    surfaceClassName:
+      "bg-gradient-to-b from-blue-500/10 via-background/92 to-background/78",
+    countClassName:
+      "border-blue-500/20 bg-blue-500/10 text-blue-600 dark:text-blue-300",
+  },
+  indigo: {
+    surfaceClassName:
+      "bg-gradient-to-b from-indigo-500/10 via-background/92 to-background/78",
+    countClassName:
+      "border-indigo-500/20 bg-indigo-500/10 text-indigo-600 dark:text-indigo-300",
+  },
+  purple: {
+    surfaceClassName:
+      "bg-gradient-to-b from-purple-500/10 via-background/92 to-background/78",
+    countClassName:
+      "border-purple-500/20 bg-purple-500/10 text-purple-600 dark:text-purple-300",
+  },
+  fuchsia: {
+    surfaceClassName:
+      "bg-gradient-to-b from-fuchsia-500/10 via-background/92 to-background/78",
+    countClassName:
+      "border-fuchsia-500/20 bg-fuchsia-500/10 text-fuchsia-600 dark:text-fuchsia-300",
+  },
+  pink: {
+    surfaceClassName:
+      "bg-gradient-to-b from-pink-500/10 via-background/92 to-background/78",
+    countClassName:
+      "border-pink-500/20 bg-pink-500/10 text-pink-600 dark:text-pink-300",
+  },
+  red: {
+    surfaceClassName:
+      "bg-gradient-to-b from-red-500/10 via-background/92 to-background/78",
+    countClassName:
+      "border-red-500/20 bg-red-500/10 text-red-600 dark:text-red-300",
+  },
+  orange: {
+    surfaceClassName:
+      "bg-gradient-to-b from-orange-500/10 via-background/92 to-background/78",
+    countClassName:
+      "border-orange-500/20 bg-orange-500/10 text-orange-600 dark:text-orange-300",
+  },
+  yellow: {
+    surfaceClassName:
+      "bg-gradient-to-b from-yellow-500/10 via-background/92 to-background/78",
+    countClassName:
+      "border-yellow-500/20 bg-yellow-500/10 text-yellow-600 dark:text-yellow-300",
+  },
+  lime: {
+    surfaceClassName:
+      "bg-gradient-to-b from-lime-500/10 via-background/92 to-background/78",
+    countClassName:
+      "border-lime-500/20 bg-lime-500/10 text-lime-600 dark:text-lime-300",
+  },
+  green: {
+    surfaceClassName:
+      "bg-gradient-to-b from-green-500/10 via-background/92 to-background/78",
+    countClassName:
+      "border-green-500/20 bg-green-500/10 text-green-600 dark:text-green-300",
+  },
+  teal: {
+    surfaceClassName:
+      "bg-gradient-to-b from-teal-500/10 via-background/92 to-background/78",
+    countClassName:
+      "border-teal-500/20 bg-teal-500/10 text-teal-600 dark:text-teal-300",
+  },
+  slate: {
+    surfaceClassName:
+      "bg-gradient-to-b from-slate-500/10 via-background/92 to-background/78",
+    countClassName:
+      "border-slate-500/20 bg-slate-500/10 text-slate-600 dark:text-slate-300",
+  },
 };
 
 function resolveDropTarget(

@@ -25,7 +25,7 @@ export type ProjectTaskStatus =
   | "blocked";
 export type ProjectTaskPriority = "low" | "medium" | "high";
 export type ProjectAssetType = "Document" | "Image" | "Video" | "Code";
-export type ProjectKanbanSectionTone = "sky" | "violet" | "cyan" | "rose" | "amber" | "emerald";
+export type ProjectKanbanSectionTone = "sky" | "blue" | "indigo" | "violet" | "purple" | "fuchsia" | "pink" | "rose" | "red" | "orange" | "amber" | "yellow" | "lime" | "green" | "emerald" | "teal" | "cyan" | "slate";
 export type ProjectExecutionState = "not-started" | "running" | "elapsed" | "complete";
 export type ProjectWorkflowView = "all" | "active" | "at-risk" | "completed";
 export type ProjectPipelineTemplateKey = "product" | "marketing" | "operations";
