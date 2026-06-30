@@ -11,9 +11,10 @@ import {
 import { useRouter } from "next/navigation";
 import {
   CheckCircle2,
-  ImageIcon,
+  File,
   MessageSquare,
   MoreHorizontal,
+  Paperclip,
   Send,
   X,
 } from "lucide-react";
@@ -111,6 +112,55 @@ const getInitials = (name: string) =>
     .join("")
     .toUpperCase() || "?";
 
+const getFileNameFromUrl = (url: string) => {
+  try {
+    const parts = new URL(url).pathname.split("/");
+    return decodeURIComponent(parts[parts.length - 1] || "file");
+  } catch {
+    return "file";
+  }
+};
+
+const looksLikeImage = (url: string) =>
+  url.includes("/image/upload/") ||
+  /\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)(\?|$)/i.test(url);
+
+function AttachmentItem({ url, isMine }: { url: string; isMine: boolean }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const fileName = getFileNameFromUrl(url);
+
+  if (looksLikeImage(url) && !imgFailed) {
+    return (
+      <a href={url} target="_blank" rel="noopener noreferrer">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={url}
+          alt={fileName}
+          className="max-h-48 max-w-[220px] rounded-lg object-cover border border-border/20"
+          onError={() => setImgFailed(true)}
+        />
+      </a>
+    );
+  }
+
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={cn(
+        "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] transition-colors",
+        isMine
+          ? "border-white/20 bg-white/10 hover:bg-white/20 text-primary-foreground"
+          : "border-border/30 bg-background/20 hover:bg-background/40 text-foreground",
+      )}
+    >
+      <File className="size-3.5 shrink-0" />
+      <span className="max-w-[160px] truncate">{fileName}</span>
+    </a>
+  );
+}
+
 function UserAvatar({
   name,
   src,
@@ -120,12 +170,16 @@ function UserAvatar({
   src?: string | null;
   className?: string;
 }) {
-  if (src) {
+  const [imgFailed, setImgFailed] = useState(false);
+
+  if (src && !imgFailed) {
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={src}
         alt={name}
         className={cn("shrink-0 rounded-full object-cover", className)}
+        onError={() => setImgFailed(true)}
       />
     );
   }
@@ -173,7 +227,7 @@ export default function WorkspaceSupportTicketThread({
   const [messageBody, setMessageBody] = useState("");
   const [internalNoteBody, setInternalNoteBody] = useState("");
   const [showInternalNotes, setShowInternalNotes] = useState(false);
-  const [pendingImages, setPendingImages] = useState<string[]>([]);
+  const [pendingImages, setPendingImages] = useState<{ url: string; isImage: boolean; name: string }[]>([]);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -355,9 +409,10 @@ export default function WorkspaceSupportTicketThread({
     e.target.value = "";
     if (!file) return;
     if (pendingImages.length >= 4) {
-      toast("You can attach up to 4 images per message.");
+      toast("You can attach up to 4 files per message.");
       return;
     }
+    const isImage = file.type.startsWith("image/");
     const form = new FormData();
     form.append("file", file);
     if (activeWorkspaceId) form.append("workspaceId", activeWorkspaceId);
@@ -366,9 +421,14 @@ export default function WorkspaceSupportTicketThread({
     try {
       const res = await uploadAssetMutation.mutateAsync(form);
       const url = res?.data?.asset?.url;
-      if (url) setPendingImages((prev) => [...prev, url]);
+      if (url) {
+        setPendingImages((prev) => [
+          ...prev,
+          { url, isImage, name: file.name },
+        ]);
+      }
     } catch {
-      toast.error("Image upload failed.");
+      toast.error("Upload failed.");
     } finally {
       setIsUploadingImage(false);
     }
@@ -387,7 +447,7 @@ export default function WorkspaceSupportTicketThread({
       await createTicketMessageMutation.mutateAsync({
         workspaceId: activeWorkspaceId,
         ticketId: normalizedTicketId,
-        payload: { body, imageUrls: pendingImages },
+        payload: { body, imageUrls: pendingImages.map((a) => a.url) },
       });
       setMessageBody("");
       setPendingImages([]);
@@ -742,13 +802,7 @@ export default function WorkspaceSupportTicketThread({
                       {message.imageUrls?.length > 0 && (
                         <div className={cn("mt-2 flex flex-wrap gap-1.5", isMine ? "justify-end" : "justify-start")}>
                           {message.imageUrls.map((url, i) => (
-                            <a key={i} href={url} target="_blank" rel="noopener noreferrer">
-                              <img
-                                src={url}
-                                alt="attachment"
-                                className="max-h-48 max-w-[220px] rounded-lg object-cover border border-border/20"
-                              />
-                            </a>
+                            <AttachmentItem key={i} url={url} isMine={isMine} />
                           ))}
                         </div>
                       )}
@@ -855,13 +909,23 @@ export default function WorkspaceSupportTicketThread({
       <div className="shrink-0 border-t border-border/35 bg-card/70 px-4 py-3">
         {pendingImages.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2">
-            {pendingImages.map((url, i) => (
+            {pendingImages.map((attachment, i) => (
               <div key={i} className="relative">
-                <img
-                  src={url}
-                  alt="pending"
-                  className="size-14 rounded-md object-cover border border-border/30"
-                />
+                {attachment.isImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={attachment.url}
+                    alt={attachment.name}
+                    className="size-14 rounded-md object-cover border border-border/30"
+                  />
+                ) : (
+                  <div className="flex h-14 w-28 items-center gap-1.5 rounded-md border border-border/40 bg-muted/50 px-2">
+                    <File className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="truncate text-[11px] text-muted-foreground leading-tight">
+                      {attachment.name}
+                    </span>
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => setPendingImages((prev) => prev.filter((_, idx) => idx !== i))}
@@ -886,7 +950,7 @@ export default function WorkspaceSupportTicketThread({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png,image/webp,image/gif,.pdf,.doc,.docx,.xls,.xlsx,.txt"
               className="hidden"
               onChange={handleImageSelect}
               disabled={isClosed || isUploadingImage || pendingImages.length >= 4}
@@ -898,9 +962,9 @@ export default function WorkspaceSupportTicketThread({
               className="size-7 shrink-0 text-muted-foreground"
               onClick={() => fileInputRef.current?.click()}
               disabled={!ticket || isClosed || isUploadingImage || pendingImages.length >= 4}
-              title="Attach image"
+              title="Attach file or image"
             >
-              <ImageIcon className="size-3.5" />
+              <Paperclip className="size-3.5" />
             </Button>
             <Textarea
               value={messageBody}

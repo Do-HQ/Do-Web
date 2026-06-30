@@ -137,6 +137,7 @@ export interface CreateWorkspaceSupportTicketRequestBody {
   description: string;
   category: WorkspaceSupportTicketCategory;
   priority: WorkspaceSupportTicketPriority;
+  attachmentUrls?: string[];
 }
 
 export interface UpdateWorkspaceSupportTicketRequestBody {

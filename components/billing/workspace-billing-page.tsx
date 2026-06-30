@@ -83,7 +83,9 @@ const parsePlanFromValue = (value: string): WorkspacePlan | "" => {
   const normalized = String(value || "")
     .trim()
     .toUpperCase();
-  if (["FREE", "STARTER", "PRO", "BUSINESS", "ENTERPRISE"].includes(normalized)) {
+  if (
+    ["FREE", "STARTER", "PRO", "BUSINESS", "ENTERPRISE"].includes(normalized)
+  ) {
     return normalized as WorkspacePlan;
   }
 
@@ -428,8 +430,8 @@ const WorkspaceBillingPage = () => {
             <CardHeader>
               <CardTitle className="text-base">AI credit wallet</CardTitle>
               <CardDescription>
-                Shared workspace balance for Scribe, reports, and draft
-                generation.
+                Shared workspace balance for Squircle Intelligence, reports, and
+                draft generation.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">

@@ -326,7 +326,7 @@ const CommandSearch = () => {
       },
       {
         id: "nav-ask",
-        label: "Scribe",
+        label: "Squircle Intelligence",
         icon: Gem,
         onSelect: () => closeAndRoute(ROUTES.ASK_SQUIRCLE),
       },
@@ -484,7 +484,9 @@ const CommandSearch = () => {
         id: "action-pin-scribe-widget",
         label: scribeWidgetPinned ? "Unpin Scribe widget" : "Pin Scribe widget",
         icon: Pin,
-        hint: scribeWidgetPinned ? "Launcher stays available" : "Keep Scribe handy",
+        hint: scribeWidgetPinned
+          ? "Launcher stays available"
+          : "Keep Scribe handy",
         onSelect: () =>
           runAction(() => {
             setScribeWidgetPinned(!scribeWidgetPinned);

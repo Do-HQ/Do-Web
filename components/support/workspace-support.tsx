@@ -1,15 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   AlertTriangle,
+  File,
   LayoutDashboard,
   LifeBuoy,
   Megaphone,
+  Paperclip,
   Pencil,
   Plus,
   Search,
@@ -18,6 +20,7 @@ import {
   Ticket,
   Trash2,
   Users,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -25,6 +28,7 @@ import axiosInstance from "@/lib/services";
 
 import { useDebounce } from "@/hooks/use-debounce";
 import useAuthStore from "@/stores/auth";
+import useFile from "@/hooks/use-file";
 import useWorkspaceSupport from "@/hooks/use-workspace-support";
 import useWorkspaceStore from "@/stores/workspace";
 import {
@@ -183,6 +187,8 @@ export default function WorkspaceSupport({
     useWorkspaceSupportSlaBoard,
     useCreateWorkspaceSupportTicket,
   } = useWorkspaceSupport();
+  const { useUploadAsset } = useFile();
+  const uploadAssetMutation = useUploadAsset();
 
   const activeWorkspaceId = String(workspaceId || "").trim();
 
@@ -192,6 +198,11 @@ export default function WorkspaceSupport({
     useState<WorkspaceSupportTicketCategory>("general");
   const [priority, setPriority] =
     useState<WorkspaceSupportTicketPriority>("medium");
+  const [pendingAttachments, setPendingAttachments] = useState<
+    { url: string; name: string; isImage: boolean }[]
+  >([]);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const createFileInputRef = useRef<HTMLInputElement>(null);
 
   const [ticketSearch, setTicketSearch] = useState("");
   const [ticketStatusFilter, setTicketStatusFilter] = useState<
@@ -342,6 +353,36 @@ export default function WorkspaceSupport({
     [visibleTickets],
   );
 
+  const handleAttachmentSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (pendingAttachments.length >= 6) {
+      toast("You can attach up to 6 files.");
+      return;
+    }
+    const isImage = file.type.startsWith("image/");
+    const form = new FormData();
+    form.append("file", file);
+    if (activeWorkspaceId) form.append("workspaceId", activeWorkspaceId);
+    form.append("folder", "support");
+    setIsUploadingAttachment(true);
+    try {
+      const res = await uploadAssetMutation.mutateAsync(form);
+      const url = res?.data?.asset?.url;
+      if (url) {
+        setPendingAttachments((prev) => [
+          ...prev,
+          { url, name: file.name, isImage },
+        ]);
+      }
+    } catch {
+      toast.error("File upload failed.");
+    } finally {
+      setIsUploadingAttachment(false);
+    }
+  };
+
   const handleCreateTicket = async () => {
     if (!activeWorkspaceId) {
       toast("Select a workspace first.");
@@ -367,6 +408,7 @@ export default function WorkspaceSupport({
           description: description.trim(),
           category,
           priority,
+          attachmentUrls: pendingAttachments.map((a) => a.url),
         },
       });
       setCreateTicketOpen(false);
@@ -374,6 +416,7 @@ export default function WorkspaceSupport({
       setDescription("");
       setCategory("general");
       setPriority("medium");
+      setPendingAttachments([]);
       toast.success("Ticket created", { id: loadingId });
     } catch {
       toast.error("Could not create support ticket.", { id: loadingId });
@@ -1041,20 +1084,85 @@ export default function WorkspaceSupport({
                 className="min-h-24 text-sm"
               />
             </div>
+
+            {/* Attachment previews */}
+            {pendingAttachments.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {pendingAttachments.map((attachment, i) => (
+                  <div key={i} className="relative">
+                    {attachment.isImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={attachment.url}
+                        alt={attachment.name}
+                        className="size-14 rounded-md object-cover border border-border/30"
+                      />
+                    ) : (
+                      <div className="flex h-14 w-28 items-center gap-1.5 rounded-md border border-border/40 bg-muted/40 px-2">
+                        <File className="size-4 shrink-0 text-muted-foreground" />
+                        <span className="truncate text-[11px] text-muted-foreground">
+                          {attachment.name}
+                        </span>
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setPendingAttachments((prev) =>
+                          prev.filter((_, idx) => idx !== i),
+                        )
+                      }
+                      className="absolute -right-1.5 -top-1.5 flex size-4 items-center justify-center rounded-full bg-foreground text-background hover:opacity-80"
+                    >
+                      <X className="size-2.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Hidden file input */}
+            <input
+              ref={createFileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+              className="hidden"
+              onChange={handleAttachmentSelect}
+              disabled={isUploadingAttachment || pendingAttachments.length >= 6}
+            />
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full gap-2 text-sm"
+              onClick={() => createFileInputRef.current?.click()}
+              disabled={isUploadingAttachment || pendingAttachments.length >= 6}
+            >
+              <Paperclip className="size-3.5" />
+              {isUploadingAttachment
+                ? "Uploading…"
+                : pendingAttachments.length >= 6
+                  ? "Max 6 files"
+                  : "Attach image or file (PDF, Word, Excel, TXT)"}
+            </Button>
           </div>
           <DialogFooter>
             <Button
               variant="outline"
               size="sm"
               className="text-sm"
-              onClick={() => setCreateTicketOpen(false)}
+              onClick={() => {
+                setCreateTicketOpen(false);
+                setPendingAttachments([]);
+              }}
             >
               Cancel
             </Button>
             <Button
               size="sm"
               className="text-sm"
-              disabled={createTicketMutation.isPending}
+              disabled={createTicketMutation.isPending || isUploadingAttachment}
               onClick={() => void handleCreateTicket()}
             >
               {createTicketMutation.isPending ? "Creating…" : "Create ticket"}

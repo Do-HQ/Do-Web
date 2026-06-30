@@ -365,7 +365,8 @@ const UserDashboard = () => {
     const currentFingerprint = computeFeaturesFingerprint(whatsNextFeatures);
 
     try {
-      const seenFingerprint = window.localStorage.getItem(UPCOMING_BANNER_SEEN_KEY) ?? "";
+      const seenFingerprint =
+        window.localStorage.getItem(UPCOMING_BANNER_SEEN_KEY) ?? "";
       setIsUpcomingBannerVisible(seenFingerprint !== currentFingerprint);
     } catch {
       setIsUpcomingBannerVisible(true);
@@ -816,7 +817,7 @@ const UserDashboard = () => {
           return {
             key: entry.key,
             kind: "scribe" as const,
-            title: "Scribe",
+            title: "Squircle Intelligence",
             subtitle: "Ask questions about your workspace",
             href: ROUTES.ASK_SQUIRCLE,
             updatedAt: entry.visitedAt,

@@ -129,8 +129,7 @@ const getGreeting = (name?: string) => {
   return `Good evening, ${firstName}.`;
 };
 
-const isTaskOpen = (status: ProjectWorkflowTask["status"]) =>
-  status !== "done";
+const isTaskOpen = (status: ProjectWorkflowTask["status"]) => status !== "done";
 
 const getTaskProgress = (task: ProjectWorkflowTask) => {
   if (typeof task.progress === "number")
@@ -163,19 +162,21 @@ const buildBriefingLine = ({
   if (overdueCount > 0)
     parts.push(`${overdueCount} task${overdueCount > 1 ? "s" : ""} overdue`);
 
-  if (dueTodayCount > 0)
-    parts.push(`${dueTodayCount} due today`);
+  if (dueTodayCount > 0) parts.push(`${dueTodayCount} due today`);
 
   if (atRiskProjects.length > 0) {
     const names = atRiskProjects
       .slice(0, 2)
       .map((p) => p.name)
       .join(" and ");
-    parts.push(`${names} ${atRiskProjects.length > 1 ? "need" : "needs"} attention`);
+    parts.push(
+      `${names} ${atRiskProjects.length > 1 ? "need" : "needs"} attention`,
+    );
   }
 
   if (parts.length === 0) {
-    if (myOpenTasks.length === 0) return "Your queue is clear — nothing pending.";
+    if (myOpenTasks.length === 0)
+      return "Your queue is clear — nothing pending.";
     return `${myOpenTasks.length} open task${myOpenTasks.length > 1 ? "s" : ""} in your queue, nothing urgent.`;
   }
 
@@ -228,8 +229,10 @@ const UPCOMING_BAR: Record<string, string> = {
 
 const UPCOMING_CHIP: Record<string, string> = {
   task: "text-sky-700 dark:text-sky-300 bg-sky-500/10 border-sky-500/25",
-  milestone: "text-amber-700 dark:text-amber-300 bg-amber-500/10 border-amber-500/25",
-  workflow: "text-violet-700 dark:text-violet-300 bg-violet-500/10 border-violet-500/25",
+  milestone:
+    "text-amber-700 dark:text-amber-300 bg-amber-500/10 border-amber-500/25",
+  workflow:
+    "text-violet-700 dark:text-violet-300 bg-violet-500/10 border-violet-500/25",
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -273,7 +276,10 @@ const UserDashboardV2 = () => {
 
   const projectQuery = projectHook.useWorkspaceProjects(
     resolvedWorkspaceId,
-    React.useMemo(() => ({ page: 1, limit: 40, search: "", archived: false }), []),
+    React.useMemo(
+      () => ({ page: 1, limit: 40, search: "", archived: false }),
+      [],
+    ),
   );
   const spacesQuery = spaceHook.useWorkspaceSpaceRooms(
     resolvedWorkspaceId,
@@ -316,8 +322,12 @@ const UserDashboardV2 = () => {
   );
 
   React.useEffect(() => {
-    if (!resolvedWorkspaceId) { setRecentVisitHistory([]); return; }
-    const sync = () => setRecentVisitHistory(getRecentVisits(resolvedWorkspaceId, 16));
+    if (!resolvedWorkspaceId) {
+      setRecentVisitHistory([]);
+      return;
+    }
+    const sync = () =>
+      setRecentVisitHistory(getRecentVisits(resolvedWorkspaceId, 16));
     sync();
     return subscribeRecentVisits(sync);
   }, [resolvedWorkspaceId]);
@@ -378,10 +388,11 @@ const UserDashboardV2 = () => {
   }, [myOpenTasks]);
 
   const overdueCount = React.useMemo(
-    () => myOpenTasks.filter((t) => {
-      const d = toDateValue(t.dueDate);
-      return Boolean(d && d.getTime() < now);
-    }).length,
+    () =>
+      myOpenTasks.filter((t) => {
+        const d = toDateValue(t.dueDate);
+        return Boolean(d && d.getTime() < now);
+      }).length,
     [myOpenTasks, now],
   );
 
@@ -390,7 +401,8 @@ const UserDashboardV2 = () => {
       projectRecords.reduce(
         (total, r) =>
           total +
-          r.workflows.filter((w) => !w.archived && w.status !== "complete").length,
+          r.workflows.filter((w) => !w.archived && w.status !== "complete")
+            .length,
         0,
       ),
     [projectRecords],
@@ -423,7 +435,12 @@ const UserDashboardV2 = () => {
       });
       record.workflows.forEach((workflow) => {
         const wDue = toDateValue(workflow.targetEndDate);
-        if (wDue && wDue.getTime() >= now && wDue.getTime() <= nextWindow && workflow.status !== "complete") {
+        if (
+          wDue &&
+          wDue.getTime() >= now &&
+          wDue.getTime() <= nextWindow &&
+          workflow.status !== "complete"
+        ) {
           rows.push({
             key: `workflow:${record.id}:${workflow.id}`,
             type: "workflow",
@@ -467,7 +484,12 @@ const UserDashboardV2 = () => {
     () =>
       projectRecords
         .filter((p) => p.status === "at-risk")
-        .map((p) => ({ id: p.id, name: p.name, summary: p.riskHint || p.summary, progress: p.progress })),
+        .map((p) => ({
+          id: p.id,
+          name: p.name,
+          summary: p.riskHint || p.summary,
+          progress: p.progress,
+        })),
     [projectRecords],
   );
 
@@ -527,24 +549,84 @@ const UserDashboardV2 = () => {
         if (entry.kind === "project") {
           const p = byProject.get(id);
           if (!p) return null;
-          return { key: entry.key, kind: "project" as const, title: p.name, subtitle: "", href: getProjectRoute(p.projectId), updatedAt: entry.visitedAt };
+          return {
+            key: entry.key,
+            kind: "project" as const,
+            title: p.name,
+            subtitle: "",
+            href: getProjectRoute(p.projectId),
+            updatedAt: entry.visitedAt,
+          };
         }
         if (entry.kind === "space") {
           const r = byRoom.get(id);
           if (!r) return null;
-          return { key: entry.key, kind: "space" as const, title: r.name, subtitle: "", href: `${ROUTES.SPACES}?room=${r.id}`, updatedAt: entry.visitedAt };
+          return {
+            key: entry.key,
+            kind: "space" as const,
+            title: r.name,
+            subtitle: "",
+            href: `${ROUTES.SPACES}?room=${r.id}`,
+            updatedAt: entry.visitedAt,
+          };
         }
         if (entry.kind === "jam") {
           const j = byJam.get(id);
           if (!j) return null;
-          return { key: entry.key, kind: "jam" as const, title: j.title, subtitle: "", href: `${ROUTES.JAMS}/${j.id}`, updatedAt: entry.visitedAt };
+          return {
+            key: entry.key,
+            kind: "jam" as const,
+            title: j.title,
+            subtitle: "",
+            href: `${ROUTES.JAMS}/${j.id}`,
+            updatedAt: entry.visitedAt,
+          };
         }
-        if (entry.kind === "doc") return { key: entry.key, kind: "doc" as const, title: "Document", subtitle: "", href: entry.href, updatedAt: entry.visitedAt };
-        if (entry.kind === "report") return { key: entry.key, kind: "report" as const, title: entry.key === "report:index" ? "Reports" : "Report", subtitle: "", href: entry.href, updatedAt: entry.visitedAt };
-        if (entry.kind === "schedule") return { key: entry.key, kind: "schedule" as const, title: "Schedules", subtitle: "", href: entry.href, updatedAt: entry.visitedAt };
-        if (entry.kind === "scribe") return { key: entry.key, kind: "scribe" as const, title: "Scribe", subtitle: "", href: ROUTES.ASK_SQUIRCLE, updatedAt: entry.visitedAt };
+        if (entry.kind === "doc")
+          return {
+            key: entry.key,
+            kind: "doc" as const,
+            title: "Document",
+            subtitle: "",
+            href: entry.href,
+            updatedAt: entry.visitedAt,
+          };
+        if (entry.kind === "report")
+          return {
+            key: entry.key,
+            kind: "report" as const,
+            title: entry.key === "report:index" ? "Reports" : "Report",
+            subtitle: "",
+            href: entry.href,
+            updatedAt: entry.visitedAt,
+          };
+        if (entry.kind === "schedule")
+          return {
+            key: entry.key,
+            kind: "schedule" as const,
+            title: "Schedules",
+            subtitle: "",
+            href: entry.href,
+            updatedAt: entry.visitedAt,
+          };
+        if (entry.kind === "scribe")
+          return {
+            key: entry.key,
+            kind: "scribe" as const,
+            title: "Squircle Intelligence",
+            subtitle: "",
+            href: ROUTES.ASK_SQUIRCLE,
+            updatedAt: entry.visitedAt,
+          };
         if (entry.kind === "standup" || entry.kind === "standup-session")
-          return { key: entry.key, kind: entry.kind, title: entry.kind === "standup" ? "Standup" : "Session", subtitle: "", href: entry.href, updatedAt: entry.visitedAt };
+          return {
+            key: entry.key,
+            kind: entry.kind,
+            title: entry.kind === "standup" ? "Standup" : "Session",
+            subtitle: "",
+            href: entry.href,
+            updatedAt: entry.visitedAt,
+          };
         return null;
       })
       .filter((e): e is DashboardVisitItem => Boolean(e))
@@ -555,7 +637,13 @@ const UserDashboardV2 = () => {
     projectQuery.isLoading || spacesQuery.isLoading || jamsQuery.isLoading;
 
   const briefingLine = React.useMemo(
-    () => buildBriefingLine({ overdueCount, dueTodayCount, atRiskProjects, myOpenTasks }),
+    () =>
+      buildBriefingLine({
+        overdueCount,
+        dueTodayCount,
+        atRiskProjects,
+        myOpenTasks,
+      }),
     [overdueCount, dueTodayCount, atRiskProjects, myOpenTasks],
   );
 
@@ -573,7 +661,10 @@ const UserDashboardV2 = () => {
         <p className="mt-1.5 max-w-xs text-[13px] text-muted-foreground">
           Switch to a workspace to load your projects and execution queue.
         </p>
-        <Link href={ROUTES.SWITCH_WORKSPACE} className={cn(buttonVariants({ size: "sm" }), "mt-5")}>
+        <Link
+          href={ROUTES.SWITCH_WORKSPACE}
+          className={cn(buttonVariants({ size: "sm" }), "mt-5")}
+        >
           Switch workspace
         </Link>
       </div>
@@ -584,7 +675,6 @@ const UserDashboardV2 = () => {
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-7 pb-8">
-
       {/* ── Masthead ─────────────────────────────────────────────────────────── */}
       <section className="flex flex-wrap items-start justify-between gap-5 pt-2">
         <div className="min-w-0">
@@ -639,11 +729,17 @@ const UserDashboardV2 = () => {
             <FilePenLine className="size-3.5" />
             New project
           </Button>
-          <Link href={ROUTES.SPACES} className={buttonVariants({ size: "sm", variant: "outline" })}>
+          <Link
+            href={ROUTES.SPACES}
+            className={buttonVariants({ size: "sm", variant: "outline" })}
+          >
             <MessageCircleMore className="size-3.5" />
             Spaces
           </Link>
-          <Link href={ROUTES.CALENDAR} className={buttonVariants({ size: "sm", variant: "outline" })}>
+          <Link
+            href={ROUTES.CALENDAR}
+            className={buttonVariants({ size: "sm", variant: "outline" })}
+          >
             <CalendarDays className="size-3.5" />
             Calendar
           </Link>
@@ -679,10 +775,8 @@ const UserDashboardV2 = () => {
 
       {/* ── Two-column layout divided by a vertical rule ─────────────────────── */}
       <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_19rem] xl:divide-x xl:divide-border/40">
-
         {/* Left column — primary content */}
         <div className="space-y-8 xl:pr-8">
-
           {/* ── My focus queue ──────────────────────────────────────────────── */}
           <section>
             <Rule label="Today's focus" />
@@ -698,7 +792,10 @@ const UserDashboardV2 = () => {
             {isLoading ? (
               <div className="mt-3 space-y-3">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="h-10 animate-pulse rounded-md bg-muted/40" />
+                  <div
+                    key={i}
+                    className="h-10 animate-pulse rounded-md bg-muted/40"
+                  />
                 ))}
               </div>
             ) : myOpenTasks.length ? (
@@ -706,15 +803,17 @@ const UserDashboardV2 = () => {
                 {myOpenTasks.slice(0, 8).map((task) => {
                   const dueDate = toDateValue(task.dueDate);
                   const isOverdue = Boolean(dueDate && dueDate.getTime() < now);
-                  const isToday = !isOverdue && (() => {
-                    if (!dueDate) return false;
-                    const today = new Date();
-                    return (
-                      dueDate.getFullYear() === today.getFullYear() &&
-                      dueDate.getMonth() === today.getMonth() &&
-                      dueDate.getDate() === today.getDate()
-                    );
-                  })();
+                  const isToday =
+                    !isOverdue &&
+                    (() => {
+                      if (!dueDate) return false;
+                      const today = new Date();
+                      return (
+                        dueDate.getFullYear() === today.getFullYear() &&
+                        dueDate.getMonth() === today.getMonth() &&
+                        dueDate.getDate() === today.getDate()
+                      );
+                    })();
 
                   return (
                     <Link
@@ -726,11 +825,13 @@ const UserDashboardV2 = () => {
                       <div
                         className={cn(
                           "size-2 shrink-0 rounded-full ring-2 ring-offset-2 ring-offset-background",
-                          TASK_STATUS_COLOR[task.status] ?? "bg-muted-foreground/40",
+                          TASK_STATUS_COLOR[task.status] ??
+                            "bg-muted-foreground/40",
                           task.status === "in-progress" && "ring-sky-500/30",
                           task.status === "review" && "ring-violet-500/30",
                           task.status === "blocked" && "ring-destructive/30",
-                          (task.status === "todo" || !task.status) && "ring-border/50",
+                          (task.status === "todo" || !task.status) &&
+                            "ring-border/50",
                         )}
                       />
 
@@ -752,7 +853,9 @@ const UserDashboardV2 = () => {
                             <div
                               className={cn(
                                 "h-full rounded-full",
-                                isOverdue ? "bg-destructive/60" : "bg-foreground/70",
+                                isOverdue
+                                  ? "bg-destructive/60"
+                                  : "bg-foreground/70",
                               )}
                               style={{ width: `${task.progress}%` }}
                             />
@@ -795,7 +898,10 @@ const UserDashboardV2 = () => {
                     {/* Date */}
                     <div className="w-14 shrink-0 text-right">
                       <p className="text-[12px] font-semibold tabular-nums text-foreground/75">
-                        {formatDate(item.date, { month: "short", day: "numeric" })}
+                        {formatDate(item.date, {
+                          month: "short",
+                          day: "numeric",
+                        })}
                       </p>
                       <p className="text-[9.5px] text-muted-foreground/55">
                         {formatDate(item.date, { weekday: "short" })}
@@ -841,7 +947,9 @@ const UserDashboardV2 = () => {
           <section>
             <Rule
               label={
-                atRiskProjects.length > 0 ? "Projects at risk" : "Project health"
+                atRiskProjects.length > 0
+                  ? "Projects at risk"
+                  : "Project health"
               }
             />
 
@@ -854,7 +962,9 @@ const UserDashboardV2 = () => {
                     className="-mx-2 block rounded-lg px-2 py-2.5 transition-colors hover:bg-accent/50"
                   >
                     <div className="flex items-center justify-between gap-3">
-                      <p className="line-clamp-1 text-[12.5px] font-medium">{project.name}</p>
+                      <p className="line-clamp-1 text-[12.5px] font-medium">
+                        {project.name}
+                      </p>
                       <span className="shrink-0 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[9.5px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-400">
                         At risk
                       </span>
@@ -867,7 +977,9 @@ const UserDashboardV2 = () => {
                     <div className="mt-1.5 h-1 overflow-hidden rounded-full bg-muted">
                       <div
                         className="h-full rounded-full bg-amber-500/65"
-                        style={{ width: `${Math.max(0, Math.min(100, project.progress))}%` }}
+                        style={{
+                          width: `${Math.max(0, Math.min(100, project.progress))}%`,
+                        }}
                       />
                     </div>
                   </Link>
@@ -881,7 +993,9 @@ const UserDashboardV2 = () => {
                   >
                     <div className="min-w-0 flex-1">
                       <div className="flex items-baseline justify-between gap-2">
-                        <p className="line-clamp-1 text-[12.5px] font-medium">{project.name}</p>
+                        <p className="line-clamp-1 text-[12.5px] font-medium">
+                          {project.name}
+                        </p>
                         <span className="shrink-0 text-[11px] font-semibold tabular-nums text-muted-foreground/70">
                           {project.progress}%
                         </span>
@@ -1001,7 +1115,10 @@ const UserDashboardV2 = () => {
             {isLoading ? (
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="h-7 w-24 animate-pulse rounded-md bg-muted/40" />
+                  <div
+                    key={i}
+                    className="h-7 w-24 animate-pulse rounded-md bg-muted/40"
+                  />
                 ))}
               </div>
             ) : recentVisitItems.length ? (
@@ -1069,21 +1186,33 @@ const UserDashboardV2 = () => {
               <div className="mt-3 space-y-1.5">
                 <Link
                   href={`${getProjectRoute(projectRecords[0].id)}?tab=risks-issues`}
-                  className={buttonVariants({ size: "sm", variant: "outline", className: "h-8 w-full justify-start text-[11.5px]" })}
+                  className={buttonVariants({
+                    size: "sm",
+                    variant: "outline",
+                    className: "h-8 w-full justify-start text-[11.5px]",
+                  })}
                 >
                   <TriangleAlert className="size-3.5" />
                   Review issues
                 </Link>
                 <Link
                   href={`${getProjectRoute(projectRecords[0].id)}?tab=workflows`}
-                  className={buttonVariants({ size: "sm", variant: "outline", className: "h-8 w-full justify-start text-[11.5px]" })}
+                  className={buttonVariants({
+                    size: "sm",
+                    variant: "outline",
+                    className: "h-8 w-full justify-start text-[11.5px]",
+                  })}
                 >
                   <GitBranch className="size-3.5" />
                   Open workflows
                 </Link>
                 <Link
                   href={ROUTES.CALENDAR}
-                  className={buttonVariants({ size: "sm", variant: "outline", className: "h-8 w-full justify-start text-[11.5px]" })}
+                  className={buttonVariants({
+                    size: "sm",
+                    variant: "outline",
+                    className: "h-8 w-full justify-start text-[11.5px]",
+                  })}
                 >
                   <CalendarDays className="size-3.5" />
                   View calendar

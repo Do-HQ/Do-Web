@@ -448,7 +448,7 @@ export function ProjectRisksIssuesTab({
 
     return Boolean(
       currentUserId &&
-        (creatorId === currentUserId || ownerUserId === currentUserId),
+      (creatorId === currentUserId || ownerUserId === currentUserId),
     );
   };
 
@@ -943,19 +943,19 @@ export function ProjectRisksIssuesTab({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => onViewChange("risk")}
-                  className={getViewChipClass(view === "risk")}
+                  onClick={() => onViewChange("issue")}
+                  className={getViewChipClass(view === "issue")}
                 >
-                  Risks
+                  Issues
                 </Button>
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  onClick={() => onViewChange("issue")}
-                  className={getViewChipClass(view === "issue")}
+                  onClick={() => onViewChange("risk")}
+                  className={getViewChipClass(view === "risk")}
                 >
-                  Issues
+                  Risks
                 </Button>
               </div>
 

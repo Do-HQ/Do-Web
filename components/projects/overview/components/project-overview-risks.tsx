@@ -55,7 +55,9 @@ export function ProjectOverviewRisks({
     <section className="overflow-hidden rounded-xl border border-border/35 bg-card/70 shadow-xs">
       <div className="flex items-center justify-between gap-3 border-b border-border/35 px-3 py-2.5 md:px-4">
         <div className="min-w-0">
-          <h2 className="text-[14px] font-semibold md:text-[15px]">Risks & Issues</h2>
+          <h2 className="text-[14px] font-semibold md:text-[15px]">
+            Risks & Issues
+          </h2>
           <p className="text-muted-foreground line-clamp-1 text-[11px] leading-5">
             The sharpest blockers in the current scope.
           </p>
@@ -126,7 +128,9 @@ export function ProjectOverviewRisks({
                       {item.pipelineId ? (
                         <>
                           <span className="opacity-60">•</span>
-                          <span className="truncate">{formatPipelineLabel(item.pipelineId)}</span>
+                          <span className="truncate">
+                            {formatPipelineLabel(item.pipelineId)}
+                          </span>
                         </>
                       ) : null}
                     </div>
@@ -158,7 +162,9 @@ export function ProjectOverviewRisks({
                         Mark resolved
                       </DropdownMenuItem>
                       <DropdownMenuItem
-                        disabled={!canEdit || isClosed || item.state !== "resolved"}
+                        disabled={
+                          !canEdit || isClosed || item.state !== "resolved"
+                        }
                         onClick={() => onAction?.("close", item)}
                       >
                         <CircleOff className="size-3.5" />

@@ -110,7 +110,7 @@ const ScribeWidget = () => {
         </div>
 
         {/* Panel body — only mount when visible to avoid running
-            AI/billing hooks on every page regardless of whether Scribe is open */}
+            AI/billing hooks on every page regardless of whether Squircle Intelligence is open */}
         <div className="min-h-0 flex-1 overflow-hidden bg-background">
           {showScribeWidget ? <AskSquirclePage embedded /> : null}
         </div>
