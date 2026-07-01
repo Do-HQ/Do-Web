@@ -399,12 +399,12 @@ export function ProjectOverviewWorkflowTable({
         <Table className="table-fixed">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
-              <TableHead className="w-[33%]">Name</TableHead>
+              <TableHead className="w-[27%]">Name</TableHead>
               <TableHead className="w-[14%]">Owner</TableHead>
               <TableHead className="w-[14%]">Team</TableHead>
               <TableHead className="w-[10%]">Status</TableHead>
               <TableHead className="w-[15%]">Progress</TableHead>
-              <TableHead className="w-[7%]">Due</TableHead>
+              <TableHead className="w-[13%]">Due</TableHead>
               <TableHead className="w-[7%]">Updated</TableHead>
               <TableHead className="w-10 text-right"> </TableHead>
             </TableRow>
@@ -423,11 +423,7 @@ export function ProjectOverviewWorkflowTable({
 
               return (
                 <Fragment key={workflow.id}>
-                  <TableRow
-                    className={cn(
-                      "h-10 bg-background/40 [&>td]:py-2",
-                    )}
-                  >
+                  <TableRow className={cn("h-10 bg-background/40 [&>td]:py-2")}>
                     <TableCell className="align-top">
                       <div className="flex min-w-0 items-center gap-2">
                         <button
@@ -621,9 +617,7 @@ export function ProjectOverviewWorkflowTable({
                         return (
                           <TableRow
                             key={task.id}
-                            className={cn(
-                              "h-9 bg-muted/10 [&>td]:py-1.5",
-                            )}
+                            className={cn("h-9 bg-muted/10 [&>td]:py-1.5")}
                           >
                             <TableCell className="align-top">
                               <div className="flex min-w-0 items-center gap-2 pl-7">
@@ -638,9 +632,9 @@ export function ProjectOverviewWorkflowTable({
                                 </div>
                                 <Badge
                                   variant="outline"
-                                  className="hidden font-medium sm:inline-flex"
+                                  className="hidden font-medium sm:inline-flex capitalize"
                                 >
-                                  {task.priority}
+                                  {task.priority?.toLowerCase()}
                                 </Badge>
                               </div>
                             </TableCell>

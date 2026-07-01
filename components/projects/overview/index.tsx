@@ -93,6 +93,19 @@ type WorkflowDeleteDialogState = {
   workflowName?: string;
 } | null;
 
+type TaskDeleteDialogState = {
+  workflowId: string;
+  taskId: string;
+  taskName?: string;
+} | null;
+
+type SubtaskDeleteDialogState = {
+  workflowId: string;
+  taskId: string;
+  subtaskId: string;
+  subtaskName?: string;
+} | null;
+
 function buildDueWindow(startDate: string, targetEndDate: string) {
   if (!startDate || !targetEndDate) {
     return "No date range";
@@ -553,6 +566,10 @@ export default function ProjectOverview({
     useState<WorkflowArchiveDialogState>(null);
   const [workflowDeleteDialogState, setWorkflowDeleteDialogState] =
     useState<WorkflowDeleteDialogState>(null);
+  const [taskDeleteDialogState, setTaskDeleteDialogState] =
+    useState<TaskDeleteDialogState>(null);
+  const [subtaskDeleteDialogState, setSubtaskDeleteDialogState] =
+    useState<SubtaskDeleteDialogState>(null);
   const canManageProjectInvites = workspacePermissions.canManageProjectInvites;
   const canArchiveProjects = workspacePermissions.canArchiveProjects;
   const canCreateWorkflows = workspacePermissions.canCreateWorkflows;
@@ -1981,31 +1998,40 @@ export default function ProjectOverview({
     }
 
     if (label === "Delete task") {
-      if (
-        !window.confirm(
-          `Delete ${taskName ?? "this task"}? This cannot be undone.`,
-        )
-      ) {
-        return;
-      }
-
-      deleteWorkspaceProjectTaskMutation.mutate(
-        {
-          workspaceId,
-          projectId,
-          workflowId,
-          taskId,
-        },
-        {
-          onSuccess: () => {
-            toast(`Task deleted: ${taskName ?? "Task"}`);
-          },
-        },
-      );
+      setTaskDeleteDialogState({
+        workflowId,
+        taskId,
+        taskName,
+      });
       return;
     }
 
     handlePlaceholderAction(label, taskName);
+  };
+
+  const handleTaskDeleteMutation = () => {
+    if (!workspaceId || !taskDeleteDialogState?.taskId) {
+      setTaskDeleteDialogState(null);
+      return;
+    }
+    const taskName = taskDeleteDialogState?.taskName;
+    const taskId: string = taskDeleteDialogState?.taskId;
+    const workflowId: string = taskDeleteDialogState?.workflowId;
+
+    deleteWorkspaceProjectTaskMutation.mutate(
+      {
+        workspaceId,
+        projectId,
+        taskId,
+        workflowId,
+      },
+      {
+        onSuccess: () => {
+          setTaskDeleteDialogState(null);
+          toast(`Task deleted: ${taskName ?? "Task"}`);
+        },
+      },
+    );
   };
 
   const handleSubtaskAction = (
@@ -2021,32 +2047,29 @@ export default function ProjectOverview({
     }
 
     if (label === "Delete subtask") {
-      if (
-        !window.confirm(
-          `Delete ${subtaskName ?? "this subtask"}? This cannot be undone.`,
-        )
-      ) {
-        return;
-      }
-
-      deleteWorkspaceProjectSubtaskMutation.mutate(
-        {
-          workspaceId,
-          projectId,
-          workflowId,
-          taskId,
-          subtaskId,
-        },
-        {
-          onSuccess: () => {
-            toast(`Subtask deleted: ${subtaskName ?? "Subtask"}`);
-          },
-        },
-      );
+      setSubtaskDeleteDialogState({ workflowId, taskId, subtaskId, subtaskName });
       return;
     }
 
     handlePlaceholderAction(label, subtaskName);
+  };
+
+  const handleSubtaskDeleteMutation = () => {
+    if (!workspaceId || !subtaskDeleteDialogState?.subtaskId) {
+      setSubtaskDeleteDialogState(null);
+      return;
+    }
+    const { subtaskName, subtaskId, taskId, workflowId } = subtaskDeleteDialogState;
+
+    deleteWorkspaceProjectSubtaskMutation.mutate(
+      { workspaceId, projectId, workflowId, taskId, subtaskId },
+      {
+        onSuccess: () => {
+          toast(`Subtask deleted: ${subtaskName ?? "Subtask"}`);
+          setSubtaskDeleteDialogState(null);
+        },
+      },
+    );
   };
 
   const handleRiskRecordSynced = (
@@ -2604,6 +2627,86 @@ export default function ProjectOverview({
               onClick={handleConfirmDeleteWorkflow}
             >
               Delete workflow
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(taskDeleteDialogState)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setTaskDeleteDialogState(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete task</DialogTitle>
+            <DialogDescription>
+              Delete{" "}
+              <span className="font-medium text-foreground">
+                {taskDeleteDialogState?.taskName ?? "this task"}
+              </span>
+              ? This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setTaskDeleteDialogState(null)}
+              disabled={deleteWorkspaceProjectTaskMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              loading={deleteWorkspaceProjectTaskMutation.isPending}
+              onClick={handleTaskDeleteMutation}
+            >
+              Delete task
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(subtaskDeleteDialogState)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSubtaskDeleteDialogState(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete subtask</DialogTitle>
+            <DialogDescription>
+              Delete{" "}
+              <span className="font-medium text-foreground">
+                {subtaskDeleteDialogState?.subtaskName ?? "this subtask"}
+              </span>
+              ? This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setSubtaskDeleteDialogState(null)}
+              disabled={deleteWorkspaceProjectSubtaskMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              loading={deleteWorkspaceProjectSubtaskMutation.isPending}
+              onClick={handleSubtaskDeleteMutation}
+            >
+              Delete subtask
             </Button>
           </DialogFooter>
         </DialogContent>

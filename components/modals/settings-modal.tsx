@@ -112,6 +112,21 @@ const SettingsModal = () => {
       <DialogContent
         data-tour="settings-modal-shell"
         className="overflow-hidden p-0 md:max-h-205 md:max-w-275 lg:max-w-270"
+        onInteractOutside={(e) => {
+          const target = (e as CustomEvent<{ originalEvent: PointerEvent }>).detail
+            ?.originalEvent?.target as Element | null;
+          if (!target) return;
+          // Keep the settings modal open when the user interacts with any
+          // portaled Radix child: dropdown menus, selects, popovers, tooltips,
+          // sub-dialogs (content or their backdrop overlay).
+          if (
+            target.closest("[data-radix-popper-content-wrapper]") ||
+            target.closest("[data-slot='dialog-content']") ||
+            target.closest("[data-slot='dialog-overlay']")
+          ) {
+            e.preventDefault();
+          }
+        }}
       >
         <DialogTitle className="sr-only">Settings</DialogTitle>
         <DialogDescription className="sr-only">
