@@ -237,7 +237,7 @@ export function ProjectDosTable({
                       </TableCell>
                       <TableCell>
                         <Badge
-                          variant="outline "
+                          variant="outline"
                           className={cn(
                             "capitalize",
                             PRIORITY_STYLES[task.priority],
