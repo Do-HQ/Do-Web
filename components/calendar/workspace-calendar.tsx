@@ -886,203 +886,259 @@ const WorkspaceCalendar = () => {
 
   const renderWeekOrDayView = (mode: "week" | "day") => {
     const days = mode === "day" ? [startOfDay(anchorDate)] : weekDays;
-    const minCalendarWidth = mode === "week" ? 980 : 420;
+    const minW = mode === "week" ? 700 : 360;
+    const TIME_COL_W = 52;
+    const HOUR_H = 64; // px per hour — drives all positioning
     const slotCount = END_HOUR - START_HOUR;
-    const dayStartMinutes = START_HOUR * 60;
-    const dayEndMinutes = END_HOUR * 60;
-    const totalMinutes = dayEndMinutes - dayStartMinutes;
+    const gridH = slotCount * HOUR_H;
+    const dayStartMins = START_HOUR * 60;
+    const dayEndMins = END_HOUR * 60;
+
     const allDayByDay = new Map<string, WorkspaceCalendarEvent[]>();
     const timedByDay = new Map<string, WorkspaceCalendarEvent[]>();
-
     days.forEach((day) => {
       const key = dateKey(day);
-      allDayByDay.set(
-        key,
-        sortEvents(
-          visibleEvents.filter(
-            (event) => intersectsDay(event, day) && event.allDay,
-          ),
-        ),
-      );
-      timedByDay.set(
-        key,
-        sortEvents(
-          visibleEvents.filter(
-            (event) => intersectsDay(event, day) && !event.allDay,
-          ),
-        ),
-      );
+      allDayByDay.set(key, sortEvents(visibleEvents.filter((e) => intersectsDay(e, day) && e.allDay)));
+      timedByDay.set(key, sortEvents(visibleEvents.filter((e) => intersectsDay(e, day) && !e.allDay)));
     });
+
+    // Cluster-aware overlap layout: non-overlapping events get full column width.
+    type EventLayout = {
+      event: WorkspaceCalendarEvent;
+      col: number;
+      totalCols: number;
+      top: number;
+      height: number;
+    };
+    const layoutDay = (events: WorkspaceCalendarEvent[]): EventLayout[] => {
+      if (!events.length) return [];
+      const sorted = [...events].sort((a, b) => a.start.getTime() - b.start.getTime());
+      const result: EventLayout[] = [];
+      let i = 0;
+      while (i < sorted.length) {
+        // Find the boundary of this overlapping cluster
+        let clusterEndMins = sorted[i].end.getHours() * 60 + sorted[i].end.getMinutes();
+        let j = i + 1;
+        while (j < sorted.length) {
+          const nextStartMins = sorted[j].start.getHours() * 60 + sorted[j].start.getMinutes();
+          if (nextStartMins < clusterEndMins) {
+            clusterEndMins = Math.max(clusterEndMins, sorted[j].end.getHours() * 60 + sorted[j].end.getMinutes());
+            j++;
+          } else break;
+        }
+        // Assign columns within this cluster
+        const cluster = sorted.slice(i, j);
+        const colEnds: number[] = [];
+        const clusterAssignments: Array<[WorkspaceCalendarEvent, number]> = [];
+        for (const ev of cluster) {
+          const sMins = Math.max(dayStartMins, ev.start.getHours() * 60 + ev.start.getMinutes());
+          const eMins = Math.min(dayEndMins, Math.max(sMins + 30, ev.end.getHours() * 60 + ev.end.getMinutes()));
+          let col = colEnds.findIndex((end) => end <= sMins);
+          if (col === -1) { col = colEnds.length; colEnds.push(0); }
+          colEnds[col] = eMins;
+          clusterAssignments.push([ev, col]);
+        }
+        const numCols = colEnds.length;
+        for (const [ev, col] of clusterAssignments) {
+          const sMins = Math.max(dayStartMins, ev.start.getHours() * 60 + ev.start.getMinutes());
+          const eMins = Math.min(dayEndMins, Math.max(sMins + 30, ev.end.getHours() * 60 + ev.end.getMinutes()));
+          result.push({
+            event: ev,
+            col,
+            totalCols: numCols,
+            top: ((sMins - dayStartMins) / 60) * HOUR_H,
+            height: Math.max(HOUR_H / 2, ((eMins - sMins) / 60) * HOUR_H),
+          });
+        }
+        i = j;
+      }
+      return result;
+    };
+
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const nowTop = ((nowMins - dayStartMins) / 60) * HOUR_H;
+    const showNow = nowMins >= dayStartMins && nowMins < dayEndMins;
 
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <div className="min-h-0 flex-1 overflow-auto">
-          <div style={{ minWidth: `${minCalendarWidth}px` }}>
-            <div
-              className="bg-muted/35 grid rounded-t-lg px-1"
-              style={{
-                gridTemplateColumns: `56px repeat(${days.length}, minmax(0, 1fr))`,
-              }}
-            >
-              <div className="text-muted-foreground px-2 py-1.5 text-[11px]">
-                All day
-              </div>
-              {days.map((day) => {
-                const key = dateKey(day);
-                const expansionKey = `${mode}-${key}`;
-                const allDayEvents = allDayByDay.get(key) || [];
-                const isExpanded = expandedAllDayKeys.includes(expansionKey);
-                const visibleAllDayEvents = isExpanded
-                  ? allDayEvents
-                  : allDayEvents.slice(0, 2);
-                const isToday = isSameDay(day, today);
-                return (
-                  <div key={key} className="px-2 py-1.5">
-                    <div className="mb-1.5 flex items-center justify-between">
-                      <p className="text-[11px] font-medium">
-                        {mode === "day"
-                          ? formatDayHeading(day)
-                          : `${WEEKDAY_LABELS[day.getDay() === 0 ? 6 : day.getDay() - 1]} ${day.getDate()}`}
-                      </p>
-                      {isToday ? (
-                        <Badge className="h-5 text-[10px]">Today</Badge>
-                      ) : null}
-                    </div>
-                    <div className="space-y-1">
-                      {visibleAllDayEvents.map((event) =>
-                        renderEventChip(event, true),
-                      )}
-                      {allDayEvents.length > 2 ? (
-                        <button
-                          type="button"
-                          onClick={() => toggleAllDayExpansion(expansionKey)}
-                          className="text-muted-foreground hover:text-foreground text-[10px] underline-offset-2 hover:underline"
-                        >
-                          {isExpanded
-                            ? "Show less"
-                            : `+${allDayEvents.length - 2} more all-day`}
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div
-              className="bg-muted/20 grid h-full min-h-[42rem] gap-px"
-              style={{
-                gridTemplateColumns: `56px repeat(${days.length}, minmax(0, 1fr))`,
-              }}
-            >
+          <div style={{ minWidth: minW }}>
+            {/* Sticky all-day + column header */}
+            <div className="sticky top-0 z-10 border-b border-border/25 bg-card">
               <div
-                className="bg-background/80 grid min-h-0"
-                style={{
-                  gridTemplateRows: `repeat(${slotCount}, minmax(3.25rem, 1fr))`,
-                }}
+                className="grid"
+                style={{ gridTemplateColumns: `${TIME_COL_W}px repeat(${days.length}, minmax(0, 1fr))` }}
               >
-                {Array.from({ length: slotCount }, (_, index) => {
-                  const hour = START_HOUR + index;
+                <div className="flex items-end justify-end px-2 pb-2 text-[10px] text-muted-foreground">
+                  All day
+                </div>
+                {days.map((day) => {
+                  const key = dateKey(day);
+                  const expansionKey = `${mode}-${key}`;
+                  const allDayEvents = allDayByDay.get(key) || [];
+                  const isExpanded = expandedAllDayKeys.includes(expansionKey);
+                  const visibleAllDay = isExpanded ? allDayEvents : allDayEvents.slice(0, 2);
+                  const isToday = isSameDay(day, today);
                   return (
                     <div
-                      key={`hour-${hour}`}
-                      className="text-muted-foreground border-muted/50 border-b px-2 pt-1 text-[10px]"
+                      key={key}
+                      className={cn(
+                        "border-l border-border/20 px-2 py-2",
+                        isToday && "bg-primary/[0.04]",
+                      )}
                     >
-                      {new Intl.DateTimeFormat("en-US", {
-                        hour: "numeric",
-                      }).format(withHour(today, hour))}
+                      <div className="mb-1.5 flex items-center gap-1.5">
+                        {mode === "week" ? (
+                          <>
+                            <span className="text-[10.5px] font-medium text-muted-foreground">
+                              {WEEKDAY_LABELS[day.getDay() === 0 ? 6 : day.getDay() - 1]}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => focusDayView(day)}
+                              className={cn(
+                                "flex size-6 items-center justify-center rounded-full text-[11px] font-semibold transition-colors",
+                                isToday
+                                  ? "bg-primary text-primary-foreground"
+                                  : "text-foreground/75 hover:bg-muted",
+                              )}
+                            >
+                              {day.getDate()}
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span className="text-[12px] font-semibold">
+                              {formatDayHeading(day)}
+                            </span>
+                            {isToday ? (
+                              <Badge className="h-4.5 text-[10px]">Today</Badge>
+                            ) : null}
+                          </>
+                        )}
+                      </div>
+                      <div className="space-y-0.5">
+                        {visibleAllDay.map((event) => renderEventChip(event, true))}
+                        {allDayEvents.length > 2 ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleAllDayExpansion(expansionKey)}
+                            className="text-[10px] text-muted-foreground underline-offset-2 hover:underline"
+                          >
+                            {isExpanded ? "Show less" : `+${allDayEvents.length - 2} more`}
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Time grid */}
+            <div
+              className="grid"
+              style={{ gridTemplateColumns: `${TIME_COL_W}px repeat(${days.length}, minmax(0, 1fr))` }}
+            >
+              {/* Hour labels */}
+              <div
+                className="relative border-r border-border/20"
+                style={{ height: gridH }}
+              >
+                {Array.from({ length: slotCount }, (_, i) => {
+                  const hour = START_HOUR + i;
+                  return (
+                    <div
+                      key={hour}
+                      className="absolute flex w-full items-start justify-end pr-2 text-[10px] text-muted-foreground"
+                      style={{ top: i * HOUR_H, height: HOUR_H }}
+                    >
+                      <span className="-mt-2">
+                        {new Intl.DateTimeFormat("en-US", { hour: "numeric" }).format(
+                          withHour(today, hour),
+                        )}
+                      </span>
                     </div>
                   );
                 })}
               </div>
 
+              {/* Day columns */}
               {days.map((day) => {
                 const key = dateKey(day);
-                const timedEvents = timedByDay.get(key) || [];
-
+                const isToday = isSameDay(day, today);
+                const layouts = layoutDay(timedByDay.get(key) || []);
                 return (
                   <div
-                    key={`timeline-${key}`}
-                    className="bg-background/80 relative grid min-h-0 overflow-hidden"
-                    style={{
-                      gridTemplateRows: `repeat(${slotCount}, minmax(3.25rem, 1fr))`,
-                    }}
+                    key={`col-${key}`}
+                    className={cn(
+                      "relative border-l border-border/20",
+                      isToday && "bg-primary/[0.025]",
+                    )}
+                    style={{ height: gridH }}
                   >
-                    {Array.from({ length: slotCount }, (_, index) => (
+                    {/* Hour lines */}
+                    {Array.from({ length: slotCount }, (_, i) => (
                       <div
-                        key={`${key}-slot-${index}`}
-                        className="border-muted/45 border-b"
+                        key={`hr-${i}`}
+                        className="pointer-events-none absolute inset-x-0 border-t border-border/20"
+                        style={{ top: i * HOUR_H }}
+                      />
+                    ))}
+                    {/* Half-hour lines */}
+                    {Array.from({ length: slotCount }, (_, i) => (
+                      <div
+                        key={`hf-${i}`}
+                        className="pointer-events-none absolute inset-x-0 border-t border-dashed border-border/10"
+                        style={{ top: i * HOUR_H + HOUR_H / 2 }}
                       />
                     ))}
 
-                    {timedEvents.map((event) => {
-                      const startMinutes =
-                        event.start.getHours() * 60 + event.start.getMinutes();
-                      const endMinutes =
-                        event.end.getHours() * 60 + event.end.getMinutes();
-                      const clampedStart = Math.max(
-                        dayStartMinutes,
-                        startMinutes,
-                      );
-                      const clampedEnd = Math.min(
-                        dayEndMinutes,
-                        Math.max(clampedStart + 30, endMinutes),
-                      );
-                      const topPercent =
-                        ((clampedStart - dayStartMinutes) / totalMinutes) * 100;
-                      const heightPercent = Math.max(
-                        (30 / totalMinutes) * 100,
-                        ((clampedEnd - clampedStart) / totalMinutes) * 100,
-                      );
-                      const meta = EVENT_TYPE_META[event.type];
+                    {/* Now indicator — today's column only */}
+                    {showNow && isToday ? (
+                      <div
+                        className="pointer-events-none absolute inset-x-0 z-10 flex items-center"
+                        style={{ top: nowTop - 1 }}
+                      >
+                        <span className="-ml-[3px] size-[6px] shrink-0 rounded-full bg-primary" />
+                        <div className="h-0.5 flex-1 bg-primary opacity-70" />
+                      </div>
+                    ) : null}
 
+                    {/* Events */}
+                    {layouts.map(({ event, col, totalCols, top, height }) => {
+                      const meta = EVENT_TYPE_META[event.type];
+                      const GAP = 2;
                       return (
                         <button
                           key={event.id}
                           type="button"
                           className={cn(
-                            "absolute right-1 left-1 rounded-md px-2 py-1 text-left shadow-[inset_0_0_0_1px_hsl(var(--border)/0.28)]",
+                            "absolute overflow-hidden rounded-md px-2 py-1 text-left shadow-[inset_0_0_0_1px_hsl(var(--border)/0.22)] transition-opacity hover:opacity-90",
                             meta.chipClassName,
                           )}
                           style={{
-                            top: `${topPercent}%`,
-                            height: `${heightPercent}%`,
+                            top,
+                            height,
+                            left: `calc(${(col / totalCols) * 100}% + ${GAP}px)`,
+                            width: `calc(${(1 / totalCols) * 100}% - ${GAP * 2}px)`,
                           }}
                           onClick={() => {
                             setSelectedEventId(event.id);
                             setSelectedDate(day);
                           }}
                         >
-                          <p className="truncate text-[11px] font-medium">
+                          <p className="truncate text-[11px] font-medium leading-4">
                             {event.title}
                           </p>
-                          <p className="truncate text-[10px] opacity-80">
-                            {formatTime(event.start)} - {formatTime(event.end)}
-                          </p>
+                          {height >= HOUR_H / 2 + 14 ? (
+                            <p className="truncate text-[10px] opacity-75">
+                              {formatTime(event.start)} – {formatTime(event.end)}
+                            </p>
+                          ) : null}
                         </button>
                       );
                     })}
-
-                    {(() => {
-                      const nowMinutes = now.getHours() * 60 + now.getMinutes();
-                      const nowTopPercent =
-                        ((nowMinutes - dayStartMinutes) / totalMinutes) * 100;
-                      const showNowIndicator =
-                        nowTopPercent >= 0 && nowTopPercent <= 100;
-
-                      if (!showNowIndicator) {
-                        return null;
-                      }
-
-                      return (
-                        <div
-                          className="pointer-events-none absolute right-1 left-1 rounded-md border border-dashed border-primary/45"
-                          style={{
-                            top: `${nowTopPercent}%`,
-                          }}
-                        />
-                      );
-                    })()}
                   </div>
                 );
               })}
@@ -1099,23 +1155,23 @@ const WorkspaceCalendar = () => {
     const monthEventCounts = Array.from({ length: 12 }, (_, monthIndex) => {
       const monthStart = new Date(year, monthIndex, 1);
       const monthEnd = endOfMonth(monthStart);
-      const count = visibleEvents.filter(
+      return visibleEvents.filter(
         (event) =>
           event.start.getTime() <= monthEnd.getTime() &&
           event.end.getTime() >= monthStart.getTime(),
       ).length;
-
-      return count;
     });
 
     return (
       <ScrollArea className="min-h-0 flex-1">
-        <div className="grid auto-rows-fr grid-cols-1 gap-2 p-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-2 p-2.5 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
           {Array.from({ length: 12 }, (_, monthIndex) => {
             const monthDate = new Date(year, monthIndex, 1);
             const monthDays = buildMonthGrid(monthDate);
             const monthCurrent = monthDate.getMonth();
             const monthCount = monthEventCounts[monthIndex];
+            const isCurrentMonth =
+              monthIndex === today.getMonth() && year === today.getFullYear();
             const monthTypeCounts = visibleEvents.reduce(
               (counts, event) => {
                 if (
@@ -1136,62 +1192,115 @@ const WorkspaceCalendar = () => {
               <button
                 key={`year-month-${monthIndex}`}
                 type="button"
-                className="bg-muted/25 hover:bg-muted/45 flex h-full min-h-[13rem] flex-col rounded-lg p-2.5 text-left transition-colors"
+                className={cn(
+                  "flex flex-col rounded-lg p-2.5 text-left transition-colors",
+                  isCurrentMonth
+                    ? "bg-primary/[0.05] ring-1 ring-primary/25 hover:bg-primary/[0.08]"
+                    : "bg-muted/25 hover:bg-muted/40",
+                )}
                 onClick={() => {
                   setAnchorDate(monthDate);
                   setView("month");
                 }}
               >
-                <div className="mb-2 flex items-center justify-between">
-                  <p className="text-sm font-medium">
+                <div className="mb-2.5 flex items-center justify-between">
+                  <p className={cn(
+                    "text-[13px] font-semibold",
+                    isCurrentMonth && "text-primary",
+                  )}>
                     {YEAR_MONTH_LABELS[monthIndex]}
                   </p>
-                  <Badge variant="outline" className="h-5 text-[10px]">
-                    {monthCount} events
-                  </Badge>
+                  {monthCount > 0 ? (
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "h-4.5 text-[10px]",
+                        isCurrentMonth && "border-primary/30 text-primary",
+                      )}
+                    >
+                      {monthCount}
+                    </Badge>
+                  ) : null}
                 </div>
-                <div className="grid grid-cols-7 gap-1">
+
+                {/* Weekday labels */}
+                <div className="mb-0.5 grid grid-cols-7">
+                  {WEEKDAY_LABELS.map((label) => (
+                    <div
+                      key={label}
+                      className="text-center text-[9px] font-medium text-muted-foreground/60"
+                    >
+                      {label[0]}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Day grid */}
+                <div className="grid grid-cols-7 gap-y-0.5">
                   {monthDays.map((day) => {
-                    const hasEvents = visibleEvents.some((event) =>
+                    const dayEvents = visibleEvents.filter((event) =>
                       intersectsDay(event, day),
                     );
                     const inMonth = day.getMonth() === monthCurrent;
-
+                    const isDayToday = isSameDay(day, today);
                     return (
                       <div
                         key={`${monthIndex}-${dateKey(day)}`}
-                        className={cn(
-                          "flex h-6 items-center justify-center rounded text-[10px]",
-                          inMonth
-                            ? "text-foreground"
-                            : "text-muted-foreground/45",
-                          hasEvents && inMonth && "bg-primary/10 text-primary",
-                        )}
+                        className="flex flex-col items-center gap-0.5"
                       >
-                        {day.getDate()}
+                        <span
+                          className={cn(
+                            "flex size-5 items-center justify-center rounded-full text-[9px]",
+                            !inMonth && "text-muted-foreground/30",
+                            inMonth && !isDayToday && "text-foreground/75",
+                            isDayToday &&
+                              "bg-primary text-primary-foreground font-semibold",
+                          )}
+                        >
+                          {day.getDate()}
+                        </span>
+                        {inMonth && dayEvents.length > 0 ? (
+                          <div className="flex gap-px">
+                            {dayEvents.slice(0, 3).map((ev, di) => (
+                              <span
+                                key={di}
+                                className={cn(
+                                  "size-[3px] rounded-full",
+                                  EVENT_TYPE_META[ev.type].dotClassName,
+                                )}
+                              />
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="h-[3px]" />
+                        )}
                       </div>
                     );
                   })}
                 </div>
-                <div className="mt-auto flex flex-wrap gap-1.5 pt-2">
-                  {(Object.keys(EVENT_TYPE_META) as CalendarEventType[]).map(
-                    (type) =>
-                      monthTypeCounts[type] > 0 ? (
-                        <span
-                          key={`${monthIndex}-${type}-count`}
-                          className="text-muted-foreground inline-flex items-center gap-1 text-[10px]"
-                        >
+
+                {/* Type breakdown */}
+                {monthCount > 0 ? (
+                  <div className="mt-auto flex flex-wrap gap-1.5 pt-2.5">
+                    {(Object.keys(EVENT_TYPE_META) as CalendarEventType[]).map(
+                      (type) =>
+                        monthTypeCounts[type] > 0 ? (
                           <span
-                            className={cn(
-                              "size-1.5 rounded-full",
-                              EVENT_TYPE_META[type].dotClassName,
-                            )}
-                          />
-                          {monthTypeCounts[type]} {EVENT_TYPE_META[type].label}
-                        </span>
-                      ) : null,
-                  )}
-                </div>
+                            key={`${monthIndex}-${type}-count`}
+                            className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"
+                          >
+                            <span
+                              className={cn(
+                                "size-1.5 rounded-full",
+                                EVENT_TYPE_META[type].dotClassName,
+                              )}
+                            />
+                            {monthTypeCounts[type]} {EVENT_TYPE_META[type].label}
+                          </span>
+                        ) : null,
+                    )}
+                  </div>
+                ) : null}
               </button>
             );
           })}
@@ -1222,60 +1331,88 @@ const WorkspaceCalendar = () => {
 
     return (
       <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-2.5 p-2.5">
-          {agendaGroups.map((group) => (
-            <section key={group.key} className="bg-muted/20 rounded-lg">
-              <header className="bg-accent/40 px-2.5 py-1.5">
-                <p className="text-[12px] font-semibold">
-                  {formatDayHeading(group.date)}
-                </p>
-              </header>
-              <div className="divide-muted-foreground/10 divide-y">
-                {group.events.map((event) => {
-                  const meta = EVENT_TYPE_META[event.type];
-                  const Icon = meta.icon;
-
-                  return (
-                    <div
-                      key={event.id}
-                      className="flex items-center gap-3 px-3 py-2"
-                    >
-                      <span
-                        className={cn(
-                          "h-6 w-1 rounded-full",
-                          meta.laneClassName,
-                        )}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[12px] font-medium">
-                          {event.title}
-                        </p>
-                        <p className="text-muted-foreground truncate text-[11px]">
-                          {event.projectName} •{" "}
-                          {event.allDay
-                            ? "All day"
-                            : `${formatTime(event.start)} - ${formatTime(event.end)}`}
-                        </p>
-                      </div>
-                      <Badge variant="outline" className="h-5 text-[10px]">
-                        <Icon className="size-3" />
-                        {meta.label}
-                      </Badge>
-                      <Link
-                        href={event.href}
-                        className={cn(
-                          buttonVariants({ variant: "ghost", size: "sm" }),
-                          "h-7 text-[11px]",
-                        )}
+        <div className="space-y-1.5 p-2.5">
+          {agendaGroups.map((group) => {
+            const isGroupToday = isSameDay(group.date, today);
+            return (
+              <section key={group.key} className="rounded-lg overflow-hidden border border-border/20">
+                <button
+                  type="button"
+                  onClick={() => focusDayView(group.date)}
+                  className={cn(
+                    "flex w-full items-center gap-2 px-2.5 py-1.5 text-left transition-colors hover:bg-accent/50",
+                    isGroupToday
+                      ? "bg-primary/[0.07]"
+                      : "bg-muted/30",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "text-[12px] font-semibold",
+                      isGroupToday && "text-primary",
+                    )}
+                  >
+                    {formatDayHeading(group.date)}
+                  </span>
+                  {isGroupToday ? (
+                    <Badge className="h-4.5 text-[10px]">Today</Badge>
+                  ) : null}
+                  <span className="ml-auto text-[10px] text-muted-foreground">
+                    {group.events.length} item{group.events.length === 1 ? "" : "s"}
+                  </span>
+                </button>
+                <div className="divide-y divide-border/15">
+                  {group.events.map((event) => {
+                    const meta = EVENT_TYPE_META[event.type];
+                    const Icon = meta.icon;
+                    return (
+                      <button
+                        key={event.id}
+                        type="button"
+                        className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/25"
+                        onClick={() => {
+                          setSelectedEventId(event.id);
+                          focusDayView(event.start);
+                        }}
                       >
-                        Open
-                      </Link>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
+                        <span
+                          className={cn(
+                            "h-6 w-1 shrink-0 rounded-full",
+                            meta.laneClassName,
+                          )}
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[12px] font-medium">
+                            {event.title}
+                          </p>
+                          <p className="truncate text-[11px] text-muted-foreground">
+                            {event.projectName}
+                            {event.allDay
+                              ? " · All day"
+                              : ` · ${formatTime(event.start)} – ${formatTime(event.end)}`}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="h-5 shrink-0 text-[10px]">
+                          <Icon className="size-3" />
+                          {meta.label}
+                        </Badge>
+                        <Link
+                          href={event.href}
+                          className={cn(
+                            buttonVariants({ variant: "ghost", size: "sm" }),
+                            "h-7 shrink-0 text-[11px]",
+                          )}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Open
+                        </Link>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
         </div>
       </ScrollArea>
     );
@@ -1301,109 +1438,278 @@ const WorkspaceCalendar = () => {
       );
     }
 
-    const msInDay = 24 * 60 * 60 * 1000;
-    const minStart = timelineTaskEvents.reduce(
-      (lowest, event) =>
-        event.start.getTime() < lowest.getTime() ? event.start : lowest,
+    // ── Layout constants ─────────────────────────────────────────────────────
+    const LABEL_W = 220;
+    const ROW_H = 48;
+    const MONTH_H = 22;
+    const DATE_H = 26;
+    const HDR_H = MONTH_H + DATE_H;
+    const BAR_H = 24;
+    const PAD = 2;
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+    const _daysBetween = (a: Date, b: Date) =>
+      Math.round(
+        (startOfDay(b).getTime() - startOfDay(a).getTime()) / 86_400_000,
+      );
+
+    const _pxPerDay = (n: number) =>
+      n <= 21 ? 48 : n <= 45 ? 32 : n <= 90 ? 20 : n <= 180 ? 12 : 8;
+
+    const _tickStep = (n: number) =>
+      n <= 21 ? 1 : n <= 90 ? 7 : n <= 180 ? 14 : 30;
+
+    // ── Window ───────────────────────────────────────────────────────────────
+    const minDate = timelineTaskEvents.reduce(
+      (m, e) => (e.start < m ? e.start : m),
       timelineTaskEvents[0].start,
     );
-    const maxEnd = timelineTaskEvents.reduce(
-      (highest, event) =>
-        event.end.getTime() > highest.getTime() ? event.end : highest,
+    const maxDate = timelineTaskEvents.reduce(
+      (m, e) => (e.end > m ? e.end : m),
       timelineTaskEvents[0].end,
     );
-    const timelineStart = startOfDay(minStart);
-    const timelineEnd = endOfDay(maxEnd);
-    const totalDays = Math.max(
-      1,
-      Math.ceil((timelineEnd.getTime() - timelineStart.getTime()) / msInDay),
-    );
+    const winStart = startOfDay(addDays(minDate, -PAD));
+    const winEnd = startOfDay(addDays(maxDate, PAD));
+    const totalDays = Math.max(1, _daysBetween(winStart, winEnd) + 1);
+    const pxPerDay = _pxPerDay(totalDays);
+    const stepDays = _tickStep(totalDays);
+    const chartWidth = totalDays * pxPerDay;
+    const totalWidth = LABEL_W + chartWidth;
+
+    // ── Month segments (two-row header) ──────────────────────────────────────
+    const months: Array<{ label: string; left: number; width: number }> = [];
+    {
+      let d = 0;
+      while (d < totalDays) {
+        const date = addDays(winStart, d);
+        const nextMonth = new Date(date.getFullYear(), date.getMonth() + 1, 1);
+        const nextD = Math.min(_daysBetween(winStart, nextMonth), totalDays);
+        const label = new Intl.DateTimeFormat("en-US", {
+          month: "short",
+          year: "numeric",
+        }).format(date);
+        months.push({
+          label,
+          left: d * pxPerDay,
+          width: (nextD - d) * pxPerDay,
+        });
+        d = nextD;
+      }
+    }
+
+    // ── Tick marks ───────────────────────────────────────────────────────────
+    const ticks: Array<{
+      label: string;
+      left: number;
+      isMonthBoundary: boolean;
+    }> = [];
+    for (let d = 0; d < totalDays; d += stepDays) {
+      const date = addDays(winStart, d);
+      const label =
+        stepDays >= 28
+          ? new Intl.DateTimeFormat("en-US", {
+              month: "short",
+              day: "numeric",
+            }).format(date)
+          : String(date.getDate());
+      ticks.push({
+        label,
+        left: d * pxPerDay,
+        isMonthBoundary: date.getDate() === 1,
+      });
+    }
+
+    // ── Today ────────────────────────────────────────────────────────────────
+    const todayIdx = _daysBetween(winStart, startOfDay(now));
+    const todayLeft =
+      todayIdx >= 0 && todayIdx < totalDays ? todayIdx * pxPerDay : null;
+
+    // ── Bar positions ─────────────────────────────────────────────────────────
+    const rows = timelineTaskEvents.map((event) => {
+      const startDay = Math.max(0, _daysBetween(winStart, event.start));
+      const endDay = Math.min(
+        totalDays - 1,
+        _daysBetween(winStart, event.end),
+      );
+      const durDays = Math.max(1, endDay - startDay + 1);
+      const barLeft = startDay * pxPerDay;
+      const barWidth = Math.max(pxPerDay, durDays * pxPerDay);
+      const isOverdue =
+        event.end.getTime() < now.getTime() && event.status !== "done";
+      const barColor = isOverdue
+        ? "bg-rose-500/80"
+        : EVENT_TYPE_META[event.type].laneClassName;
+      return { event, barLeft, barWidth, barColor };
+    });
 
     return (
       <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="bg-muted/35 border-border/35 flex items-center justify-between border-b px-3 py-2">
-          <div>
-            <p className="text-sm font-semibold">Workspace task timeline</p>
-            <p className="text-muted-foreground text-[11px]">
-              {timelineTaskEvents.length} task
-              {timelineTaskEvents.length === 1 ? "" : "s"} ·{" "}
-              {formatCompactDate(timelineStart)} -{" "}
-              {formatCompactDate(timelineEnd)}
-            </p>
+        <div className="min-h-0 flex-1 overflow-auto">
+          <div style={{ minWidth: totalWidth, position: "relative" }}>
+            {/* ── Header ───────────────────────────────────────────────── */}
+            <div
+              className="sticky top-0 z-20 flex border-b border-border/25 bg-card"
+              style={{ height: HDR_H }}
+            >
+              {/* Intersection cell — sticky both ways */}
+              <div
+                className="sticky left-0 z-30 flex items-end border-r border-border/25 bg-card px-3 pb-2"
+                style={{ width: LABEL_W, minWidth: LABEL_W }}
+              >
+                <span className="text-[10.5px] font-semibold uppercase tracking-[0.07em] text-muted-foreground">
+                  Task
+                </span>
+              </div>
+
+              {/* Timeline header */}
+              <div className="relative flex-1" style={{ height: HDR_H }}>
+                {/* Month row */}
+                {months.map((m, i) => (
+                  <div
+                    key={i}
+                    className="absolute top-0 flex items-center overflow-hidden border-r border-border/20 px-2"
+                    style={{ left: m.left, width: m.width, height: MONTH_H }}
+                  >
+                    <span className="truncate text-[10px] font-semibold uppercase tracking-[0.06em] text-muted-foreground/80">
+                      {m.label}
+                    </span>
+                  </div>
+                ))}
+
+                {/* Date ticks */}
+                {ticks.map((tick, i) => (
+                  <div key={i}>
+                    <div
+                      className={cn(
+                        "pointer-events-none absolute bottom-0",
+                        tick.isMonthBoundary
+                          ? "border-l border-border/40"
+                          : "border-l border-border/20",
+                      )}
+                      style={{ left: tick.left, top: MONTH_H }}
+                    />
+                    <div
+                      className={cn(
+                        "absolute flex items-center",
+                        tick.isMonthBoundary
+                          ? "text-foreground/65"
+                          : "text-muted-foreground/80",
+                      )}
+                      style={{
+                        left: tick.left + 4,
+                        top: MONTH_H,
+                        height: DATE_H,
+                      }}
+                    >
+                      <span className="text-[10px] font-medium">
+                        {tick.label}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Today line in header */}
+                {todayLeft !== null ? (
+                  <div
+                    className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-primary/50"
+                    style={{ left: todayLeft }}
+                  />
+                ) : null}
+              </div>
+            </div>
+
+            {/* ── Task rows ────────────────────────────────────────────── */}
+            {rows.map(({ event, barLeft, barWidth, barColor }) => (
+              <button
+                key={`tl-${event.id}`}
+                type="button"
+                className="group flex w-full cursor-pointer border-b border-border/12 text-left hover:bg-muted/10"
+                style={{ height: ROW_H }}
+                onClick={() => {
+                  setSelectedEventId(event.id);
+                  const eventDay = startOfDay(event.start);
+                  setSelectedDate(eventDay);
+                  setAnchorDate(eventDay);
+                  setRightPanelTab("calendar");
+                  setView("day");
+                }}
+              >
+                {/* Sticky label cell */}
+                <div
+                  className="sticky left-0 z-10 flex min-w-0 flex-col justify-center border-r border-border/20 bg-card px-3"
+                  style={{ width: LABEL_W, minWidth: LABEL_W }}
+                >
+                  <div className="truncate text-[12px] font-medium leading-5">
+                    {event.title}
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <span className="max-w-[8rem] truncate">
+                      {event.projectName}
+                    </span>
+                    {event.meta ? (
+                      <>
+                        <span className="text-border/60">·</span>
+                        <span className="truncate">{event.meta}</span>
+                      </>
+                    ) : null}
+                  </div>
+                </div>
+
+                {/* Timeline cell */}
+                <div className="relative flex-1" style={{ height: ROW_H }}>
+                  {/* Grid lines */}
+                  {ticks.map((tick, i) => (
+                    <div
+                      key={i}
+                      className={cn(
+                        "pointer-events-none absolute inset-y-0",
+                        tick.isMonthBoundary
+                          ? "border-l border-border/25"
+                          : "border-l border-border/10",
+                      )}
+                      style={{ left: tick.left }}
+                    />
+                  ))}
+
+                  {/* Today line */}
+                  {todayLeft !== null ? (
+                    <div
+                      className="pointer-events-none absolute inset-y-2 w-0.5 rounded-full bg-primary/35"
+                      style={{ left: todayLeft }}
+                    />
+                  ) : null}
+
+                  {/* Bar */}
+                  <div
+                    className={cn(
+                      "pointer-events-none absolute top-1/2 -translate-y-1/2 flex items-center overflow-hidden rounded-sm group-hover:brightness-110",
+                      barColor,
+                    )}
+                    style={{ left: barLeft, width: barWidth, height: BAR_H }}
+                  >
+                    {barWidth > 56 ? (
+                      <span className="truncate px-2 text-[10.5px] font-medium text-white/90">
+                        {event.title}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </button>
+            ))}
+
+            {/* ── Today badge at bottom ────────────────────────────────── */}
+            {todayLeft !== null ? (
+              <div
+                className="pointer-events-none absolute bottom-0 z-10"
+                style={{ left: LABEL_W + todayLeft - 16 }}
+              >
+                <span className="rounded-t-sm bg-primary px-1.5 py-0.5 text-[9px] font-semibold text-primary-foreground">
+                  Today
+                </span>
+              </div>
+            ) : null}
           </div>
         </div>
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-1.5 p-2.5">
-            {timelineTaskEvents.map((event) => {
-              const clampedStart = startOfDay(event.start);
-              const clampedEnd = endOfDay(event.end);
-              const offsetDays = Math.max(
-                0,
-                Math.floor(
-                  (clampedStart.getTime() - timelineStart.getTime()) / msInDay,
-                ),
-              );
-              const durationDays = Math.max(
-                1,
-                Math.ceil(
-                  (clampedEnd.getTime() - clampedStart.getTime()) / msInDay,
-                ),
-              );
-              const leftPercent = (offsetDays / totalDays) * 100;
-              const widthPercent = Math.max(
-                (1 / totalDays) * 100,
-                (durationDays / totalDays) * 100,
-              );
-              const isOverdue =
-                event.end.getTime() < now.getTime() && event.status !== "done";
-
-              return (
-                <button
-                  key={`timeline-row-${event.id}`}
-                  type="button"
-                  className="bg-background/70 hover:bg-accent/40 ring-border/25 grid w-full grid-cols-1 items-center gap-2 rounded-md px-2.5 py-2 text-left ring-1 transition-colors md:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]"
-                  onClick={() => {
-                    setSelectedEventId(event.id);
-                    const eventDay = startOfDay(event.start);
-                    setSelectedDate(eventDay);
-                    setAnchorDate(eventDay);
-                    setRightPanelTab("calendar");
-                    setView("day");
-                  }}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate text-[12px] font-medium">
-                      {event.title}
-                    </p>
-                    <p className="text-muted-foreground truncate text-[11px]">
-                      {event.projectName}
-                      {event.meta ? ` • ${event.meta}` : ""}
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="bg-muted/50 relative h-2 overflow-hidden rounded-full">
-                      <div
-                        className={cn(
-                          "absolute top-0 h-full rounded-full",
-                          isOverdue ? "bg-rose-500/85" : "bg-sky-500/85",
-                        )}
-                        style={{
-                          left: `${leftPercent}%`,
-                          width: `${widthPercent}%`,
-                        }}
-                      />
-                    </div>
-                    <p className="text-muted-foreground text-[10.5px]">
-                      {formatCompactDate(event.start)} -{" "}
-                      {formatCompactDate(event.end)}
-                      {isOverdue ? " • Overdue" : ""}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </ScrollArea>
       </div>
     );
   };

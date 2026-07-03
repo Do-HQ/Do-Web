@@ -108,7 +108,7 @@ export function ProjectOverviewRisks({
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-1">
                       <Badge
-                        className={`h-4 px-1.5 text-[10px] ${RISK_BADGE_CLASSES[item.severity]}`}
+                        className={`h-4 px-1.5 text-[10px] capitalize ${RISK_BADGE_CLASSES[item.severity]}`}
                         variant="outline"
                       >
                         {item.severity}

@@ -29,7 +29,7 @@ const AttachmentPreview = ({ attachments }: AttachmentPreviewProps) => {
 
   return (
     <>
-      <div className="mt-1.5 grid max-w-[28rem] grid-cols-2 gap-1.5">
+      <div className="mt-1.5 grid max-w-md grid-cols-2 gap-1.5">
         {attachments.map((attachment) => {
           if (isAudioAttachment(attachment) && attachment.url) {
             return (
@@ -87,17 +87,17 @@ const AttachmentPreview = ({ attachments }: AttachmentPreviewProps) => {
         open={Boolean(previewImage)}
         onOpenChange={() => setPreviewImage(null)}
       >
-        <DialogContent className="max-h-[85vh] max-w-4xl overflow-hidden p-0">
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-hidden p-0">
           <DialogTitle className="sr-only">
             {previewImage?.name || "Image preview"}
           </DialogTitle>
-          <div className="bg-black/95 flex max-h-[85vh] items-center justify-center">
+          <div className="bg-black/95 flex max-h-[90vh] items-center justify-center p-4">
             {previewImage?.url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={previewImage.url}
                 alt={previewImage.name}
-                className="max-h-[85vh] w-full object-contain"
+                className="max-h-[calc(90vh-2rem)] max-w-full object-contain"
               />
             ) : null}
           </div>

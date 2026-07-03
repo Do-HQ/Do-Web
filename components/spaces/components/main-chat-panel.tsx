@@ -839,6 +839,7 @@ const MainChatPanel = ({
               const threadCount = onGetThreadCount(message.id);
               const isThreadActive = selectedThreadMessageId === message.id;
               const isPinned = Boolean(message.isPinned);
+              const isSending = message.id.startsWith("optimistic-");
               const isOwnMessage =
                 String(message.author.id || "").trim() ===
                 String(currentUserId || "").trim();
@@ -899,7 +900,7 @@ const MainChatPanel = ({
                               ? "Agent"
                               : "Member"),
                           team: authorInfo?.team,
-                          status: message.sentAt,
+                          status: isSending ? "Sending…" : message.sentAt,
                         }}
                       >
                         <AvatarImage
@@ -986,9 +987,15 @@ const MainChatPanel = ({
                                 Marked
                               </Badge>
                             )}
-                            <span className="text-muted-foreground text-[11px]">
-                              {message.sentAt}
-                            </span>
+                            {isSending ? (
+                              <span className="text-[11px] text-muted-foreground/50 animate-pulse">
+                                Sending
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground text-[11px]">
+                                {message.sentAt}
+                              </span>
+                            )}
                             {message.edited && (
                               <span className="text-muted-foreground text-[11px]">
                                 edited

@@ -725,7 +725,7 @@ const ThreadPanel = ({
                               ? "Agent"
                               : "Member"),
                           team: authorInfo?.team,
-                          status: reply.sentAt,
+                          status: reply.id.startsWith("optimistic-") ? "Sending…" : reply.sentAt,
                         }}
                       >
                         <AvatarImage
@@ -739,9 +739,15 @@ const ThreadPanel = ({
                       <p className="text-[13px] font-medium">
                         {reply.author.name}
                       </p>
-                      <span className="text-muted-foreground text-[11px]">
-                        {reply.sentAt}
-                      </span>
+                      {reply.id.startsWith("optimistic-") ? (
+                        <span className="text-[11px] text-muted-foreground/50 animate-pulse">
+                          Sending
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground text-[11px]">
+                          {reply.sentAt}
+                        </span>
+                      )}
                       {reply.edited && (
                         <span className="text-muted-foreground text-[11px]">
                           edited
