@@ -21,11 +21,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import useWorkspace from "@/hooks/use-workspace";
 import type { CreateMeetingPayload } from "@/types/meeting";
 
-// ─── Types ─────────────────────────────────────────────────────────────────
-
 type MemberOption = { id: string; name: string; email: string };
-
-// ─── Constants ──────────────────────────────────────────────────────────────
 
 const REMINDER_OPTIONS = [
   { label: "5 min", value: 5 },
@@ -37,8 +33,6 @@ const REMINDER_OPTIONS = [
 ];
 
 const DEFAULT_REMINDER_MINUTES = [30, 10];
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const localDatetimeValue = (date: Date) => {
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -56,8 +50,6 @@ const reminderLabel = (mins: number) => {
   if (mins < 1440) return `${mins / 60}h`;
   return `${mins / 1440}d`;
 };
-
-// ─── Sub-dialog: Add People ──────────────────────────────────────────────────
 
 const AddPeopleDialog = ({
   open,
