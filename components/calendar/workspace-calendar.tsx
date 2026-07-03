@@ -49,6 +49,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
+import useWorkspaceMeetings from "@/hooks/use-workspace-meetings";
 import { cn } from "@/lib/utils";
 import useWorkspaceStore from "@/stores/workspace";
 import type { WorkspaceProjectRecord } from "@/types/project";
@@ -56,7 +57,7 @@ import LoaderComponent from "../shared/loader";
 import { useDebounce } from "@/hooks/use-debounce";
 
 type CalendarView = "month" | "week" | "day" | "year" | "agenda";
-type CalendarEventType = "task" | "milestone" | "workflow" | "risk";
+type CalendarEventType = "task" | "milestone" | "workflow" | "risk" | "meeting";
 
 type WorkspaceCalendarEvent = {
   id: string;
@@ -125,6 +126,14 @@ const EVENT_TYPE_META: Record<CalendarEventType, EventTypeMeta> = {
       "border-rose-500/30 bg-rose-500/15 text-rose-700 dark:text-rose-300",
     laneClassName: "bg-rose-500/85",
   },
+  meeting: {
+    label: "Meetings",
+    icon: CalendarClock,
+    dotClassName: "bg-teal-500",
+    chipClassName:
+      "border-teal-500/30 bg-teal-500/15 text-teal-700 dark:text-teal-300",
+    laneClassName: "bg-teal-500/85",
+  },
 };
 
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -150,6 +159,7 @@ const DEFAULT_TYPE_FILTER: Record<CalendarEventType, boolean> = {
   milestone: true,
   workflow: true,
   risk: true,
+  meeting: true,
 };
 
 const isValidDate = (value?: string) =>
@@ -317,6 +327,7 @@ const summarizeByType = (events: WorkspaceCalendarEvent[]) => {
     milestone: 0,
     workflow: 0,
     risk: 0,
+    meeting: 0,
   };
 
   events.forEach((event) => {
@@ -488,6 +499,33 @@ const WorkspaceCalendar = () => {
     [workspaceProjectsQuery.data?.data?.projects],
   );
 
+  const { useMeetingsList } = useWorkspaceMeetings();
+  const meetingQueryParams = useMemo(
+    () => ({ limit: 500, status: "scheduled" as const }),
+    [],
+  );
+  const meetingsQuery = useMeetingsList(workspaceId ?? "", meetingQueryParams, {
+    enabled: Boolean(workspaceId),
+  });
+  const meetingEvents = useMemo<WorkspaceCalendarEvent[]>(() => {
+    const meetings = meetingsQuery.data?.data?.meetings ?? [];
+    return meetings
+      .filter((m) => m.startAt && m.endAt)
+      .map((m) => ({
+        id: `meeting-${m.meetingId}`,
+        projectId: "",
+        projectName: "",
+        title: m.title,
+        type: "meeting" as const,
+        status: m.status,
+        start: new Date(m.startAt),
+        end: new Date(m.endAt),
+        allDay: false,
+        href: m.spaceRoomId ? `/spaces?room=${m.spaceRoomId}` : "/spaces",
+        meta: m.location || m.description || "",
+      }));
+  }, [meetingsQuery.data?.data?.meetings]);
+
   const [view, setView] = useState<CalendarView>("month");
   const [rightPanelTab, setRightPanelTab] = useState<"calendar" | "timeline">(
     "calendar",
@@ -515,8 +553,8 @@ const WorkspaceCalendar = () => {
   const today = startOfDay(now);
 
   const allEvents = useMemo(
-    () => toWorkspaceCalendarEvents(records),
-    [records],
+    () => [...toWorkspaceCalendarEvents(records), ...meetingEvents],
+    [records, meetingEvents],
   );
   const isProjectsLoading = workspaceProjectsQuery.isPending;
   const isProjectsError = workspaceProjectsQuery.isError;
@@ -557,6 +595,7 @@ const WorkspaceCalendar = () => {
 
       if (
         selectedProjectId !== "all" &&
+        event.type !== "meeting" &&
         event.projectId !== selectedProjectId
       ) {
         return false;

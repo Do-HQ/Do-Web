@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  CalendarClock,
   ChevronLeft,
   ChevronRight,
   Clock3,
   Building2,
   Bell,
+  Ellipsis,
   Menu,
   MessageSquareText,
   Phone,
@@ -31,6 +33,12 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -49,6 +57,8 @@ import useWorkspaceStore from "@/stores/workspace";
 import { useFavoritesStore } from "@/stores";
 import useWorkspace from "@/hooks/use-workspace";
 import useWorkspaceSpace from "@/hooks/use-workspace-space";
+import useWorkspaceMeetings from "@/hooks/use-workspace-meetings";
+import type { CreateMeetingPayload } from "@/types/meeting";
 import useWorkspaceProject from "@/hooks/use-workspace-project";
 import useWorkspaceReports from "@/hooks/use-workspace-reports";
 import useFile from "@/hooks/use-file";
@@ -75,6 +85,7 @@ import {
 } from "@/lib/realtime/spaces-socket";
 import type { TypingUser } from "./components/typing-indicator";
 import CreateChatDialog from "./components/create-chat-dialog";
+import ScheduleMeetingDialog from "./components/schedule-meeting-dialog";
 import ForwardMessageDialog from "./components/forward-message-dialog";
 import MainChatPanel from "./components/main-chat-panel";
 import RoomItems from "./components/room-items";
@@ -501,6 +512,7 @@ const SpacesPage = () => {
   const [isRoomsSheetOpen, setIsRoomsSheetOpen] = useState(false);
   const [isThreadSheetOpen, setIsThreadSheetOpen] = useState(false);
   const [isCreateChatOpen, setIsCreateChatOpen] = useState(false);
+  const [isScheduleMeetingOpen, setIsScheduleMeetingOpen] = useState(false);
   const [isForwardDialogOpen, setIsForwardDialogOpen] = useState(false);
   const [isWorkspaceDetailsOpen, setIsWorkspaceDetailsOpen] = useState(false);
   const [isKeepUpOpen, setIsKeepUpOpen] = useState(false);
@@ -565,6 +577,7 @@ const SpacesPage = () => {
   const didHydrateRoomFromUrlRef = useRef(false);
   const pendingRoomSyncRef = useRef<string | null>(null);
   const suppressedThreadIdRef = useRef<string | null>(null);
+  const didAutoCallRef = useRef(false);
   const roomNameByIdRef = useRef<Record<string, string>>({});
   const currentUserIdRef = useRef("");
 
@@ -722,6 +735,7 @@ const SpacesPage = () => {
   const urlRoomId = String(searchParams.get("room") || "").trim();
   const urlThreadId = String(searchParams.get("thread") || "").trim();
   const urlProjectId = String(searchParams.get("project") || "").trim();
+  const urlCallParam = String(searchParams.get("call") || "").trim();
 
   useEffect(() => {
     if (!rooms.length) {
@@ -2626,6 +2640,21 @@ const SpacesPage = () => {
     openTeamCallForRoom(activeRoom, mode);
   };
 
+  // Auto-start/join call when landing from a meeting "start" email (?call=1)
+  useEffect(() => {
+    if (urlCallParam !== "1" || !activeRoom?.id || didAutoCallRef.current) {
+      return;
+    }
+    // Short delay lets socket call-status events settle before we decide
+    const timer = setTimeout(() => {
+      if (didAutoCallRef.current) return;
+      didAutoCallRef.current = true;
+      handleStartCall("video");
+    }, 1200);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeRoom?.id, urlCallParam]);
+
   const handleJoinCallFromMessage = (route?: string) => {
     const normalizedRoute = String(route || "").trim();
 
@@ -2985,6 +3014,28 @@ const SpacesPage = () => {
     } catch {
       // handled by shared hook
     }
+  };
+
+  const meetingsHook = useWorkspaceMeetings();
+  const createMeetingMutation = meetingsHook.useCreateMeeting(resolvedWorkspaceId || "");
+
+  const handleScheduleMeeting = (payload: CreateMeetingPayload) => {
+    if (!resolvedWorkspaceId) return;
+    toast.promise(createMeetingMutation.mutateAsync(payload), {
+      loading: "Scheduling meeting…",
+      success: (response) => {
+        setIsScheduleMeetingOpen(false);
+        const roomId = response.data?.meeting?.spaceRoomId;
+        if (roomId) {
+          pendingRoomSyncRef.current = roomId;
+        }
+        return "Meeting scheduled! Invites sent and meeting room created.";
+      },
+      error: (err) => {
+        const msg = String(err?.response?.data?.message || err?.message || "");
+        return msg || "Failed to schedule the meeting. Please try again.";
+      },
+    });
   };
 
   const handleMainComposerChange = (value: string) => {
@@ -4028,15 +4079,28 @@ const SpacesPage = () => {
                   Personal chats, project rooms, task threads
                 </p>
               </div>
-              <Button
-                data-tour="spaces-create"
-                size="icon-sm"
-                variant="outline"
-                className="size-7"
-                onClick={() => setIsCreateChatOpen(true)}
-              >
-                <Plus className="size-4" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    data-tour="spaces-create"
+                    size="icon-sm"
+                    variant="outline"
+                    className="size-7"
+                  >
+                    <Ellipsis className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => setIsCreateChatOpen(true)}>
+                    <Plus className="size-4" />
+                    New chat
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setIsScheduleMeetingOpen(true)}>
+                    <CalendarClock className="size-4" />
+                    Schedule a meeting
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             <div className="relative mt-2">
               <Search className="text-muted-foreground absolute top-1/2 left-2 size-4 -translate-y-1/2" />
@@ -4865,6 +4929,15 @@ const SpacesPage = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ScheduleMeetingDialog
+        open={isScheduleMeetingOpen}
+        onOpenChange={setIsScheduleMeetingOpen}
+        workspaceId={resolvedWorkspaceId ?? ""}
+        currentUserId={currentUser.id ?? ""}
+        isSubmitting={createMeetingMutation.isPending}
+        onSubmit={handleScheduleMeeting}
+      />
 
       <CreateChatDialog
         open={isCreateChatOpen}

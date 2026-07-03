@@ -777,6 +777,7 @@ export default function ProjectOverview({
     }
   }, [projectDetailQuery.data, upsertProjectRecord]);
 
+
   const currentUserAvatarUrl =
     String(user?.profilePhoto?.url || "").trim() || undefined;
 
