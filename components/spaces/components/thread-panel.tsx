@@ -496,11 +496,10 @@ const ThreadPanel = ({
             key={`${reply.id}:${reaction.emoji}`}
             type="button"
             onClick={() => onReactToReply(reply.id, reaction.emoji)}
-            className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[12px] transition-colors ${
-              reaction.reacted
-                ? "border-orange-500/55 bg-orange-500/12 text-orange-300"
-                : "border-border/45 bg-muted/25 text-muted-foreground hover:text-foreground"
-            }`}
+            className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-1 text-[12px] transition-colors ${reaction.reacted
+              ? "border-orange-500/55 bg-orange-500/12 text-orange-300"
+              : "border-border/45 bg-muted/25 text-muted-foreground hover:text-foreground"
+              }`}
           >
             <span className="text-[14px] leading-none">{reaction.emoji}</span>
             <span className="font-medium">{reaction.count}</span>
@@ -588,7 +587,7 @@ const ThreadPanel = ({
           {/*
             Thread root can be a shared jam message.
           */}
-          <div className="shrink-0 border-b border-border/35 px-2 py-2 sm:px-3 sm:py-2.5">
+          <div className="max-h-[35vh] shrink-0 overflow-y-auto border-b border-border/35 px-2 py-2 sm:px-3 sm:py-2.5">
             <div className="rounded-lg border border-border/35 bg-card/70 px-2.5 py-2.5">
               <p className="text-muted-foreground text-[11px]">
                 From main chat
