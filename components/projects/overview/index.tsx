@@ -106,6 +106,10 @@ type SubtaskDeleteDialogState = {
   subtaskName?: string;
 } | null;
 
+function getSummaryExpandedStorageKey(projectId: string) {
+  return `squircle:project-overview:${projectId}:summary-expanded`;
+}
+
 function buildDueWindow(startDate: string, targetEndDate: string) {
   if (!startDate || !targetEndDate) {
     return "No date range";
@@ -158,11 +162,11 @@ function syncWorkflowDerivedFields(workflow: ProjectWorkflow): ProjectWorkflow {
   const nextTaskCounts = getTaskCompletionSummary(workflow.tasks);
   const progressFromTasks = workflow.tasks.length
     ? Math.round(
-        workflow.tasks.reduce(
-          (total, task) => total + getTaskRowProgress(task),
-          0,
-        ) / workflow.tasks.length,
-      )
+      workflow.tasks.reduce(
+        (total, task) => total + getTaskRowProgress(task),
+        0,
+      ) / workflow.tasks.length,
+    )
     : Math.max(0, Math.min(100, workflow.progress));
   const taskStartDates = workflow.tasks
     .map((task) => task.startDate || task.dueDate)
@@ -265,10 +269,10 @@ function alignTaskSubtasksForLaneMove(
       subtask.status === "done"
         ? subtask
         : {
-            ...subtask,
-            status: "blocked" as ProjectTaskStatus,
-            updatedAt: "Just now",
-          },
+          ...subtask,
+          status: "blocked" as ProjectTaskStatus,
+          updatedAt: "Just now",
+        },
     );
   }
 
@@ -292,10 +296,10 @@ function alignTaskSubtasksForLaneMove(
       subtask.status === "done"
         ? subtask
         : {
-            ...subtask,
-            status: activeStatus as ProjectTaskStatus,
-            updatedAt: "Just now",
-          },
+          ...subtask,
+          status: activeStatus as ProjectTaskStatus,
+          updatedAt: "Just now",
+        },
     );
   }
 
@@ -313,10 +317,10 @@ function alignTaskSubtasksForLaneMove(
       subtask.status === "done"
         ? subtask
         : {
-            ...subtask,
-            status: "todo" as ProjectTaskStatus,
-            updatedAt: "Just now",
-          },
+          ...subtask,
+          status: "todo" as ProjectTaskStatus,
+          updatedAt: "Just now",
+        },
     );
   }
 
@@ -333,11 +337,11 @@ function syncProjectRecord<
   const activeWorkflows = workflows.filter((workflow) => !workflow.archived);
   const nextProgress = activeWorkflows.length
     ? Math.round(
-        activeWorkflows.reduce(
-          (total, workflow) => total + workflow.progress,
-          0,
-        ) / activeWorkflows.length,
-      )
+      activeWorkflows.reduce(
+        (total, workflow) => total + workflow.progress,
+        0,
+      ) / activeWorkflows.length,
+    )
     : 0;
 
   return {
@@ -557,7 +561,48 @@ export default function ProjectOverview({
   >("updated");
   const [workflowsTabPage, setWorkflowsTabPage] = useState(1);
   const [expandedWorkflowIds, setExpandedWorkflowIds] = useState<string[]>([]);
-  const [summaryExpanded, setSummaryExpanded] = useState(true);
+  const [summaryExpanded, setSummaryExpanded] = useState<boolean>(() => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+
+    try {
+      const stored = window.localStorage.getItem(
+        getSummaryExpandedStorageKey(projectId)
+      );
+      return stored === null ? true : stored === "true";
+    } catch {
+      return true;
+    }
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      const stored = window.localStorage.getItem(
+        getSummaryExpandedStorageKey(projectId)
+      );
+      setSummaryExpanded(stored === null ? true : stored === "true");
+    } catch {
+      setSummaryExpanded(true);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        getSummaryExpandedStorageKey(projectId),
+        String(summaryExpanded)
+      );
+    } catch { }
+  }, [projectId, summaryExpanded]);
   const [projectTabsExpanded, setProjectTabsExpanded] = useState(false);
   const [workflowSheetState, setWorkflowSheetState] =
     useState<WorkflowSheetState>(null);
@@ -643,11 +688,11 @@ export default function ProjectOverview({
 
   const workflowRefreshKey = project
     ? project.workflows
-        .map(
-          (workflow) =>
-            `${workflow.id}:${workflow.updatedAt}:${workflow.archived ? "1" : "0"}:${workflow.tasks.length}`,
-        )
-        .join("|")
+      .map(
+        (workflow) =>
+          `${workflow.id}:${workflow.updatedAt}:${workflow.archived ? "1" : "0"}:${workflow.tasks.length}`,
+      )
+      .join("|")
     : "";
   const refetchWorkflowList = workflowListQuery.refetch;
   const refetchWorkflowsTabList = workflowsTabListQuery.refetch;
@@ -1016,7 +1061,7 @@ export default function ProjectOverview({
                   String(teamMemberId || "").trim() === memberId ||
                   String(teamMemberId || "").trim() === profile.userId ||
                   String(teamMemberId || "").trim() ===
-                    profile.workspaceMemberId,
+                  profile.workspaceMemberId,
               ),
             )
             .map((team) => team.id) ?? [],
@@ -1041,8 +1086,8 @@ export default function ProjectOverview({
         <ProjectOverviewPlaceholder
           kind={
             projectDetailQuery.isLoading ||
-            projectDetailQuery.isFetching ||
-            !projectsLoaded
+              projectDetailQuery.isFetching ||
+              !projectsLoaded
               ? "loading"
               : "missing"
           }
@@ -1166,20 +1211,20 @@ export default function ProjectOverview({
 
   const workflowForSheet = workflowSheetState?.workflowId
     ? (project.workflows.find(
-        (workflow) => workflow.id === workflowSheetState.workflowId,
-      ) ?? null)
+      (workflow) => workflow.id === workflowSheetState.workflowId,
+    ) ?? null)
     : null;
 
   const taskSheetWorkflow = taskSheetState
     ? (project.workflows.find(
-        (workflow) => workflow.id === taskSheetState.workflowId,
-      ) ?? null)
+      (workflow) => workflow.id === taskSheetState.workflowId,
+    ) ?? null)
     : null;
 
   const taskForSheet = taskSheetState?.taskId
     ? (taskSheetWorkflow?.tasks.find(
-        (task) => task.id === taskSheetState.taskId,
-      ) ?? null)
+      (task) => task.id === taskSheetState.taskId,
+    ) ?? null)
     : null;
 
   const handlePlaceholderAction = (label: string, name?: string) =>
@@ -1332,9 +1377,9 @@ export default function ProjectOverview({
         tasks: workflow.tasks.map((task) =>
           task.sectionId === sectionId
             ? {
-                ...task,
-                sectionId: undefined,
-              }
+              ...task,
+              sectionId: undefined,
+            }
             : task,
         ),
       }),
@@ -1357,9 +1402,9 @@ export default function ProjectOverview({
       tasks.map((task) =>
         task.sectionId === sectionId
           ? {
-              ...task,
-              sectionId: undefined,
-            }
+            ...task,
+            sectionId: undefined,
+          }
           : task,
       ),
     );
@@ -1559,11 +1604,11 @@ export default function ProjectOverview({
     queryEntries.forEach(([queryKey, response]) => {
       const typedResponse = response as
         | {
-            data?: {
-              message?: string;
-              tasks?: WorkspaceProjectTaskRecord[];
-            };
-          }
+          data?: {
+            message?: string;
+            tasks?: WorkspaceProjectTaskRecord[];
+          };
+        }
         | undefined;
 
       const currentTasks = typedResponse?.data?.tasks;
@@ -1574,12 +1619,12 @@ export default function ProjectOverview({
 
       const params = (Array.isArray(queryKey) ? queryKey[3] : undefined) as
         | {
-            workflowId?: string;
-            teamId?: string;
-            pipelineId?: string;
-            startDate?: string;
-            statusFilter?: string;
-          }
+          workflowId?: string;
+          teamId?: string;
+          pipelineId?: string;
+          startDate?: string;
+          statusFilter?: string;
+        }
         | undefined;
 
       const nextTasks = updater(currentTasks).filter((task) =>
@@ -1641,12 +1686,12 @@ export default function ProjectOverview({
         const nextTasks = workflow.tasks.map((task) =>
           task.id === taskId
             ? {
-                ...task,
-                status: nextStatus,
-                sectionId,
-                updatedAt: "Just now",
-                subtasks: nextSubtasks,
-              }
+              ...task,
+              status: nextStatus,
+              sectionId,
+              updatedAt: "Just now",
+              subtasks: nextSubtasks,
+            }
             : task,
         );
 
@@ -1664,12 +1709,12 @@ export default function ProjectOverview({
       tasks.map((task) =>
         String(task.id) === taskId
           ? {
-              ...task,
-              status: nextStatus,
-              sectionId,
-              updatedAt: "Just now",
-              subtasks: nextSubtasks,
-            }
+            ...task,
+            status: nextStatus,
+            sectionId,
+            updatedAt: "Just now",
+            subtasks: nextSubtasks,
+          }
           : task,
       ),
     );
@@ -2184,7 +2229,7 @@ export default function ProjectOverview({
             size="sm"
             onClick={() => setSummaryExpanded((current) => !current)}
           >
-            {summaryExpanded ? "Hide summary" : "Show summary"}
+            {summaryExpanded ? "Hide" : "Show"} summary
             <ChevronDown
               className={cn(
                 "size-4 transition-transform",
@@ -2237,7 +2282,7 @@ export default function ProjectOverview({
           className={cn(
             "flex min-h-0 flex-col gap-3 md:gap-4",
             projectTabsExpanded &&
-              "fixed inset-0 z-50 h-[100dvh] w-screen overflow-hidden bg-background p-3 md:p-4",
+            "fixed inset-0 z-50 h-[100dvh] w-screen overflow-hidden bg-background p-3 md:p-4",
           )}
         >
           <div
@@ -2245,7 +2290,7 @@ export default function ProjectOverview({
             className={cn(
               "sticky top-0 z-20 -mx-1 border-b border-border/20 bg-background/85 px-1 py-2 backdrop-blur-sm",
               projectTabsExpanded &&
-                "top-0 -mx-0 rounded-xl bg-background px-2",
+              "top-0 -mx-0 rounded-xl bg-background px-2",
             )}
           >
             <div className="flex items-center gap-2">
@@ -2472,17 +2517,17 @@ export default function ProjectOverview({
           initialValues={
             workflowSheetState.mode === "edit" && workflowForSheet
               ? {
-                  name: workflowForSheet.name,
-                  teamId: workflowForSheet.teamId,
-                }
+                name: workflowForSheet.name,
+                teamId: workflowForSheet.teamId,
+              }
               : {
-                  teamId:
-                    workflowSheetState.defaults?.teamId ??
-                    selectedTeam?.id ??
-                    project.teams[0]?.id ??
-                    "",
-                  ...workflowSheetState.defaults,
-                }
+                teamId:
+                  workflowSheetState.defaults?.teamId ??
+                  selectedTeam?.id ??
+                  project.teams[0]?.id ??
+                  "",
+                ...workflowSheetState.defaults,
+              }
           }
           onOpenChange={(open) => {
             if (!open) {
@@ -2513,31 +2558,31 @@ export default function ProjectOverview({
           initialValues={
             taskSheetState.mode === "edit" && taskForSheet
               ? {
-                  title: taskForSheet.title,
-                  status: taskForSheet.status,
-                  priority: taskForSheet.priority,
-                  assigneeId: taskForSheet.assigneeId,
-                  teamId: taskForSheet.teamId,
-                  pipelineId: taskForSheet.pipelineId,
-                  startDate: taskForSheet.startDate ?? taskForSheet.dueDate,
-                  dueDate: taskForSheet.dueDate,
-                  sectionId: taskForSheet.sectionId,
-                  subtasks: (taskForSheet.subtasks ?? []).map((subtask) => ({
-                    title: subtask.title,
-                    status: subtask.status,
-                    assigneeId: subtask.assigneeId,
-                    startDate: subtask.startDate ?? subtask.dueDate,
-                    dueDate: subtask.dueDate,
-                  })),
-                }
+                title: taskForSheet.title,
+                status: taskForSheet.status,
+                priority: taskForSheet.priority,
+                assigneeId: taskForSheet.assigneeId,
+                teamId: taskForSheet.teamId,
+                pipelineId: taskForSheet.pipelineId,
+                startDate: taskForSheet.startDate ?? taskForSheet.dueDate,
+                dueDate: taskForSheet.dueDate,
+                sectionId: taskForSheet.sectionId,
+                subtasks: (taskForSheet.subtasks ?? []).map((subtask) => ({
+                  title: subtask.title,
+                  status: subtask.status,
+                  assigneeId: subtask.assigneeId,
+                  startDate: subtask.startDate ?? subtask.dueDate,
+                  dueDate: subtask.dueDate,
+                })),
+              }
               : {
-                  assigneeId: taskSheetWorkflow.ownerId,
-                  teamId: taskSheetWorkflow.teamId,
-                  pipelineId: taskSheetWorkflow.pipelineId,
-                  startDate: taskSheetWorkflow.startedAt,
-                  dueDate: taskSheetWorkflow.targetEndDate,
-                  ...(taskSheetState.defaults ?? {}),
-                }
+                assigneeId: taskSheetWorkflow.ownerId,
+                teamId: taskSheetWorkflow.teamId,
+                pipelineId: taskSheetWorkflow.pipelineId,
+                startDate: taskSheetWorkflow.startedAt,
+                dueDate: taskSheetWorkflow.targetEndDate,
+                ...(taskSheetState.defaults ?? {}),
+              }
           }
           initiallyExpandSubtasks={taskSheetState.expandSubtasks}
           seedBlankSubtask={taskSheetState.seedBlankSubtask}
