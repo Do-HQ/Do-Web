@@ -861,6 +861,23 @@ const MainChatPanel = ({
                     authorInfo?.avatarUrl ||
                     (isOwnMessage ? currentUserAvatarUrl || "" : "");
 
+              const prev = index > 0 ? activeMessages[index - 1] : null;
+              const isContinuation =
+                !showDateDivider &&
+                !jamShareCard &&
+                !docShare &&
+                !callEventMessage &&
+                !forwardedMessage &&
+                !!prev &&
+                (() => {
+                  const prevId = String(prev.author?.id || "").trim();
+                  const currId = String(message.author?.id || "").trim();
+                  if (!prevId || prevId !== currId) return false;
+                  const prevTs = new Date(prev.sentAtRaw || "").getTime();
+                  const currTs = new Date(message.sentAtRaw || "").getTime();
+                  return !isNaN(prevTs) && !isNaN(currTs) && currTs - prevTs <= 5 * 60 * 1000;
+                })();
+
               return (
                 <Fragment key={message.id}>
                   {showDateDivider ? (
@@ -877,7 +894,8 @@ const MainChatPanel = ({
                       messageElementRefs.current[message.id] = node;
                     }}
                     className={cn(
-                      "group rounded-md px-2 py-1.5 transition-colors hover:bg-accent/35",
+                      "group rounded-md px-2 transition-colors hover:bg-accent/35",
+                      isContinuation ? "pt-0.5 pb-1.5" : "py-1.5",
                       highlightedMessageId === message.id &&
                         "ring-1 ring-orange-500/60 bg-orange-500/10",
                     )}
@@ -888,6 +906,13 @@ const MainChatPanel = ({
                     }
                   >
                     <div className="flex items-start gap-2">
+                      {isContinuation ? (
+                        <div className="w-7 shrink-0 flex items-center justify-end pt-0.5">
+                          <span className="text-[10px] text-muted-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity select-none leading-none">
+                            {message.sentAt}
+                          </span>
+                        </div>
+                      ) : (
                       <Avatar
                         size="sm"
                         className="shrink-0"
@@ -911,6 +936,7 @@ const MainChatPanel = ({
                           {message.author.initials}
                         </AvatarFallback>
                       </Avatar>
+                      )}
 
                       <div className="min-w-0 flex-1">
                         <div className="relative max-w-[min(100%,48rem)]">
@@ -965,6 +991,7 @@ const MainChatPanel = ({
                             />
                           </div>
 
+                          {!isContinuation && (
                           <div className="flex flex-wrap items-center gap-1.5 pr-2 md:pr-24">
                             <p className="text-foreground text-[13px] font-medium">
                               {message.author.name}
@@ -1002,6 +1029,7 @@ const MainChatPanel = ({
                               </span>
                             )}
                           </div>
+                          )}
 
                           {editingMessageId === message.id ? (
                             <div className="mt-1.5 space-y-1.5">

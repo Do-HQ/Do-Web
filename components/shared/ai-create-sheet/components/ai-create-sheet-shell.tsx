@@ -89,7 +89,13 @@ export function AiCreateSheetShell({
           const originalEvent = (e as CustomEvent<{ originalEvent: PointerEvent }>).detail
             ?.originalEvent;
           const target = originalEvent?.target as Element | null;
-          if (target?.closest?.("[data-radix-popper-content-wrapper]")) {
+          // Guard 1: target is still attached and inside a popper (select/dropdown/popover).
+          // Guard 2: target was detached by a re-render (e.g. checkbox state update) but a
+          //          popper is still visibly open in the document — don't close the sheet.
+          if (
+            target?.closest?.("[data-radix-popper-content-wrapper]") ||
+            document.querySelector("[data-radix-popper-content-wrapper]")
+          ) {
             e.preventDefault();
           }
         }}

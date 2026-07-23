@@ -794,17 +794,59 @@ export default function WorkspaceSupportTicketThread({
             <LoaderComponent />
           </div>
         ) : messages.length ? (
-          <div className="flex flex-col gap-6">
-            {messages.map((message) => {
+          <div className="flex flex-col">
+            {messages.map((message, index) => {
+              const prev = index > 0 ? messages[index - 1] : null;
+
+              // A message continues a group when it's a user message from the
+              // same author as the previous user message, within 5 minutes.
+              const isContinuation =
+                message.source === "user" &&
+                prev?.source === "user" &&
+                (() => {
+                  const prevId = String(prev.author?.id || prev.authorUserId || "").trim();
+                  const currId = String(message.author?.id || message.authorUserId || "").trim();
+                  if (!prevId || prevId !== currId) return false;
+                  return (
+                    new Date(message.createdAt).getTime() -
+                      new Date(prev.createdAt).getTime() <=
+                    5 * 60 * 1000
+                  );
+                })();
+
+              const topMargin = index === 0 ? "" : isContinuation ? "mt-1" : "mt-5";
+
               const isSystem = message.source === "system";
               if (isSystem) {
                 return (
-                  <div key={message.id} className="flex items-center gap-3">
+                  <div key={message.id} className={cn("flex items-center gap-3", index > 0 && "mt-5")}>
                     <div className="h-px flex-1 bg-border/30" />
                     <p className="text-muted-foreground shrink-0 text-xs">
                       {message.body}
                     </p>
                     <div className="h-px flex-1 bg-border/30" />
+                  </div>
+                );
+              }
+
+              const isBot = message.source === "bot";
+              if (isBot) {
+                return (
+                  <div key={message.id} className={cn("flex items-end gap-2", index > 0 && "mt-5")}>
+                    <div className="mb-0.5 size-7 shrink-0 rounded-full bg-primary/15 flex items-center justify-center text-[10px] font-bold text-primary select-none">
+                      S
+                    </div>
+                    <div className="flex max-w-[72%] flex-col gap-0.5 items-start">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className="text-xs font-semibold">Support Team</span>
+                        <span className="text-muted-foreground text-[10px]">
+                          {formatDateTime(message.createdAt)}
+                        </span>
+                      </div>
+                      <div className="rounded-2xl rounded-bl-sm bg-muted/60 text-foreground px-3 py-2 text-sm leading-5 whitespace-pre-wrap">
+                        {message.body}
+                      </div>
+                    </div>
                   </div>
                 );
               }
@@ -824,32 +866,39 @@ export default function WorkspaceSupportTicketThread({
                   className={cn(
                     "flex items-end gap-2",
                     isMine ? "flex-row-reverse" : "flex-row",
+                    topMargin,
                   )}
                 >
-                  <UserAvatar
-                    name={authorName}
-                    src={avatarSrc}
-                    className="mb-0.5 size-7"
-                  />
+                  {isContinuation ? (
+                    <div className="size-7 shrink-0" />
+                  ) : (
+                    <UserAvatar
+                      name={authorName}
+                      src={avatarSrc}
+                      className="mb-0.5 size-7"
+                    />
+                  )}
                   <div
                     className={cn(
                       "flex max-w-[72%] flex-col gap-0.5",
                       isMine ? "items-end" : "items-start",
                     )}
                   >
-                    <div
-                      className={cn(
-                        "flex items-baseline gap-1.5",
-                        isMine ? "flex-row-reverse" : "flex-row",
-                      )}
-                    >
-                      <span className="text-xs font-semibold">
-                        {authorName}
-                      </span>
-                      <span className="text-muted-foreground text-[10px]">
-                        {formatDateTime(message.createdAt)}
-                      </span>
-                    </div>
+                    {!isContinuation && (
+                      <div
+                        className={cn(
+                          "flex items-baseline gap-1.5",
+                          isMine ? "flex-row-reverse" : "flex-row",
+                        )}
+                      >
+                        <span className="text-xs font-semibold">
+                          {authorName}
+                        </span>
+                        <span className="text-muted-foreground text-[10px]">
+                          {formatDateTime(message.createdAt)}
+                        </span>
+                      </div>
+                    )}
                     <div
                       className={cn(
                         "rounded-2xl px-3 py-2 text-sm leading-5 whitespace-pre-wrap",

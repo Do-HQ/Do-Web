@@ -641,7 +641,7 @@ const ThreadPanel = ({
                 No replies yet. Start the thread.
               </p>
             ) : (
-              activeThreadReplies.map((reply) => {
+              activeThreadReplies.map((reply, replyIndex) => {
                 const isPinned = pinnedReplyIds.includes(reply.id);
                 const isOwnReply =
                   String(reply.author.id || "").trim() ===
@@ -658,10 +658,24 @@ const ThreadPanel = ({
                   authorInfo?.avatarUrl ||
                   (isOwnReply ? currentUserAvatarUrl || "" : "");
 
+                const prevReply = replyIndex > 0 ? activeThreadReplies[replyIndex - 1] : null;
+                const isContinuation =
+                  !jamShareCard &&
+                  !docShare &&
+                  !!prevReply &&
+                  (() => {
+                    const prevId = String(prevReply.author?.id || "").trim();
+                    const currId = String(reply.author?.id || "").trim();
+                    if (!prevId || prevId !== currId) return false;
+                    const prevTs = new Date(prevReply.sentAtRaw || "").getTime();
+                    const currTs = new Date(reply.sentAtRaw || "").getTime();
+                    return !isNaN(prevTs) && !isNaN(currTs) && currTs - prevTs <= 5 * 60 * 1000;
+                  })();
+
                 return (
                   <article
                     key={reply.id}
-                    className="group relative rounded-lg border-none bg-card/70 px-2.5 py-2 transition-colors hover:bg-card"
+                    className={cn("group relative rounded-lg border-none bg-card/70 px-2.5 transition-colors hover:bg-card", isContinuation ? "pt-0.5 pb-2" : "py-2")}
                     onClick={() =>
                       setActiveMobileReplyId((prev) =>
                         prev === reply.id ? null : reply.id,
@@ -713,6 +727,22 @@ const ThreadPanel = ({
                       />
                     </div>
 
+                    {isContinuation ? (
+                      <div className="flex items-center gap-1.5 pl-8.5">
+                        <span className="text-[10px] text-muted-foreground/60 opacity-0 group-hover:opacity-100 transition-opacity select-none leading-none">
+                          {reply.sentAt}
+                        </span>
+                        {reply.edited && (
+                          <span className="text-muted-foreground text-[11px]">edited</span>
+                        )}
+                        {isPinned && (
+                          <Badge variant="secondary" className="text-[11px]">
+                            <Bookmark className="size-3.5" />
+                            Tagged
+                          </Badge>
+                        )}
+                      </div>
+                    ) : (
                     <div className="flex items-center gap-1.5">
                       <Avatar
                         size="sm"
@@ -760,6 +790,7 @@ const ThreadPanel = ({
                         </Badge>
                       )}
                     </div>
+                    )}
 
                     {editingReplyId === reply.id ? (
                       <div className="mt-1.5 space-y-1.5">
