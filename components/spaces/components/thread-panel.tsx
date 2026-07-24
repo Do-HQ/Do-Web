@@ -588,7 +588,7 @@ const ThreadPanel = ({
           {/*
             Thread root can be a shared jam message.
           */}
-          <div className="shrink-0 border-b border-border/35 px-2 py-2 sm:px-3 sm:py-2.5">
+          <div className="max-h-[32%] shrink-0 overflow-y-auto border-b border-border/35 px-2 py-2 sm:px-3 sm:py-2.5">
             <div className="rounded-lg border border-border/35 bg-card/70 px-2.5 py-2.5">
               <p className="text-muted-foreground text-[11px]">
                 From main chat

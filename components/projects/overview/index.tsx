@@ -777,7 +777,6 @@ export default function ProjectOverview({
     }
   }, [projectDetailQuery.data, upsertProjectRecord]);
 
-
   const currentUserAvatarUrl =
     String(user?.profilePhoto?.url || "").trim() || undefined;
 
@@ -2048,7 +2047,12 @@ export default function ProjectOverview({
     }
 
     if (label === "Delete subtask") {
-      setSubtaskDeleteDialogState({ workflowId, taskId, subtaskId, subtaskName });
+      setSubtaskDeleteDialogState({
+        workflowId,
+        taskId,
+        subtaskId,
+        subtaskName,
+      });
       return;
     }
 
@@ -2060,7 +2064,8 @@ export default function ProjectOverview({
       setSubtaskDeleteDialogState(null);
       return;
     }
-    const { subtaskName, subtaskId, taskId, workflowId } = subtaskDeleteDialogState;
+    const { subtaskName, subtaskId, taskId, workflowId } =
+      subtaskDeleteDialogState;
 
     deleteWorkspaceProjectSubtaskMutation.mutate(
       { workspaceId, projectId, workflowId, taskId, subtaskId },

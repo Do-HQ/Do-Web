@@ -52,7 +52,8 @@ import WorkspaceArchive from "@/components/archive/workspace-archive";
 import SettingsModal from "./modals/settings-modal";
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { setShowSettings, setShowSpotlightSearch, spacesUnread, jamsUnread } = useAppStore();
+  const { setShowSettings, setShowSpotlightSearch, spacesUnread, jamsUnread } =
+    useAppStore();
   const { user } = useAuthStore();
   const pathname = usePathname();
   const router = useRouter();
@@ -194,7 +195,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         ? [
             {
               title: "Standup",
-              url: workspacePermissions.isAdminLike ? ROUTES.STANDUPS : ROUTES.STANDUP,
+              url: workspacePermissions.isAdminLike
+                ? ROUTES.STANDUPS
+                : ROUTES.STANDUP,
               icon: ClipboardCheck,
               isActive:
                 pathname.startsWith(ROUTES.STANDUPS) ||
@@ -309,6 +312,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarContent>
       <SidebarFooter className="shrink-0 border-t border-sidebar-border/50">
         <NavSecondary items={data.navSecondary} />
+        <div className="flex items-center justify-between px-3 pb-1 pt-0.5">
+          <span className="text-muted-foreground/50 text-[12px]">
+            Early access
+          </span>
+          <span className="inline-flex items-center rounded-full border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-[10px] font-semibold tracking-wide text-violet-500">
+            BETA
+          </span>
+        </div>
       </SidebarFooter>
       <SidebarRail />
 

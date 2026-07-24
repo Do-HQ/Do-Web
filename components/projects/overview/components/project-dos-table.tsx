@@ -243,7 +243,7 @@ export function ProjectDosTable({
                             PRIORITY_STYLES[task.priority],
                           )}
                         >
-                          {task.priority}
+                          {task.priority?.toLowerCase()}
                         </Badge>
                       </TableCell>
                       <TableCell>

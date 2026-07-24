@@ -235,11 +235,11 @@ export function WorkflowStateTrend({
       </div>
 
       <div className="w-full overflow-x-auto overflow-y-hidden pb-1">
-        <div className="h-[198px] min-w-full" style={{ width: chartWidth }}>
+        <div className="h-80 min-w-full" style={{ width: chartWidth }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart
               data={chartData}
-              margin={{ top: 10, right: 14, bottom: 18, left: -18 }}
+              margin={{ top: 14, right: 16, bottom: 24, left: 4 }}
             >
               <CartesianGrid
                 vertical={false}
@@ -254,20 +254,20 @@ export function WorkflowStateTrend({
                 ticks={chartData.map((item) => item.xValue)}
                 axisLine={false}
                 tickLine={false}
-                height={42}
+                height={48}
                 tick={<WorkflowXAxisTick data={chartData} />}
               />
               <YAxis
-                width={52}
+                width={60}
                 domain={[0, 3]}
                 ticks={[0, 1, 2, 3]}
                 allowDecimals={false}
                 axisLine={false}
                 tickLine={false}
-                tickMargin={6}
+                tickMargin={8}
                 tick={{
                   fill: "var(--muted-foreground)",
-                  fontSize: 9,
+                  fontSize: 11,
                   fontWeight: 500,
                 }}
                 tickFormatter={(value) =>

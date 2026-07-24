@@ -102,7 +102,7 @@ export function ProjectWorkflowDurationChart({
       </div>
 
       {summaries.length ? (
-        <div className="space-y-2 px-3 py-3 md:px-4">
+        <div className="space-y-1 px-3 py-3 md:px-4">
           {summaries.map((summary) => {
             const isSelected = selectedWorkflowId === summary.workflowId;
             const statusMeta = STATUS_META[summary.status];
@@ -113,37 +113,37 @@ export function ProjectWorkflowDurationChart({
                 type="button"
                 onClick={() => onSelectWorkflow(summary.workflowId)}
                 className={cn(
-                  "flex w-full flex-col gap-2 rounded-lg px-2.5 py-2 text-left transition-colors md:flex-row md:items-center md:gap-3",
+                  "flex w-full flex-col gap-2.5 rounded-lg px-3 py-3.5 text-left transition-colors md:flex-row md:items-center md:gap-4",
                   isSelected ? "bg-muted/30" : "hover:bg-muted/15",
                 )}
               >
-                <div className="w-full min-w-0 md:w-40 md:flex-none">
-                  <div className="truncate text-[12px] font-medium md:text-[13px]">
+                <div className="w-full min-w-0 md:w-52 md:flex-none">
+                  <div className="text-[13px] font-medium leading-snug md:text-[13px]">
                     {summary.label}
                   </div>
-                  <div className="text-muted-foreground text-[11px]">
+                  <div className="text-muted-foreground mt-0.5 text-[11px]">
                     {summary.elapsedDays} / {summary.plannedDays} days elapsed
                   </div>
                 </div>
                 <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex min-w-0 items-center gap-3">
                     <ProjectProgressRing
                       value={summary.fill}
                       tone={statusMeta.ringTone}
-                      size={32}
-                      strokeWidth={3.25}
+                      size={42}
+                      strokeWidth={3.5}
                       textClassName="text-[9px]"
                     />
                     <div className="min-w-0 leading-tight">
                       <div
                         className={cn(
-                          "text-[11px] font-semibold",
+                          "text-[13px] font-semibold",
                           statusMeta.textClass,
                         )}
                       >
                         {getVarianceLabel(summary)}
                       </div>
-                      <div className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                      <div className="text-muted-foreground text-[11px] uppercase tracking-wide">
                         {statusMeta.note}
                       </div>
                     </div>
