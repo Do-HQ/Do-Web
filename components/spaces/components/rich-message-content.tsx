@@ -132,7 +132,7 @@ export default function RichMessageContent({
           return (
             <pre
               key={`code-${index}`}
-              className="max-w-full overflow-x-auto rounded-md border bg-muted/55 px-2.5 py-2 text-[12px] leading-5 text-foreground"
+              className="max-h-64 max-w-full overflow-auto rounded-md border bg-muted/55 px-2.5 py-2 text-[12px] leading-5 text-foreground"
             >
               {block.language ? (
                 <span className="mb-1 block text-[10px] uppercase tracking-wide text-muted-foreground">
