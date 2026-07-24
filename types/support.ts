@@ -59,7 +59,7 @@ export interface WorkspaceSupportTicketMessageRecord {
   author: WorkspaceSupportTicketActor;
   body: string;
   imageUrls: string[];
-  source: "user" | "system";
+  source: "user" | "system" | "bot";
   createdAt: string;
   updatedAt: string;
 }
