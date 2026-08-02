@@ -25,20 +25,31 @@ export const metadata: Metadata = {
   metadataBase: new URL("https://squircle.live"),
 
   title: {
-    default: "Squircle – Where Teams Turn Ideas into Action",
+    default: "Squircle – AI Project Management & Team Collaboration Workspace",
     template: "%s | Squircle",
   },
 
   description:
-    "Squircle is the modern workspace platform that helps teams capture ideas, create actionable plans, collaborate in real time, and get work done — seamlessly switch between personal and team spaces.",
+    "Squircle is an AI-powered project management and team collaboration platform that helps teams plan projects, manage tasks, track progress, collaborate in real time, and organize work in one workspace.",
 
   keywords: [
-    "workspace",
-    "productivity",
+    "AI workspace",
+    "AI project management",
+    "task management",
+    "project planning",
+    "project tracker",
+    "kanban",
     "team collaboration",
-    "project management",
+    "project workspace",
+    "project dashboard",
+    "team productivity",
+    "startup workspace",
     "remote work",
-    "ideas to plans",
+    "knowledge management",
+    "notes",
+    "project documentation",
+    "AI assistant",
+    "work management",
   ],
 
   authors: [{ name: "Squircle Team", url: "https://squircle.live" }],
@@ -96,9 +107,17 @@ export const metadata: Metadata = {
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
     { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
   ],
-  // verification: {
-  //   google: "your-google-verification-code",
-  // },
+  alternates: {
+    canonical: "https://squircle.live",
+  },
+  applicationName: "Squircle",
+  generator: "Next.js",
+  referrer: "origin-when-cross-origin",
+  formatDetection: {
+    telephone: false,
+    email: false,
+    address: false,
+  },
 };
 
 export default function RootLayout({
@@ -125,6 +144,27 @@ export default function RootLayout({
           type="image/png"
           sizes="16x16"
           href="/images/favicon-16x16.png"
+        />
+
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "SoftwareApplication",
+              name: "Squircle",
+              applicationCategory: "BusinessApplication",
+              operatingSystem: "Web",
+              url: "https://squircle.live",
+              description:
+                "AI-powered project management and team collaboration platform.",
+              offers: {
+                "@type": "Offer",
+                price: "0",
+                priceCurrency: "USD",
+              },
+            }),
+          }}
         />
       </head>
       <body
