@@ -12,15 +12,10 @@ import {
   ChevronRight,
   Copy,
   Clock3,
-  Eye,
   FileText,
-  Globe,
   Grid2X2,
   List,
-  Loader,
-  Lock,
   MoreHorizontal,
-  PencilLine,
   Plus,
   Search,
   Share2,
@@ -90,6 +85,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { SidebarSeparator, SidebarTrigger } from "@/components/ui/sidebar";
+import { ThinkingOrb } from "thinking-orbs";
 
 interface WorkspaceDocsProps {
   activeDocId?: string;
@@ -162,11 +158,7 @@ const getBlockText = (value: unknown): string => {
     return `${blockType} ${propText}`.trim();
   }
 
-  return [
-    record.text,
-    record.content,
-    record.children,
-  ]
+  return [record.text, record.content, record.children]
     .map((entry) => getBlockText(entry))
     .join(" ");
 };
@@ -595,7 +587,8 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
         signature: nextSignature,
       });
       setSaveState("saving");
-      void flushPendingSavesRef.current()
+      void flushPendingSavesRef
+        .current()
         .then(() => {
           const hasPending =
             pendingContentRef.current !== null ||
@@ -913,9 +906,8 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
           !isMeaningfulDocContent(queuedContent)
             ? nextDoc.content || []
             : queuedContent || [];
-        lastPersistedContentSignatureRef.current = getContentSignature(
-          persistedContent,
-        );
+        lastPersistedContentSignatureRef.current =
+          getContentSignature(persistedContent);
       } else if (queuedContent !== null) {
         lastPersistedContentSignatureRef.current =
           queuedContentSignature || getContentSignature(queuedContent);
@@ -1233,9 +1225,8 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
               !isMeaningfulDocContent(updates.content)
                 ? nextDoc.content || []
                 : updates.content || [];
-            lastPersistedContentSignatureRef.current = getContentSignature(
-              savedContent,
-            );
+            lastPersistedContentSignatureRef.current =
+              getContentSignature(savedContent);
             if (typeof window !== "undefined") {
               try {
                 window.localStorage.removeItem(
@@ -2671,7 +2662,7 @@ const WorkspaceDocs = ({ activeDocId }: WorkspaceDocsProps) => {
               </div>
               {saveState === "saving" ? (
                 <div className="pointer-events-none fixed right-4 bottom-4 z-40 flex items-center gap-2 rounded-md border border-border/55 bg-background/85 px-2.5 py-1.5 text-[11px] text-muted-foreground shadow-sm backdrop-blur">
-                  <Loader className="size-3 animate-spin text-primary" />
+                  <ThinkingOrb state="listening" size={20} speed={1.75} />
                   Saving...
                 </div>
               ) : null}

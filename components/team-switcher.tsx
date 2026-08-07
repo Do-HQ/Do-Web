@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Loader, Plus } from "lucide-react";
+import { ChevronDown, Plus } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import useWorkspaceStore from "@/stores/workspace";
 import useWorkspace from "@/hooks/use-workspace";
 import { useQueryClient } from "@tanstack/react-query";
+import { ThinkingOrb } from "thinking-orbs";
 
 export function TeamSwitcher() {
   const queryClient = useQueryClient();
@@ -72,9 +73,7 @@ export function TeamSwitcher() {
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton className="w-full px-1.5">
-              <Avatar
-                size="sm"
-              >
+              <Avatar size="sm">
                 <AvatarImage
                   src={user?.currentWorkspaceId?.logo?.url}
                   alt={currentWorkspaceName}
@@ -119,9 +118,7 @@ export function TeamSwitcher() {
                       "bg-accent text-accent-foreground",
                   )}
                 >
-                  <Avatar
-                    size="sm"
-                  >
+                  <Avatar size="sm">
                     <AvatarImage
                       src={team?.logo?.url}
                       alt={team?.name || "Workspace"}
@@ -131,8 +128,8 @@ export function TeamSwitcher() {
                   </Avatar>
                   {team?.name}
                   <DropdownMenuShortcut>
-                    {isSwitchingWorkspace && workspaceId === team?._id ? (
-                      <Loader className="animate-spin" size={16} />
+                    {!isSwitchingWorkspace && workspaceId === team?._id ? (
+                      <ThinkingOrb state="listening" size={20} speed={1.75} />
                     ) : (
                       <>⌘{index + 1}</>
                     )}

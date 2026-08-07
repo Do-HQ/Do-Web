@@ -11,7 +11,6 @@ import {
   FolderKanban,
   GitBranch,
   ListFilter,
-  Loader,
   RefreshCw,
   Search,
   Shapes,
@@ -52,6 +51,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { ThinkingOrb } from "thinking-orbs";
 
 type ArchiveTab = "projects" | "workflows" | "teams" | "jams";
 type ArchiveViewVariant = "page" | "popup";
@@ -1186,7 +1186,9 @@ function ArchiveRow({
         onClick={onRestore}
         disabled={disabled || pending}
       >
-        {pending ? <Loader className="size-3.5 animate-spin" /> : null}
+        {pending ? (
+          <ThinkingOrb state="listening" size={20} speed={1.75} />
+        ) : null}
         Restore
       </Button>
     </div>
@@ -1232,7 +1234,9 @@ function CompactArchiveRow({ row }: { row: PopupArchiveRow }) {
             onClick={row.onRestore}
             disabled={!row.canRestore || row.pending}
           >
-            {row.pending ? <Loader className="size-3 animate-spin" /> : null}
+            {row.pending ? (
+              <ThinkingOrb state="listening" size={20} speed={1.75} />
+            ) : null}
             Restore
           </Button>
         </div>

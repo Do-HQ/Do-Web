@@ -9,7 +9,6 @@ import {
   Copy,
   Eye,
   EyeOff,
-  Loader,
   Lock,
   MoreHorizontal,
   PencilLine,
@@ -88,6 +87,7 @@ import { ProjectMember, ProjectTeamSummary } from "../types";
 import LoaderComponent from "@/components/shared/loader";
 import { useDebounce } from "@/hooks/use-debounce";
 import useAuthStore from "@/stores/auth";
+import { ThinkingOrb } from "thinking-orbs";
 
 type SecretDraft = {
   id?: string;
@@ -922,7 +922,11 @@ export function ProjectSecretsTab({
                             onClick={() => revealSecretValue(secret)}
                           >
                             {revealingSecretId === secret.id ? (
-                              <Loader size={10} className="animate-spin" />
+                              <ThinkingOrb
+                                state="listening"
+                                size={20}
+                                speed={1.75}
+                              />
                             ) : visibleValue ? (
                               <EyeOff />
                             ) : (
@@ -1102,7 +1106,11 @@ export function ProjectSecretsTab({
                               onClick={() => revealSecretValue(secret)}
                             >
                               {revealingSecretId === secret.id ? (
-                                <Loader size={10} className="animate-spin" />
+                                <ThinkingOrb
+                                  state="listening"
+                                  size={20}
+                                  speed={1.75}
+                                />
                               ) : visibleValue ? (
                                 <EyeOff />
                               ) : (

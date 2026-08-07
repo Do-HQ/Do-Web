@@ -1,11 +1,12 @@
 import * as React from "react";
-import { Loader } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/lib/utils";
+import { ThinkingOrb } from "thinking-orbs";
 
 interface Props
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   loading?: boolean;
   ref?: React.RefObject<HTMLButtonElement | null>;
@@ -67,7 +68,11 @@ const Button = ({
       disabled={loading || disabled}
       {...props}
     >
-      {loading ? <Loader className="mr-1 h-4 w-4 animate-spin" /> : children}
+      {loading ? (
+        <ThinkingOrb state="working" size={20} speed={1.75} />
+      ) : (
+        children
+      )}
     </button>
   );
 };

@@ -6,7 +6,6 @@ import {
   Gem,
   Star,
   ChevronRight,
-  Loader,
   Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import MessageMarkdown from "./message-markdown";
 import type { Message, ReportMentionMeta, ThinkingTraceStep } from "../types";
+import { ThinkingOrb } from "thinking-orbs";
 
 type ChatThreadProps = {
   messages: Message[];
@@ -200,7 +200,7 @@ const ChatThread = ({
             <div className="rounded-xl bg-muted/10 px-4 py-3.5">
               {/* Header */}
               <div className="mb-3 flex items-center gap-2">
-                <Loader className="size-3.5 animate-spin text-muted-foreground" />
+                <ThinkingOrb state="weaving" size={20} speed={1.75} />
                 <span className="text-[11px] font-medium text-muted-foreground tracking-wide uppercase">
                   Reasoning
                 </span>

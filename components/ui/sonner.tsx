@@ -1,12 +1,12 @@
 import {
   CircleCheckIcon,
   InfoIcon,
-  Loader,
   OctagonXIcon,
   TriangleAlertIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { Toaster as Sonner, type ToasterProps } from "sonner";
+import { ThinkingOrb } from "thinking-orbs";
 
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme();
@@ -20,7 +20,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
         info: <InfoIcon className="size-4" />,
         warning: <TriangleAlertIcon className="size-4" />,
         error: <OctagonXIcon className="size-4" />,
-        loading: <Loader className="size-4 animate-spin" />,
+        loading: <ThinkingOrb state="working" size={20} speed={1.75} />,
       }}
       style={
         {

@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/select";
 
 import * as React from "react";
-import { Check, ChevronsUpDown, Loader } from "lucide-react";
+import { Check, ChevronsUpDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,7 +26,7 @@ import {
   CommandItem,
 } from "@/components/ui/command";
 import { FieldLabel, Field, FieldContent } from "@/components/ui/field";
-import LoaderComponent from "../loader";
+import { ThinkingOrb } from "thinking-orbs";
 
 interface Props {
   label: string;
@@ -137,7 +137,7 @@ export function MultiSelect({
               <CommandEmpty>No results found.</CommandEmpty>
               {loading && (
                 <div className="flex items-center justify-center py-4">
-                  <Loader className="animate-spin" size={16} />
+                  <ThinkingOrb state="listening" size={20} speed={1.75} />
                 </div>
               )}
 

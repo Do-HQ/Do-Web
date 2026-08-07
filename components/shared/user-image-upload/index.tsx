@@ -3,10 +3,11 @@ import useFile from "@/hooks/use-file";
 import UserSVG from "@/public/svg/User";
 import useAuthStore from "@/stores/auth";
 import { CustomFile } from "@/types/file";
-import { Loader, Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { Dispatch, SetStateAction, useEffect } from "react";
 import { toast } from "sonner";
+import { ThinkingOrb } from "thinking-orbs";
 
 interface Props {
   image: CustomFile | null;
@@ -98,7 +99,7 @@ const UserImageUpload = ({ image, setImage, value, onChange }: Props) => {
         <div className="absolute inset-0 bg-black/20  transition-opacity rounded-full flex items-center justify-center">
           <span className="text-xs text-white font-medium">
             {loading ? (
-              <Loader className="animate-spin opacity-50" size={16} />
+              <ThinkingOrb state="weaving" size={20} speed={1.75} />
             ) : (
               <Plus size={20} className="group-hover:opacity-50 opacity-0" />
             )}

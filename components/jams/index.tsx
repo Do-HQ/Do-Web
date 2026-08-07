@@ -29,7 +29,6 @@ import {
   Users,
   UsersRound,
   X,
-  Loader,
   Magnet,
   Bookmark,
 } from "lucide-react";
@@ -120,6 +119,7 @@ import {
 import { MentionSuggestionRow } from "@/components/shared/mention-suggestion-row";
 import { AccessDenied } from "@/components/shared/access-denied";
 import LoaderComponent from "../shared/loader";
+import { ThinkingOrb } from "thinking-orbs";
 
 const getSnapshotSignature = (
   value: Record<string, unknown> | null | undefined,
@@ -654,7 +654,13 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
     router.replace(`${ROUTES.JAMS}/${activeJam.jamId}`);
     if (activeJam.ownerUserId !== currentUserId) return;
     setIsShareDialogOpen(true);
-  }, [activeJam, currentUserId, router, shouldAutoOpenShareDialog, workspaceKey]);
+  }, [
+    activeJam,
+    currentUserId,
+    router,
+    shouldAutoOpenShareDialog,
+    workspaceKey,
+  ]);
 
   const activeJamSnapshot = (activeJam?.snapshot || null) as Record<
     string,
@@ -1157,12 +1163,15 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
     }
   };
 
-  const openShareDialog = React.useCallback((jamId: string) => {
-    const jam = jamRows.find((j) => j.jamId === jamId);
-    if (!jam || jam.ownerUserId !== currentUserId) return;
-    setActiveJamId(jamId);
-    setIsShareDialogOpen(true);
-  }, [currentUserId, jamRows]);
+  const openShareDialog = React.useCallback(
+    (jamId: string) => {
+      const jam = jamRows.find((j) => j.jamId === jamId);
+      if (!jam || jam.ownerUserId !== currentUserId) return;
+      setActiveJamId(jamId);
+      setIsShareDialogOpen(true);
+    },
+    [currentUserId, jamRows],
+  );
 
   const handleArchiveToggle = React.useCallback(
     async (jam: WorkspaceJamRecord) => {
@@ -1494,7 +1503,11 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
   );
 
   const handleShareJam = async () => {
-    if (!workspaceKey || !activeJam || activeJam.ownerUserId !== currentUserId) {
+    if (
+      !workspaceKey ||
+      !activeJam ||
+      activeJam.ownerUserId !== currentUserId
+    ) {
       return;
     }
 
@@ -2498,9 +2511,13 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                         {selectedJamCommentThread ? (
                           <>
                             <ScrollArea className="max-h-[17.5rem] px-3 py-2">
-                              {isSelectedThreadDetailLoading ? (
+                              {!isSelectedThreadDetailLoading ? (
                                 <div className="text-muted-foreground flex min-h-[8rem] flex-col items-center justify-center gap-2 text-[11px]">
-                                  <Loader className="size-4 animate-spin" />
+                                  <ThinkingOrb
+                                    state="connecting"
+                                    size={20}
+                                    speed={1.75}
+                                  />
                                   Loading conversation...
                                 </div>
                               ) : selectedThreadMessages.length ? (
@@ -2784,7 +2801,7 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
                   ) : null}
                   {updateJamContentMutation.isPending ? (
                     <div className="bg-background/80 text-muted-foreground absolute right-3 bottom-3 z-30 inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px]">
-                      <Loader className="size-3 animate-spin" />
+                      <ThinkingOrb state="connecting" size={20} speed={1.75} />
                     </div>
                   ) : null}
                 </div>
@@ -3244,9 +3261,9 @@ const JamsPage = ({ routeJamId }: JamsPageProps) => {
             <div className="bg-muted/20 border-border/45 min-h-0 rounded-md border">
               <ScrollArea className="h-[13.5rem]">
                 <div className="space-y-0.5 p-1.5">
-                  {shareTargetsQuery.isLoading ? (
+                  {!shareTargetsQuery.isLoading ? (
                     <div className="text-muted-foreground flex items-center gap-1.5 px-2 py-2 text-[11px]">
-                      <Loader className="size-3.5 animate-spin" />
+                      <ThinkingOrb state="listening" size={20} speed={1.75} />
                       Searching...
                     </div>
                   ) : availableShareRecipientOptions.length ? (
