@@ -51,6 +51,10 @@ import {
 import useWorkspaceProject from "@/hooks/use-workspace-project";
 import useWorkspaceMeetings from "@/hooks/use-workspace-meetings";
 import { cn } from "@/lib/utils";
+import {
+  TimelineBarHitArea,
+  TimelineBarTooltip,
+} from "@/components/shared/timeline/timeline-bar-tooltip";
 import useWorkspaceStore from "@/stores/workspace";
 import type { WorkspaceProjectRecord } from "@/types/project";
 import LoaderComponent from "../shared/loader";
@@ -1149,8 +1153,21 @@ const WorkspaceCalendar = () => {
                       const meta = EVENT_TYPE_META[event.type];
                       const GAP = 2;
                       return (
-                        <button
+                        <TimelineBarTooltip
                           key={event.id}
+                          title={event.title}
+                          subtitle={event.projectName}
+                          facts={[
+                            { label: "Type", value: meta.label },
+                            event.status ? { label: "Status", value: event.status } : null,
+                            {
+                              label: "Time",
+                              value: `${formatTime(event.start)} – ${formatTime(event.end)}`,
+                            },
+                            event.meta ? { label: "Detail", value: event.meta } : null,
+                          ]}
+                        >
+                        <button
                           type="button"
                           className={cn(
                             "absolute overflow-hidden rounded-md px-2 py-1 text-left shadow-[inset_0_0_0_1px_hsl(var(--border)/0.22)] transition-opacity hover:opacity-90",
@@ -1176,6 +1193,7 @@ const WorkspaceCalendar = () => {
                             </p>
                           ) : null}
                         </button>
+                        </TimelineBarTooltip>
                       );
                     })}
                   </div>
@@ -1718,20 +1736,45 @@ const WorkspaceCalendar = () => {
                     />
                   ) : null}
 
-                  {/* Bar */}
-                  <div
-                    className={cn(
-                      "pointer-events-none absolute top-1/2 -translate-y-1/2 flex items-center overflow-hidden rounded-sm group-hover:brightness-110",
-                      barColor,
-                    )}
-                    style={{ left: barLeft, width: barWidth, height: BAR_H }}
+                  {/* Bar. Short events collapse to a few pixels, so the
+                      detail lives in the tooltip and the hit area is padded. */}
+                  <TimelineBarTooltip
+                    title={event.title}
+                    subtitle={event.projectName}
+                    facts={[
+                      { label: "Type", value: EVENT_TYPE_META[event.type].label },
+                      event.status ? { label: "Status", value: event.status } : null,
+                      {
+                        label: event.allDay ? "Date" : "Starts",
+                        value: event.allDay
+                          ? formatCompactDate(event.start)
+                          : `${formatCompactDate(event.start)}, ${formatTime(event.start)}`,
+                      },
+                      event.allDay
+                        ? null
+                        : {
+                            label: "Ends",
+                            value: `${formatCompactDate(event.end)}, ${formatTime(event.end)}`,
+                          },
+                      event.meta ? { label: "Detail", value: event.meta } : null,
+                    ]}
                   >
-                    {barWidth > 56 ? (
-                      <span className="truncate px-2 text-[10.5px] font-medium text-white/90">
-                        {event.title}
-                      </span>
-                    ) : null}
-                  </div>
+                    <TimelineBarHitArea left={barLeft} width={barWidth}>
+                      <div
+                        className={cn(
+                          "flex items-center overflow-hidden rounded-sm group-hover:brightness-110",
+                          barColor,
+                        )}
+                        style={{ width: barWidth, height: BAR_H }}
+                      >
+                        {barWidth > 56 ? (
+                          <span className="truncate px-2 text-[10.5px] font-medium text-white/90">
+                            {event.title}
+                          </span>
+                        ) : null}
+                      </div>
+                    </TimelineBarHitArea>
+                  </TimelineBarTooltip>
                 </div>
               </button>
             ))}

@@ -13,6 +13,10 @@ import {
 import { FlattenedProjectTask } from "../types";
 import { getTaskStatusLabel } from "../utils";
 import { ProjectInfoTip } from "./project-info-tip";
+import {
+  TimelineBarHitArea,
+  TimelineBarTooltip,
+} from "@/components/shared/timeline/timeline-bar-tooltip";
 
 // ─── layout constants ─────────────────────────────────────────────────────────
 const LABEL_COL_WIDTH = 228;
@@ -126,6 +130,11 @@ function fmtShortDate(d: Date): string {
     day: "numeric",
     year: "numeric",
   }).format(d);
+}
+
+function fmtDayCount(days: number): string {
+  const whole = Math.max(1, Math.round(days));
+  return `${whole} day${whole === 1 ? "" : "s"}`;
 }
 
 // ─── scale helpers ────────────────────────────────────────────────────────────
@@ -393,25 +402,49 @@ export function ProjectDosCharts({ tasks, onEditTask }: ProjectDosChartsProps) {
                     />
                   ) : null}
 
-                  {/* Task bar */}
-                  <div
-                    className={cn(
-                      "pointer-events-none absolute top-1/2 -translate-y-1/2 flex items-center overflow-hidden rounded-sm transition-opacity group-hover:brightness-110",
-                      STATUS_BAR[row.task.status],
-                      row.isEstimated ? "opacity-55" : "opacity-100",
-                    )}
-                    style={{
-                      left: row.barLeft,
-                      width: row.barWidth,
-                      height: BAR_H,
-                    }}
+                  {/* Task bar. Narrow bars can't show a label, so the detail
+                      lives in the tooltip and the hit area is padded out. */}
+                  <TimelineBarTooltip
+                    title={row.task.title}
+                    subtitle={row.task.workflowName}
+                    facts={[
+                      { label: "Status", value: getTaskStatusLabel(row.task.status) },
+                      row.task.priority
+                        ? {
+                            label: "Priority",
+                            value: `${row.task.priority.charAt(0).toUpperCase()}${row.task.priority.slice(1)}`,
+                          }
+                        : null,
+                      { label: "Start", value: fmtShortDate(row.start) },
+                      { label: "Due", value: fmtShortDate(row.end) },
+                      {
+                        label: "Span",
+                        value: fmtDayCount(daysBetween(row.start, row.end) + 1),
+                      },
+                    ]}
+                    note={
+                      row.isEstimated
+                        ? "This task has no explicit dates, so the span is estimated."
+                        : undefined
+                    }
                   >
-                    {row.barWidth > 56 ? (
-                      <span className={cn("truncate px-2 text-[10.5px] font-medium", STATUS_BAR_TEXT[row.task.status])}>
-                        {row.task.title}
-                      </span>
-                    ) : null}
-                  </div>
+                    <TimelineBarHitArea left={row.barLeft} width={row.barWidth}>
+                      <div
+                        className={cn(
+                          "flex items-center overflow-hidden rounded-sm transition-opacity group-hover:brightness-110",
+                          STATUS_BAR[row.task.status],
+                          row.isEstimated ? "opacity-55" : "opacity-100",
+                        )}
+                        style={{ width: row.barWidth, height: BAR_H }}
+                      >
+                        {row.barWidth > 56 ? (
+                          <span className={cn("truncate px-2 text-[10.5px] font-medium", STATUS_BAR_TEXT[row.task.status])}>
+                            {row.task.title}
+                          </span>
+                        ) : null}
+                      </div>
+                    </TimelineBarHitArea>
+                  </TimelineBarTooltip>
                 </div>
               </button>
             ))}
