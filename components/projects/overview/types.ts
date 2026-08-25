@@ -320,6 +320,8 @@ export interface ProjectTaskEditorValues {
   remainingHours?: number;
   sectionId?: string;
   dependencyTaskIds?: string[];
+  /** Event this task is a checklist item for. Empty means not tied to one. */
+  eventId?: string;
   subtasks?: ProjectTaskDraftSubtask[];
 }
 

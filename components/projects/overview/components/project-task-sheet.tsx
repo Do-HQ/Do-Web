@@ -50,6 +50,7 @@ import useWorkspace from "@/hooks/use-workspace";
 import useWorkspaceAi from "@/hooks/use-workspace-ai";
 import useWorkspaceTeam from "@/hooks/use-workspace-team";
 import useWorkspaceTemplate from "@/hooks/use-workspace-template";
+import useWorkspaceMeetings from "@/hooks/use-workspace-meetings";
 
 import {
   ProjectKanbanSection,
@@ -81,6 +82,7 @@ type ProjectTaskSheetProps = {
   sections: ProjectKanbanSection[];
   dependencyOptions: ProjectTaskDependencyOption[];
   currentTaskId?: string;
+  projectId: string;
   initialValues?: Partial<ProjectTaskEditorValues>;
   initiallyExpandSubtasks?: boolean;
   seedBlankSubtask?: boolean;
@@ -140,6 +142,7 @@ export function ProjectTaskSheet({
   sections,
   dependencyOptions,
   currentTaskId,
+  projectId,
   initialValues,
   initiallyExpandSubtasks,
   seedBlankSubtask,
@@ -158,6 +161,41 @@ export function ProjectTaskSheet({
   const aiStatusQuery = useWorkspaceAiStatus(workspaceId || undefined, {
     enabled: open,
   });
+
+  // Upcoming events this task can be a checklist item for.
+  const { useMeetingsList } = useWorkspaceMeetings();
+
+  const eventListQuery = useMeetingsList(
+    workspaceId ?? "",
+    { kind: "event", status: "scheduled", limit: 100 },
+    { enabled: open && Boolean(workspaceId) },
+  );
+  // In edit mode the tie already exists on the event, so read it back to seed
+  // the field. Without this, opening and saving a task would silently unlink it.
+  const { useEventsForTask } = useWorkspaceMeetings();
+  const linkedEventQuery = useEventsForTask(
+    workspaceId ?? "",
+    { projectId, taskId: currentTaskId ?? "" },
+    { enabled: open && !isCreateMode && Boolean(workspaceId && currentTaskId) },
+  );
+
+  useEffect(() => {
+    const linked = linkedEventQuery.data?.data?.events ?? [];
+    const first = linked.find((item) => !item.subtaskId) ?? linked[0];
+    if (first) {
+      setEventId(first.meetingId);
+    }
+  }, [linkedEventQuery.data?.data?.events]);
+
+  const eventOptions = useMemo(
+    () =>
+      (eventListQuery.data?.data?.meetings ?? [])
+        .slice()
+        .sort((left, right) =>
+          String(left.startAt || "").localeCompare(String(right.startAt || "")),
+        ),
+    [eventListQuery.data?.data?.meetings],
+  );
   const aiDisabledReason =
     aiStatusQuery.data?.data?.available === false
       ? String(
@@ -242,6 +280,7 @@ export function ProjectTaskSheet({
   const [dependencyTaskIds, setDependencyTaskIds] = useState<string[]>(
     initialValues?.dependencyTaskIds ?? [],
   );
+  const [eventId, setEventId] = useState(initialValues?.eventId ?? "");
   const [subtasksOpen, setSubtasksOpen] = useState(
     Boolean(initiallyExpandSubtasks || seededSubtasks.length),
   );
@@ -751,6 +790,7 @@ export function ProjectTaskSheet({
       dueDate,
       sectionId: sectionId || undefined,
       dependencyTaskIds,
+      eventId,
       subtasks: subtasks
         .map((subtask) => ({
           ...subtask,
@@ -1166,6 +1206,41 @@ export function ProjectTaskSheet({
             )}
           </div>
         ) : null}
+
+        {/* Ties this task to an event's checklist. Optional — most tasks aren't
+            working towards a dated milestone. */}
+        <div className="grid gap-2">
+          <Label htmlFor="task-event">Event</Label>
+          <Select
+            value={eventId || "none"}
+            onValueChange={(value) => setEventId(value === "none" ? "" : value)}
+          >
+            <SelectTrigger id="task-event" className="w-full">
+              <SelectValue placeholder="Not tied to an event" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">Not tied to an event</SelectItem>
+              {eventOptions.map((event) => (
+                <SelectItem key={event.meetingId} value={event.meetingId}>
+                  <span className="truncate">{event.title}</span>
+                  {event.startAt ? (
+                    <span className="text-muted-foreground ml-2 text-[11px]">
+                      {new Date(event.startAt).toLocaleDateString(undefined, {
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </span>
+                  ) : null}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="text-muted-foreground text-[11px] leading-5">
+            {eventOptions.length
+              ? "This task becomes a checklist item on the event. Everyone is told when the last one is done."
+              : "No upcoming events yet. Create one from the calendar."}
+          </div>
+        </div>
 
         <Collapsible open={subtasksOpen} onOpenChange={setSubtasksOpen}>
           <div className="rounded-xl border border-border/35 bg-muted/15">

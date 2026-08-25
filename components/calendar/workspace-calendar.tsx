@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
+  CalendarCheck,
   CalendarClock,
+  Ellipsis,
   CalendarDays,
   CalendarRange,
   Check,
@@ -23,6 +25,7 @@ import {
 
 import { Calendar } from "@/components/ui/calendar";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -51,6 +54,10 @@ import {
 import useWorkspaceProject from "@/hooks/use-workspace-project";
 import useWorkspaceMeetings from "@/hooks/use-workspace-meetings";
 import { cn } from "@/lib/utils";
+import { CreateEventDialog } from "./components/create-event-dialog";
+import { EventChecklistPanel } from "./components/event-checklist-panel";
+import { EventDetailDialog } from "./components/event-detail-dialog";
+import type { WorkspaceMeeting } from "@/types/meeting";
 import {
   TimelineBarHitArea,
   TimelineBarTooltip,
@@ -61,7 +68,13 @@ import LoaderComponent from "../shared/loader";
 import { useDebounce } from "@/hooks/use-debounce";
 
 type CalendarView = "month" | "week" | "day" | "year" | "agenda";
-type CalendarEventType = "task" | "milestone" | "workflow" | "risk" | "meeting";
+type CalendarEventType =
+  | "task"
+  | "milestone"
+  | "workflow"
+  | "risk"
+  | "meeting"
+  | "event";
 
 type WorkspaceCalendarEvent = {
   id: string;
@@ -75,6 +88,9 @@ type WorkspaceCalendarEvent = {
   allDay: boolean;
   href: string;
   meta?: string;
+  /** Events only: how much of the checklist is done. */
+  checklistTotal?: number;
+  checklistDone?: number;
 };
 
 type EventTypeMeta = {
@@ -138,6 +154,14 @@ const EVENT_TYPE_META: Record<CalendarEventType, EventTypeMeta> = {
       "border-teal-500/30 bg-teal-500/15 text-teal-700 dark:text-teal-300",
     laneClassName: "bg-teal-500/85",
   },
+  event: {
+    label: "Events",
+    icon: CalendarCheck,
+    dotClassName: "bg-orange-500",
+    chipClassName:
+      "border-orange-500/30 bg-orange-500/15 text-orange-700 dark:text-orange-300",
+    laneClassName: "bg-orange-500/85",
+  },
 };
 
 const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -164,6 +188,7 @@ const DEFAULT_TYPE_FILTER: Record<CalendarEventType, boolean> = {
   workflow: true,
   risk: true,
   meeting: true,
+  event: true,
 };
 
 const isValidDate = (value?: string) =>
@@ -325,14 +350,23 @@ const buildRangeLabel = (view: CalendarView, anchorDate: Date) => {
   return `${formatCompactDate(anchorDate)} - ${formatCompactDate(agendaEnd)}`;
 };
 
+/**
+ * Zeroed counts for every event type.
+ *
+ * Built from the type-meta keys rather than a literal, so adding a calendar
+ * type can't leave a counter undefined — `counts[type] += 1` on a missing key
+ * silently produces NaN.
+ */
+const emptyTypeCounts = (): Record<CalendarEventType, number> =>
+  Object.fromEntries(
+    (Object.keys(EVENT_TYPE_META) as CalendarEventType[]).map((key) => [
+      key,
+      0,
+    ]),
+  ) as Record<CalendarEventType, number>;
+
 const summarizeByType = (events: WorkspaceCalendarEvent[]) => {
-  const summary: Record<CalendarEventType, number> = {
-    task: 0,
-    milestone: 0,
-    workflow: 0,
-    risk: 0,
-    meeting: 0,
-  };
+  const summary: Record<CalendarEventType, number> = emptyTypeCounts();
 
   events.forEach((event) => {
     summary[event.type] += 1;
@@ -504,30 +538,31 @@ const WorkspaceCalendar = () => {
   );
 
   const { useMeetingsList } = useWorkspaceMeetings();
-  const meetingQueryParams = useMemo(
-    () => ({ limit: 500, status: "scheduled" as const }),
-    [],
-  );
+  const meetingQueryParams = useMemo(() => ({ limit: 500 }), []);
   const meetingsQuery = useMeetingsList(workspaceId ?? "", meetingQueryParams, {
     enabled: Boolean(workspaceId),
   });
   const meetingEvents = useMemo<WorkspaceCalendarEvent[]>(() => {
     const meetings = meetingsQuery.data?.data?.meetings ?? [];
     return meetings
-      .filter((m) => m.startAt && m.endAt)
-      .map((m) => ({
-        id: `meeting-${m.meetingId}`,
-        projectId: "",
-        projectName: "",
-        title: m.title,
-        type: "meeting" as const,
-        status: m.status,
-        start: new Date(m.startAt),
-        end: new Date(m.endAt),
-        allDay: false,
-        href: m.spaceRoomId ? `/spaces?room=${m.spaceRoomId}` : "/spaces",
-        meta: m.location || m.description || "",
-      }));
+      .filter((m) => m.startAt && m.endAt && m.status !== "cancelled")
+      .map((m) => {
+        const isEvent = m.kind === "event";
+        return {
+          id: `meeting-${m.meetingId}`,
+          projectId: "",
+          projectName: "",
+          title: m.title,
+          type: (isEvent ? "event" : "meeting") as CalendarEventType,
+          status: m.status,
+          start: new Date(m.startAt),
+          end: new Date(m.endAt),
+          allDay: Boolean(m.allDay),
+          href: m.spaceRoomId ? `/spaces?room=${m.spaceRoomId}` : "/calendar",
+          meta: m.location || m.description || "",
+          checklistTotal: isEvent ? m.checklistCount : undefined,
+        };
+      });
   }, [meetingsQuery.data?.data?.meetings]);
 
   const [view, setView] = useState<CalendarView>("month");
@@ -544,6 +579,11 @@ const WorkspaceCalendar = () => {
     useState<Record<CalendarEventType, boolean>>(DEFAULT_TYPE_FILTER);
   const [expandedAllDayKeys, setExpandedAllDayKeys] = useState<string[]>([]);
   const [selectedEventId, setSelectedEventId] = useState<string>("");
+  const [createEventOpen, setCreateEventOpen] = useState(false);
+  const [detailEventId, setDetailEventId] = useState("");
+  const [editingEvent, setEditingEvent] = useState<WorkspaceMeeting | null>(
+    null,
+  );
   const [now, setNow] = useState(() => new Date());
 
   useEffect(() => {
@@ -651,6 +691,15 @@ const WorkspaceCalendar = () => {
   const selectedEventMeta = selectedEvent
     ? EVENT_TYPE_META[selectedEvent.type]
     : null;
+  /**
+   * Whether the selected entry has somewhere to go. Events open a modal, and a
+   * meeting with no space room resolves to "/calendar" — the page already on
+   * screen — so neither should render a plain link.
+   */
+  const hasSecondaryAction = selectedEvent
+    ? selectedEvent.type === "event" ||
+      Boolean(selectedEvent.href && selectedEvent.href !== "/calendar")
+    : false;
 
   const selectedDateEvents = useMemo(
     () => visibleEvents.filter((event) => intersectsDay(event, selectedDate)),
@@ -789,6 +838,19 @@ const WorkspaceCalendar = () => {
     }));
   };
 
+  const calendarTypes = Object.keys(EVENT_TYPE_META) as CalendarEventType[];
+  const allTypesSelected = calendarTypes.every((type) => typeFilters[type]);
+
+  /** Select-all doubles as clear-all once everything is already on. */
+  const setAllTypeFilters = (next: boolean) => {
+    setTypeFilters(
+      Object.fromEntries(calendarTypes.map((type) => [type, next])) as Record<
+        CalendarEventType,
+        boolean
+      >,
+    );
+  };
+
   const toggleAllDayExpansion = (key: string) => {
     setExpandedAllDayKeys((current) =>
       current.includes(key)
@@ -821,7 +883,9 @@ const WorkspaceCalendar = () => {
           compact ? "text-[11px]" : "text-[12px]",
         )}
       >
-        <span className={cn("size-1.5 rounded-full", meta.dotClassName)} />
+        <span
+          className={cn("size-1.5 rounded-full shrink-0", meta.dotClassName)}
+        />
         <span className="min-w-0 truncate">{event.title}</span>
       </button>
     );
@@ -855,16 +919,10 @@ const WorkspaceCalendar = () => {
                   day.getFullYear() === anchorYear;
                 const isToday = isSameDay(day, today);
                 const isSelected = isSameDay(day, selectedDate);
-                const eventCounts = dayEvents.reduce(
-                  (counts, event) => {
-                    counts[event.type] += 1;
-                    return counts;
-                  },
-                  { task: 0, milestone: 0, workflow: 0, risk: 0 } as Record<
-                    CalendarEventType,
-                    number
-                  >,
-                );
+                const eventCounts = dayEvents.reduce((counts, event) => {
+                  counts[event.type] += 1;
+                  return counts;
+                }, emptyTypeCounts());
 
                 return (
                   <div
@@ -887,7 +945,7 @@ const WorkspaceCalendar = () => {
                       >
                         {day.getDate()}
                       </span>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 ">
                         {(Object.keys(eventCounts) as CalendarEventType[]).map(
                           (type) =>
                             eventCounts[type] > 0 ? (
@@ -903,7 +961,7 @@ const WorkspaceCalendar = () => {
                       </div>
                     </div>
 
-                    <div className="mt-0.5 min-h-0 flex-1 space-y-1 overflow-hidden">
+                    <div className="mt-0.5 min-h-0 flex-1 space-y-1 overflow-hidden ">
                       {dayEvents
                         .slice(0, 2)
                         .map((event) => renderEventChip(event, true))}
@@ -941,8 +999,18 @@ const WorkspaceCalendar = () => {
     const timedByDay = new Map<string, WorkspaceCalendarEvent[]>();
     days.forEach((day) => {
       const key = dateKey(day);
-      allDayByDay.set(key, sortEvents(visibleEvents.filter((e) => intersectsDay(e, day) && e.allDay)));
-      timedByDay.set(key, sortEvents(visibleEvents.filter((e) => intersectsDay(e, day) && !e.allDay)));
+      allDayByDay.set(
+        key,
+        sortEvents(
+          visibleEvents.filter((e) => intersectsDay(e, day) && e.allDay),
+        ),
+      );
+      timedByDay.set(
+        key,
+        sortEvents(
+          visibleEvents.filter((e) => intersectsDay(e, day) && !e.allDay),
+        ),
+      );
     });
 
     // Cluster-aware overlap layout: non-overlapping events get full column width.
@@ -955,17 +1023,24 @@ const WorkspaceCalendar = () => {
     };
     const layoutDay = (events: WorkspaceCalendarEvent[]): EventLayout[] => {
       if (!events.length) return [];
-      const sorted = [...events].sort((a, b) => a.start.getTime() - b.start.getTime());
+      const sorted = [...events].sort(
+        (a, b) => a.start.getTime() - b.start.getTime(),
+      );
       const result: EventLayout[] = [];
       let i = 0;
       while (i < sorted.length) {
         // Find the boundary of this overlapping cluster
-        let clusterEndMins = sorted[i].end.getHours() * 60 + sorted[i].end.getMinutes();
+        let clusterEndMins =
+          sorted[i].end.getHours() * 60 + sorted[i].end.getMinutes();
         let j = i + 1;
         while (j < sorted.length) {
-          const nextStartMins = sorted[j].start.getHours() * 60 + sorted[j].start.getMinutes();
+          const nextStartMins =
+            sorted[j].start.getHours() * 60 + sorted[j].start.getMinutes();
           if (nextStartMins < clusterEndMins) {
-            clusterEndMins = Math.max(clusterEndMins, sorted[j].end.getHours() * 60 + sorted[j].end.getMinutes());
+            clusterEndMins = Math.max(
+              clusterEndMins,
+              sorted[j].end.getHours() * 60 + sorted[j].end.getMinutes(),
+            );
             j++;
           } else break;
         }
@@ -974,17 +1049,32 @@ const WorkspaceCalendar = () => {
         const colEnds: number[] = [];
         const clusterAssignments: Array<[WorkspaceCalendarEvent, number]> = [];
         for (const ev of cluster) {
-          const sMins = Math.max(dayStartMins, ev.start.getHours() * 60 + ev.start.getMinutes());
-          const eMins = Math.min(dayEndMins, Math.max(sMins + 30, ev.end.getHours() * 60 + ev.end.getMinutes()));
+          const sMins = Math.max(
+            dayStartMins,
+            ev.start.getHours() * 60 + ev.start.getMinutes(),
+          );
+          const eMins = Math.min(
+            dayEndMins,
+            Math.max(sMins + 30, ev.end.getHours() * 60 + ev.end.getMinutes()),
+          );
           let col = colEnds.findIndex((end) => end <= sMins);
-          if (col === -1) { col = colEnds.length; colEnds.push(0); }
+          if (col === -1) {
+            col = colEnds.length;
+            colEnds.push(0);
+          }
           colEnds[col] = eMins;
           clusterAssignments.push([ev, col]);
         }
         const numCols = colEnds.length;
         for (const [ev, col] of clusterAssignments) {
-          const sMins = Math.max(dayStartMins, ev.start.getHours() * 60 + ev.start.getMinutes());
-          const eMins = Math.min(dayEndMins, Math.max(sMins + 30, ev.end.getHours() * 60 + ev.end.getMinutes()));
+          const sMins = Math.max(
+            dayStartMins,
+            ev.start.getHours() * 60 + ev.start.getMinutes(),
+          );
+          const eMins = Math.min(
+            dayEndMins,
+            Math.max(sMins + 30, ev.end.getHours() * 60 + ev.end.getMinutes()),
+          );
           result.push({
             event: ev,
             col,
@@ -1007,12 +1097,14 @@ const WorkspaceCalendar = () => {
         <div className="min-h-0 flex-1 overflow-auto">
           <div style={{ minWidth: minW }}>
             {/* Sticky all-day + column header */}
-            <div className="sticky top-0 z-10 border-b border-border/25 bg-card">
+            <div className="border-border/50 bg-card sticky top-0 z-10 border-b shadow-[0_1px_0_0_var(--border)]">
               <div
                 className="grid"
-                style={{ gridTemplateColumns: `${TIME_COL_W}px repeat(${days.length}, minmax(0, 1fr))` }}
+                style={{
+                  gridTemplateColumns: `${TIME_COL_W}px repeat(${days.length}, minmax(0, 1fr))`,
+                }}
               >
-                <div className="flex items-end justify-end px-2 pb-2 text-[10px] text-muted-foreground">
+                <div className="text-muted-foreground flex items-end justify-end px-2 pb-2 text-[10px]">
                   All day
                 </div>
                 {days.map((day) => {
@@ -1020,7 +1112,12 @@ const WorkspaceCalendar = () => {
                   const expansionKey = `${mode}-${key}`;
                   const allDayEvents = allDayByDay.get(key) || [];
                   const isExpanded = expandedAllDayKeys.includes(expansionKey);
-                  const visibleAllDay = isExpanded ? allDayEvents : allDayEvents.slice(0, 2);
+                  // Day view has one column and room to breathe; week view has
+                  // seven and has to stay tight.
+                  const collapsedCount = mode === "day" ? 4 : 2;
+                  const visibleAllDay = isExpanded
+                    ? allDayEvents
+                    : allDayEvents.slice(0, collapsedCount);
                   const isToday = isSameDay(day, today);
                   return (
                     <div
@@ -1034,7 +1131,11 @@ const WorkspaceCalendar = () => {
                         {mode === "week" ? (
                           <>
                             <span className="text-[10.5px] font-medium text-muted-foreground">
-                              {WEEKDAY_LABELS[day.getDay() === 0 ? 6 : day.getDay() - 1]}
+                              {
+                                WEEKDAY_LABELS[
+                                  day.getDay() === 0 ? 6 : day.getDay() - 1
+                                ]
+                              }
                             </span>
                             <button
                               type="button"
@@ -1060,16 +1161,32 @@ const WorkspaceCalendar = () => {
                           </>
                         )}
                       </div>
-                      <div className="space-y-0.5">
-                        {visibleAllDay.map((event) => renderEventChip(event, true))}
-                        {allDayEvents.length > 2 ? (
+                      <div
+                        className={cn(
+                          "space-y-0.5",
+                          // Expanded, the band must not grow without limit and
+                          // push the time grid off screen.
+                          isExpanded && "max-h-40 overflow-y-auto pr-0.5",
+                        )}
+                      >
+                        {visibleAllDay.map((event) =>
+                          renderEventChip(event, mode !== "day"),
+                        )}
+                        {allDayEvents.length > collapsedCount ? (
                           <button
                             type="button"
                             onClick={() => toggleAllDayExpansion(expansionKey)}
-                            className="text-[10px] text-muted-foreground underline-offset-2 hover:underline"
+                            className="text-muted-foreground hover:text-foreground w-full rounded-md px-2 py-0.5 text-left text-[10.5px] font-medium underline-offset-2 hover:underline"
                           >
-                            {isExpanded ? "Show less" : `+${allDayEvents.length - 2} more`}
+                            {isExpanded
+                              ? "Show less"
+                              : `+${allDayEvents.length - collapsedCount} more`}
                           </button>
+                        ) : null}
+                        {!allDayEvents.length ? (
+                          <p className="text-muted-foreground/60 px-2 py-0.5 text-[10.5px]">
+                            Nothing all day
+                          </p>
                         ) : null}
                       </div>
                     </div>
@@ -1081,7 +1198,9 @@ const WorkspaceCalendar = () => {
             {/* Time grid */}
             <div
               className="grid"
-              style={{ gridTemplateColumns: `${TIME_COL_W}px repeat(${days.length}, minmax(0, 1fr))` }}
+              style={{
+                gridTemplateColumns: `${TIME_COL_W}px repeat(${days.length}, minmax(0, 1fr))`,
+              }}
             >
               {/* Hour labels */}
               <div
@@ -1096,10 +1215,13 @@ const WorkspaceCalendar = () => {
                       className="absolute flex w-full items-start justify-end pr-2 text-[10px] text-muted-foreground"
                       style={{ top: i * HOUR_H, height: HOUR_H }}
                     >
-                      <span className="-mt-2">
-                        {new Intl.DateTimeFormat("en-US", { hour: "numeric" }).format(
-                          withHour(today, hour),
-                        )}
+                      {/* Labels sit astride their hour line, but the first one
+                          would be clipped behind the sticky all-day header, so
+                          it aligns flush with the top of the grid instead. */}
+                      <span className={i === 0 ? "mt-0" : "-mt-2"}>
+                        {new Intl.DateTimeFormat("en-US", {
+                          hour: "numeric",
+                        }).format(withHour(today, hour))}
                       </span>
                     </div>
                   );
@@ -1159,40 +1281,45 @@ const WorkspaceCalendar = () => {
                           subtitle={event.projectName}
                           facts={[
                             { label: "Type", value: meta.label },
-                            event.status ? { label: "Status", value: event.status } : null,
+                            event.status
+                              ? { label: "Status", value: event.status }
+                              : null,
                             {
                               label: "Time",
                               value: `${formatTime(event.start)} – ${formatTime(event.end)}`,
                             },
-                            event.meta ? { label: "Detail", value: event.meta } : null,
+                            event.meta
+                              ? { label: "Detail", value: event.meta }
+                              : null,
                           ]}
                         >
-                        <button
-                          type="button"
-                          className={cn(
-                            "absolute overflow-hidden rounded-md px-2 py-1 text-left shadow-[inset_0_0_0_1px_hsl(var(--border)/0.22)] transition-opacity hover:opacity-90",
-                            meta.chipClassName,
-                          )}
-                          style={{
-                            top,
-                            height,
-                            left: `calc(${(col / totalCols) * 100}% + ${GAP}px)`,
-                            width: `calc(${(1 / totalCols) * 100}% - ${GAP * 2}px)`,
-                          }}
-                          onClick={() => {
-                            setSelectedEventId(event.id);
-                            setSelectedDate(day);
-                          }}
-                        >
-                          <p className="truncate text-[11px] font-medium leading-4">
-                            {event.title}
-                          </p>
-                          {height >= HOUR_H / 2 + 14 ? (
-                            <p className="truncate text-[10px] opacity-75">
-                              {formatTime(event.start)} – {formatTime(event.end)}
+                          <button
+                            type="button"
+                            className={cn(
+                              "absolute overflow-hidden rounded-md px-2 py-1 text-left shadow-[inset_0_0_0_1px_hsl(var(--border)/0.22)] transition-opacity hover:opacity-90",
+                              meta.chipClassName,
+                            )}
+                            style={{
+                              top,
+                              height,
+                              left: `calc(${(col / totalCols) * 100}% + ${GAP}px)`,
+                              width: `calc(${(1 / totalCols) * 100}% - ${GAP * 2}px)`,
+                            }}
+                            onClick={() => {
+                              setSelectedEventId(event.id);
+                              setSelectedDate(day);
+                            }}
+                          >
+                            <p className="truncate text-[11px] font-medium leading-4">
+                              {event.title}
                             </p>
-                          ) : null}
-                        </button>
+                            {height >= HOUR_H / 2 + 14 ? (
+                              <p className="truncate text-[10px] opacity-75">
+                                {formatTime(event.start)} –{" "}
+                                {formatTime(event.end)}
+                              </p>
+                            ) : null}
+                          </button>
                         </TimelineBarTooltip>
                       );
                     })}
@@ -1229,21 +1356,15 @@ const WorkspaceCalendar = () => {
             const monthCount = monthEventCounts[monthIndex];
             const isCurrentMonth =
               monthIndex === today.getMonth() && year === today.getFullYear();
-            const monthTypeCounts = visibleEvents.reduce(
-              (counts, event) => {
-                if (
-                  event.start.getFullYear() === year &&
-                  event.start.getMonth() === monthIndex
-                ) {
-                  counts[event.type] += 1;
-                }
-                return counts;
-              },
-              { task: 0, milestone: 0, workflow: 0, risk: 0 } as Record<
-                CalendarEventType,
-                number
-              >,
-            );
+            const monthTypeCounts = visibleEvents.reduce((counts, event) => {
+              if (
+                event.start.getFullYear() === year &&
+                event.start.getMonth() === monthIndex
+              ) {
+                counts[event.type] += 1;
+              }
+              return counts;
+            }, emptyTypeCounts());
 
             return (
               <button
@@ -1261,10 +1382,12 @@ const WorkspaceCalendar = () => {
                 }}
               >
                 <div className="mb-2.5 flex items-center justify-between">
-                  <p className={cn(
-                    "text-[13px] font-semibold",
-                    isCurrentMonth && "text-primary",
-                  )}>
+                  <p
+                    className={cn(
+                      "text-[13px] font-semibold",
+                      isCurrentMonth && "text-primary",
+                    )}
+                  >
                     {YEAR_MONTH_LABELS[monthIndex]}
                   </p>
                   {monthCount > 0 ? (
@@ -1352,7 +1475,8 @@ const WorkspaceCalendar = () => {
                                 EVENT_TYPE_META[type].dotClassName,
                               )}
                             />
-                            {monthTypeCounts[type]} {EVENT_TYPE_META[type].label}
+                            {monthTypeCounts[type]}{" "}
+                            {EVENT_TYPE_META[type].label}
                           </span>
                         ) : null,
                     )}
@@ -1392,15 +1516,16 @@ const WorkspaceCalendar = () => {
           {agendaGroups.map((group) => {
             const isGroupToday = isSameDay(group.date, today);
             return (
-              <section key={group.key} className="rounded-lg overflow-hidden border border-border/20">
+              <section
+                key={group.key}
+                className="rounded-lg overflow-hidden border border-border/20"
+              >
                 <button
                   type="button"
                   onClick={() => focusDayView(group.date)}
                   className={cn(
                     "flex w-full items-center gap-2 px-2.5 py-1.5 text-left transition-colors hover:bg-accent/50",
-                    isGroupToday
-                      ? "bg-primary/[0.07]"
-                      : "bg-muted/30",
+                    isGroupToday ? "bg-primary/[0.07]" : "bg-muted/30",
                   )}
                 >
                   <span
@@ -1415,7 +1540,8 @@ const WorkspaceCalendar = () => {
                     <Badge className="h-4.5 text-[10px]">Today</Badge>
                   ) : null}
                   <span className="ml-auto text-[10px] text-muted-foreground">
-                    {group.events.length} item{group.events.length === 1 ? "" : "s"}
+                    {group.events.length} item
+                    {group.events.length === 1 ? "" : "s"}
                   </span>
                 </button>
                 <div className="divide-y divide-border/15">
@@ -1449,7 +1575,10 @@ const WorkspaceCalendar = () => {
                               : ` · ${formatTime(event.start)} – ${formatTime(event.end)}`}
                           </p>
                         </div>
-                        <Badge variant="outline" className="h-5 shrink-0 text-[10px]">
+                        <Badge
+                          variant="outline"
+                          className="h-5 shrink-0 text-[10px]"
+                        >
                           <Icon className="size-3" />
                           {meta.label}
                         </Badge>
@@ -1584,10 +1713,7 @@ const WorkspaceCalendar = () => {
     // ── Bar positions ─────────────────────────────────────────────────────────
     const rows = timelineTaskEvents.map((event) => {
       const startDay = Math.max(0, _daysBetween(winStart, event.start));
-      const endDay = Math.min(
-        totalDays - 1,
-        _daysBetween(winStart, event.end),
-      );
+      const endDay = Math.min(totalDays - 1, _daysBetween(winStart, event.end));
       const durDays = Math.max(1, endDay - startDay + 1);
       const barLeft = startDay * pxPerDay;
       const barWidth = Math.max(pxPerDay, durDays * pxPerDay);
@@ -1742,8 +1868,13 @@ const WorkspaceCalendar = () => {
                     title={event.title}
                     subtitle={event.projectName}
                     facts={[
-                      { label: "Type", value: EVENT_TYPE_META[event.type].label },
-                      event.status ? { label: "Status", value: event.status } : null,
+                      {
+                        label: "Type",
+                        value: EVENT_TYPE_META[event.type].label,
+                      },
+                      event.status
+                        ? { label: "Status", value: event.status }
+                        : null,
                       {
                         label: event.allDay ? "Date" : "Starts",
                         value: event.allDay
@@ -1756,7 +1887,9 @@ const WorkspaceCalendar = () => {
                             label: "Ends",
                             value: `${formatCompactDate(event.end)}, ${formatTime(event.end)}`,
                           },
-                      event.meta ? { label: "Detail", value: event.meta } : null,
+                      event.meta
+                        ? { label: "Detail", value: event.meta }
+                        : null,
                     ]}
                   >
                     <TimelineBarHitArea left={barLeft} width={barWidth}>
@@ -1797,436 +1930,550 @@ const WorkspaceCalendar = () => {
   };
 
   return (
-    <div
-      data-tour="calendar-shell"
-      className="flex h-full min-h-0 w-full flex-1 items-stretch gap-3 max-lg:flex-col max-lg:overflow-auto"
-    >
-      <aside
-        data-tour="calendar-sidebar"
-        className="bg-muted/20 ring-border/35 flex w-full shrink-0 flex-col gap-2.5 rounded-xl p-2.5 ring-1 lg:w-[19rem] max-lg:order-2 max-lg:max-h-[44dvh] max-lg:overflow-y-auto"
+    <>
+      <div
+        data-tour="calendar-shell"
+        className="flex h-full min-h-0 w-full flex-1 items-stretch gap-3 max-lg:flex-col max-lg:overflow-auto"
       >
-        <div className="space-y-1">
-          <p className="text-[15px] font-semibold">Calendar</p>
-          <p className="text-muted-foreground text-[12px]">
-            Plan project timelines, due dates, and daily workload.
-          </p>
-        </div>
-
-        <Input
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-          placeholder="Search events"
-          className="h-8 text-[12px]"
-        />
-
-        <Calendar
-          mode="single"
-          selected={selectedDate}
-          onSelect={(nextDate) => {
-            if (!nextDate) {
-              return;
-            }
-            focusDayView(nextDate);
-          }}
-          modifiers={{
-            hasEvents: miniCalendarHighlightDays,
-          }}
-          modifiersClassNames={{
-            hasEvents:
-              "after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-primary",
-          }}
-          className="bg-background/65 w-full rounded-lg p-1.5 [--cell-size:--spacing(6.5)]"
-          classNames={{
-            root: "w-full",
-            months: "w-full",
-            month: "w-full",
-            month_grid: "w-full border-collapse",
-            weekdays: "flex w-full",
-            weekday:
-              "text-[10.5px] text-muted-foreground rounded-md flex-1 text-center font-normal",
-          }}
-        />
-        <p className="text-muted-foreground px-0.5 text-[11px]">
-          {selectedDateEvents.length} event
-          {selectedDateEvents.length === 1 ? "" : "s"} on{" "}
-          {formatCompactDate(selectedDate)}
-        </p>
-
-        <div className="bg-background/50 space-y-1.5 rounded-lg p-2">
-          <div className="flex items-center gap-1.5">
-            <ListFilter className="text-muted-foreground size-3.5" />
-            <p className="text-[11.5px] font-semibold uppercase tracking-wide">
-              Calendars
-            </p>
+        <aside
+          data-tour="calendar-sidebar"
+          className="bg-muted/20 ring-border/35 flex min-h-0 w-full shrink-0 flex-col gap-2.5 overflow-y-auto rounded-xl p-2.5 ring-1 lg:w-[19rem] max-lg:order-2 max-lg:max-h-[44dvh]"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <div className="space-y-1">
+              <p className="text-[15px] font-semibold">Calendar</p>
+              <p className="text-muted-foreground text-[12px]">
+                Plan project timelines, due dates, and daily workload.
+              </p>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  data-tour="calendar-create"
+                  size="icon-sm"
+                  variant="outline"
+                  className="size-7 shrink-0"
+                  aria-label="Calendar actions"
+                >
+                  <Ellipsis className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => setCreateEventOpen(true)}>
+                  <CalendarCheck className="size-4" />
+                  New event
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <div className="space-y-1">
-            {(Object.keys(EVENT_TYPE_META) as CalendarEventType[]).map(
-              (type) => {
+
+          <Input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Search events"
+            className="h-8 text-[12px]"
+          />
+
+          <Calendar
+            mode="single"
+            selected={selectedDate}
+            onSelect={(nextDate) => {
+              if (!nextDate) {
+                return;
+              }
+              focusDayView(nextDate);
+            }}
+            modifiers={{
+              hasEvents: miniCalendarHighlightDays,
+            }}
+            modifiersClassNames={{
+              hasEvents:
+                "after:absolute after:bottom-1 after:left-1/2 after:size-1 after:-translate-x-1/2 after:rounded-full after:bg-primary",
+            }}
+            className="bg-background/65 w-full rounded-lg p-1.5 [--cell-size:--spacing(6.5)]"
+            classNames={{
+              root: "w-full",
+              months: "w-full",
+              month: "w-full",
+              month_grid: "w-full border-collapse",
+              weekdays: "flex w-full",
+              weekday:
+                "text-[10.5px] text-muted-foreground rounded-md flex-1 text-center font-normal",
+            }}
+          />
+          <p className="text-muted-foreground px-0.5 text-[11px]">
+            {selectedDateEvents.length} event
+            {selectedDateEvents.length === 1 ? "" : "s"} on{" "}
+            {formatCompactDate(selectedDate)}
+          </p>
+
+          <div className="bg-background/50 space-y-1.5 rounded-lg p-2">
+            <div className="flex items-center gap-1.5">
+              <ListFilter className="text-muted-foreground size-3.5" />
+              <p className="text-[11.5px] font-semibold tracking-wide uppercase">
+                Calendars
+              </p>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground ml-auto h-5 px-1.5 text-[11px] font-medium"
+                onClick={() => setAllTypeFilters(!allTypesSelected)}
+              >
+                {allTypesSelected ? "Delelect all" : "Select all"}
+              </Button>
+            </div>
+            <div className="space-y-1">
+              {calendarTypes.map((type) => {
                 const meta = EVENT_TYPE_META[type];
                 const Icon = meta.icon;
+                const isOn = typeFilters[type];
+
                 return (
-                  <button
+                  <label
                     key={type}
-                    type="button"
-                    className={cn(
-                      "hover:bg-accent/50 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-[12px]",
-                      typeFilters[type] && "bg-accent/55",
-                    )}
-                    onClick={() => toggleTypeFilter(type)}
+                    className="hover:bg-accent/50 flex w-full cursor-pointer items-center gap-2 rounded-md px-1 py-1.5 text-left text-[12px]"
                   >
-                    <span
-                      className={cn("size-2 rounded-full", meta.dotClassName)}
+                    <Checkbox
+                      checked={isOn}
+                      onCheckedChange={() => toggleTypeFilter(type)}
+                      aria-label={`Show ${meta.label}`}
                     />
-                    <Icon className="size-3.5 text-muted-foreground" />
-                    <span className="flex-1">{meta.label}</span>
+
+                    <span
+                      className={cn(
+                        "size-2 shrink-0 rounded-full transition-opacity",
+                        meta.dotClassName,
+                        !isOn && "opacity-40",
+                      )}
+                    />
+                    <Icon
+                      className={cn(
+                        "text-muted-foreground size-3.5 shrink-0 transition-opacity",
+                        !isOn && "opacity-40",
+                      )}
+                    />
+                    <span
+                      className={cn(
+                        "flex-1 truncate transition-colors",
+                        !isOn && "text-muted-foreground",
+                      )}
+                    >
+                      {meta.label}
+                    </span>
                     <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
                       {eventSummary[type]}
                     </Badge>
-                  </button>
+                  </label>
                 );
-              },
-            )}
+              })}
+            </div>
           </div>
-        </div>
 
-        <div className="bg-background/50 space-y-1.5 rounded-lg p-2">
-          <p className="text-[11.5px] font-semibold uppercase tracking-wide">
-            Project
-          </p>
-          <Select
-            value={selectedProjectId}
-            onValueChange={setSelectedProjectId}
-            disabled={isProjectsLoading}
+          <div className="bg-background/50 space-y-1.5 rounded-lg p-2">
+            <p className="text-[11.5px] font-semibold uppercase tracking-wide">
+              Project
+            </p>
+            <Select
+              value={selectedProjectId}
+              onValueChange={setSelectedProjectId}
+              disabled={isProjectsLoading}
+            >
+              <SelectTrigger className="bg-background/80 h-8 w-full text-[12.5px]">
+                <SelectValue
+                  placeholder={
+                    isProjectsLoading ? <LoaderComponent /> : "All projects"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All projects</SelectItem>
+                {projectOptions.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Separator className="bg-border/35" />
+
+          <div
+            data-tour="calendar-upcoming"
+            className="min-h-0 flex flex-1 flex-col space-y-2"
           >
-            <SelectTrigger className="bg-background/80 h-8 w-full text-[12.5px]">
-              <SelectValue
-                placeholder={
-                  isProjectsLoading ? <LoaderComponent /> : "All projects"
-                }
-              />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All projects</SelectItem>
-              {projectOptions.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
-                  {project.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <Separator className="bg-border/35" />
-
-        <div
-          data-tour="calendar-upcoming"
-          className="min-h-0 flex flex-1 flex-col space-y-2"
-        >
-          <p className="text-[11.5px] font-semibold uppercase tracking-wide">
-            Upcoming
-          </p>
-          <ScrollArea className="bg-background/50 min-h-0 flex-1 rounded-lg">
-            <div className="space-y-1 p-2">
-              {upcomingEvents.length ? (
-                upcomingEvents.map((event) => {
-                  const meta = EVENT_TYPE_META[event.type];
-                  const Icon = meta.icon;
-                  const eventDay = startOfDay(event.start);
-                  const eventTimeLabel = event.allDay
-                    ? `${formatCompactDate(eventDay)} · All day`
-                    : `${formatCompactDate(eventDay)} · ${formatTime(event.start)}`;
-                  return (
-                    <button
-                      key={`upcoming-${event.id}`}
-                      type="button"
-                      className={cn(
-                        "bg-background/55 hover:bg-accent/45 ring-border/25 flex w-full items-start gap-2 rounded-md px-2 py-2 text-left ring-1 transition-colors",
-                        selectedEventId === event.id &&
-                          "bg-accent/50 ring-border/45",
-                      )}
-                      onClick={() => {
-                        setSelectedEventId(event.id);
-                        setSelectedDate(startOfDay(event.start));
-                        setAnchorDate(startOfDay(event.start));
-                      }}
-                    >
-                      <span
+            <p className="text-[11.5px] font-semibold uppercase tracking-wide">
+              Upcoming
+            </p>
+            <ScrollArea className="bg-background/50 min-h-0 flex-1 rounded-lg">
+              <div className="space-y-1">
+                {upcomingEvents.length ? (
+                  upcomingEvents.map((event) => {
+                    const meta = EVENT_TYPE_META[event.type];
+                    const Icon = meta.icon;
+                    const eventDay = startOfDay(event.start);
+                    const eventTimeLabel = event.allDay
+                      ? `${formatCompactDate(eventDay)} · All day`
+                      : `${formatCompactDate(eventDay)} · ${formatTime(event.start)}`;
+                    return (
+                      <button
+                        key={`upcoming-${event.id}`}
+                        type="button"
                         className={cn(
-                          "mt-1 size-2 rounded-full",
-                          meta.dotClassName,
+                          "bg-background/55 hover:bg-accent/45 ring-border/25 flex w-full items-start gap-2 rounded-md px-2 py-2 text-left ring-1 transition-colors",
+                          selectedEventId === event.id &&
+                            "bg-accent/50 ring-border/45",
                         )}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="line-clamp-1 text-[12px] font-medium leading-4.5">
-                          {event.title}
-                        </span>
-                        <span className="text-muted-foreground mt-0.5 line-clamp-1 text-[11px]">
-                          {event.projectName}
-                        </span>
-                        <span className="text-muted-foreground mt-0.5 line-clamp-1 text-[10.5px]">
-                          {eventTimeLabel} • {meta.label}
-                        </span>
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "mt-0.5 h-5 shrink-0 gap-1 px-1.5 text-[10px]",
-                          meta.chipClassName,
-                        )}
+                        onClick={() => {
+                          setSelectedEventId(event.id);
+                          setSelectedDate(startOfDay(event.start));
+                          setAnchorDate(startOfDay(event.start));
+                        }}
                       >
-                        <Icon className="size-3" />
-                        {meta.label}
-                      </Badge>
-                    </button>
-                  );
-                })
-              ) : (
-                <div className="text-muted-foreground p-3 text-[11px]">
-                  No upcoming items.
-                </div>
-              )}
-            </div>
-          </ScrollArea>
-        </div>
+                        <span
+                          className={cn(
+                            "mt-1 size-2 rounded-full",
+                            meta.dotClassName,
+                          )}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="line-clamp-1 text-[12px] font-medium leading-4.5">
+                            {event.title}
+                          </span>
+                          <span className="text-muted-foreground mt-0.5 line-clamp-1 text-[11px]">
+                            {event.projectName}
+                          </span>
+                          <span className="text-muted-foreground mt-0.5 line-clamp-1 text-[10.5px]">
+                            {eventTimeLabel} • {meta.label}
+                          </span>
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "mt-0.5 h-5 shrink-0 gap-1 px-1.5 text-[10px]",
+                            meta.chipClassName,
+                          )}
+                        >
+                          <Icon className="size-3" />
+                          {meta.label}
+                        </Badge>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="text-muted-foreground p-3 text-[11px]">
+                    No upcoming items.
+                  </div>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
 
-        {selectedEvent ? (
-          <div className="bg-background/55 ring-border/35 space-y-2.5 rounded-lg p-2.5 ring-1">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[11.5px] font-semibold uppercase tracking-wide">
-                Selected event
-              </p>
-              {selectedEventMeta ? (
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    "h-5 gap-1 px-1.5 text-[10px]",
-                    selectedEventMeta.chipClassName,
-                  )}
-                >
-                  <selectedEventMeta.icon className="size-3" />
-                  {selectedEventMeta.label}
-                </Badge>
-              ) : null}
-            </div>
-
-            <div className="space-y-1.5">
-              <p className="line-clamp-2 text-[13px] font-semibold leading-4.5">
-                {selectedEvent.title}
-              </p>
-
-              <div className="text-muted-foreground space-y-1 text-[11px]">
-                <p className="flex items-center gap-1.5">
-                  <Flag className="size-3.5" />
-                  <span className="truncate">{selectedEvent.projectName}</span>
+          {selectedEvent ? (
+            <div className="bg-background/55 ring-border/35 shrink-0 space-y-2.5 rounded-lg p-2.5 ring-1">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11.5px] font-semibold uppercase tracking-wide">
+                  Selected event
                 </p>
-                <p className="flex items-center gap-1.5">
-                  <CalendarClock className="size-3.5" />
-                  <span className="truncate">
-                    {selectedEvent.allDay
-                      ? formatDayHeading(selectedEvent.start)
-                      : `${formatDayHeading(selectedEvent.start)} · ${formatTime(
-                          selectedEvent.start,
-                        )} - ${formatTime(selectedEvent.end)}`}
-                  </span>
-                </p>
-                {selectedEvent.meta ? (
-                  <p className="truncate text-[10.5px]">{selectedEvent.meta}</p>
+                {selectedEventMeta ? (
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "h-5 gap-1 px-1.5 text-[10px]",
+                      selectedEventMeta.chipClassName,
+                    )}
+                  >
+                    <selectedEventMeta.icon className="size-3" />
+                    {selectedEventMeta.label}
+                  </Badge>
                 ) : null}
               </div>
-            </div>
 
-            <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-              <Button
-                type="button"
-                size="sm"
-                className="h-7 text-[11px]"
-                onClick={() => {
-                  const day = startOfDay(selectedEvent.start);
-                  setSelectedDate(day);
-                  setAnchorDate(day);
-                  setView("day");
-                }}
-              >
-                Focus day
-              </Button>
-              <Link
-                href={selectedEvent.href}
+              <div className="space-y-1.5">
+                <p className="line-clamp-2 text-[13px] font-semibold leading-4.5">
+                  {selectedEvent.title}
+                </p>
+
+                <div className="text-muted-foreground space-y-1 text-[11px]">
+                  <p className="flex items-center gap-1.5">
+                    <Flag className="size-3.5" />
+                    <span className="truncate">
+                      {selectedEvent.projectName}
+                    </span>
+                  </p>
+                  <p className="flex items-center gap-1.5">
+                    <CalendarClock className="size-3.5" />
+                    <span className="truncate">
+                      {selectedEvent.allDay
+                        ? formatDayHeading(selectedEvent.start)
+                        : `${formatDayHeading(selectedEvent.start)} · ${formatTime(
+                            selectedEvent.start,
+                          )} - ${formatTime(selectedEvent.end)}`}
+                    </span>
+                  </p>
+                  {selectedEvent.meta ? (
+                    <p className="truncate text-[10.5px]">
+                      {selectedEvent.meta}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+
+              {selectedEvent.type === "event" ? (
+                <EventChecklistPanel
+                  meetingId={selectedEvent.id.replace(/^meeting-/, "")}
+                  onViewAll={() =>
+                    setDetailEventId(selectedEvent.id.replace(/^meeting-/, ""))
+                  }
+                />
+              ) : null}
+
+              <div
                 className={cn(
-                  buttonVariants({ variant: "outline", size: "sm" }),
-                  "h-7 text-[11px]",
+                  "grid grid-cols-1 gap-1.5",
+                  hasSecondaryAction && "sm:grid-cols-2",
                 )}
               >
-                Open item
-              </Link>
-            </div>
-          </div>
-        ) : null}
-      </aside>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-7 text-[11px]"
+                  onClick={() => {
+                    const day = startOfDay(selectedEvent.start);
+                    setSelectedDate(day);
+                    setAnchorDate(day);
+                    setView("day");
+                  }}
+                >
+                  Focus day
+                </Button>
 
-      <section
-        data-tour="calendar-surface"
-        className="bg-muted/15 ring-border/35 flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl ring-1 max-lg:order-1 max-lg:min-h-[56dvh]"
-      >
-        <header className="bg-background/65 flex flex-wrap items-center gap-2 px-2.5 py-2 max-md:items-start">
-          {rightPanelTab === "calendar" ? (
-            <div className="mr-2 flex items-center gap-1">
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="size-7"
-                onClick={() => navigatePeriod("prev")}
-              >
-                <ChevronLeft className="size-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                className="size-7"
-                onClick={() => navigatePeriod("next")}
-              >
-                <ChevronRight className="size-4" />
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 text-[11px]"
-                onClick={resetToToday}
-              >
-                Today
-              </Button>
-            </div>
-          ) : null}
-
-          <div className="mr-auto">
-            <p className="text-sm font-semibold">
-              {rightPanelTab === "calendar" ? rangeLabel : "Task timeline"}
-            </p>
-            <p className="text-muted-foreground text-[11px]">
-              {rightPanelTab === "calendar" ? (
-                <>
-                  {visibleEvents.length} event
-                  {visibleEvents.length === 1 ? "" : "s"} in view
-                </>
-              ) : (
-                <>
-                  {timelineTaskEvents.length} task
-                  {timelineTaskEvents.length === 1 ? "" : "s"} in timeline
-                </>
-              )}
-            </p>
-          </div>
-
-          <div className="ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
-            {rightPanelTab === "calendar" ? (
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+                {/* An event has no page of its own to open — its detail lives
+                    in a modal. Everything else links to where it comes from,
+                    and anything without a real destination shows no button at
+                    all rather than a link that goes nowhere. */}
+                {selectedEvent.type === "event" ? (
                   <Button
-                    data-tour="calendar-view-switch"
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-7 gap-1.5 px-2 text-[11px]"
+                    className="h-7 text-[11px]"
+                    onClick={() =>
+                      setDetailEventId(
+                        selectedEvent.id.replace(/^meeting-/, ""),
+                      )
+                    }
                   >
-                    <activeViewOption.icon className="size-3.5" />
-                    {activeViewOption.label}
-                    <ChevronsUpDown className="size-3.5 text-muted-foreground" />
+                    View details
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
-                  {CALENDAR_VIEW_OPTIONS.map((option) => {
-                    const Icon = option.icon;
-                    const isActive = option.value === view;
-                    return (
-                      <DropdownMenuItem
-                        key={option.value}
-                        onClick={() => setView(option.value)}
-                        className="text-[12px]"
-                      >
-                        <Icon className="size-3.5 text-muted-foreground" />
-                        <span className="flex-1">{option.label}</span>
-                        {isActive ? <Check className="size-3.5" /> : null}
-                      </DropdownMenuItem>
-                    );
-                  })}
-                </DropdownMenuContent>
-              </DropdownMenu>
+                ) : hasSecondaryAction ? (
+                  <Link
+                    href={selectedEvent.href}
+                    className={cn(
+                      buttonVariants({ variant: "outline", size: "sm" }),
+                      "h-7 text-[11px]",
+                    )}
+                  >
+                    Open item
+                  </Link>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+        </aside>
+
+        <section
+          data-tour="calendar-surface"
+          className="bg-muted/15 ring-border/35 flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl ring-1 max-lg:order-1 max-lg:min-h-[56dvh]"
+        >
+          <header className="bg-background/65 flex flex-wrap items-center gap-2 px-2.5 py-2 max-md:items-start">
+            {rightPanelTab === "calendar" ? (
+              <div className="mr-2 flex items-center gap-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-7"
+                  onClick={() => navigatePeriod("prev")}
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  className="size-7"
+                  onClick={() => navigatePeriod("next")}
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 text-[11px]"
+                  onClick={resetToToday}
+                >
+                  Today
+                </Button>
+              </div>
             ) : null}
 
-            <Tabs
-              value={rightPanelTab}
-              onValueChange={(value) =>
-                setRightPanelTab(value as "calendar" | "timeline")
-              }
-              className="gap-0"
-            >
-              <TabsList className="h-8">
-                <TabsTrigger
-                  value="calendar"
-                  className="h-7 px-2.5 text-[11px] font-medium"
-                >
-                  Calendar
-                </TabsTrigger>
-                <TabsTrigger
-                  value="timeline"
-                  className="h-7 px-2.5 text-[11px] font-medium"
-                >
-                  Timeline
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
-        </header>
+            <div className="mr-auto">
+              <p className="text-sm font-semibold">
+                {rightPanelTab === "calendar" ? rangeLabel : "Task timeline"}
+              </p>
+              <p className="text-muted-foreground text-[11px]">
+                {rightPanelTab === "calendar" ? (
+                  <>
+                    {visibleEvents.length} event
+                    {visibleEvents.length === 1 ? "" : "s"} in view
+                  </>
+                ) : (
+                  <>
+                    {timelineTaskEvents.length} task
+                    {timelineTaskEvents.length === 1 ? "" : "s"} in timeline
+                  </>
+                )}
+              </p>
+            </div>
 
-        {isProjectsLoading ? (
-          <LoaderComponent />
-        ) : isProjectsError ? (
-          <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-            <Empty className="max-w-xl">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <Flag className="size-5" />
-                </EmptyMedia>
-                <EmptyTitle>Unable to load calendar data</EmptyTitle>
-                <EmptyDescription>
-                  We could not fetch project timelines from the server for this
-                  workspace.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          </div>
-        ) : rightPanelTab === "timeline" ? (
-          renderTimelineView()
-        ) : !hasAnyEvents ? (
-          <div className="flex min-h-0 flex-1 items-center justify-center p-6">
-            <Empty className="max-w-xl">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <Flag className="size-5" />
-                </EmptyMedia>
-                <EmptyTitle>No project events yet</EmptyTitle>
-                <EmptyDescription>
-                  Create tasks, milestones, or workflows in projects and they
-                  will appear here automatically.
-                </EmptyDescription>
-              </EmptyHeader>
-            </Empty>
-          </div>
-        ) : view === "month" ? (
-          renderMonthView()
-        ) : view === "week" ? (
-          renderWeekOrDayView("week")
-        ) : view === "day" ? (
-          renderWeekOrDayView("day")
-        ) : view === "year" ? (
-          renderYearView()
-        ) : (
-          renderAgendaView()
-        )}
-      </section>
-    </div>
+            <div className="ml-auto flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+              {rightPanelTab === "calendar" ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      data-tour="calendar-view-switch"
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1.5 px-2 text-[11px]"
+                    >
+                      <activeViewOption.icon className="size-3.5" />
+                      {activeViewOption.label}
+                      <ChevronsUpDown className="size-3.5 text-muted-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-40">
+                    {CALENDAR_VIEW_OPTIONS.map((option) => {
+                      const Icon = option.icon;
+                      const isActive = option.value === view;
+                      return (
+                        <DropdownMenuItem
+                          key={option.value}
+                          onClick={() => setView(option.value)}
+                          className="text-[12px]"
+                        >
+                          <Icon className="size-3.5 text-muted-foreground" />
+                          <span className="flex-1">{option.label}</span>
+                          {isActive ? <Check className="size-3.5" /> : null}
+                        </DropdownMenuItem>
+                      );
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
+
+              <Tabs
+                value={rightPanelTab}
+                onValueChange={(value) =>
+                  setRightPanelTab(value as "calendar" | "timeline")
+                }
+                className="gap-0"
+              >
+                <TabsList className="h-8">
+                  <TabsTrigger
+                    value="calendar"
+                    className="h-7 px-2.5 text-[11px] font-medium"
+                  >
+                    Calendar
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="timeline"
+                    className="h-7 px-2.5 text-[11px] font-medium"
+                  >
+                    Timeline
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+            </div>
+          </header>
+
+          {isProjectsLoading ? (
+            <LoaderComponent />
+          ) : isProjectsError ? (
+            <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+              <Empty className="max-w-xl">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <Flag className="size-5" />
+                  </EmptyMedia>
+                  <EmptyTitle>Unable to load calendar data</EmptyTitle>
+                  <EmptyDescription>
+                    We could not fetch project timelines from the server for
+                    this workspace.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            </div>
+          ) : rightPanelTab === "timeline" ? (
+            renderTimelineView()
+          ) : !hasAnyEvents ? (
+            <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+              <Empty className="max-w-xl">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <Flag className="size-5" />
+                  </EmptyMedia>
+                  <EmptyTitle>No project events yet</EmptyTitle>
+                  <EmptyDescription>
+                    Create tasks, milestones, or workflows in projects and they
+                    will appear here automatically.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            </div>
+          ) : view === "month" ? (
+            renderMonthView()
+          ) : view === "week" ? (
+            renderWeekOrDayView("week")
+          ) : view === "day" ? (
+            renderWeekOrDayView("day")
+          ) : view === "year" ? (
+            renderYearView()
+          ) : (
+            renderAgendaView()
+          )}
+        </section>
+      </div>
+      <CreateEventDialog
+        key={editingEvent ? `edit-${editingEvent.meetingId}` : "create"}
+        open={createEventOpen || Boolean(editingEvent)}
+        onOpenChange={(next) => {
+          if (!next) {
+            setCreateEventOpen(false);
+            setEditingEvent(null);
+            return;
+          }
+          setCreateEventOpen(true);
+        }}
+        defaultDate={selectedDate}
+        event={editingEvent}
+      />
+
+      <EventDetailDialog
+        open={Boolean(detailEventId)}
+        onOpenChange={(next) => {
+          if (!next) setDetailEventId("");
+        }}
+        meetingId={detailEventId}
+        onEdit={(event) => {
+          setDetailEventId("");
+          setEditingEvent(event);
+        }}
+      />
+    </>
   );
 };
 

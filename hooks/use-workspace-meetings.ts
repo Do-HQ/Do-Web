@@ -9,10 +9,14 @@ import {
   listWorkspaceMeetings,
   rsvpWorkspaceMeeting,
   updateWorkspaceMeeting,
+  addEventChecklistItems,
+  removeEventChecklistItem,
+  listEventsForTask,
 } from "@/lib/services/workspace-meeting-service";
 import type {
   CreateMeetingPayload,
   ListMeetingsParams,
+  EventChecklistTarget,
   UpdateMeetingPayload,
 } from "@/types/meeting";
 
@@ -97,9 +101,53 @@ const useWorkspaceMeetings = () => {
       onError: (error: AxiosError) => handleError(error),
     });
 
+  /** Events a task is already tied to — powers the task editor's event field. */
+  const useEventsForTask = (
+    workspaceId: string,
+    params: { projectId: string; taskId: string; subtaskId?: string },
+    options?: { enabled?: boolean },
+  ) =>
+    useQuery({
+      queryKey: ["workspace-events-for-task", workspaceId, params],
+      enabled: (options?.enabled ?? true) && !!workspaceId && !!params.taskId,
+      queryFn: async () => {
+        try {
+          return await listEventsForTask(workspaceId, params);
+        } catch (error) {
+          handleError(error as AxiosError);
+          throw error;
+        }
+      },
+    });
+
+  const invalidateEvent = (workspaceId: string, meetingId: string) => {
+    queryClient.invalidateQueries({ queryKey: ["workspace-meeting", workspaceId, meetingId] });
+    queryClient.invalidateQueries({ queryKey: ["workspace-meetings", workspaceId] });
+    queryClient.invalidateQueries({ queryKey: ["workspace-events-for-task", workspaceId] });
+  };
+
+  const useAddEventChecklistItems = (workspaceId: string, meetingId: string) =>
+    useMutation({
+      mutationFn: (items: EventChecklistTarget[]) =>
+        addEventChecklistItems(workspaceId, meetingId, items),
+      onSuccess: () => invalidateEvent(workspaceId, meetingId),
+      onError: (error: AxiosError) => handleError(error),
+    });
+
+  const useRemoveEventChecklistItem = (workspaceId: string, meetingId: string) =>
+    useMutation({
+      mutationFn: (linkId: string) =>
+        removeEventChecklistItem(workspaceId, meetingId, linkId),
+      onSuccess: () => invalidateEvent(workspaceId, meetingId),
+      onError: (error: AxiosError) => handleError(error),
+    });
+
   return {
     useMeetingsList,
     useMeeting,
+    useEventsForTask,
+    useAddEventChecklistItems,
+    useRemoveEventChecklistItem,
     useCreateMeeting,
     useUpdateMeeting,
     useCancelMeeting,

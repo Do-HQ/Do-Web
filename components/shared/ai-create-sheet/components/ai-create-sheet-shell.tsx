@@ -52,9 +52,7 @@ export function AiCreateSheetShell({
     normalizedWorkspaceId,
     undefined,
     {
-      enabled: Boolean(
-        open && normalizedWorkspaceId && mode === "ai",
-      ),
+      enabled: Boolean(open && normalizedWorkspaceId && mode === "ai"),
     },
   );
 
@@ -86,8 +84,9 @@ export function AiCreateSheetShell({
         side="right"
         className="w-full gap-0 border-l border-border/50 sm:max-w-[30rem] lg:max-w-[33rem]"
         onInteractOutside={(e) => {
-          const originalEvent = (e as CustomEvent<{ originalEvent: PointerEvent }>).detail
-            ?.originalEvent;
+          const originalEvent = (
+            e as CustomEvent<{ originalEvent: PointerEvent }>
+          ).detail?.originalEvent;
           const target = originalEvent?.target as Element | null;
           // Guard 1: target is still attached and inside a popper (select/dropdown/popover).
           // Guard 2: target was detached by a re-render (e.g. checkbox state update) but a
@@ -103,9 +102,11 @@ export function AiCreateSheetShell({
         <SheetHeader className="gap-3 border-b border-border/35 bg-card/60 pb-4 pr-10">
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-3">
-              <SheetTitle className="text-[15px] font-semibold">{title}</SheetTitle>
+              <SheetTitle className="text-[15px] font-semibold">
+                {title}
+              </SheetTitle>
               {isDraftReady ? (
-                <span className="rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                <span className="hidden rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
                   Draft ready
                 </span>
               ) : null}
@@ -141,7 +142,9 @@ export function AiCreateSheetShell({
             </div>
           </div>
 
-          <SheetFooter className="border-t border-border/35 pt-3">{footer}</SheetFooter>
+          <SheetFooter className="border-t border-border/35 pt-3">
+            {footer}
+          </SheetFooter>
         </div>
       </SheetContent>
     </Sheet>

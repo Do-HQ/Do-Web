@@ -61,6 +61,11 @@ import { ProjectOverviewTabs } from "./components/project-overview-tabs";
 import { ProjectOverviewWorkflowTable } from "./components/project-overview-workflow-table";
 import { ProjectDosTab } from "./components/project-dos-tab";
 import { ProjectTaskSheet } from "./components/project-task-sheet";
+import {
+  addEventChecklistItems,
+  listEventsForTask,
+  removeEventChecklistItem,
+} from "@/lib/services/workspace-meeting-service";
 import { ProjectWorkflowSheet } from "./components/project-workflow-sheet";
 import { ProjectWorkflowsTab } from "./components/project-workflows-tab";
 import { ProjectFilesAssetsTab } from "./components/project-files-assets-tab";
@@ -162,11 +167,11 @@ function syncWorkflowDerivedFields(workflow: ProjectWorkflow): ProjectWorkflow {
   const nextTaskCounts = getTaskCompletionSummary(workflow.tasks);
   const progressFromTasks = workflow.tasks.length
     ? Math.round(
-      workflow.tasks.reduce(
-        (total, task) => total + getTaskRowProgress(task),
-        0,
-      ) / workflow.tasks.length,
-    )
+        workflow.tasks.reduce(
+          (total, task) => total + getTaskRowProgress(task),
+          0,
+        ) / workflow.tasks.length,
+      )
     : Math.max(0, Math.min(100, workflow.progress));
   const taskStartDates = workflow.tasks
     .map((task) => task.startDate || task.dueDate)
@@ -269,10 +274,10 @@ function alignTaskSubtasksForLaneMove(
       subtask.status === "done"
         ? subtask
         : {
-          ...subtask,
-          status: "blocked" as ProjectTaskStatus,
-          updatedAt: "Just now",
-        },
+            ...subtask,
+            status: "blocked" as ProjectTaskStatus,
+            updatedAt: "Just now",
+          },
     );
   }
 
@@ -296,10 +301,10 @@ function alignTaskSubtasksForLaneMove(
       subtask.status === "done"
         ? subtask
         : {
-          ...subtask,
-          status: activeStatus as ProjectTaskStatus,
-          updatedAt: "Just now",
-        },
+            ...subtask,
+            status: activeStatus as ProjectTaskStatus,
+            updatedAt: "Just now",
+          },
     );
   }
 
@@ -317,10 +322,10 @@ function alignTaskSubtasksForLaneMove(
       subtask.status === "done"
         ? subtask
         : {
-          ...subtask,
-          status: "todo" as ProjectTaskStatus,
-          updatedAt: "Just now",
-        },
+            ...subtask,
+            status: "todo" as ProjectTaskStatus,
+            updatedAt: "Just now",
+          },
     );
   }
 
@@ -337,11 +342,11 @@ function syncProjectRecord<
   const activeWorkflows = workflows.filter((workflow) => !workflow.archived);
   const nextProgress = activeWorkflows.length
     ? Math.round(
-      activeWorkflows.reduce(
-        (total, workflow) => total + workflow.progress,
-        0,
-      ) / activeWorkflows.length,
-    )
+        activeWorkflows.reduce(
+          (total, workflow) => total + workflow.progress,
+          0,
+        ) / activeWorkflows.length,
+      )
     : 0;
 
   return {
@@ -568,7 +573,7 @@ export default function ProjectOverview({
 
     try {
       const stored = window.localStorage.getItem(
-        getSummaryExpandedStorageKey(projectId)
+        getSummaryExpandedStorageKey(projectId),
       );
       return stored === null ? true : stored === "true";
     } catch {
@@ -583,7 +588,7 @@ export default function ProjectOverview({
 
     try {
       const stored = window.localStorage.getItem(
-        getSummaryExpandedStorageKey(projectId)
+        getSummaryExpandedStorageKey(projectId),
       );
       setSummaryExpanded(stored === null ? true : stored === "true");
     } catch {
@@ -599,9 +604,9 @@ export default function ProjectOverview({
     try {
       window.localStorage.setItem(
         getSummaryExpandedStorageKey(projectId),
-        String(summaryExpanded)
+        String(summaryExpanded),
       );
-    } catch { }
+    } catch {}
   }, [projectId, summaryExpanded]);
   const [projectTabsExpanded, setProjectTabsExpanded] = useState(false);
   const [workflowSheetState, setWorkflowSheetState] =
@@ -688,11 +693,11 @@ export default function ProjectOverview({
 
   const workflowRefreshKey = project
     ? project.workflows
-      .map(
-        (workflow) =>
-          `${workflow.id}:${workflow.updatedAt}:${workflow.archived ? "1" : "0"}:${workflow.tasks.length}`,
-      )
-      .join("|")
+        .map(
+          (workflow) =>
+            `${workflow.id}:${workflow.updatedAt}:${workflow.archived ? "1" : "0"}:${workflow.tasks.length}`,
+        )
+        .join("|")
     : "";
   const refetchWorkflowList = workflowListQuery.refetch;
   const refetchWorkflowsTabList = workflowsTabListQuery.refetch;
@@ -1060,7 +1065,7 @@ export default function ProjectOverview({
                   String(teamMemberId || "").trim() === memberId ||
                   String(teamMemberId || "").trim() === profile.userId ||
                   String(teamMemberId || "").trim() ===
-                  profile.workspaceMemberId,
+                    profile.workspaceMemberId,
               ),
             )
             .map((team) => team.id) ?? [],
@@ -1085,8 +1090,8 @@ export default function ProjectOverview({
         <ProjectOverviewPlaceholder
           kind={
             projectDetailQuery.isLoading ||
-              projectDetailQuery.isFetching ||
-              !projectsLoaded
+            projectDetailQuery.isFetching ||
+            !projectsLoaded
               ? "loading"
               : "missing"
           }
@@ -1210,20 +1215,20 @@ export default function ProjectOverview({
 
   const workflowForSheet = workflowSheetState?.workflowId
     ? (project.workflows.find(
-      (workflow) => workflow.id === workflowSheetState.workflowId,
-    ) ?? null)
+        (workflow) => workflow.id === workflowSheetState.workflowId,
+      ) ?? null)
     : null;
 
   const taskSheetWorkflow = taskSheetState
     ? (project.workflows.find(
-      (workflow) => workflow.id === taskSheetState.workflowId,
-    ) ?? null)
+        (workflow) => workflow.id === taskSheetState.workflowId,
+      ) ?? null)
     : null;
 
   const taskForSheet = taskSheetState?.taskId
     ? (taskSheetWorkflow?.tasks.find(
-      (task) => task.id === taskSheetState.taskId,
-    ) ?? null)
+        (task) => task.id === taskSheetState.taskId,
+      ) ?? null)
     : null;
 
   const handlePlaceholderAction = (label: string, name?: string) =>
@@ -1376,9 +1381,9 @@ export default function ProjectOverview({
         tasks: workflow.tasks.map((task) =>
           task.sectionId === sectionId
             ? {
-              ...task,
-              sectionId: undefined,
-            }
+                ...task,
+                sectionId: undefined,
+              }
             : task,
         ),
       }),
@@ -1401,9 +1406,9 @@ export default function ProjectOverview({
       tasks.map((task) =>
         task.sectionId === sectionId
           ? {
-            ...task,
-            sectionId: undefined,
-          }
+              ...task,
+              sectionId: undefined,
+            }
           : task,
       ),
     );
@@ -1603,11 +1608,11 @@ export default function ProjectOverview({
     queryEntries.forEach(([queryKey, response]) => {
       const typedResponse = response as
         | {
-          data?: {
-            message?: string;
-            tasks?: WorkspaceProjectTaskRecord[];
-          };
-        }
+            data?: {
+              message?: string;
+              tasks?: WorkspaceProjectTaskRecord[];
+            };
+          }
         | undefined;
 
       const currentTasks = typedResponse?.data?.tasks;
@@ -1618,12 +1623,12 @@ export default function ProjectOverview({
 
       const params = (Array.isArray(queryKey) ? queryKey[3] : undefined) as
         | {
-          workflowId?: string;
-          teamId?: string;
-          pipelineId?: string;
-          startDate?: string;
-          statusFilter?: string;
-        }
+            workflowId?: string;
+            teamId?: string;
+            pipelineId?: string;
+            startDate?: string;
+            statusFilter?: string;
+          }
         | undefined;
 
       const nextTasks = updater(currentTasks).filter((task) =>
@@ -1685,12 +1690,12 @@ export default function ProjectOverview({
         const nextTasks = workflow.tasks.map((task) =>
           task.id === taskId
             ? {
-              ...task,
-              status: nextStatus,
-              sectionId,
-              updatedAt: "Just now",
-              subtasks: nextSubtasks,
-            }
+                ...task,
+                status: nextStatus,
+                sectionId,
+                updatedAt: "Just now",
+                subtasks: nextSubtasks,
+              }
             : task,
         );
 
@@ -1708,12 +1713,12 @@ export default function ProjectOverview({
       tasks.map((task) =>
         String(task.id) === taskId
           ? {
-            ...task,
-            status: nextStatus,
-            sectionId,
-            updatedAt: "Just now",
-            subtasks: nextSubtasks,
-          }
+              ...task,
+              status: nextStatus,
+              sectionId,
+              updatedAt: "Just now",
+              subtasks: nextSubtasks,
+            }
           : task,
       ),
     );
@@ -1827,6 +1832,88 @@ export default function ProjectOverview({
     }
   };
 
+  /**
+   * Points a task at one event's checklist, clearing any previous tie.
+   *
+   * The link lives on the event, not the task, so switching events means
+   * removing the old link and adding a new one. A failure here is surfaced but
+   * never rolls back the task — the task is the thing the user asked for.
+   */
+  const syncTaskEventLink = async ({
+    taskId,
+    workflowId,
+    nextEventId,
+  }: {
+    taskId: string;
+    workflowId: string;
+    nextEventId: string;
+  }) => {
+    if (!workspaceId || !taskId) {
+      return;
+    }
+
+    // Work out whether anything actually changed before announcing it — this
+    // runs on every task save, and an untouched event field must stay silent.
+    let stale: { meetingId: string; linkId: string }[] = [];
+    let needsLink = false;
+
+    try {
+      const { data } = await listEventsForTask(workspaceId, {
+        projectId,
+        taskId,
+      });
+
+      stale = data.events.filter(
+        (event) => event.meetingId !== nextEventId && event.linkId,
+      );
+      needsLink =
+        Boolean(nextEventId) &&
+        !data.events.some((event) => event.meetingId === nextEventId);
+    } catch {
+      toast("Task saved, but its event link could not be checked.");
+      return;
+    }
+
+    if (!stale.length && !needsLink) {
+      return;
+    }
+
+    const request = (async () => {
+      await Promise.all(
+        stale.map((event) =>
+          removeEventChecklistItem(workspaceId, event.meetingId, event.linkId),
+        ),
+      );
+
+      if (needsLink) {
+        await addEventChecklistItems(workspaceId, nextEventId, [
+          { projectId, workflowId, taskId },
+        ]);
+      }
+
+      queryClient.invalidateQueries({
+        queryKey: ["workspace-meetings", workspaceId],
+      });
+    })();
+
+    toast.promise(request, {
+      loading: needsLink ? "Linking to event..." : "Unlinking from event...",
+      success: needsLink
+        ? "Task added to the event"
+        : "Task removed from the event",
+      error: (error) =>
+        error instanceof Error
+          ? error.message
+          : "Task saved, but the event link could not be updated",
+    });
+
+    try {
+      await request;
+    } catch {
+      // Reported by the toast. The task itself already saved.
+    }
+  };
+
   const handleTaskSubmit = async (values: ProjectTaskEditorValues) => {
     if (!taskSheetState) {
       return;
@@ -1865,7 +1952,12 @@ export default function ProjectOverview({
           updates: payload,
         },
         {
-          onSuccess: () => {
+          onSuccess: async () => {
+            await syncTaskEventLink({
+              taskId: taskSheetState.taskId as string,
+              workflowId: taskSheetState.workflowId,
+              nextEventId: String(values.eventId || ""),
+            });
             toast("Task updated.");
             setTaskSheetState(null);
           },
@@ -1884,6 +1976,14 @@ export default function ProjectOverview({
         });
 
       const createdTaskId = String(createResponse.data?.task?.id || "").trim();
+
+      if (createdTaskId && values.eventId) {
+        await syncTaskEventLink({
+          taskId: createdTaskId,
+          workflowId: taskSheetState.workflowId,
+          nextEventId: values.eventId,
+        });
+      }
       const nextDependencyTaskIds = [
         ...new Set(
           (values.dependencyTaskIds ?? [])
@@ -2287,7 +2387,7 @@ export default function ProjectOverview({
           className={cn(
             "flex min-h-0 flex-col gap-3 md:gap-4",
             projectTabsExpanded &&
-            "fixed inset-0 z-50 h-[100dvh] w-screen overflow-hidden bg-background p-3 md:p-4",
+              "fixed inset-0 z-50 h-[100dvh] w-screen overflow-hidden bg-background p-3 md:p-4",
           )}
         >
           <div
@@ -2295,7 +2395,7 @@ export default function ProjectOverview({
             className={cn(
               "sticky top-0 z-20 -mx-1 border-b border-border/20 bg-background/85 px-1 py-2 backdrop-blur-sm",
               projectTabsExpanded &&
-              "top-0 -mx-0 rounded-xl bg-background px-2",
+                "top-0 -mx-0 rounded-xl bg-background px-2",
             )}
           >
             <div className="flex items-center gap-2">
@@ -2522,17 +2622,17 @@ export default function ProjectOverview({
           initialValues={
             workflowSheetState.mode === "edit" && workflowForSheet
               ? {
-                name: workflowForSheet.name,
-                teamId: workflowForSheet.teamId,
-              }
+                  name: workflowForSheet.name,
+                  teamId: workflowForSheet.teamId,
+                }
               : {
-                teamId:
-                  workflowSheetState.defaults?.teamId ??
-                  selectedTeam?.id ??
-                  project.teams[0]?.id ??
-                  "",
-                ...workflowSheetState.defaults,
-              }
+                  teamId:
+                    workflowSheetState.defaults?.teamId ??
+                    selectedTeam?.id ??
+                    project.teams[0]?.id ??
+                    "",
+                  ...workflowSheetState.defaults,
+                }
           }
           onOpenChange={(open) => {
             if (!open) {
@@ -2552,6 +2652,7 @@ export default function ProjectOverview({
           key={`task-${taskSheetState.mode}-${taskSheetState.taskId ?? "new"}-${taskSheetState.seedBlankSubtask ? "seed" : "plain"}`}
           open
           mode={taskSheetState.mode}
+          projectId={projectId}
           workflowId={taskSheetWorkflow.id}
           workflowName={taskSheetWorkflow.name}
           members={resolvedMembers}
@@ -2563,31 +2664,31 @@ export default function ProjectOverview({
           initialValues={
             taskSheetState.mode === "edit" && taskForSheet
               ? {
-                title: taskForSheet.title,
-                status: taskForSheet.status,
-                priority: taskForSheet.priority,
-                assigneeId: taskForSheet.assigneeId,
-                teamId: taskForSheet.teamId,
-                pipelineId: taskForSheet.pipelineId,
-                startDate: taskForSheet.startDate ?? taskForSheet.dueDate,
-                dueDate: taskForSheet.dueDate,
-                sectionId: taskForSheet.sectionId,
-                subtasks: (taskForSheet.subtasks ?? []).map((subtask) => ({
-                  title: subtask.title,
-                  status: subtask.status,
-                  assigneeId: subtask.assigneeId,
-                  startDate: subtask.startDate ?? subtask.dueDate,
-                  dueDate: subtask.dueDate,
-                })),
-              }
+                  title: taskForSheet.title,
+                  status: taskForSheet.status,
+                  priority: taskForSheet.priority,
+                  assigneeId: taskForSheet.assigneeId,
+                  teamId: taskForSheet.teamId,
+                  pipelineId: taskForSheet.pipelineId,
+                  startDate: taskForSheet.startDate ?? taskForSheet.dueDate,
+                  dueDate: taskForSheet.dueDate,
+                  sectionId: taskForSheet.sectionId,
+                  subtasks: (taskForSheet.subtasks ?? []).map((subtask) => ({
+                    title: subtask.title,
+                    status: subtask.status,
+                    assigneeId: subtask.assigneeId,
+                    startDate: subtask.startDate ?? subtask.dueDate,
+                    dueDate: subtask.dueDate,
+                  })),
+                }
               : {
-                assigneeId: taskSheetWorkflow.ownerId,
-                teamId: taskSheetWorkflow.teamId,
-                pipelineId: taskSheetWorkflow.pipelineId,
-                startDate: taskSheetWorkflow.startedAt,
-                dueDate: taskSheetWorkflow.targetEndDate,
-                ...(taskSheetState.defaults ?? {}),
-              }
+                  assigneeId: taskSheetWorkflow.ownerId,
+                  teamId: taskSheetWorkflow.teamId,
+                  pipelineId: taskSheetWorkflow.pipelineId,
+                  startDate: taskSheetWorkflow.startedAt,
+                  dueDate: taskSheetWorkflow.targetEndDate,
+                  ...(taskSheetState.defaults ?? {}),
+                }
           }
           initiallyExpandSubtasks={taskSheetState.expandSubtasks}
           seedBlankSubtask={taskSheetState.seedBlankSubtask}

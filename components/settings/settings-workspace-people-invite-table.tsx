@@ -43,8 +43,8 @@ import {
   type VisibilityState,
 } from "@tanstack/react-table";
 import { Input } from "../shared/input";
-import { cn } from "@/lib/utils";
 import SettingsWorkspacePeopleAddMembers from "./modals/settings-workspace-people-add-member";
+import { StatusPill } from "./status-pill";
 import useWorkspace from "@/hooks/use-workspace";
 import useWorkspaceStore from "@/stores/workspace";
 import { useDebounce } from "@/hooks/use-debounce";
@@ -137,18 +137,7 @@ const getColumns = ({
       const invite = row.original;
       const status = getStatusLabel(invite);
 
-      return (
-        <Badge
-          className={cn(
-            "capitalize",
-            status === "accepted" && "bg-green-700/30 text-green-400",
-            status === "pending" && "bg-yellow-700/30 text-yellow-400",
-            status === "expired" && "bg-zinc-700/30 text-zinc-400",
-          )}
-        >
-          {status}
-        </Badge>
-      );
+      return <StatusPill status={status} />;
     },
   },
   {
@@ -157,8 +146,10 @@ const getColumns = ({
     cell: ({ row }) => {
       const invite = row.original;
       const status = getStatusLabel(invite);
-      const disableResend = !canManageInvites || status === "accepted" || isActionPending;
-      const disableRevoke = !canManageInvites || status !== "pending" || isActionPending;
+      const disableResend =
+        !canManageInvites || status === "accepted" || isActionPending;
+      const disableRevoke =
+        !canManageInvites || status !== "pending" || isActionPending;
 
       return (
         <DropdownMenu>
@@ -253,8 +244,11 @@ const SettingsWorkspacePropleInvitesTable = () => {
   );
 
   // Hooks
-  const { useWorkspaceInvites, useCreateWorkspaceInvite, useRevokeWorkspaceInvite } =
-    useWorkspace();
+  const {
+    useWorkspaceInvites,
+    useCreateWorkspaceInvite,
+    useRevokeWorkspaceInvite,
+  } = useWorkspace();
   const { data: workspaceInvitesData, isPending: isGettingWorkspaceInvites } =
     useWorkspaceInvites(workspaceId!, queryParams);
   const createWorkspaceInviteMutation = useCreateWorkspaceInvite();
@@ -263,7 +257,8 @@ const SettingsWorkspacePropleInvitesTable = () => {
   const workspaceInvites = workspaceInvitesData?.data?.invites ?? [];
 
   const isInviteActionPending =
-    createWorkspaceInviteMutation.isPending || revokeWorkspaceInviteMutation.isPending;
+    createWorkspaceInviteMutation.isPending ||
+    revokeWorkspaceInviteMutation.isPending;
 
   const invalidateInviteQueries = useCallback(async () => {
     if (!workspaceId) {
@@ -283,84 +278,90 @@ const SettingsWorkspacePropleInvitesTable = () => {
     ]);
   }, [queryClient, workspaceId]);
 
-  const handleRevokeInvite = useCallback((invite: WorkspaceInvite) => {
-    if (!workspaceId || !invite?.token || !canManageInvites) {
-      return;
-    }
-
-    const request = revokeWorkspaceInviteMutation.mutateAsync({
-      workspaceId,
-      token: invite.token,
-      reason: "Invite revoked from workspace people settings.",
-    });
-
-    toast.promise(request, {
-      loading: "Revoking workspace invite...",
-      success: async (response) => {
-        await invalidateInviteQueries();
-        return response?.data?.message || "Workspace invite revoked";
-      },
-      error: (error) =>
-        error instanceof Error
-          ? error.message
-          : "Could not revoke workspace invite",
-    });
-  }, [
-    canManageInvites,
-    invalidateInviteQueries,
-    revokeWorkspaceInviteMutation,
-    workspaceId,
-  ]);
-
-  const handleResendInvite = useCallback((invite: WorkspaceInvite) => {
-    if (!workspaceId || !invite?.email || !canManageInvites) {
-      return;
-    }
-
-    const request = (async () => {
-      const inviteStatus = getStatusLabel(invite);
-
-      if (inviteStatus === "pending" && invite.token) {
-        await revokeWorkspaceInviteMutation.mutateAsync({
-          workspaceId,
-          token: invite.token,
-          reason: "Resending workspace invite.",
-        });
+  const handleRevokeInvite = useCallback(
+    (invite: WorkspaceInvite) => {
+      if (!workspaceId || !invite?.token || !canManageInvites) {
+        return;
       }
 
-      const roleIds = (invite.roleIds || [])
-        .map((role) => String(role?._id || "").trim())
-        .filter(Boolean);
-
-      return createWorkspaceInviteMutation.mutateAsync({
+      const request = revokeWorkspaceInviteMutation.mutateAsync({
         workspaceId,
-        data: [
-          {
-            email: invite.email,
-            roleIds,
-          },
-        ],
+        token: invite.token,
+        reason: "Invite revoked from workspace people settings.",
       });
-    })();
 
-    toast.promise(request, {
-      loading: "Resending workspace invite...",
-      success: async (response) => {
-        await invalidateInviteQueries();
-        return response?.data?.message || "Workspace invite resent";
-      },
-      error: (error) =>
-        error instanceof Error
-          ? error.message
-          : "Could not resend workspace invite",
-    });
-  }, [
-    canManageInvites,
-    createWorkspaceInviteMutation,
-    invalidateInviteQueries,
-    revokeWorkspaceInviteMutation,
-    workspaceId,
-  ]);
+      toast.promise(request, {
+        loading: "Revoking workspace invite...",
+        success: async (response) => {
+          await invalidateInviteQueries();
+          return response?.data?.message || "Workspace invite revoked";
+        },
+        error: (error) =>
+          error instanceof Error
+            ? error.message
+            : "Could not revoke workspace invite",
+      });
+    },
+    [
+      canManageInvites,
+      invalidateInviteQueries,
+      revokeWorkspaceInviteMutation,
+      workspaceId,
+    ],
+  );
+
+  const handleResendInvite = useCallback(
+    (invite: WorkspaceInvite) => {
+      if (!workspaceId || !invite?.email || !canManageInvites) {
+        return;
+      }
+
+      const request = (async () => {
+        const inviteStatus = getStatusLabel(invite);
+
+        if (inviteStatus === "pending" && invite.token) {
+          await revokeWorkspaceInviteMutation.mutateAsync({
+            workspaceId,
+            token: invite.token,
+            reason: "Resending workspace invite.",
+          });
+        }
+
+        const roleIds = (invite.roleIds || [])
+          .map((role) => String(role?._id || "").trim())
+          .filter(Boolean);
+
+        return createWorkspaceInviteMutation.mutateAsync({
+          workspaceId,
+          data: [
+            {
+              email: invite.email,
+              roleIds,
+            },
+          ],
+        });
+      })();
+
+      toast.promise(request, {
+        loading: "Resending workspace invite...",
+        success: async (response) => {
+          await invalidateInviteQueries();
+          return response?.data?.message || "Workspace invite resent";
+        },
+        error: (error) =>
+          error instanceof Error
+            ? error.message
+            : "Could not resend workspace invite",
+      });
+    },
+    [
+      canManageInvites,
+      createWorkspaceInviteMutation,
+      invalidateInviteQueries,
+      revokeWorkspaceInviteMutation,
+      workspaceId,
+    ],
+  );
 
   const columns = useMemo(
     () =>
@@ -449,7 +450,13 @@ const SettingsWorkspacePropleInvitesTable = () => {
             ))}
           </TableHeader>
           <TableBody>
-            {table?.getRowModel().rows?.length ? (
+            {isGettingWorkspaceInvites ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={columns.length} className="h-24">
+                  <LoaderComponent className="py-6 md:py-6" />
+                </TableCell>
+              </TableRow>
+            ) : table?.getRowModel().rows?.length ? (
               table?.getRowModel().rows?.map((row) => (
                 <TableRow
                   key={row.id}
@@ -466,18 +473,17 @@ const SettingsWorkspacePropleInvitesTable = () => {
                 </TableRow>
               ))
             ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columns.length}
-                  className="h-24"
-                >
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={columns.length} className="h-24">
                   <Empty className="border-0 p-0 md:p-0">
                     <EmptyHeader>
                       <EmptyMedia variant="icon" className="size-8">
-                        <SearchX className="size-3.5 text-primary/85" />
+                        <SearchX className="text-primary/85 size-3.5" />
                       </EmptyMedia>
                       <EmptyDescription className="text-[12px]">
-                        No results.
+                        {search
+                          ? `No invites match "${search}".`
+                          : "No invites sent yet."}
                       </EmptyDescription>
                     </EmptyHeader>
                   </Empty>
@@ -486,11 +492,6 @@ const SettingsWorkspacePropleInvitesTable = () => {
             )}
           </TableBody>
         </Table>
-        {isGettingWorkspaceInvites && (
-          <div className="flex items-center justify-center">
-            <LoaderComponent />
-          </div>
-        )}
       </div>
       {(workspaceInvitesData?.data?.pagination?.total || 0) > PAGE_LIMIT && (
         <div className="flex items-center justify-end space-x-2 py-4">

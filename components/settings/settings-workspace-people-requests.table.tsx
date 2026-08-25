@@ -1,12 +1,7 @@
 import React, { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import dayjs from "dayjs";
-import {
-  CheckCheck,
-  Ellipsis,
-  SearchX,
-  XCircle,
-} from "lucide-react";
+import { CheckCheck, Ellipsis, SearchX, XCircle } from "lucide-react";
 import {
   flexRender,
   getCoreRowModel,
@@ -26,10 +21,15 @@ import { useDebounce } from "@/hooks/use-debounce";
 import useWorkspaceStore from "@/stores/workspace";
 import { PAGE_LIMIT } from "@/utils/constants";
 import type { WorkspaceJoinRequest } from "@/types/workspace";
-import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
-import { Badge } from "../ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Empty,
   EmptyDescription,
@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import LoaderComponent from "../shared/loader";
 import { Input } from "../shared/input";
+import { StatusPill } from "./status-pill";
 
 type JoinRequestRow = {
   _id: string;
@@ -59,8 +60,11 @@ const SettingsWorkspacePropleRequestsTable = () => {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [sorting, setSorting] = React.useState<SortingState>([]);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
-  const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+    [],
+  );
+  const [columnVisibility, setColumnVisibility] =
+    React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
 
   const queryClient = useQueryClient();
@@ -119,54 +123,86 @@ const SettingsWorkspacePropleRequestsTable = () => {
       email: request?.userId?.email || "Unknown user",
       requesterName:
         [
-          (request?.userId as { firstName?: string; firstname?: string } | undefined)
-            ?.firstName ??
-            request?.userId?.firstname,
-          (request?.userId as { lastName?: string; lastnale?: string } | undefined)
-            ?.lastName ??
-            request?.userId?.lastnale,
+          (
+            request?.userId as
+              { firstName?: string; firstname?: string } | undefined
+          )?.firstName ?? request?.userId?.firstname,
+          (
+            request?.userId as
+              { lastName?: string; lastnale?: string } | undefined
+          )?.lastName ?? request?.userId?.lastnale,
         ]
           .filter(Boolean)
           .join(" ")
-          .trim() || request?.userId?.email || "Unknown user",
+          .trim() ||
+        request?.userId?.email ||
+        "Unknown user",
       createdAt: request?.createdAt,
       status: request?.status,
     }));
   }, [workspaceJoinRequestsData]);
 
-  const handleApprove = React.useCallback((requestId: string) => {
-    if (!workspaceId || isApproving || isDeclining || !canModerateJoinRequests) {
-      return;
-    }
+  const handleApprove = React.useCallback(
+    (requestId: string) => {
+      if (
+        !workspaceId ||
+        isApproving ||
+        isDeclining ||
+        !canModerateJoinRequests
+      ) {
+        return;
+      }
 
-    const request = approveJoinRequest({
+      const request = approveJoinRequest({
+        workspaceId,
+        requestId,
+      });
+
+      toast.promise(request, {
+        loading: "Accepting join request...",
+        success: (data) => data?.data?.message || "Join request accepted",
+        error: "Could not accept join request",
+      });
+    },
+    [
+      approveJoinRequest,
+      canModerateJoinRequests,
+      isApproving,
+      isDeclining,
       workspaceId,
-      requestId,
-    });
+    ],
+  );
 
-    toast.promise(request, {
-      loading: "Accepting join request...",
-      success: (data) => data?.data?.message || "Join request accepted",
-      error: "Could not accept join request",
-    });
-  }, [approveJoinRequest, canModerateJoinRequests, isApproving, isDeclining, workspaceId]);
+  const handleDecline = React.useCallback(
+    (requestId: string) => {
+      if (
+        !workspaceId ||
+        isApproving ||
+        isDeclining ||
+        !canModerateJoinRequests
+      ) {
+        return;
+      }
 
-  const handleDecline = React.useCallback((requestId: string) => {
-    if (!workspaceId || isApproving || isDeclining || !canModerateJoinRequests) {
-      return;
-    }
+      const request = declineJoinRequest({
+        workspaceId,
+        requestId,
+      });
 
-    const request = declineJoinRequest({
+      toast.promise(request, {
+        loading: "Declining join request...",
+        success: (data) => data?.data?.message || "Join request declined",
+        error: "Could not decline join request",
+      });
+    },
+    [
+      canModerateJoinRequests,
+      declineJoinRequest,
+      isApproving,
+      isDeclining,
       workspaceId,
-      requestId,
-    });
-
-    toast.promise(request, {
-      loading: "Declining join request...",
-      success: (data) => data?.data?.message || "Join request declined",
-      error: "Could not decline join request",
-    });
-  }, [canModerateJoinRequests, declineJoinRequest, isApproving, isDeclining, workspaceId]);
+    ],
+  );
 
   const columns = useMemo<ColumnDef<JoinRequestRow>[]>(
     () => [
@@ -177,15 +213,21 @@ const SettingsWorkspacePropleRequestsTable = () => {
           const original = row.original;
           return (
             <div className="flex flex-col gap-1 py-0.5">
-              <div className="font-medium leading-none">{original.requesterName}</div>
-              <div className="text-muted-foreground text-xs">{original.email}</div>
+              <div className="font-medium leading-none">
+                {original.requesterName}
+              </div>
+              <div className="text-muted-foreground text-xs">
+                {original.email}
+              </div>
             </div>
           );
         },
       },
       {
         accessorKey: "createdAt",
-        header: () => <div className="flex items-center justify-start">Date created</div>,
+        header: () => (
+          <div className="flex items-center justify-start">Date created</div>
+        ),
         cell: ({ row }) => (
           <div className="text-left text-sm">
             {dayjs(row.original.createdAt).format("Do MMMM, YYYY")}
@@ -197,18 +239,7 @@ const SettingsWorkspacePropleRequestsTable = () => {
         header: () => <div className="text-left">Status</div>,
         cell: ({ row }) => {
           const status = row.original.status;
-          return (
-            <Badge
-              className={cn(
-                "capitalize",
-                status === "approved" && "bg-green-700/30 text-green-400",
-                status === "rejected" && "bg-red-700/30 text-red-400",
-                status === "pending" && "bg-yellow-700/30 text-yellow-400",
-              )}
-            >
-              {status}
-            </Badge>
-          );
+          return <StatusPill status={status} />;
         },
       },
       {
@@ -222,7 +253,9 @@ const SettingsWorkspacePropleRequestsTable = () => {
                 <Button
                   variant="ghost"
                   size="sm"
-                  disabled={isApproving || isDeclining || !canModerateJoinRequests}
+                  disabled={
+                    isApproving || isDeclining || !canModerateJoinRequests
+                  }
                   title={
                     !canModerateJoinRequests
                       ? "Only workspace owners/admins can moderate join requests."
@@ -259,7 +292,13 @@ const SettingsWorkspacePropleRequestsTable = () => {
         },
       },
     ],
-    [canModerateJoinRequests, handleApprove, handleDecline, isApproving, isDeclining],
+    [
+      canModerateJoinRequests,
+      handleApprove,
+      handleDecline,
+      isApproving,
+      isDeclining,
+    ],
   );
 
   const table = useReactTable({
@@ -282,7 +321,10 @@ const SettingsWorkspacePropleRequestsTable = () => {
     },
   });
 
-  const handlPageUpdate = (isAllowed: boolean, mode: "increase" | "decrease") => {
+  const handlPageUpdate = (
+    isAllowed: boolean,
+    mode: "increase" | "decrease",
+  ) => {
     if (!isAllowed) {
       return;
     }
@@ -293,9 +335,14 @@ const SettingsWorkspacePropleRequestsTable = () => {
       setPage((prev) => prev + 1);
     }
   };
-  const totalPages = workspaceJoinRequestsData?.data?.pagination?.totalPages ?? 0;
-  const hasPrevPage = Boolean(workspaceJoinRequestsData?.data?.pagination?.hasPrevPage);
-  const hasNextPage = Boolean(workspaceJoinRequestsData?.data?.pagination?.hasNextPage);
+  const totalPages =
+    workspaceJoinRequestsData?.data?.pagination?.totalPages ?? 0;
+  const hasPrevPage = Boolean(
+    workspaceJoinRequestsData?.data?.pagination?.hasPrevPage,
+  );
+  const hasNextPage = Boolean(
+    workspaceJoinRequestsData?.data?.pagination?.hasNextPage,
+  );
 
   return (
     <div className="w-full">
@@ -320,33 +367,53 @@ const SettingsWorkspacePropleRequestsTable = () => {
                   <TableHead key={header.id}>
                     {header.isPlaceholder
                       ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext(),
+                        )}
                   </TableHead>
                 ))}
               </TableRow>
             ))}
           </TableHeader>
           <TableBody>
-            {table.getRowModel().rows?.length ? (
+            {/* Loading wins over the empty state: "No pending join requests"
+                while a request is still in flight tells the reader something
+                untrue. */}
+            {isGettingWorkspaceJoinRequests ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={columns.length} className="h-24">
+                  <LoaderComponent className="py-6 md:py-6" />
+                </TableCell>
+              </TableRow>
+            ) : table.getRowModel().rows?.length > 0 ? (
               table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id} data-state={row.getIsSelected() && "selected"}>
+                <TableRow
+                  key={row.id}
+                  data-state={row.getIsSelected() && "selected"}
+                >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
                     </TableCell>
                   ))}
                 </TableRow>
               ))
             ) : (
-              <TableRow>
+              <TableRow className="hover:bg-transparent">
                 <TableCell colSpan={columns.length} className="h-24">
                   <Empty className="border-0 p-0 md:p-0">
                     <EmptyHeader>
                       <EmptyMedia variant="icon" className="size-8">
-                        <SearchX className="size-3.5 text-primary/85" />
+                        <SearchX className="text-primary/85 size-3.5" />
                       </EmptyMedia>
                       <EmptyDescription className="text-[12px]">
-                        No pending join requests.
+                        {search
+                          ? `No join requests match "${search}".`
+                          : "No pending join requests."}
                       </EmptyDescription>
                     </EmptyHeader>
                   </Empty>
@@ -355,11 +422,6 @@ const SettingsWorkspacePropleRequestsTable = () => {
             )}
           </TableBody>
         </Table>
-        {isGettingWorkspaceJoinRequests && (
-          <div className="flex items-center justify-center">
-            <LoaderComponent />
-          </div>
-        )}
       </div>
       {totalPages > 1 && (
         <div className="flex items-center justify-end space-x-2 py-4">
